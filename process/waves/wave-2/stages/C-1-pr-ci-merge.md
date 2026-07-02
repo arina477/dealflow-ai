@@ -140,3 +140,139 @@ head_signoff:
     artifacts.
   next_action: PROCEED_TO_C-2
 ```
+
+---
+
+## Fix-cycle note — boot-fix re-run (2026-07-02)
+
+Context: the C-2 deploy attempt for wave-2 hit a NestJS DI boot crash
+(`UnknownDependenciesException`) at api bootstrap — DI-injected classes
+(`AuthRepository`, `Reflector`) were `import type`-only, so their runtime tokens
+were erased and the DI container could not resolve them. Branch
+`wave-2-auth-boot-fix` (commit `2719c2a`, base `main`) converts those to value
+imports and adds a DI-boot regression test.
+
+- **PR #3** — https://github.com/arina477/dealflow-ai/pull/3
+  (base `main` ← `wave-2-auth-boot-fix`, head `2719c2a61f152de8dac2788dc24f3bb0468e7d65`)
+- **Provenance (no Ghost Green):** CI run `28609043252` — `headSha == 2719c2a`
+  == PR HEAD, event `pull_request`, live `cache miss, executing` (no stale
+  artifact restore).
+- **Required checks: 4/5 green — `test` FAILED. NOT merged.**
+
+| check | result |
+|---|---|
+| lint | PASS |
+| typecheck | PASS |
+| build | PASS |
+| audit | PASS (nodemailer override from PR #2 on main; green as expected) |
+| **test** | **FAIL** |
+
+**Classified failure (Iron Law — no blind-fix):** `@dealflow/api#test`, 2 suites
+failing at module-eval/import time — `src/modules/auth/auth.di-boot.spec.ts`
+(the new regression test) and `src/modules/auth/auth.service.spec.ts`. Error
+`Environment validation failed: DATABASE_URL: Required` from
+`packages/shared/src/env.ts::parseEnv`, reached via `src/db/db.provider.ts` →
+`src/db/index.ts`. The postgres service container exports
+`DATABASE_URL`/`TEST_DATABASE_URL` (env group in the job log), and the e2e suite
+reports `TEST_DATABASE_URL is not set` in the same run — env is not reaching the
+vitest process for these suites; the DI-boot spec eagerly evaluates the db
+provider's env parse at import time.
+
+**Disposition:** not an audit/devops-config defect and not an authorized in-block
+override — this is an `apps/api` build/test-code defect (DI-boot regression test
++ db-provider eager env eval + test-runner env wiring). RETURNED to a build-stage
+specialist for root-cause remediation. PR #3 left open, unmerged. Re-run C-1 on
+the next fix commit.
+
+```yaml
+fix_cycle_verdict: FAIL
+verdict_source: gh
+pr_number: 3
+pr_url: https://github.com/arina477/dealflow-ai/pull/3
+head_sha: 2719c2a61f152de8dac2788dc24f3bb0468e7d65
+ci_run_id: 28609043252
+checks_green: false
+required_checks_status: {lint: pass, typecheck: pass, build: pass, audit: pass, test: FAIL}
+merge_commit_sha: null
+ghost_green_check: "PASS — run headSha == PR HEAD (2719c2a), event pull_request, live cache miss"
+iron_law: "test FAIL classified as apps/api build/test-code defect (eager env parse at DI-boot module eval); NOT blind-fixed, NOT an audit override; RETURNED to build stage"
+head_signoff:
+  verdict: REJECTED
+  stage: C-1 (boot-fix fix-cycle)
+  failed_checks: [test]
+  rationale: >
+    PR #3 opened and CI watched to completion on the exact PR HEAD (2719c2a,
+    provenance verified — no Ghost Green). The overall run conclusion is FAILURE:
+    the `test` check failed even though 4/5 pass. `gh run watch --exit-status`
+    returned 0 only because the last-streamed job (typecheck) passed — the run
+    conclusion, not the watch exit code, is the merge signal. The failure is two
+    api suites (including this PR's own DI-boot regression test) throwing
+    `DATABASE_URL: Required` at module-eval time because env is not reaching the
+    vitest process. This is an apps/api build/test-code defect, not an audit
+    override or CI-config issue, so per the Iron Law it is classified and returned
+    to a build-stage specialist rather than blind-fixed here. No merge without a
+    real green.
+  next_action: REWORK_build_then_rerun_C-1
+```
+
+### Cycle 3 — run 28609438627 (SHA aa6fc50 = PR #3 HEAD, event `pull_request`)
+
+Re-watch after the prior `test` FAIL. New head `aa6fc50` adds the env-independent
+unit-tests fix on top of the boot-fix. This is the **boot-fix + test-env fix cycle**.
+
+| Check | Result |
+|---|---|
+| lint | PASS (job 84837843489, 23s) |
+| typecheck | PASS (job 84837843431, 30s) |
+| test | PASS (job 84837843422, 54s) — was FAIL in cycle 2, now green |
+| audit | PASS (job 84837843403, 31s) |
+| build | PASS (job 84837843402, 48s) |
+
+**Provenance (Ghost Green / stale-cache defense):**
+- Run `28609438627` `headSha` == PR #3 `headRefOid` == `aa6fc50bdf2f281b1b7df1db36880da4aa0365f1` (exact match).
+- event = `pull_request`, workflow = `CI`, created `2026-07-02T17:32:22Z`.
+- Head SHA re-confirmed unchanged immediately before merge (no push-during-watch drift).
+
+**Overall-conclusion verification (the trap that bit cycle 2):**
+- `gh run watch --exit-status` returned 0 — NOT trusted alone.
+- `gh run view --json conclusion` → `status=completed | conclusion=success`.
+- Per-job conclusions: build/audit/test/typecheck/lint all `success`.
+- `gh pr checks 3` → all 5 required checks `pass`. Merge signal confirmed on three independent reads.
+
+**Merge:** squash-merged with `--delete-branch`.
+- **PR #3 MERGED** — merged at `2026-07-02T17:33:45Z`.
+- **Merge SHA: `4e0980740108d3cf7f5feecd1a9111690296c653` (4e09807)**.
+- Remote branch `wave-2-auth-boot-fix` deleted (HTTP 404 confirmed).
+- Local `main` fast-forwarded and synced to `4e09807` == origin/main.
+
+```yaml
+fix_cycle_verdict: PASS
+verdict_source: gh
+pr_number: 3
+pr_url: https://github.com/arina477/dealflow-ai/pull/3
+head_sha: aa6fc50bdf2f281b1b7df1db36880da4aa0365f1
+ci_run_id: 28609438627
+checks_green: true
+required_checks_status: {lint: pass, typecheck: pass, test: pass, audit: pass, build: pass}
+merge_commit_sha: 4e0980740108d3cf7f5feecd1a9111690296c653
+branch_deleted: true
+local_main_synced: true
+ghost_green_check: "PASS — run headSha == PR HEAD (aa6fc50), event pull_request, re-confirmed pre-merge; no stale cache, no drift"
+overall_conclusion_check: "PASS — gh run view conclusion=success AND all 5 gh pr checks=pass; watch --exit-status=0 NOT trusted alone (cycle-2 trap avoided)"
+head_signoff:
+  verdict: APPROVED
+  stage: C-1 (boot-fix + test-env fix cycle)
+  failed_checks: []
+  rationale: >
+    PR #3 head aa6fc50 (boot-fix + env-independent unit-tests fix) re-ran CI on the
+    exact PR HEAD — provenance verified against server headRefOid, no Ghost Green,
+    no stale cache. All 5 required checks are green, confirmed on three independent
+    signals: overall run conclusion=success, per-job conclusions all success, and
+    gh pr checks all pass. The cycle-2 test FAIL (env not reaching vitest) is
+    resolved. gh run watch --exit-status was NOT trusted as the sole signal.
+    Head SHA re-confirmed stable immediately before merge. Squash-merged to main
+    (merge SHA 4e09807), remote branch deleted, local main synced. Boot-fix +
+    test-env fix cycle green.
+  next_action: PROCEED_TO_C-2
+```
+

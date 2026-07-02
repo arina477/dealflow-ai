@@ -168,7 +168,38 @@ SuperTokens has no native "invite" concept — invite-only is enforced in **our*
 _(to be filled at L-1 after B-block — invite→signup transaction binding, createNewSession role-claim override, NestJS middleware wiring quirks)_
 
 ### Env var configuration on our platforms
-_(to be filled at C-2 when the Railway Core service + its own Postgres are provisioned — the real `.railway.internal` hostname resolves per devops R-5)_
+
+**Railway (provisioned at wave-2 C-2):**
+- **Core service `supertokens-core`** (id `80790c7f-cb81-4b7f-b248-c4da0789ffb1`),
+  image `registry.supertokens.io/supertokens/supertokens-postgresql:11.4.5`,
+  **private-only** (no public domain), private hostname `supertokens-core.railway.internal:3567`.
+  - `POSTGRESQL_CONNECTION_URI` → the Core's own Postgres (below).
+  - `API_KEYS` → generated (`openssl rand -base64 32`); matches the api's `SUPERTOKENS_API_KEY`.
+  - `PORT` = `3567`.
+- **Core Postgres `supertokens-db`** (id `acf6eb46-f758-4254-b10c-32d1eacf3868`),
+  image `postgres:16-alpine` + persistent volume, private hostname
+  `supertokens-db.railway.internal:5432`, database `supertokens`. **Separate
+  instance from the app `postgres`** — never aliases `DATABASE_URL` (#11). The
+  api's boot no-alias assertion was verified live: app DB is
+  `postgres.railway.internal/railway`, Core DB is `supertokens-db.railway.internal/supertokens`.
+- **api service `dealflow-api`** env (values in Railway only, never committed):
+  - `SUPERTOKENS_CONNECTION_URI` = `http://supertokens-core.railway.internal:3567`
+  - `SUPERTOKENS_API_KEY` = the generated Core key
+  - `SUPERTOKENS_DATABASE_URL` = the Core Postgres private conn string (distinct from `DATABASE_URL`)
+  - `INTERNAL_API_BASE_URL` = api public URL (`appInfo.apiDomain`)
+  - `WEB_ORIGIN` = web public URL (CORS + cookie domain / `appInfo.websiteDomain`)
+
+**CDI/version pin (verified):** installed `supertokens-node@24.0.2` declares
+`cdiSupported: ["5.4"]` (`node_modules/supertokens-node/lib/build/version.js`).
+Core image line 11.x supports CDI 5.4 → `11.4.5` (newest stable non-canary) is
+compatible; no boot-time CDI handshake mismatch.
+
+_Note: the wave-2 auth backend did not go fully live at first C-2 — the api
+crash-looped at NestJS boot on a DI defect (`import type { AuthRepository }`
+erasing the DI paramtype under `emitDecoratorMetadata`; see Known Gotchas → NestJS
+DI value-import requirement). Infra + migration + web are live; api goes live after
+the value-import fix ships. The Core/DB provisioning above is durable across the
+re-run._
 
 ### Bugs we hit and how we solved them
 _(to be filled at L-1)_

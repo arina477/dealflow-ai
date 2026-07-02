@@ -31,7 +31,7 @@ BUILD:
 
 CI/CD:
 - [x] C-1 PR, CI & merge — PR #2 MERGED (squash), merge commit bbae29b; 5/5 required checks green on 98eade8; 1 fix-up cycle (nodemailer >=9.0.1 override, GHSA-p6gq-j5cr-w38f HIGH)
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [~] C-2 Deploy & verify — FAIL / ESCALATE (re-run #2, in-progress). DI fix (4e09807, PR #3) CONFIRMED working (AuthModule DI now resolves), but redeploy (deployment 9772b283 on 4e09807) crash-looped on a NEW NestJS lifecycle-ordering bug: main.ts calls supertokens.getAllCORSHeaders() before onModuleInit fires SuperTokens.init() (NestFactory.create doesn't run lifecycle hooks). "Initialisation not done" fatal. Auth smoke NOT RUN (api never booted). No outage — healthcheck kept old deploy 077009a2/4cad0179 live. Routed to B-block (tag: debugging, domain: backend, file: apps/api/src/main.ts) → re-run C-1 on fix → re-run C-2 (#3: deploy api + deploy web). SECONDARY: web live on stale 4cad0179; /login /dashboard /accept-invite /reset-password all 404 (predates B-3 auth screens) — must redeploy web too. Canary skipped (0 DAU). Rollback target cached: 077009a2.
 
 TEST:
 - [ ] T-1 Static
