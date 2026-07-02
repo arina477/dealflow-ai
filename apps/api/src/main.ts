@@ -26,8 +26,18 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  // Explicitly initialise all modules (runs onModuleInit hooks, including
+  // AuthModule.onModuleInit which calls SuperTokens.init). Must happen BEFORE
+  // any call to supertokens.getAllCORSHeaders() — that call throws
+  // "Initialisation not done" if the SDK has not been initialised yet.
+  // app.listen() also triggers init internally, but NestJS guards against
+  // double-init, so calling init() here first is safe.
+  await app.init();
+
   // CORS for the Next.js origin: must allow credentials + the SuperTokens
   // headers, or cookie sessions silently fail from the browser (gotcha #3).
+  // getAllCORSHeaders() is safe to call here because app.init() above has
+  // already run AuthModule.onModuleInit → SuperTokens.init().
   app.enableCors({
     origin: stEnv.WEB_ORIGIN,
     allowedHeaders: ['content-type', ...supertokens.getAllCORSHeaders()],
