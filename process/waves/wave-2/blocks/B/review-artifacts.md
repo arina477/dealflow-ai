@@ -3,7 +3,7 @@
 **Block:** B (Build)
 **Wave topic:** Auth backbone + user/role data model (SuperTokens + invite-only) — M1 auth vertical slice
 **Block exit gate:** B-6
-**Status:** in-progress
+**Status:** gate-passed
 
 ## Stage deliverables
 
@@ -15,7 +15,7 @@
 | B-3 | process/waves/wave-2/stages/B-3-frontend.md | done | 3 auth pages + dashboard placeholder; 41 RTL tests (cb6a6d3) |
 | B-4 | process/waves/wave-2/stages/B-4-wiring.md | done | repo typecheck+build PASS; no drift |
 | B-5 | process/waves/wave-2/stages/B-5-verify.md | done | lint 0-err, 61 tests pass, build pass; dev-smoke→C-2 |
-| B-6 | process/waves/wave-2/stages/B-6-review.md | pending | head-builder gate + /review |
+| B-6 | process/waves/wave-2/stages/B-6-review.md | gate-passed | head-builder APPROVED; /review 1 CRIT+4 info fixed (5726917); commit-discipline PASS |
 
 ## Block-specific context
 
@@ -41,3 +41,14 @@
 ## Gate verdict log
 
 <appended by fresh head-builder spawn at B-6 Action 1>
+
+```yaml
+build_block_status:    complete
+branch:                wave-2-auth-backbone
+stages_run:            [B-0, B-1, B-2, B-3, B-4, B-5, B-6]
+stages_skipped:        []
+review_verdict:        APPROVE
+deviations_logged:     [supertokens deviations accepted; post-commit-invite-burn accepted-debt]
+last_commit_sha:       5726917
+ready_for_ci:          true
+```

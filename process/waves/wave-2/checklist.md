@@ -27,10 +27,10 @@ BUILD:
 - [x] B-3 Frontend — login/accept-invite/reset + dashboard placeholder; SSO+SOC2 removed; 41 RTL tests (cb6a6d3)
 - [x] B-4 Wiring — repo typecheck + build PASS; routes+env wired; no drift
 - [x] B-5 Verify — lint 0 errors, 61 tests pass, build pass; auth dev-smoke deferred to C-2 (needs Core)
-- [ ] B-6 Review
+- [x] B-6 Review — head-builder APPROVED; /review 1 CRIT+4 info fixed (5726917); commit-discipline PASS
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
+- [x] C-1 PR, CI & merge — PR #2 MERGED (squash), merge commit bbae29b; 5/5 required checks green on 98eade8; 1 fix-up cycle (nodemailer >=9.0.1 override, GHSA-p6gq-j5cr-w38f HIGH)
 - [ ] C-2 Deploy & verify (canary armed when real users > 1000)
 
 TEST:

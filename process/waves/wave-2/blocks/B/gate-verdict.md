@@ -17,3 +17,7 @@ All three spec blocks are implemented against the frozen contract and the six lo
 ## Footer
 - verdict_complete: true
 - rework_attempt_cap_remaining: 2
+
+---
+## Phase 2 — /review + commit-discipline
+/review found 1 CRITICAL (dashboard cookie forwarding — redirect loop) + 4 informational. CRITICAL + 2 security-relevant infos FIXED (B-2/B-3 re-entry, commit 5726917) with +13 regression tests; 1 comment fix; 1 accepted-debt (post-commit invite burn, recoverable). Re-verify: typecheck clean, 78 tests pass, build clean, 0 biome errors. Commit-discipline PASS (every task_id covered; multi-ref commits are legitimate shared-contract/cross-cutting). **B-6 final verdict: APPROVE.**
