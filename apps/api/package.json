@@ -22,6 +22,7 @@
     "pg": "8.22.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
+    "supertokens-node": "24.0.2",
     "zod": "3.25.76"
   },
   "devDependencies": {
