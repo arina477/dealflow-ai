@@ -6,6 +6,10 @@ overrides:
   # GHSA-72gw-mp4g-v24j (HIGH) + GHSA (moderate, aborted-upload cleanup): both
   # patched in multer >=2.2.0. Pulled transitively via @nestjs/platform-express.
   multer: '>=2.2.0'
+  # GHSA-p6gq-j5cr-w38f (HIGH): nodemailer raw-option bypasses
+  # disableFileAccess/disableUrlAccess (arbitrary file read + SSRF); patched in
+  # nodemailer >=9.0.1. Pulled transitively via supertokens-node.
+  nodemailer: '>=9.0.1'
 
 allowBuilds:
   esbuild: true
