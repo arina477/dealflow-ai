@@ -34,7 +34,7 @@ n_stage_verdict: COMPLETE
 verdict_evidence:
   - "next wave: 2"
   - "next wave checklist: process/waves/wave-2/checklist.md"
-  - "archive commit: <recorded post-move below>"
+  - "archive commit: de26640"
   - "waves row c086d358 closed: status=ok (wave_number 1 returned)"
 prev_wave: 1
 next_wave: 2
