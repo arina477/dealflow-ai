@@ -145,3 +145,20 @@ _(empty)_
 17. Add `pnpm audit --audit-level=high` as a CI gate (compliance posture).
 18. Playwright Chrome binary must be installed host-side before the first UI wave's T-5 (env gap; flagged in test.md + devops.md + competitive-benchmarks/INDEX.md).
 **Rationale**: All are UNAMBIGUOUS winners or technical defaults; the four compliance-core invariants (append-only audit, hash-chain integrity, non-bypassable pre-send gate, sender≠approver separation of duties) were consistent across branches — conflicts were mechanism/naming detail only.
+
+---
+
+## [2026-07-02] M1 — Foundation: promoted todo → in_progress (N-1 wave-1 close-out)
+
+**Decision**: M1 (Foundation: auth, roles, app shell, data model, CI) promoted `todo → in_progress`.
+
+**Trigger**: N-1 survey found zero `in_progress` milestones — M1 was never promoted during greenfield bootstrap (wave-1 seed was hand-seeded under a `todo` milestone). Highest-tier `todo` (T1, platform-foundation, required-by all milestones) → promoted per slot-promotion rule (Action 8a).
+
+**Consequence**: M1 is now the active milestone. Wave-1 shipped only scaffold+CI of M1's scope; auth/RBAC/AppShell/data-model/auth-screens remain → decomposition fires for the next foundation bundle (see next entry). M1 NOT closed (scope not shipped).
+
+---
+
+## [2026-07-02] M1 — Foundation: bundle authored — 3 tasks (auth vertical slice)
+- caller: N-1-next-bundle
+- decomposed by: milestone-decomposer sub-agent
+- Slice: end-to-end auth vertical (DB + API + UI). Seed "Integrate SuperTokens auth + user/role data model" (SuperTokens on its own Postgres per #11, users/roles/invites additive Drizzle schema, invite-only, role session claim) + siblings "Build invite-only auth API: signup, session, reset" (NestJS auth endpoints + role-aware guard primitive) and "Wire login, accept-invite, reset-password screens end-to-end" (three Next.js 15 auth pages, Playwright E2E to authenticated placeholder). AppShell (DESIGN-SYSTEM.md section 10), role-aware dashboard shell, and full per-route RBAC enforcement deliberately deferred to a FOLLOW-UP M1 bundle to keep this slice within the size rubric.

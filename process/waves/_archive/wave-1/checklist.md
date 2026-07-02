@@ -46,6 +46,6 @@ LEARN:
 - [x] L-2 Distill
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M1 promoted todo→in_progress (greenfield never-promoted artifact resolved); decomposition fired → auth vertical slice bundle authored (seed e15f71dd + siblings e1c0e81e, af6cbc59); M1 NOT closed (scope not shipped)
+- [x] N-2 Seed — auth vertical slice bundle: seed e15f71dd (SuperTokens+data model) + siblings e1c0e81e (auth API) + af6cbc59 (auth screens). Validation PASS. head-next APPROVED. claimed_task_ids=[e15f71dd, e1c0e81e, af6cbc59]
+- [x] N-3 Handoff — wave 2 opened for P-0; wave-1 archived; waves row c086d358 closed status=ok; loop_state=ready; head-next APPROVED

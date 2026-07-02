@@ -20,6 +20,9 @@
     "lineWidth": 100
   },
   "javascript": {
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    },
     "formatter": {
       "quoteStyle": "single",
       "trailingCommas": "es5"
@@ -32,13 +35,13 @@
       "**/*.js",
       "**/*.jsx",
       "!node_modules",
-      "!**/node_modules/**",
+      "!**/node_modules",
       "!dist",
-      "!**/dist/**",
+      "!**/dist",
       "!.next",
-      "!**/.next/**",
+      "!**/.next",
       "!coverage",
-      "!**/coverage/**",
+      "!**/coverage",
       "!**/*.d.ts",
       "!pnpm-lock.yaml"
     ]
