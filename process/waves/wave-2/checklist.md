@@ -26,7 +26,7 @@ BUILD:
 - [x] B-2 Backend — auth module (SuperTokens+invite-only+role-claim+guard primitive); 6 invariants enforced; 20 tests pass (f24a56d)
 - [x] B-3 Frontend — login/accept-invite/reset + dashboard placeholder; SSO+SOC2 removed; 41 RTL tests (cb6a6d3)
 - [x] B-4 Wiring — repo typecheck + build PASS; routes+env wired; no drift
-- [ ] B-5 Verify
+- [x] B-5 Verify — lint 0 errors, 61 tests pass, build pass; auth dev-smoke deferred to C-2 (needs Core)
 - [ ] B-6 Review
 
 CI/CD:

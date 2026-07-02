@@ -14,7 +14,7 @@
 | B-2 | process/waves/wave-2/stages/B-2-backend.md | done | auth module; 6 security invariants; 20 tests pass (f24a56d) |
 | B-3 | process/waves/wave-2/stages/B-3-frontend.md | done | 3 auth pages + dashboard placeholder; 41 RTL tests (cb6a6d3) |
 | B-4 | process/waves/wave-2/stages/B-4-wiring.md | done | repo typecheck+build PASS; no drift |
-| B-5 | process/waves/wave-2/stages/B-5-verify.md | pending | typecheck + lint + unit + dev smoke |
+| B-5 | process/waves/wave-2/stages/B-5-verify.md | done | lint 0-err, 61 tests pass, build pass; dev-smoke→C-2 |
 | B-6 | process/waves/wave-2/stages/B-6-review.md | pending | head-builder gate + /review |
 
 ## Block-specific context
@@ -26,7 +26,7 @@
 - **New env vars added this wave:** SUPERTOKENS_CONNECTION_URI, SUPERTOKENS_API_KEY, SUPERTOKENS_DATABASE_URL, SESSION_SECRET (already placeholdered in .env.example from onboarding)
 - **Schema changes this wave:** additive users/roles/invites migration + down-migration (postgres-pro); app_meta untouched
 - **B-1 fast-path approved:** false (B-1 authors real auth contracts)
-- **Files implemented (cumulative):** <updated at B-2, B-3, B-4>
+- **Files implemented (cumulative):** packages/shared/src/auth.ts; apps/api/src/modules/auth/* + db/schema/* + migration 0001; apps/web/app/{login,accept-invite,reset-password,dashboard}/page.tsx + (auth)/_components/*; tests across api+web
 - **Deviations from plan logged this block:** <list, or "none">
 
 ## B-block execution notes carried from P-4 Phase 2 (jenny)

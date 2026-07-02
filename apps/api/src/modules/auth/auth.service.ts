@@ -43,6 +43,23 @@ const TENANT_ID = 'public';
 /** Invite lifetime: 7 days. */
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Postgres SQLSTATE class 23 = integrity_constraint_violation (23505 unique,
+ * 23503 foreign_key, 23502 not_null, 23514 check). The node-postgres driver
+ * surfaces these as an Error carrying a string `code`. A signup that trips one
+ * of these is a client-observable conflict (e.g. the email / supertokens_user_id
+ * uniqueness guard, or a lost invite race that slipped past the FOR UPDATE
+ * predicate) — a "cannot complete signup" outcome, not a server fault, so it
+ * must NOT surface as a raw 500 that could leak DB internals.
+ */
+function isExpectedSignupDbError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const code = (err as { code?: unknown }).code;
+  return typeof code === 'string' && code.startsWith('23');
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -123,8 +140,20 @@ export class AuthService {
         })
       );
     } catch (err) {
-      // App-DB failure after Core user created → compensate, then rethrow.
+      // App-DB failure after the Core user was created → compensate first (so no
+      // orphaned Core user survives), THEN decide how to surface the error.
       await this.compensateCoreUser(supertokensUserId);
+
+      // Expected DB races/conflicts (e.g. users_email_unique /
+      // users_supertokens_user_id_unique violation, or another constraint hit)
+      // are a client-observable "cannot complete signup" outcome, NOT a server
+      // fault. Map them to the SAME generic 4xx already used elsewhere on this
+      // path (no enumeration: identical message whatever the underlying cause).
+      // Only genuinely unexpected errors are rethrown — a global filter renders
+      // those generically without leaking DB internals.
+      if (isExpectedSignupDbError(err)) {
+        throw new BadRequestException('Unable to complete signup');
+      }
       throw err;
     }
 
@@ -195,16 +224,29 @@ export class AuthService {
       return;
     }
 
-    const tokenResult = await EmailPassword.createResetPasswordToken(
-      TENANT_ID,
-      user.id,
-      input.email.toLowerCase()
-    );
+    // NO USER-ENUMERATION (status-code oracle guard): the existing-account branch
+    // does real work (createResetPasswordToken, and listUsersByAccountInfo above)
+    // that can throw. If any of it propagated, only the account-EXISTS path could
+    // 500 — a status-code oracle that reveals which emails have accounts. Wrap and
+    // swallow so BOTH paths are observably identical (always resolve → 202). Log
+    // an opaque failure id only; NEVER the email or the token.
+    try {
+      const tokenResult = await EmailPassword.createResetPasswordToken(
+        TENANT_ID,
+        user.id,
+        input.email.toLowerCase()
+      );
 
-    if (tokenResult.status === 'OK') {
-      // Delivery is stubbed this slice. Log only that a token was issued for an
-      // opaque user id — NEVER the token value or the email address.
-      this.logger.log(`Password-reset token issued for user ${user.id}`);
+      if (tokenResult.status === 'OK') {
+        // Delivery is stubbed this slice. Log only that a token was issued for an
+        // opaque user id — NEVER the token value or the email address.
+        this.logger.log(`Password-reset token issued for user ${user.id}`);
+      }
+    } catch {
+      // Swallow: surfacing this error would make the existing-account path the
+      // only one that can 500, defeating the no-enumeration invariant. Log an
+      // opaque user id only (never the email) for operability.
+      this.logger.error(`Password-reset token issuance failed for user ${user.id}`);
     }
   }
 

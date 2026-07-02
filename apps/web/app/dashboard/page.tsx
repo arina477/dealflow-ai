@@ -6,10 +6,24 @@
  * This wave: minimal server component that shows the role and a sign-out link.
  *
  * If /auth/me returns 401, the user is not authenticated → redirect to /login.
+ *
+ * Cookie-forwarding: server components run on the Node.js server and have no
+ * browser cookie jar. `credentials: 'include'` is silently ignored by Node's
+ * fetch implementation, so the SuperTokens session cookie would never reach
+ * the API. We instead read the incoming request cookies via `next/headers` and
+ * forward them explicitly as a `cookie` request header.
+ *
+ * Follow-up (next bundle): SuperTokens rotates the access token on use; if the
+ * token has expired but is still refreshable the backend will return 401 even
+ * for a valid session. A robust fix is either (a) move the auth guard into
+ * Next.js middleware (which can proxy the SuperTokens refresh flow) or (b) use
+ * the SuperTokens Node SDK directly in the server component. For this wave a
+ * hard-401 → redirect is acceptable — the window is short (token TTL ~1h).
  */
 
 import type { MeResponse } from '@dealflow/shared';
 import { meResponseSchema } from '@dealflow/shared';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
@@ -17,8 +31,12 @@ export const dynamic = 'force-dynamic';
 async function fetchMe(): Promise<MeResponse | null> {
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
   try {
+    // Forward the incoming request's cookies so the SuperTokens httpOnly
+    // session cookie reaches the API. `credentials: 'include'` is a browser
+    // fetch concept; it has no effect in the Node.js server environment.
+    const cookieHeader = (await cookies()).toString();
     const res = await fetch(`${apiBase}/auth/me`, {
-      credentials: 'include',
+      headers: { cookie: cookieHeader },
       cache: 'no-store',
     });
     if (!res.ok) return null;

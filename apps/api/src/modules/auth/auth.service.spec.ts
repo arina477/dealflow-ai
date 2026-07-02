@@ -112,6 +112,73 @@ describe('AuthService', () => {
       expect(createNewSession).not.toHaveBeenCalled();
     });
 
+    it('maps an app-DB unique violation to a generic 4xx (not a raw 500) and compensates', async () => {
+      // Simulate the node-postgres shape for a unique_violation (SQLSTATE 23505),
+      // e.g. users_email_unique / users_supertokens_user_id_unique tripping under
+      // a concurrent signup. It must surface as the SAME generic BadRequest used
+      // elsewhere on this path — never a raw error that could 500 + leak DB
+      // internals (constraint names, SQL, etc.).
+      const pgUniqueViolation = Object.assign(
+        new Error('duplicate key value violates unique constraint "users_email_unique"'),
+        { code: '23505', constraint: 'users_email_unique', detail: 'Key (email)=(x) exists.' }
+      );
+      const repo = makeRepo({
+        getInviteEmail: vi.fn().mockResolvedValue('invitee@example.com'),
+        runInTransaction: vi
+          .fn()
+          .mockImplementation(async (work: (tx: unknown) => unknown) => work({})),
+        consumeInviteAndCreateUser: vi.fn().mockRejectedValue(pgUniqueViolation),
+      });
+      signUp.mockResolvedValue({
+        status: 'OK',
+        recipeUserId: { getAsString: () => 'st-user-1' },
+      });
+      const service = new AuthService(repo);
+
+      const rejection = await service
+        .signup({ inviteToken: 'ok', password: 'password123' }, fakeReq, fakeRes)
+        .catch((e: unknown) => e);
+
+      // Translated to the generic 4xx — NOT the raw pg error.
+      expect(rejection).toBeInstanceOf(BadRequestException);
+      expect((rejection as BadRequestException).getStatus()).toBe(400);
+      expect((rejection as Error).message).toBe('Unable to complete signup');
+      // The raw DB error (with constraint/detail internals) never escapes.
+      expect((rejection as { code?: string }).code).toBeUndefined();
+      // Compensation still runs so no orphaned Core user survives; no session.
+      expect(deleteUser).toHaveBeenCalledWith('st-user-1');
+      expect(createNewSession).not.toHaveBeenCalled();
+    });
+
+    it('rethrows a genuinely UNEXPECTED app-DB error (not a constraint violation) after compensating', async () => {
+      // A non-integrity error (e.g. a driver/connection fault) is NOT a
+      // client-observable conflict — it must propagate so a global filter renders
+      // it generically, rather than being masked as a 4xx "bad request".
+      const unexpected = new Error('connection terminated unexpectedly');
+      const repo = makeRepo({
+        getInviteEmail: vi.fn().mockResolvedValue('invitee@example.com'),
+        runInTransaction: vi
+          .fn()
+          .mockImplementation(async (work: (tx: unknown) => unknown) => work({})),
+        consumeInviteAndCreateUser: vi.fn().mockRejectedValue(unexpected),
+      });
+      signUp.mockResolvedValue({
+        status: 'OK',
+        recipeUserId: { getAsString: () => 'st-user-1' },
+      });
+      const service = new AuthService(repo);
+
+      const rejection = await service
+        .signup({ inviteToken: 'ok', password: 'password123' }, fakeReq, fakeRes)
+        .catch((e: unknown) => e);
+
+      expect(rejection).toBe(unexpected);
+      expect(rejection).not.toBeInstanceOf(BadRequestException);
+      // Compensation still ran even for the unexpected error.
+      expect(deleteUser).toHaveBeenCalledWith('st-user-1');
+      expect(createNewSession).not.toHaveBeenCalled();
+    });
+
     it('happy path: consumes invite, mints session with role, returns summary', async () => {
       const repo = makeRepo({
         getInviteEmail: vi.fn().mockResolvedValue('invitee@example.com'),
@@ -167,6 +234,46 @@ describe('AuthService', () => {
 
       await expect(service.requestReset({ email: 'someone@example.com' })).resolves.toBeUndefined();
       expect(createResetPasswordToken).toHaveBeenCalledOnce();
+    });
+
+    it('SWALLOWS a token-creation failure so the EXISTING-email path stays a 202 (no status-code oracle)', async () => {
+      // Status-code enumeration guard: token creation only runs on the
+      // account-EXISTS branch. If it threw, that branch alone could 500 — a
+      // side-channel revealing which emails have accounts. It must resolve void
+      // (→ controller 202) exactly like the unknown-email path.
+      listUsersByAccountInfo.mockResolvedValue([
+        { id: 'st-user-1', loginMethods: [{ recipeId: 'emailpassword' }] },
+      ]);
+      createResetPasswordToken.mockRejectedValue(new Error('Core unreachable'));
+      const service = new AuthService(makeRepo());
+
+      await expect(service.requestReset({ email: 'someone@example.com' })).resolves.toBeUndefined();
+      expect(createResetPasswordToken).toHaveBeenCalledOnce();
+    });
+
+    it('EXISTING (token throws) and UNKNOWN emails are observably identical: both resolve void', async () => {
+      // Prove the two paths are indistinguishable to the caller even in the
+      // worst case (token issuance failing for a real account). Same resolved
+      // value (undefined → identical 202 body) whether or not the email exists.
+      const service = new AuthService(makeRepo());
+
+      listUsersByAccountInfo.mockResolvedValueOnce([]);
+      const unknownOutcome = await service
+        .requestReset({ email: 'nobody@example.com' })
+        .then(() => 'resolved:undefined')
+        .catch((e: unknown) => `threw:${String(e)}`);
+
+      listUsersByAccountInfo.mockResolvedValueOnce([
+        { id: 'st-user-1', loginMethods: [{ recipeId: 'emailpassword' }] },
+      ]);
+      createResetPasswordToken.mockRejectedValueOnce(new Error('Core unreachable'));
+      const existingOutcome = await service
+        .requestReset({ email: 'someone@example.com' })
+        .then(() => 'resolved:undefined')
+        .catch((e: unknown) => `threw:${String(e)}`);
+
+      expect(existingOutcome).toBe(unknownOutcome);
+      expect(existingOutcome).toBe('resolved:undefined');
     });
   });
 

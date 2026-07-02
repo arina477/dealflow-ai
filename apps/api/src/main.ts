@@ -38,8 +38,16 @@ async function bootstrap(): Promise<void> {
   // auto-routes and populates the session (gotcha #2).
   app.use(middleware());
 
-  // errorHandler LAST — maps SuperTokens session errors to 401 rather than 500
-  // (gotcha #2). Must be after all routes are registered.
+  // SuperTokens errorHandler(). SCOPE NOTE: because Nest mounts its own router
+  // for the @Controller routes, this handler only sees errors thrown by the
+  // SuperTokens SDK AUTO-routes (/auth/signin, /auth/signout,
+  // /auth/session/refresh, /auth/user/password/*) served by middleware() above —
+  // it does NOT intercept errors thrown inside Nest controller handlers, which
+  // Nest's own exception layer renders. For those SDK auto-routes it maps
+  // SuperTokens session errors (e.g. TRY_REFRESH_TOKEN / UNAUTHORISED) to the
+  // correct 401 rather than a 500. It is registered here (right after
+  // middleware()) deliberately: our custom /auth routes handle their own session
+  // errors via SessionGuard, so this handler has nothing of ours to sit "after".
   app.use(errorHandler());
 
   await app.listen(env.PORT);
