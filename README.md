@@ -21,6 +21,24 @@ A claudomat-managed project: every wave follows a deterministic 8-block loop (Pr
 
 ---
 
+## Live deployment
+
+Deployed on Railway (API + web as separate services).
+
+| Service | URL |
+|---|---|
+| API health | https://dealflow-api-production-66d4.up.railway.app/health |
+| Web | https://dealflow-web-production-a4f7.up.railway.app |
+
+Quick health check:
+
+```bash
+curl -s https://dealflow-api-production-66d4.up.railway.app/health
+# → 200 {"status":"ok","db":"ok","version":"..."}
+```
+
+---
+
 ## Quick start
 
 ```bash
