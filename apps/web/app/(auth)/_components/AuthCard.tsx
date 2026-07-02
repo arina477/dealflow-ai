@@ -118,18 +118,8 @@ export function AuthCard({ children }: { children: React.ReactNode }) {
         >
           <span>© {new Date().getFullYear()} DealFlow AI</span>
           <div style={{ display: 'flex', gap: '16px' }}>
-            <a
-              href="#"
-              style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
-            >
-              Privacy
-            </a>
-            <a
-              href="#"
-              style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
-            >
-              Terms
-            </a>
+            <span style={{ color: 'var(--text-muted)' }}>Privacy</span>
+            <span style={{ color: 'var(--text-muted)' }}>Terms</span>
           </div>
         </footer>
       </section>

@@ -174,7 +174,11 @@ function AcceptInviteForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+      >
         <FormField
           label="Password"
           id="password"

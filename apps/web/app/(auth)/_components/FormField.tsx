@@ -20,7 +20,14 @@ interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   labelRight?: React.ReactNode | undefined;
 }
 
-export function FormField({ label, error, labelRight, id: externalId, className, ...rest }: FormFieldProps) {
+export function FormField({
+  label,
+  error,
+  labelRight,
+  id: externalId,
+  className,
+  ...rest
+}: FormFieldProps) {
   const generatedId = useId();
   const id = externalId ?? generatedId;
   const errorId = `${id}-error`;

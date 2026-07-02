@@ -35,13 +35,13 @@
       "**/*.js",
       "**/*.jsx",
       "!node_modules",
-      "!**/node_modules/**",
+      "!**/node_modules",
       "!dist",
-      "!**/dist/**",
+      "!**/dist",
       "!.next",
-      "!**/.next/**",
+      "!**/.next",
       "!coverage",
-      "!**/coverage/**",
+      "!**/coverage",
       "!**/*.d.ts",
       "!pnpm-lock.yaml"
     ]

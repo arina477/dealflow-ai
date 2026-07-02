@@ -135,7 +135,9 @@ describe('ResetPasswordPage', () => {
     it('shows mismatch error when passwords do not match', async () => {
       render(<ResetPasswordPage />);
       fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'ValidPass1!' } });
-      fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'DifferentPass2!' } });
+      fireEvent.change(screen.getByLabelText('Confirm new password'), {
+        target: { value: 'DifferentPass2!' },
+      });
       fireEvent.click(screen.getByRole('button', { name: /reset password/i }));
       await waitFor(() => {
         expect(screen.getByText(/passwords do not match/i)).toBeDefined();
@@ -147,7 +149,9 @@ describe('ResetPasswordPage', () => {
       render(<ResetPasswordPage />);
 
       fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'ValidPass1!' } });
-      fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'ValidPass1!' } });
+      fireEvent.change(screen.getByLabelText('Confirm new password'), {
+        target: { value: 'ValidPass1!' },
+      });
       fireEvent.click(screen.getByRole('button', { name: /reset password/i }));
 
       await waitFor(() => {
@@ -161,7 +165,9 @@ describe('ResetPasswordPage', () => {
       render(<ResetPasswordPage />);
 
       fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'ValidPass1!' } });
-      fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'ValidPass1!' } });
+      fireEvent.change(screen.getByLabelText('Confirm new password'), {
+        target: { value: 'ValidPass1!' },
+      });
       fireEvent.click(screen.getByRole('button', { name: /reset password/i }));
 
       await waitFor(() => {

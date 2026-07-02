@@ -9,11 +9,11 @@
 **Note:** AppShell chrome + role-aware dashboard shell + full per-route RBAC enforcement deferred by decomposition to a follow-up M1 bundle.
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe) — PROCEED (problem-framer + ceo-reviewer both PROCEED; mvp-thinner n/a)
+- [x] P-1 Decompose — PROCEED, multi-spec (3 tasks), design_gap_flag false (auth mockups exist → D skips)
+- [x] P-2 Spec — multi-spec contract stored in seed task (3 blocks); security-scope flagged for P-4/T-8
+- [x] P-3 Plan — approach (5 arch deltas, users/roles/invites additive migration + down, 6 /auth contracts, supertokens-node@24.0.2) + plan (B1-B5, 7 specialists, parallelization, sweep clean); SuperTokens SDK doc written
+- [x] P-4 Gate — PASSED (head-product APPROVED; karen+jenny APPROVE; Gemini 429-degraded)
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
@@ -21,11 +21,11 @@ DESIGN (skip block if non-UI wave):
 - [ ] D-3 Review & adopt
 
 BUILD:
-- [ ] B-0 Branch & schema
-- [ ] B-1 Contracts
-- [ ] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
+- [x] B-0 Branch & schema — branch wave-2-auth-backbone; supertokens-node@24.0.2; additive users/roles/invites migration (f3681f8)
+- [x] B-1 Contracts — @dealflow/shared auth Zod contracts (49e290a); no-user-enumeration in reset contract
+- [x] B-2 Backend — auth module (SuperTokens+invite-only+role-claim+guard primitive); 6 invariants enforced; 20 tests pass (f24a56d)
+- [x] B-3 Frontend — login/accept-invite/reset + dashboard placeholder; SSO+SOC2 removed; 41 RTL tests (cb6a6d3)
+- [x] B-4 Wiring — repo typecheck + build PASS; routes+env wired; no drift
 - [ ] B-5 Verify
 - [ ] B-6 Review
 

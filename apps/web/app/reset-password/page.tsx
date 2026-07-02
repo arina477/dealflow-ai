@@ -120,8 +120,8 @@ function RequestStep() {
           }}
         >
           If an account exists for{' '}
-          <strong style={{ color: 'var(--text-primary)' }}>{submittedEmail}</strong>, we have
-          sent a password reset link. Check your spam folder if it does not arrive.
+          <strong style={{ color: 'var(--text-primary)' }}>{submittedEmail}</strong>, we have sent a
+          password reset link. Check your spam folder if it does not arrive.
         </p>
         <div style={{ marginTop: '24px' }}>
           <a
@@ -166,7 +166,11 @@ function RequestStep() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+      >
         <FormField
           label="Email address"
           id="reset-email"
@@ -187,9 +191,19 @@ function RequestStep() {
         </div>
       </form>
 
-      <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
+      <div
+        style={{
+          marginTop: '24px',
+          textAlign: 'center',
+          fontSize: '13px',
+          color: 'var(--text-muted)',
+        }}
+      >
         Remember your password?{' '}
-        <a href="/login" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
+        <a
+          href="/login"
+          style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}
+        >
           Sign in
         </a>
       </div>
@@ -244,9 +258,7 @@ function ConfirmStep({ token }: { token: string }) {
         setSuccess(true);
       } else {
         // 4xx: invalid/expired token or weak password.
-        setServerError(
-          'The reset link is invalid or has expired. Please request a new one.'
-        );
+        setServerError('The reset link is invalid or has expired. Please request a new one.');
       }
     } catch {
       setServerError('Unable to reach the server. Check your connection and try again.');
@@ -362,7 +374,11 @@ function ConfirmStep({ token }: { token: string }) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+      >
         <FormField
           label="New password"
           id="new-password"

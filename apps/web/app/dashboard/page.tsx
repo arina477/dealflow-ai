@@ -8,9 +8,9 @@
  * If /auth/me returns 401, the user is not authenticated → redirect to /login.
  */
 
-import { redirect } from 'next/navigation';
 import type { MeResponse } from '@dealflow/shared';
 import { meResponseSchema } from '@dealflow/shared';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,8 +81,8 @@ export default async function DashboardPage() {
             margin: 0,
           }}
         >
-          Full AppShell (sidebar + top bar) ships in a later bundle. This placeholder
-          confirms authentication is working.
+          Full AppShell (sidebar + top bar) ships in a later bundle. This placeholder confirms
+          authentication is working.
         </p>
         <a
           href="/login"

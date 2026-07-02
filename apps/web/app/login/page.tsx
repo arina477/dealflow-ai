@@ -69,7 +69,12 @@ export default function LoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', rid: 'emailpassword' },
         credentials: 'include',
-        body: JSON.stringify({ formFields: [{ id: 'email', value: email }, { id: 'password', value: password }] }),
+        body: JSON.stringify({
+          formFields: [
+            { id: 'email', value: email },
+            { id: 'password', value: password },
+          ],
+        }),
       });
 
       if (!res.ok) {
@@ -131,7 +136,11 @@ export default function LoginPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+      >
         <FormField
           label="Email address"
           id="email"
