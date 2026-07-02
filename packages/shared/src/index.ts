@@ -1,3 +1,3 @@
-// @dealflow/shared — placeholder export
-// B-1 stage will populate this with Zod schemas, DTOs, and shared types.
-export {};
+export { parseEnv } from './env';
+export type { HealthResponse } from './health';
+export { healthResponseSchema } from './health';
