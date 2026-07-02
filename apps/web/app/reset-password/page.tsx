@@ -85,6 +85,7 @@ function RequestStep() {
         >
           {/* lucide mail-check */}
           <svg
+            aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             width="20"
             height="20"
@@ -286,6 +287,7 @@ function ConfirmStep({ token }: { token: string }) {
         >
           {/* lucide check-circle-2 */}
           <svg
+            aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             width="28"
             height="28"
@@ -428,7 +430,11 @@ export default function ResetPasswordPage() {
     <AuthCard>
       <Suspense
         fallback={
-          <div style={{ color: 'var(--text-muted)', fontSize: '14px' }} aria-label="Loading...">
+          <div
+            role="status"
+            style={{ color: 'var(--text-muted)', fontSize: '14px' }}
+            aria-label="Loading..."
+          >
             Loading...
           </div>
         }
