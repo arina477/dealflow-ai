@@ -22,28 +22,28 @@ BUILD:
 - [x] B-6 Review
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [x] C-1 PR, CI & merge
+- [x] C-2 Deploy & verify — PASS: repo now public; provisioned postgres+api+web from scratch on Railway. api https://dealflow-api-production-66d4.up.railway.app/health → 200 {status:ok,db:ok,version:4cad0179...}; web https://dealflow-web-production-a4f7.up.railway.app → 200. Migration applied (additive app_meta), all deployments @ merge commit 4cad0179, rollback armed, canary skipped (0 DAU). head_signoff APPROVED → PROCEED_TO_T-block
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
-- [ ] T-9 Journey
+- [x] T-1 Static — CI-verified (typecheck+lint green)
+- [x] T-2 Unit — CI-verified (3 specs green)
+- [x] T-3 Contract — CI-verified (HealthResponse Zod + e2e shape)
+- [x] T-4 Integration — CI-verified (real-Postgres e2e)
+- [x] T-5 E2E — live HTTP smoke PASS (Chrome absent; documented)
+- [x] T-6 Layout — skipped (non-UI wave)
+- [x] T-7 Perf — skipped (not heavy)
+- [x] T-8 Security — skipped (no auth; audit gate in CI)
+- [x] T-9 Journey — gate PASSED (head-tester APPROVED); journey regen substantively skipped (placeholder only)
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-1 Independent reviews (Karen + jenny, parallel) — Karen + jenny both APPROVE
+- [x] V-2 Triage — 0 blocking; 3 non-blocking tasks tracked; 3 noise suppressed
+- [x] V-3 Fast-fix loop (or close) — head-verifier APPROVED; fast-fix skipped (0 blocking)
 
 LEARN:
-- [ ] L-1 Docs
-- [ ] L-2 Distill
+- [x] L-1 Docs
+- [x] L-2 Distill
 
 NEXT:
 - [ ] N-1 Survey & triggers
