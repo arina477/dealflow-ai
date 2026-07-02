@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   foreignKey,
   index,
@@ -8,7 +9,6 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 
 /**
  * Wave-2 auth data model (B-0, task e15f71dd).
@@ -35,9 +35,7 @@ export const roles = pgTable(
       .notNull()
       .default(sql`now()`),
   },
-  (table) => [
-    unique('roles_name_unique').on(table.name),
-  ],
+  (table) => [unique('roles_name_unique').on(table.name)]
 );
 
 // ---------------------------------------------------------------------------
@@ -67,7 +65,7 @@ export const users = pgTable(
     // dedicated index on supertokens_user_id: the createNewSession override
     // resolves role by this column on every session creation + refresh.
     index('users_supertokens_user_id_idx').on(table.supertokensUserId),
-  ],
+  ]
 );
 
 // ---------------------------------------------------------------------------
@@ -107,8 +105,6 @@ export const invites = pgTable(
     // the raw SQL is emitted directly in the migration instead (see
     // 0001_*.sql). This index declaration is a no-op in drizzle-kit output
     // and is replaced by the raw SQL in the migration.
-    uniqueIndex('invites_token_unconsumed_idx')
-      .on(table.token)
-      .where(sql`consumed_at IS NULL`),
-  ],
+    uniqueIndex('invites_token_unconsumed_idx').on(table.token).where(sql`consumed_at IS NULL`),
+  ]
 );
