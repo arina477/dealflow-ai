@@ -10,7 +10,7 @@
 | Stage | Deliverable file | Status | Notes |
 |---|---|---|---|
 | B-0 | process/waves/wave-1/stages/B-0-branch-and-schema.md | done | branch + task claim; schema authored as Drizzle code in-block |
-| B-1 | process/waves/wave-1/stages/B-1-contracts.md | pending | @dealflow/shared HealthResponse + env Zod |
+| B-1 | (shared package src) | done | HealthResponse + parseEnv; 4/4 tests green |
 | B-2 | process/waves/wave-1/stages/B-2-backend.md | pending | NestJS API + /health module |
 | B-3 | process/waves/wave-1/stages/B-3-frontend.md | pending | Next.js 15 placeholder + health surface |
 | B-4 | process/waves/wave-1/stages/B-4-wiring.md | pending | e2e typecheck + env wiring |
