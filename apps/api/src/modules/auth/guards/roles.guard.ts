@@ -23,7 +23,8 @@ import {
   SetMetadata,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { Reflector } from '@nestjs/core';
+// biome-ignore lint/style/useImportType: injected via DI, needs runtime metadata
+import { Reflector } from '@nestjs/core';
 import type { Response } from 'express';
 import Session from 'supertokens-node/recipe/session';
 

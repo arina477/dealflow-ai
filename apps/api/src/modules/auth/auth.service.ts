@@ -37,7 +37,8 @@ import EmailPassword from 'supertokens-node/recipe/emailpassword';
 import type { SessionContainer } from 'supertokens-node/recipe/session';
 import Session from 'supertokens-node/recipe/session';
 
-import type { AuthRepository } from './auth.repository';
+// biome-ignore lint/style/useImportType: injected via DI, needs runtime metadata
+import { AuthRepository } from './auth.repository';
 
 const TENANT_ID = 'public';
 /** Invite lifetime: 7 days. */
