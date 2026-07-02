@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 
 import { parseEnv } from '@dealflow/shared';
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { z } from 'zod';
 
@@ -16,14 +15,6 @@ async function bootstrap(): Promise<void> {
   const env = parseEnv(bootEnvSchema);
 
   const app = await NestFactory.create(AppModule);
-
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    })
-  );
 
   await app.listen(env.PORT);
   console.log(`API listening on port ${env.PORT}`);

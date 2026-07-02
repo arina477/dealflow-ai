@@ -10,7 +10,10 @@ const envSchema = z.object({
 
 const env = parseEnv(envSchema);
 
-export const pool = new Pool({ connectionString: env.DATABASE_URL });
+export const pool = new Pool({
+  connectionString: env.DATABASE_URL,
+  connectionTimeoutMillis: 3000,
+});
 
 export const db = drizzle(pool, { schema });
 

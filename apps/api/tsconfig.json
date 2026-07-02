@@ -5,11 +5,9 @@
     "moduleResolution": "Node",
     "target": "ES2022",
     "outDir": "dist",
+    "rootDir": "src",
     "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "paths": {
-      "@dealflow/shared": ["../../packages/shared/src/index.ts"]
-    }
+    "experimentalDecorators": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
