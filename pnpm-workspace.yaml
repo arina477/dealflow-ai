@@ -2,6 +2,11 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
+overrides:
+  # GHSA-72gw-mp4g-v24j (HIGH) + GHSA (moderate, aborted-upload cleanup): both
+  # patched in multer >=2.2.0. Pulled transitively via @nestjs/platform-express.
+  multer: '>=2.2.0'
+
 allowBuilds:
   esbuild: true
   sharp: true
