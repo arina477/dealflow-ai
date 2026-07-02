@@ -1,0 +1,25 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+overrides:
+  # GHSA-72gw-mp4g-v24j (HIGH) + GHSA (moderate, aborted-upload cleanup): both
+  # patched in multer >=2.2.0. Pulled transitively via @nestjs/platform-express.
+  multer: '>=2.2.0'
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  '@scarf/scarf': false
+
+minimumReleaseAgeExclude:
+  - '@next/env@15.5.20'
+  - '@next/swc-darwin-arm64@15.5.20'
+  - '@next/swc-darwin-x64@15.5.20'
+  - '@next/swc-linux-arm64-gnu@15.5.20'
+  - '@next/swc-linux-arm64-musl@15.5.20'
+  - '@next/swc-linux-x64-gnu@15.5.20'
+  - '@next/swc-linux-x64-musl@15.5.20'
+  - '@next/swc-win32-arm64-msvc@15.5.20'
+  - '@next/swc-win32-x64-msvc@15.5.20'
+  - next@15.5.20

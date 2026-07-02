@@ -1,0 +1,96 @@
+/* Tailwind v4 CSS-first import — content auto-detection handles scanning */
+@import 'tailwindcss';
+
+/*
+ * Design system tokens — §1 Color palette (DESIGN-SYSTEM.md)
+ * Light mode only (canonical). Dark mode deferred per design spec.
+ */
+:root {
+  /* Neutral — zinc/grey scale */
+  --zinc-25: #fcfcfd;
+  --zinc-50: #f9fafb;
+  --zinc-100: #f3f4f6;
+  --zinc-200: #e5e7eb;
+  --zinc-300: #d1d5db;
+  --zinc-400: #9ca3af;
+  --zinc-500: #6b7280;
+  --zinc-600: #4b5563;
+  --zinc-700: #374151;
+  --zinc-800: #1f2937;
+  --zinc-900: #111827;
+  --zinc-950: #030712;
+
+  /* Accent — emerald */
+  --emerald-50: #ecfdf5;
+  --emerald-600: #10b981;
+  --emerald-700: #047857;
+
+  /* Status colors */
+  --status-positive: #10b981; /* emerald-600 */
+  --status-info: #2563eb; /* blue-600 */
+  --status-warn: #d97706; /* amber-600 */
+  --status-danger: #dc2626; /* red-600 */
+  --status-neutral: #9ca3af; /* zinc-400 */
+
+  /* Semantic mappings */
+  --bg-app: var(--zinc-25);
+  --bg-surface: #ffffff;
+  --bg-muted: var(--zinc-50);
+  --bg-sidebar: var(--zinc-900);
+  --border: var(--zinc-200);
+  --border-strong: var(--zinc-300);
+  --text-primary: var(--zinc-800);
+  --text-body: var(--zinc-700);
+  --text-muted: var(--zinc-500);
+  --text-on-dark: var(--zinc-50);
+  --primary: var(--emerald-600);
+  --primary-hover: var(--emerald-700);
+  --focus-ring: rgb(16 185 129 / 0.4); /* emerald-600 @ 40% */
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 9999px;
+  --radius-full: 50%;
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-sm: 0 1px 3px rgb(16 24 40 / 0.08);
+  --shadow-md: 0 8px 24px rgb(16 24 40 / 0.12);
+
+  /* Motion */
+  --anim-speed: 0.6s;
+  --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Base reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-body);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

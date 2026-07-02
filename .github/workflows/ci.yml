@@ -52,9 +52,14 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - name: Create test database
+        run: psql postgres://postgres:test@localhost:5432/postgres -c 'CREATE DATABASE dealflow_test;'
       - run: pnpm test
         env:
           DATABASE_URL: postgres://postgres:test@localhost:5432/test
+          # TEST_DATABASE_URL must differ from DATABASE_URL (architecture R-17).
+          # Uses a separate DB within the same postgres:18 service container.
+          TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/dealflow_test
 
   # Security gate — compliance-first posture (v6b resolution #17)
   audit:
