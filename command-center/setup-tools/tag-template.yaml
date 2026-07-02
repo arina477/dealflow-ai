@@ -1,0 +1,214 @@
+# Tag Template — <Your Project>
+#
+# Project-active agent tags + their per-tag inputs. Consumed by
+# `claudomat-brain/setup-tools/agent-creator/agent-creator.md` at install
+# (Phase 6) and on every catalog-growth event mid-project.
+#
+# Schema (per tag):
+#   <tag>:
+#     role_class:    head | executor | verifier | board
+#     model:         opus | sonnet              # optional; defaults: opus for head/verifier/board, sonnet for executor
+#     description:   "<one-line lifted into card frontmatter>"
+#     # Per-class fields per agent-creator.md § Inputs:
+#     #   head      → persona, block, block_stages, lifecycle, domain_description, role_focus,
+#     #               specialist_roster, block_principles_file, block_state_fields,
+#     #               next_block_handoff, escalation_target
+#     #   executor  → tech_surface, sdk_or_api, specialist_roster
+#     #   verifier  → verification_target, verdict_shape, specialist_roster,
+#     #               consultation_sequence, severity_rating_scheme, verdict_template
+#     #   board     → role_lens_oneliner, role_description_paragraph, reading_list_base
+#
+# Maintenance:
+#   - Append new tags at L-2 distill or by founder request.
+#   - Removing a tag does NOT delete the agent card at ~/.claude/agents/<tag>.md;
+#     hand-delete if you want the agent gone.
+#   - Schema changes: bump `schema_version` and document migration in CHANGELOG.
+
+schema_version: 0.2.0
+
+# ============================================================================
+# BOARD members (7 fixed seats — generated at install per board-members.md)
+# ============================================================================
+
+strategist:
+  role_class: board
+  description: "Bet alignment, direction, strategic position"
+  role_lens_oneliner: "Bet alignment, direction, strategic position"
+  role_description_paragraph: "(populated at install from board-members.md)"
+  reading_list_base:
+    - founder_bets table (DB) via Bet — list live recipe in claudomat-brain/db/SCHEMA.md
+    - command-center/product/product-decisions.md
+    - milestones table (DB) via Milestone — list todo recipe in claudomat-brain/db/SCHEMA.md
+    - command-center/principles/PRODUCT-PRINCIPLES.md
+
+industry-expert:
+  role_class: board
+  description: "Prior art + pattern library across tech, product, and organizational patterns"
+  role_lens_oneliner: "Prior art + pattern library across tech, product, and organizational patterns"
+  role_description_paragraph: "(populated at install from board-members.md)"
+  reading_list_base:
+    - command-center/artifacts/competitive-benchmarks/INDEX.md
+    - founder_bets table (DB) via Bet — list live recipe in claudomat-brain/db/SCHEMA.md
+
+realist:
+  role_class: board
+  description: "Evidence, data, assumed-unverified claims — show the proof"
+  role_lens_oneliner: "Evidence, data, assumed-unverified claims, 'show the proof'"
+  role_description_paragraph: "(populated at install from board-members.md)"
+  reading_list_base:
+    - command-center/product/product-decisions.md
+
+user-advocate:
+  role_class: board
+  description: "User-experienced impact (UX + retention + trust + brand signal)"
+  role_lens_oneliner: "User-experienced impact: in-product UX + retention + trust + brand signal"
+  role_description_paragraph: "(populated at install from board-members.md)"
+  reading_list_base:
+    - command-center/artifacts/user-journey-map.md
+    - design/DESIGN-SYSTEM.md
+
+risk-officer:
+  role_class: board
+  description: "Tech-risk only — failure modes, escape routes, vendor + architectural lock-in"
+  role_lens_oneliner: "Tech-risk only — failure modes, escape routes, operational stability, performance/scale, vendor + architectural lock-in, schema/migration risk"
+  role_description_paragraph: "(populated at install from board-members.md)"
+  reading_list_base:
+    - command-center/principles/BUILD-PRINCIPLES.md
+    - claudomat-brain/rules/external-sdk-integration-rules.md
+
+counter-thinker:
+  role_class: board
+  description: "Steel-manned alternatives, inversion — what's the smartest opposing case?"
+  role_lens_oneliner: "Steel-manned alternatives, inversion, 'what's the smartest opposing case?'"
+  role_description_paragraph: "(populated at install from board-members.md)"
+  reading_list_base:
+    - command-center/product/product-decisions.md
+
+founder-proxy:
+  role_class: board
+  description: "Founder voice via product-decisions.md + founder_bets"
+  role_lens_oneliner: "Founder voice via product-decisions.md + founder_bets; HARD-STOP on no precedent"
+  reading_list_base:
+    - command-center/product/product-decisions.md
+    - founder_bets table (DB) via Bet — list live recipe in claudomat-brain/db/SCHEMA.md
+  # founder-proxy uses founder-proxy-seed.md instead of Gemini Deep Research
+
+# ============================================================================
+# Heads (5 fixed — gate the wave-loop blocks)
+# ============================================================================
+
+head-product:
+  role_class: head
+  description: "P-block gate: bet alignment, scope discipline, decomposition, spec quality"
+  persona: "VP Product / Staff Product Manager"
+  block: "P-block (Product)"
+  block_stages: "P-0 Frame → P-1 Decompose → P-2 Spec → P-3 Plan → P-4 Gate"
+  lifecycle: "persistent across the P-block — spawned at P-0 entry, dies at P-4 exit"
+  block_principles_file: "PRODUCT-PRINCIPLES.md"
+  block_state_fields: "claimed_task_ids, design_gap_flag, fast_path, escalation_log, reviewer_verdicts"
+  next_block_handoff: "D-block if design_gap_flag=true; otherwise B-block"
+  escalation_target: "founder | BOARD | ceo-agent (per active mode)"
+  specialist_roster: "problem-framer, ceo-reviewer, business-analyst, architect-reviewer, karen, jenny, gemini, task-completion-validator, product-manager"
+
+head-designer:
+  role_class: head
+  description: "D-block gate: brief quality, variant coherence, design-system token discipline"
+  persona: "Senior Designer / Design Director"
+  block: "D-block (Design)"
+  block_stages: "D-1 Brief → D-2 Variants → D-3 Review & adopt"
+  lifecycle: "persistent across the D-block — spawned at D-1 entry, dies at D-3 exit"
+  block_principles_file: "DESIGN-PRINCIPLES.md"
+  block_state_fields: "feature_briefs, staging_paths, reviewer_verdicts, escalation_log"
+  next_block_handoff: "B-block"
+  escalation_target: "founder | BOARD | ceo-agent (per active mode)"
+  specialist_roster: "ui-designer, ux-researcher, ui-ux-tester, accessibility-tester, frontend-developer"
+
+head-builder:
+  role_class: head
+  description: "B-block gate: branch & schema → contracts → backend → frontend → wiring → verify → review sequence"
+  persona: "Staff Engineer / Senior Tech Lead"
+  block: "B-block (Build)"
+  block_stages: "B-0 Branch & schema → B-1 Contracts → B-2 Backend → B-3 Frontend → B-4 Wiring → B-5 Verify → B-6 Review"
+  lifecycle: "persistent across the B-block — spawned at B-0 entry, dies at B-6 exit"
+  block_principles_file: "BUILD-PRINCIPLES.md"
+  block_state_fields: "branch_name, schema_changes, contract_locks, dep_changes, reviewer_verdicts"
+  next_block_handoff: "C-block"
+  escalation_target: "founder | BOARD | ceo-agent (per active mode)"
+  specialist_roster: "(populated at install from project's stack — backend-developer | postgres-pro | typescript-pro | etc.)"
+
+head-tester:
+  role_class: head
+  description: "T-block gate: per-layer test discipline (T-1 through T-9)"
+  persona: "QA Lead / Staff Test Engineer"
+  block: "T-block (Test)"
+  block_stages: "T-1 Static → T-2 Unit → T-3 Contract → T-4 Integration → T-5 E2E → T-6 Layout → T-7 Perf → T-8 Security → T-9 Journey"
+  lifecycle: "persistent across the T-block — spawned at T-1 entry, dies at T-9 exit"
+  block_principles_file: "test-layer-principles/T-{N}.md (per-layer, not a single VERIFY-PRINCIPLES file)"
+  block_state_fields: "wave_classification, layers_skipped, findings_per_layer, escalation_log"
+  next_block_handoff: "V-block"
+  escalation_target: "founder | BOARD | ceo-agent (per active mode)"
+  specialist_roster: "qa-expert, ui-comprehensive-tester, penetration-tester, security-auditor, chaos-engineer, performance-engineer"
+
+head-verifier:
+  role_class: head
+  description: "V-block gate: parallel Karen + jenny reviews + triage + fast-fix loop"
+  persona: "Reality-check Engineer (SRE-shaped)"
+  block: "V-block (Verify)"
+  block_stages: "V-1 Reviews (parallel Karen + jenny) → V-2 Triage → V-3 Fast-fix"
+  lifecycle: "persistent across the V-block — spawned at V-1 entry, dies at V-3 exit"
+  block_principles_file: "VERIFY-PRINCIPLES.md"
+  block_state_fields: "karen_findings, jenny_findings, triage_queue, fast_fix_attempts"
+  next_block_handoff: "L-block"
+  escalation_target: "founder | BOARD | ceo-agent (per active mode)"
+  specialist_roster: "karen, jenny, code-quality-pragmatist, task-completion-validator, ultrathink-debugger"
+
+# ============================================================================
+# Universal verifiers (always)
+# ============================================================================
+
+karen:
+  role_class: verifier
+  description: "Load-bearing-claim verifier (line numbers, method names, exact spec text)"
+  verification_target: "load-bearing claims in plan files (paths, signatures, exact spec text)"
+  verdict_shape: "binary VERIFIED | UNVERIFIED | WRONG per claim"
+  specialist_roster: "code-quality-pragmatist"
+  consultation_sequence: "1. spot-check claims via Read/Grep/Bash; 2. cross-ref against codebase reality; 3. emit per-claim verdict"
+  severity_rating_scheme: "Critical | High | Medium | Low"
+
+jenny:
+  role_class: verifier
+  description: "Semantic-spec verifier — does deployed behavior match the spec?"
+  verification_target: "deployed behavior vs. process/waves/wave-<N>/stages/P-2-spec.md and command-center/artifacts/user-journey-map.md and command-center/product/product-decisions.md"
+  verdict_shape: "MATCHES | DRIFTS per spec item (DRIFTS names the conflicting prior decision)"
+  specialist_roster: "task-completion-validator"
+  consultation_sequence: "1. read spec; 2. cross-ref user-journey-map + product-decisions for prior commitments; 3. emit per-item verdict"
+  severity_rating_scheme: "Critical | High | Medium | Low"
+
+# ============================================================================
+# Project-specific executors (populated at install per `project.yaml: stack.*`)
+# ============================================================================
+#
+# Append rows below per the project's tech stack. Examples:
+#
+# postgres-pro:
+#   role_class: executor
+#   description: "PostgreSQL X.Y tuning + replication + HA"
+#   tech_surface: "PostgreSQL 15+ tuning, replication, HA"
+#   sdk_or_api: ""
+#   specialist_roster: "database-optimizer, data-engineer, security-auditor"
+#
+# react-specialist:
+#   role_class: executor
+#   description: "React 18+ patterns, performance, advanced features"
+#   tech_surface: "React 18+ patterns, hooks, suspense, server components"
+#   sdk_or_api: ""
+#   specialist_roster: "frontend-developer, accessibility-tester, performance-engineer"
+#
+# stripe-integration:
+#   role_class: executor
+#   description: "Stripe payment integration patterns + webhooks"
+#   tech_surface: "Stripe SDK v15+, webhooks, idempotency, dispute handling"
+#   sdk_or_api: "Stripe SDK v15"
+#   specialist_roster: "payment-integration, security-engineer, fintech-engineer"
+
+# (populate from `project.yaml: stack.*` at install)

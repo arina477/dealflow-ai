@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased text-zinc-800 bg-zinc-25 selection:bg-emerald-100 selection:text-emerald-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Companies · DealFlow AI Master Data</title>
+    
+    <!-- Typography: Inter for UI, Geist Mono for Hashes/Code blocks -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Phosphor Icons (Lucide equivalent for premium rendering) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Tailwind Configuration overriding with DealFlow Design System Tokens -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                    },
+                    animation: {
+                        'stagger-in': 'slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'shimmer': 'shimmer 2s infinite linear',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        slideUpFade: {
+                            '0%': { opacity: '0', transform: 'translateY(8px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        shimmer: {
+                            '0%': { backgroundPosition: '-1000px 0' },
+                            '100%': { backgroundPosition: '1000px 0' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* DealFlow Core Utilities via CSS */
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        
+        /* Advanced Custom Scrollbar for dense app feeling */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+
+        /* Staggered Animation Logic using CSS Variables */
+        .stagger-item { opacity: 0; animation: var(--anim-stagger) var(--anim-speed) ease-out forwards; animation-delay: calc(var(--item-idx) * 50ms); }
+        
+        /* Interactive Field States */
+        .editable-field .field-action { opacity: 0; transform: scale(0.9); transition: all 150ms ease; }
+        .editable-field:hover .field-action { opacity: 1; transform: scale(1); }
+        
+        /* Loading Skeleton Gradient */
+        .skeleton-block {
+            background: #F3F4F6;
+            background-image: linear-gradient(to right, #F3F4F6 0%, #E5E7EB 20%, #F3F4F6 40%, #F3F4F6 100%);
+            background-repeat: no-repeat;
+            background-size: 800px 100%; 
+        }
+
+        /* Glassmorphic overlays for search dropdowns */
+        .app-blur { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    </style>
+</head>
+<body class="flex h-[100dvh] w-full overflow-hidden text-sm">
+
+    <!-- Global App Sidebar (Macro-Architecture) -->
+    <nav class="hidden lg:flex flex-col w-16 bg-zinc-900 border-r border-zinc-200 justify-between py-4 z-50">
+        <div class="flex flex-col items-center gap-6">
+            <!-- App Logo Mark -->
+            <div class="w-8 h-8 bg-zinc-800 rounded-md flex items-center justify-center border border-zinc-700 shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
+                <i class="ph ph-wave-sine text-emerald-600 text-xl"></i>
+            </div>
+            
+            <!-- Nav Items -->
+            <div class="flex flex-col gap-2 w-full px-2">
+                <button class="w-full h-12 flex items-center justify-center rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors">
+                    <i class="ph ph-layout text-xl"></i>
+                </button>
+                <button class="w-full h-12 flex items-center justify-center rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors">
+                    <i class="ph ph-briefcase text-xl"></i>
+                </button>
+                <!-- Active Route -->
+                <button class="w-full h-12 flex items-center justify-center rounded-md text-white bg-zinc-800 relative group">
+                    <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-emerald-600 rounded-r-full"></div>
+                    <i class="ph ph-database text-xl"></i>
+                </button>
+                <button class="w-full h-12 flex items-center justify-center rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors relative">
+                    <i class="ph ph-git-branch text-xl"></i>
+                    <span class="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-amber-600 border border-zinc-900"></span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="flex flex-col items-center gap-4 px-2">
+            <button class="w-full h-12 flex items-center justify-center rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors">
+                <i class="ph ph-shield-check text-xl"></i>
+            </button>
+            <div class="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-semibold text-zinc-300">
+                JD
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mid-Architecture: Master List View -->
+    <aside class="w-full lg:w-[400px] flex shrink-0 flex-col border-r border-zinc-200 bg-white z-40 relative">
+        
+        <!-- List Header & Controls -->
+        <div class="p-4 border-b border-zinc-200 bg-white/80 app-blur sticky top-0 z-10 flex flex-col gap-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-base font-semibold text-zinc-800 tracking-tight">Companies</h1>
+                    <p class="text-xs text-zinc-500 tabular-nums mt-0.5">1,402 entity records</p>
+                </div>
+                <button class="w-8 h-8 flex items-center justify-center rounded-md border border-zinc-200 bg-white shadow-xs hover:bg-zinc-50 transition-colors">
+                    <i class="ph ph-plus text-zinc-600"></i>
+                </button>
+            </div>
+
+            <!-- Search with active focus-ring simulation -->
+            <div class="relative group">
+                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+                <input type="text" placeholder="Search name, ticker, or CRN..." 
+                       class="w-full h-9 pl-9 pr-8 text-sm bg-white border border-zinc-200 rounded-md shadow-xs focus:outline-none ring-2 ring-emerald-600/40 border-emerald-600/50 transition-all placeholder:text-zinc-400"
+                       value="Nexus">
+                <button class="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-sm hover:bg-zinc-100 text-zinc-400">
+                    <i class="ph ph-x"></i>
+                </button>
+                
+                <!-- Mock Autosuggest Dropdown (Z-Index restricted, shadow-md) -->
+                <div class="absolute top-[calc(100%+4px)] left-0 w-full bg-white border border-zinc-200 rounded-md shadow-md py-1 flex flex-col z-50">
+                    <div class="px-3 py-1.5 text-[11px] font-semibold tracking-wider uppercase text-zinc-500">Recent Searches</div>
+                    <button class="px-3 py-2 text-left text-sm hover:bg-zinc-50 flex items-center gap-2">
+                        <i class="ph ph-clock-counter-clockwise text-zinc-400"></i>
+                        <span>Nexus Data Systems</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Smart Filters -->
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 -mb-1 hide-scrollbar">
+                <button class="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-[13px] font-medium text-zinc-700 hover:bg-zinc-100 whitespace-nowrap">
+                    Industry <i class="ph ph-caret-down text-zinc-400"></i>
+                </button>
+                <button class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[13px] font-medium text-amber-700 hover:bg-amber-100 whitespace-nowrap">
+                    <i class="ph ph-flag"></i> Flagged (12)
+                </button>
+                <button class="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-[13px] font-medium text-zinc-700 hover:bg-zinc-100 whitespace-nowrap">
+                    My Deals
+                </button>
+            </div>
+        </div>
+
+        <!-- Scrollable List Body -->
+        <div class="flex-1 overflow-y-auto bg-zinc-50">
+            <div class="divide-y divide-zinc-200 relative">
+                
+                <!-- Active List Item (Nexus) -->
+                <button class="w-full text-left p-4 bg-white border-l-2 border-l-emerald-600 hover:bg-zinc-25 transition-colors relative block">
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="font-semibold text-zinc-900 text-sm">Nexus Data Systems</h3>
+                        <span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            <i class="ph ph-check-circle text-sm"></i> Verified
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-3 text-[13px] text-zinc-500 mb-2">
+                        <span class="tabular-nums font-mono text-[12px] text-zinc-400">NXDS</span>
+                        <span class="w-[3px] h-[3px] bg-zinc-300 rounded-full"></span>
+                        <span>Enterprise SaaS</span>
+                        <span class="w-[3px] h-[3px] bg-zinc-300 rounded-full"></span>
+                        <span>Seattle, WA</span>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs text-zinc-400">
+                        <div class="flex items-center gap-1"><i class="ph ph-users"></i> 14 contacts</div>
+                        <div class="flex items-center gap-1"><i class="ph ph-clock"></i> 2h ago</div>
+                    </div>
+                </button>
+
+                <!-- Flagged List Item -->
+                <button class="w-full text-left p-4 bg-white hover:bg-zinc-50 transition-colors border-l-2 border-l-transparent">
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="font-semibold text-zinc-900 text-sm">Vanguard Logistics</h3>
+                        <span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-100">
+                            <i class="ph ph-warning-circle text-sm"></i> Enrichment Mismatch
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-3 text-[13px] text-zinc-500 mb-2">
+                        <span class="tabular-nums font-mono text-[12px] text-zinc-400">VGLG</span>
+                        <span class="w-[3px] h-[3px] bg-zinc-300 rounded-full"></span>
+                        <span>Supply Chain</span>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs text-zinc-400">
+                        <div class="flex items-center gap-1"><i class="ph ph-users"></i> 3 contacts</div>
+                        <div class="flex items-center gap-1"><i class="ph ph-clock"></i> 1d ago</div>
+                    </div>
+                </button>
+
+                <!-- Duplicate Candidate Item -->
+                <button class="w-full text-left p-4 bg-white hover:bg-zinc-50 transition-colors border-l-2 border-l-transparent relative">
+                    <div class="absolute top-4 left-0 w-1 h-1 bg-red-500 rounded-full"></div>
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="font-semibold text-zinc-900 text-sm">Cipher Dynamics Inc</h3>
+                        <span class="inline-flex items-center gap-1 rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-700 border border-red-100">
+                            Duplicate Risk
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-3 text-[13px] text-zinc-500 mb-2">
+                        <span class="text-zinc-400">No Ticker</span>
+                        <span class="w-[3px] h-[3px] bg-zinc-300 rounded-full"></span>
+                        <span>Cybersecurity</span>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs text-zinc-400 mt-1">
+                        <span>Similar naming to 'Cypher Dynamics UK'</span>
+                    </div>
+                </button>
+                
+                <!-- Skeleton Loader for lazy scrolling -->
+                <div class="p-4 bg-white border-l-2 border-l-transparent pointer-events-none">
+                    <div class="h-4 w-3/4 skeleton-block animate-shimmer rounded mb-3"></div>
+                    <div class="flex gap-2 mb-3">
+                        <div class="h-3 w-12 skeleton-block animate-shimmer rounded"></div>
+                        <div class="h-3 w-24 skeleton-block animate-shimmer rounded"></div>
+                    </div>
+                    <div class="h-3 w-32 skeleton-block animate-shimmer rounded"></div>
+                </div>
+
+            </div>
+        </div>
+    </aside>
+
+    <!-- Deep-Architecture: Detail View Pane (The Inspector) -->
+    <main class="hidden lg:flex flex-1 flex-col bg-zinc-25 overflow-hidden relative isolate">
+        
+        <!-- Floating Compliance/Alert Banner -->
+        <div class="w-full bg-blue-50 border-b border-blue-200 px-6 py-2.5 flex items-center justify-between z-20">
+            <div class="flex items-center gap-3 text-sm text-blue-800">
+                <i class="ph ph-info mt-0.5 text-blue-600"></i>
+                <p>New data imported from <strong>Clearbit Enrichment</strong> is pending your review.</p>
+            </div>
+            <button class="text-xs font-semibold text-blue-700 hover:text-blue-900 uppercase tracking-wide">Review Changes</button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto pb-24">
+            <!-- Header Section -->
+            <header class="px-8 pt-8 pb-6 border-b border-zinc-200 bg-white">
+                <div class="flex items-center text-xs font-medium text-zinc-500 mb-4 tracking-wide gap-2">
+                    <span class="hover:text-zinc-800 cursor-pointer">Companies</span>
+                    <i class="ph ph-caret-right text-[10px]"></i>
+                    <span class="text-zinc-800">Nexus Data Systems</span>
+                </div>
+                
+                <div class="flex items-start justify-between">
+                    <div>
+                        <div class="flex items-center gap-3 mb-1">
+                            <h1 class="text-2xl font-semibold text-zinc-900 tracking-tight">Nexus Data Systems</h1>
+                            <span class="inline-flex items-center gap-1 rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 border border-zinc-200 tabular-nums">
+                                <i class="ph ph-copy text-zinc-400 hover:text-zinc-700 cursor-pointer"></i> ID: NXDS-821
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-4 text-sm text-zinc-500">
+                            <a href="#" class="hover:text-emerald-600 hover:underline flex items-center gap-1 transition-colors">nexusdata.io <i class="ph ph-arrow-up-right"></i></a>
+                            <span class="w-1 h-1 bg-zinc-300 rounded-full"></span>
+                            <span class="tabular-nums">Added 11.04.2023</span>
+                            <span class="w-1 h-1 bg-zinc-300 rounded-full"></span>
+                            <span class="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-1.5 rounded-sm border border-emerald-100">
+                                <i class="ph ph-shield-check"></i> Verified User Data
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button class="h-9 px-4 inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white text-sm font-medium text-zinc-700 shadow-xs hover:bg-zinc-50 transition-colors">
+                            <i class="ph ph-git-merge mr-2"></i> Merge
+                        </button>
+                        <button class="h-9 px-4 inline-flex items-center justify-center rounded-md bg-emerald-600 text-sm font-medium text-white shadow-xs hover:bg-emerald-700 transition-colors">
+                            <i class="ph ph-pencil-simple mr-2"></i> Edit Record
+                        </button>
+                        <button class="h-9 w-9 inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-500 shadow-xs hover:bg-zinc-50 transition-colors">
+                            <i class="ph ph-dots-three-vertical text-lg"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Grid Layout (Meso-Architecture) -->
+            <div class="grid grid-cols-12 gap-8 p-8 max-w-[1400px]">
+                
+                <!-- Center/Left Column: Core Data Forms (Col Span 7) -->
+                <div class="col-span-7 flex flex-col gap-8">
+                    
+                    <!-- Section: Classification -->
+                    <section class="bg-white rounded-lg border border-zinc-200 shadow-xs overflow-hidden">
+                        <div class="bg-zinc-50 px-5 py-3 border-b border-zinc-200 flex items-center justify-between">
+                            <h2 class="text-[12px] font-semibold text-zinc-700 uppercase tracking-wider">Classification & Metics</h2>
+                        </div>
+                        <div class="p-5 grid grid-cols-2 gap-x-6 gap-y-5">
+                            
+                            <!-- Field Component -->
+                            <div class="editable-field group relative rounded-sm -m-1 p-1 hover:bg-zinc-50 transition-colors cursor-text">
+                                <label class="block text-xs font-medium text-zinc-500 mb-1">Industry</label>
+                                <div class="flex items-center justify-between">
+                                    <div class="text-sm font-medium text-zinc-900">Enterprise SaaS</div>
+                                    <i class="ph ph-pencil-simple text-zinc-400 field-action"></i>
+                                </div>
+                                <div class="text-[11px] text-zinc-400 mt-1 flex items-center gap-1">
+                                    <i class="ph ph-robot"></i> Predicted via Crunchbase
+                                </div>
+                            </div>
+
+                            <div class="editable-field group relative rounded-sm -m-1 p-1 hover:bg-zinc-50 transition-colors cursor-text">
+                                <label class="block text-xs font-medium text-zinc-500 mb-1">Company Stage</label>
+                                <div class="flex items-center justify-between">
+                                    <div class="text-sm font-medium text-zinc-900">Series C / Growth</div>
+                                    <i class="ph ph-pencil-simple text-zinc-400 field-action"></i>
+                                </div>
+                                <div class="text-[11px] text-zinc-400 mt-1 flex items-center gap-1">
+                                    <i class="ph ph-user"></i> Verified by Analyst
+                                </div>
+                            </div>
+
+                            <div class="editable-field group relative rounded-sm -m-1 p-1 hover:bg-zinc-50 transition-colors cursor-text">
+                                <label class="block text-xs font-medium text-zinc-500 mb-1">Est. Revenue</label>
+                                <div class="flex items-center justify-between">
+                                    <div class="text-sm font-medium text-zinc-900 tabular-nums font-mono-num">$50M - $100M</div>
+                                    <i class="ph ph-pencil-simple text-zinc-400 field-action"></i>
+                                </div>
+                                <div class="text-[11px] text-zinc-400 mt-1">Manual entry, 3 mo ago</div>
+                            </div>
+
+                            <!-- ACTIVE INLINE EDIT STATE DEMO -->
+                            <div class="group relative rounded-sm -m-1 p-1 bg-emerald-50/50 ring-1 ring-emerald-200 border-none">
+                                <label class="block text-xs font-medium text-emerald-700 mb-1">Employee Count</label>
+                                <div class="relative">
+                                    <select class="w-full h-8 px-2 text-sm bg-white border border-emerald-300 rounded focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-sm appearance-none tabular-nums select-none">
+                                        <option>250 - 500</option>
+                                        <option selected>501 - 1,000</option>
+                                        <option>1,001 - 5,000</option>
+                                    </select>
+                                    <i class="ph ph-caret-down absolute right-2 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"></i>
+                                </div>
+                                <div class="flex justify-end gap-1 mt-1.5">
+                                    <button class="w-6 h-6 flex items-center justify-center bg-white border border-zinc-200 rounded text-zinc-500 hover:bg-zinc-50 shadow-xs"><i class="ph ph-x"></i></button>
+                                    <button class="w-6 h-6 flex items-center justify-center bg-emerald-600 text-white rounded shadow-xs hover:bg-emerald-700"><i class="ph ph-check"></i></button>
+                                </div>
+                            </div>
+
+                        </div>
+                        <!-- Long text description block -->
+                        <div class="border-t border-zinc-200 p-5">
+                            <label class="block text-xs font-medium text-zinc-500 mb-2">Company Overview</label>
+                            <p class="text-sm text-zinc-700 leading-relaxed">
+                                Nexus Data Systems provides advanced AI-driven data pipeline infrastructure for large enterprise logistics. Their core product suite integrates tightly with existing ERPs to establish predictive routing models and real-time anomaly detection.
+                            </p>
+                            <div class="text-[11px] text-zinc-400 mt-2 flex items-center gap-1">
+                                <i class="ph ph-robot"></i> Auto-generated from Pitchbook ingestion (14d ago)
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- ENRICHMENT CONFLICT COMPONENT (Visual Tension) -->
+                    <section class="bg-amber-50/40 rounded-lg border-2 border-amber-200 overflow-hidden relative shadow-sm">
+                        <div class="absolute top-0 right-0 p-3">
+                            <span class="flex h-3 w-3 relative">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500 border border-amber-200"></span>
+                            </span>
+                        </div>
+                        <div class="px-5 py-4 border-b border-amber-200/60 flex items-start gap-3">
+                            <i class="ph ph-warning-circle text-xl text-amber-600 mt-0.5"></i>
+                            <div>
+                                <h3 class="text-sm font-semibold text-amber-900">Enrichment Conflict Detected</h3>
+                                <p class="text-xs text-amber-700 mt-0.5">Clearbit returned data that conflicts with explicitly verified fields.</p>
+                            </div>
+                        </div>
+                        <div class="p-5 flex items-stretch gap-4">
+                            <!-- Existing Box -->
+                            <div class="flex-1 bg-white border border-zinc-200 rounded-md p-3 opacity-60">
+                                <div class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Current (Verified)</div>
+                                <div class="text-xs text-zinc-500 mb-1">HQ Location</div>
+                                <div class="text-sm font-medium text-zinc-900 line-through">Seattle, WA, United States</div>
+                            </div>
+                            
+                            <!-- Arrow -->
+                            <div class="flex flex-col justify-center items-center px-1">
+                                <i class="ph ph-arrow-right text-amber-400 text-lg"></i>
+                            </div>
+
+                            <!-- Incoming Box -->
+                            <div class="flex-1 bg-white border border-amber-300 rounded-md p-3 ring-1 ring-amber-100 shadow-sm relative">
+                                <div class="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-2">Incoming (Clearbit)</div>
+                                <div class="text-xs text-amber-700/80 mb-1">HQ Location</div>
+                                <div class="text-sm font-medium text-amber-900">Bellevue, WA, United States</div>
+                            </div>
+                        </div>
+                        <div class="px-5 py-3 bg-white/50 border-t border-amber-200/60 flex justify-end gap-2">
+                            <button class="px-3 py-1.5 rounded-md text-xs font-semibold text-zinc-600 hover:bg-zinc-200/50 transition-colors">Keep Current</button>
+                            <button class="px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-semibold shadow-xs hover:bg-amber-700 transition-colors">Accept Incoming Data</button>
+                        </div>
+                    </section>
+
+                </div>
+
+                <!-- Right Column: Context, Audit, Connections (Col Span 5) -->
+                <div class="col-span-12 lg:col-span-5 flex flex-col gap-6">
+                    
+                    <!-- Fit / Deal Connections (Bento Mini) -->
+                    <div class="bg-white rounded-lg border border-zinc-200 shadow-xs p-5">
+                        <h2 class="text-[12px] font-semibold text-zinc-700 uppercase tracking-wider mb-4">Pipeline Presence</h2>
+                        
+                        <div class="flex flex-col gap-3">
+                            <a href="#" class="flex items-center justify-between p-3 rounded-md border border-zinc-200 bg-zinc-25 hover:border-emerald-300 hover:shadow-sm transition-all group">
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-medium text-zinc-500 mb-0.5">Active Buyer Proxy</span>
+                                    <span class="text-sm font-semibold text-zinc-900 group-hover:text-emerald-700 transition-colors">Project Velocity</span>
+                                </div>
+                                <div class="flex flex-col items-end">
+                                    <span class="tabular-nums font-mono text-[11px] text-zinc-400 mb-1">FitScore</span>
+                                    <span class="inline-flex items-center justify-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 tabular-nums">94</span>
+                                </div>
+                            </a>
+                            
+                            <a href="#" class="flex items-center justify-between p-3 rounded-md border border-zinc-200 bg-zinc-25 hover:border-blue-300 hover:shadow-sm transition-all group">
+                                <div class="flex flex-col">
+                                    <span class="text-xs font-medium text-zinc-500 mb-0.5">Historical Target</span>
+                                    <span class="text-sm font-semibold text-zinc-800 line-through">Project Apollo</span>
+                                </div>
+                                <div class="flex flex-col items-end">
+                                    <span class="inline-flex items-center justify-center rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-500">Passed (Price)</span>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Immutable Audit Trail (Provenance Requirement) -->
+                    <div class="bg-white rounded-lg border border-zinc-200 shadow-xs flex flex-col h-full max-h-[300px]">
+                        <div class="px-5 py-3 border-b border-zinc-200 flex items-center justify-between sticky top-0 bg-white/90 app-blur select-none">
+                            <h2 class="text-[12px] font-semibold text-zinc-700 uppercase tracking-wider flex items-center gap-2">
+                                <i class="ph ph-file-check"></i> Audit Log
+                            </h2>
+                            <button class="text-[11px] font-medium text-zinc-500 hover:text-zinc-900">View All</button>
+                        </div>
+                        <div class="p-5 flex-1 overflow-y-auto space-y-4">
+                            <!-- Log Item -->
+                            <div class="relative pl-4 border-l border-zinc-200">
+                                <div class="absolute -left-[5px] top-1 w-2 h-2 rounded-full bg-emerald-500 border-2 border-white shadow-sm"></div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-[11px] font-medium text-zinc-900">Sarah Jenkins (Principal)</span>
+                                    <span class="text-[10px] text-zinc-400 tabular-nums">11.04.23 14:02 MSG</span>
+                                </div>
+                                <p class="text-xs text-zinc-600 mb-1">Updated <span class="font-mono text-[10px] bg-zinc-100 px-1 rounded">Stage</span> from <strong>Growth</strong> to <strong>Series C</strong></p>
+                                <div class="flex items-center gap-1.5 text-[10px] text-zinc-400 font-mono bg-zinc-50 mt-1.5 p-1 rounded-sm overflow-hidden select-all opacity-70 hover:opacity-100 transition-opacity">
+                                    <i class="ph ph-fingerprint text-emerald-600"></i> hash: xd84...92b1
+                                </div>
+                            </div>
+                            
+                            <!-- Log Item -->
+                            <div class="relative pl-4 border-l border-zinc-200">
+                                <div class="absolute -left-[5px] top-1 w-2 h-2 rounded-full bg-blue-500 border-2 border-white shadow-sm"></div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-[11px] font-medium text-zinc-900">System API [Clearbit]</span>
+                                    <span class="text-[10px] text-zinc-400 tabular-nums">09.12.23 03:00 MSG</span>
+                                </div>
+                                <p class="text-xs text-zinc-600">Enriched 4 fields: <span class="text-zinc-400">Revenue, Emp. Count, Domain, HQ</span></p>
+                            </div>
+                            
+                            <!-- Log Item (Account Creation) -->
+                            <div class="relative pl-4">
+                                <div class="absolute -left-[5px] top-1 w-2 h-2 rounded-full bg-zinc-300 border-2 border-white shadow-sm"></div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-[11px] font-medium text-zinc-900">DealFlow Matcher</span>
+                                    <span class="text-[10px] text-zinc-400 tabular-nums">09.12.23 02:59 MSG</span>
+                                </div>
+                                <p class="text-xs text-zinc-600">Record Instantiated</p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Tabbed Sub-Section (Contacts) -->
+            <div class="mx-8 mt-2 mb-12 bg-white rounded-lg border border-zinc-200 shadow-xs overflow-hidden pb-4">
+                
+                <!-- Tab Headers -->
+                <div class="flex border-b border-zinc-200 bg-zinc-50/50">
+                    <button class="px-6 py-3 border-b-2 border-emerald-600 text-sm font-semibold text-emerald-800 bg-white">
+                        Linked Contacts (14)
+                    </button>
+                    <button class="px-6 py-3 border-b-2 border-transparent text-sm font-medium text-zinc-500 hover:text-zinc-700 hover:bg-zinc-50 transition-colors">
+                        Enrichment History
+                    </button>
+                    <button class="px-6 py-3 border-b-2 border-transparent text-sm font-medium text-zinc-500 hover:text-zinc-700 hover:bg-zinc-50 transition-colors">
+                        Compliance & Share
+                    </button>
+                    <div class="flex-1 flex justify-end items-center pr-4">
+                        <button class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-emerald-50 transition-colors">
+                            <i class="ph ph-plus"></i> Add Contact
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab Body: Contacts Data Table -->
+                <div class="w-full overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="border-b border-zinc-200 bg-zinc-50/50">
+                                <th class="px-5 py-3 text-[11px] font-bold tracking-widest text-zinc-500 uppercase">Contact Name</th>
+                                <th class="px-5 py-3 text-[11px] font-bold tracking-widest text-zinc-500 uppercase">Role / Title</th>
+                                <th class="px-5 py-3 text-[11px] font-bold tracking-widest text-zinc-500 uppercase">Email (Masked)</th>
+                                <th class="px-5 py-3 text-[11px] font-bold tracking-widest text-zinc-500 uppercase text-right">Last Touch</th>
+                                <th class="px-5 py-3 w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-100">
+                            <!-- Table Row -->
+                            <tr class="hover:bg-zinc-50/80 transition-colors group">
+                                <td class="px-5 py-2.5">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-7 h-7 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-bold text-zinc-600 border border-zinc-300">
+                                            EL
+                                        </div>
+                                        <div class="font-medium text-zinc-900 group-hover:text-emerald-700 cursor-pointer transition-colors block">Elena Rostova</div>
+                                    </div>
+                                </td>
+                                <td class="px-5 py-2.5 text-zinc-600 text-[13px]">Chief Technology Officer</td>
+                                <td class="px-5 py-2.5 text-zinc-500 font-mono text-[12px] tabular-nums group-hover:text-zinc-800 transition-colors">e.r***@nexus.io</td>
+                                <td class="px-5 py-2.5 text-right font-mono text-[12px] tabular-nums text-zinc-400">14.10.23</td>
+                                <td class="px-5 py-2.5 text-center">
+                                    <button class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-500 transition-all">
+                                        <i class="ph ph-link-break"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <!-- Table Row -->
+                            <tr class="hover:bg-zinc-50/80 transition-colors group">
+                                <td class="px-5 py-2.5">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-7 h-7 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-bold text-zinc-600 border border-zinc-300 object-cover overflow-hidden">
+                                            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=facearea&facepad=2&w=128&h=128&q=80" alt="Avatar" class="w-full h-full">
+                                        </div>
+                                        <div class="font-medium text-zinc-900 group-hover:text-emerald-700 cursor-pointer transition-colors block">Marcus Chen</div>
+                                    </div>
+                                </td>
+                                <td class="px-5 py-2.5 text-zinc-600 text-[13px]">SVP, Corporate Dev</td>
+                                <td class="px-5 py-2.5 text-zinc-500 font-mono text-[12px] tabular-nums group-hover:text-zinc-800 transition-colors">mc***@nexus.io</td>
+                                <td class="px-5 py-2.5 text-right font-mono text-[12px] tabular-nums text-zinc-400">--</td>
+                                <td class="px-5 py-2.5 text-center">
+                                    <button class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-500 transition-all">
+                                        <i class="ph ph-link-break"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="border-t border-zinc-100 bg-zinc-25 px-5 py-3 text-center">
+                    <button class="text-[12px] font-medium text-zinc-500 hover:text-zinc-800">View all 14 contacts <i class="ph ph-arrow-right inline-block translate-y-[2px]"></i></button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Mobile Wrapper Fallback (Hidden on Desktop, forces strict single column logic if accessed on small screens) -->
+    <div class="flex lg:hidden w-full h-full flex-col bg-zinc-50 justify-center items-center p-8 text-center border-t-4 border-emerald-600">
+         <i class="ph ph-desktop text-4xl text-zinc-400 mb-4"></i>
+         <h2 class="text-lg font-semibold text-zinc-800 mb-2">Desktop Optimized View</h2>
+         <p class="text-sm text-zinc-500 max-w-sm">The Master Data suite is architected for complex side-by-side workflows. Please view on a desktop or tablet device (≥1024px).</p>
+    </div>
+
+</body>
+</html>

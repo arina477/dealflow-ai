@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased text-zinc-700 bg-zinc-25">
+<!--
+  aesthetic_dna: Corporate Credible / Regulated SaaS / Linear-esque
+  ui_paradigm: Data-Dense Command Center Table / Split View Controller
+  palette_choice: Absolute Zinc Scale (Zinc 25-950) + Emerald Accent. Strict status semantic mapping.
+-->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mandates | DealFlow AI</title>
+    
+    <!-- Typography: Inter for UI, Tabular nums activated via CSS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons: Lucide (Matching Design System Spec) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Tailwind Config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        },
+                        status: {
+                            positive: '#10B981',
+                            info: '#2563EB',
+                            warn: '#D97706',
+                            danger: '#DC2626',
+                            neutral: '#9CA3AF'
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                    },
+                    animation: {
+                        'shimmer': 'shimmer 2s linear infinite',
+                        'cascade-in': 'cascadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                    },
+                    keyframes: {
+                        shimmer: {
+                            '0%': { backgroundPosition: '-1000px 0' },
+                            '100%': { backgroundPosition: '1000px 0' },
+                        },
+                        cascadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(8px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Core System Constraints & Overrides */
+        :root {
+            --anim-speed: 0.6s;
+            --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        body {
+            /* Forced tabular numerals for all data */
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Highly-crafted custom scrollbar for data dense areas */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #E5E7EB;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D1D5DB;
+        }
+
+        /* Staggered Row Animation Logic */
+        .list-row {
+            opacity: 0;
+            animation: cascade-in var(--anim-speed) var(--anim-ease) forwards;
+            animation-delay: calc(var(--row-idx) * 40ms);
+        }
+
+        /* Precision Interactive States */
+        .interactive-row {
+            transition: all 150ms ease;
+        }
+        .interactive-row:hover {
+            background-color: var(--theme-zinc-50, #F9FAFB);
+            /* Micro-lift via translation */
+            transform: translateY(-1px);
+            z-index: 10;
+            box-shadow: 0 4px 12px -4px rgba(16, 24, 40, 0.08);
+            border-color: transparent !important;
+        }
+        /* Reveal actions on hover */
+        .interactive-row:hover .row-actions {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Skeleton Loading Utilities */
+        .skeleton-block {
+            background: #F3F4F6;
+            background-image: linear-gradient(to right, #F3F4F6 0%, #E5E7EB 20%, #F3F4F6 40%, #F3F4F6 100%);
+            background-repeat: no-repeat;
+            background-size: 1000px 100%;
+            animation: shimmer 1.5s infinite linear forwards;
+        }
+
+        /* Responsive Table -> Card flip */
+        @media (max-width: 1023px) {
+            .table-header { display: none !important; }
+            .grid-table-row {
+                display: flex !important;
+                flex-direction: column;
+                position: relative;
+                padding: 1rem !important;
+                gap: 0.75rem;
+                border: 1px solid #E5E7EB;
+                border-radius: 0.5rem;
+                margin-bottom: 0.75rem;
+                background: white;
+            }
+            .grid-table-row > div {
+                justify-content: flex-start;
+                text-align: left;
+            }
+            .grid-table-row .metrics-col {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+                width: 100%;
+                margin-top: 0.5rem;
+                padding-top: 0.75rem;
+                border-top: 1px solid #F3F4F6;
+            }
+            .grid-table-row .owner-col {
+                position: absolute;
+                top: 1rem;
+                right: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body class="flex min-h-[100dvh] w-full overflow-hidden">
+
+    <!-- SIDEBAR NAVIGATION (Macro-Architecture) -->
+    <aside class="hidden lg:flex w-64 flex-col bg-zinc-900 border-r border-zinc-800 text-zinc-400 z-40 fixed inset-y-0 left-0">
+        <!-- Logo Area -->
+        <div class="h-16 flex items-center px-6 border-b border-zinc-800/50">
+            <div class="flex items-center gap-2 text-zinc-50">
+                <i data-lucide="layout-dashboard" class="h-5 w-5 text-emerald-500"></i>
+                <span class="font-semibold tracking-tight text-[15px]">DealFlow AI</span>
+            </div>
+        </div>
+
+        <!-- Nav Links -->
+        <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+            <div class="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-zinc-500">Workspace</div>
+            
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-zinc-800 hover:text-zinc-50 transition-colors">
+                <i data-lucide="pie-chart" class="h-[18px] w-[18px] opacity-70"></i>
+                Dashboard
+            </a>
+            
+            <!-- Active State -->
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-sm rounded-md bg-zinc-800 text-zinc-50 relative overflow-hidden group">
+                <!-- Emerald Indicator -->
+                <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-500 rounded-r-full shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
+                <i data-lucide="briefcase" class="h-[18px] w-[18px] text-emerald-400"></i>
+                <span class="font-medium">Mandates</span>
+            </a>
+
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-zinc-800 hover:text-zinc-50 transition-colors">
+                <i data-lucide="users" class="h-[18px] w-[18px] opacity-70"></i>
+                Buyers Core
+            </a>
+            
+            <div class="px-3 pt-6 pb-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-zinc-500">Compliance & Ops</div>
+
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-zinc-800 hover:text-zinc-50 transition-colors">
+                <i data-lucide="shield-check" class="h-[18px] w-[18px] opacity-70"></i>
+                Clearance Queue
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-zinc-800 hover:text-zinc-50 transition-colors">
+                <i data-lucide="file-check" class="h-[18px] w-[18px] opacity-70"></i>
+                Audit Logs
+            </a>
+        </nav>
+
+        <!-- User Pod -->
+        <div class="p-4 border-t border-zinc-800 pb-6">
+            <button class="flex items-center gap-3 w-full p-2 rounded-md hover:bg-zinc-800 transition-colors text-left">
+                <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" alt="Michael Advisor" class="h-8 w-8 rounded-full border border-zinc-700">
+                <div class="flex-1 truncate">
+                    <p class="text-sm font-medium text-zinc-50">Michael R.</p>
+                    <p class="text-xs text-zinc-500">Deal Lead</p>
+                </div>
+                <i data-lucide="more-horizontal" class="h-4 w-4 text-zinc-500"></i>
+            </button>
+        </div>
+    </aside>
+
+    <!-- MAIN APPLICATION REGION -->
+    <main class="flex-1 flex flex-col h-[100dvh] lg:pl-64 overflow-hidden relative">
+        
+        <!-- Top Utility Bar -->
+        <header class="h-16 flex items-center justify-between px-6 lg:px-8 bg-zinc-25/80 backdrop-blur-md border-b border-zinc-200 shrink-0 z-30">
+            <!-- Mobile Menu Toggle & Breadcrumbs -->
+            <div class="flex items-center gap-4">
+                <button class="lg:hidden p-2 -ml-2 text-zinc-500 hover:bg-zinc-100 rounded-md">
+                    <i data-lucide="menu" class="h-5 w-5"></i>
+                </button>
+                <nav class="hidden sm:flex text-sm text-zinc-500 font-medium">
+                    <a href="#" class="hover:text-zinc-900 transition-colors">Workspace</a>
+                    <span class="mx-2 text-zinc-300">/</span>
+                    <span class="text-zinc-900">Mandates</span>
+                </nav>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <button class="p-2 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors relative">
+                    <span class="absolute top-2 right-2 w-1.5 h-1.5 bg-emerald-500 border border-white rounded-full"></span>
+                    <i data-lucide="bell" class="h-5 w-5"></i>
+                </button>
+                <div class="h-5 w-px bg-zinc-200"></div>
+                <button class="p-2 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors">
+                    <i data-lucide="settings" class="h-5 w-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Scrollable Content Area -->
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 isolate relative">
+            <div class="max-w-[1400px] mx-auto w-full flex flex-col">
+                
+                <!-- Page Context: H1 & Quick Stats -->
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 pt-2">
+                    <div>
+                        <h1 class="text-2xl font-semibold text-zinc-900 tracking-tight leading-none mb-2">Mandates</h1>
+                        <p class="text-sm text-zinc-500">Manage active engagements, AI matchmaking, and outreach velocity.</p>
+                    </div>
+                    
+                    <!-- Quick Stats Banner & CTA -->
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+                        <div class="flex items-center gap-6 pr-6 border-r border-zinc-200 hidden xl:flex">
+                            <div>
+                                <p class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Active</p>
+                                <p class="text-lg font-semibold text-zinc-900 tabular-nums leading-none">14</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Avg Sourcing</p>
+                                <p class="text-lg font-semibold text-zinc-900 tabular-nums leading-none">18d</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Total Matched</p>
+                                <p class="text-lg font-semibold text-emerald-600 tabular-nums leading-none flex items-center gap-1">
+                                    1,492 <i data-lucide="trending-up" class="h-4 w-4"></i>
+                                </p>
+                            </div>
+                        </div>
+
+                        <button class="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium h-9 px-4 rounded-md shadow-sm transition-all active:scale-[0.98] w-full sm:w-auto focus:outline-none focus:ring-2 focus:ring-emerald-600/40 focus:ring-offset-1 focus:ring-offset-zinc-25">
+                            <i data-lucide="plus" class="h-4 w-4"></i>
+                            New mandate
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Control Plane: Filters & Search -->
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4 z-20">
+                    <!-- Status Filter Segmented Control -->
+                    <div class="flex items-center bg-zinc-100/80 p-0.5 rounded-lg w-full sm:w-auto border border-zinc-200/50">
+                        <button class="flex-1 sm:flex-none px-3 pt-[5px] pb-1.5 text-xs font-semibold rounded-md bg-white text-zinc-900 shadow-sm border border-zinc-200/50 ring-1 ring-black/5 transaction-all relative">
+                            All
+                            <span class="ml-1.5 text-[10px] text-zinc-400 font-normal">14</span>
+                        </button>
+                        <button class="flex-1 sm:flex-none px-3 pt-[5px] pb-1.5 text-xs font-medium rounded-md text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/30 transition-all">
+                            Sourcing
+                        </button>
+                        <button class="flex-1 sm:flex-none px-3 pt-[5px] pb-1.5 text-xs font-medium rounded-md text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/30 transition-all">
+                            Matching
+                        </button>
+                        <button class="flex-1 sm:flex-none px-3 pt-[5px] pb-1.5 text-xs font-medium rounded-md text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/30 transition-all relative">
+                            Outreach
+                            <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                        </button>
+                        <button class="flex-1 sm:flex-none px-3 pt-[5px] pb-1.5 text-xs font-medium rounded-md text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/30 transition-all">
+                            Pipeline
+                        </button>
+                    </div>
+
+                    <!-- Search & Secondary Controls -->
+                    <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <div class="relative w-full sm:w-64">
+                            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400"></i>
+                            <input type="text" placeholder="Search mandates..." class="w-full h-9 pl-9 pr-3 text-sm bg-white border border-zinc-200 rounded-md placeholder:text-zinc-400 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 shadow-xs transition-shadow">
+                        </div>
+                        <button class="h-9 w-9 flex items-center justify-center bg-white border border-zinc-200 rounded-md text-zinc-500 hover:bg-zinc-50 shadow-xs flex-shrink-0" title="Sort options">
+                            <i data-lucide="arrow-down-up" class="h-4 w-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- STATE CONTROLLER WRAPPERS -->
+                
+                <!-- 1. DATA STATE (Main Table) -->
+                <div id="view-data" class="bg-white border border-zinc-200 rounded-md shadow-xs flex-1 flex flex-col min-h-[500px]">
+                    <!-- Table Header -->
+                    <div class="table-header grid grid-cols-[minmax(280px,2.5fr)_140px_100px_minmax(320px,2.5fr)_80px] items-center gap-4 px-5 py-3 border-b border-zinc-200 bg-zinc-50/50 rounded-t-md sticky top-0 z-10 backdrop-blur-sm">
+                        <div class="text-xs font-semibold uppercase tracking-[0.04em] text-zinc-500 flex items-center gap-1.5 cursor-pointer hover:text-zinc-900 transition-colors">
+                            Mandate / Seller <i data-lucide="chevron-down" class="h-3 w-3"></i>
+                        </div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.04em] text-zinc-500">Status</div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.04em] text-zinc-500 text-right">Time In Stage</div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.04em] text-zinc-500">Funnel Metrics</div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.04em] text-zinc-500 text-right pr-2">Owner</div>
+                    </div>
+
+                    <!-- Row 1: Pipeline Status -->
+                    <div class="grid-table-row interactive-row list-row grid grid-cols-[minmax(280px,2.5fr)_140px_100px_minmax(320px,2.5fr)_80px] items-center gap-4 px-5 py-4 border-b border-zinc-100 group relative bg-white" style="--row-idx: 1;">
+                        <!-- Col 1 -->
+                        <div>
+                            <a href="#" class="block font-semibold text-zinc-900 group-hover:text-emerald-700 transition-colors text-[14px]">Project Alpine</a>
+                            <p class="mt-0.5 text-[13px] text-zinc-500 flex items-center gap-1.5">
+                                Nexus Tech Solutions <span class="text-zinc-300">|</span> B2B SaaS
+                            </p>
+                        </div>
+                        <!-- Col 2 -->
+                        <div>
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Pipeline
+                            </span>
+                        </div>
+                        <!-- Col 3 -->
+                        <div class="text-right text-sm text-zinc-500 tabular-nums">42d</div>
+                        <!-- Col 4 -->
+                        <div class="metrics-col flex items-center gap-6">
+                            <div class="flex flex-col min-w-[60px]">
+                                <span class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-0.5">Matched</span>
+                                <span class="text-sm font-medium text-zinc-900">412</span>
+                            </div>
+                            <div class="h-6 w-px bg-zinc-200 hidden sm:block"></div>
+                            <div class="flex flex-col min-w-[60px]">
+                                <span class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-0.5">Contacted</span>
+                                <span class="text-sm font-medium text-zinc-900">85</span>
+                            </div>
+                            <div class="flex-1 w-full max-w-[100px] hidden lg:block pt-1">
+                                <div class="flex items-end justify-between mb-1">
+                                    <span class="text-[10px] font-semibold text-zinc-500">Reply Rate</span>
+                                    <span class="text-[10px] font-bold text-emerald-600">22%</span>
+                                </div>
+                                <div class="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden ring-1 ring-inset ring-black/5">
+                                    <div class="bg-emerald-500 h-1.5 rounded-full" style="width: 22%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Col 5 & Actions -->
+                        <div class="owner-col flex justify-end items-center gap-3 pr-1">
+                            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" alt="Owner" class="h-6 w-6 rounded-full bg-zinc-100 ring-2 ring-white shadow-xs">
+                            
+                            <!-- Absolute floating action menu (Desktop hover only) -->
+                            <div class="row-actions absolute right-4 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none transition-opacity hidden lg:flex items-center gap-1 bg-white p-1 rounded-md shadow-[0_4px_12px_-4px_rgba(16,24,40,0.1)] border border-zinc-200">
+                                <button class="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-sm tooltip-trigger" title="Settings">
+                                    <i data-lucide="settings-2" class="h-4 w-4"></i>
+                                </button>
+                                <button class="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-sm tooltip-trigger" title="Archive">
+                                    <i data-lucide="archive" class="h-4 w-4"></i>
+                                </button>
+                                <div class="w-px h-4 bg-zinc-200 mx-1"></div>
+                                <button class="px-2 py-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 rounded-sm">View details</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 2: Outreach Status -->
+                    <div class="grid-table-row interactive-row list-row grid grid-cols-[minmax(280px,2.5fr)_140px_100px_minmax(320px,2.5fr)_80px] items-center gap-4 px-5 py-4 border-b border-zinc-100 group relative bg-white" style="--row-idx: 2;">
+                        <div>
+                            <a href="#" class="block font-semibold text-zinc-900 group-hover:text-emerald-700 transition-colors text-[14px]">Project Vanguard</a>
+                            <p class="mt-0.5 text-[13px] text-zinc-500 flex items-center gap-1.5">
+                                Zenith Logistics <span class="text-zinc-300">|</span> Supply Chain
+                            </p>
+                        </div>
+                        <div>
+                            <!-- Spec calls Outreach Orange (warn token) -->
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 ring-1 ring-inset ring-orange-600/20">
+                                <i data-lucide="send" class="h-3 w-3"></i> Outreach
+                            </span>
+                        </div>
+                        <div class="text-right text-sm text-zinc-500 tabular-nums">14d</div>
+                        <div class="metrics-col flex items-center gap-6">
+                            <div class="flex flex-col min-w-[60px]">
+                                <span class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-0.5">Matched</span>
+                                <span class="text-sm font-medium text-zinc-900">228</span>
+                            </div>
+                            <div class="h-6 w-px bg-zinc-200 hidden sm:block"></div>
+                            <div class="flex flex-col min-w-[60px]">
+                                <span class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-0.5">Contacted</span>
+                                <span class="text-sm font-medium text-zinc-900">110</span>
+                            </div>
+                            <div class="flex-1 w-full max-w-[100px] hidden lg:block pt-1">
+                                <div class="flex items-end justify-between mb-1">
+                                    <span class="text-[10px] font-semibold text-zinc-500">Reply Rate</span>
+                                    <span class="text-[10px] font-bold text-orange-600">6%</span>
+                                </div>
+                                <div class="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden ring-1 ring-inset ring-black/5">
+                                    <!-- Using amber color for low reply rate to create data meaning -->
+                                    <div class="bg-orange-500 h-1.5 rounded-full" style="width: 6%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="owner-col flex justify-end items-center gap-3 pr-1">
+                            <div class="h-6 w-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold ring-2 ring-white shadow-xs">SJ</div>
+                            
+                            <div class="row-actions absolute right-4 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none transition-opacity hidden lg:flex items-center gap-1 bg-white p-1 rounded-md shadow-[0_4px_12px_-4px_rgba(16,24,40,0.1)] border border-zinc-200">
+                                <button class="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-sm tooltip-trigger"><i data-lucide="settings-2" class="h-4 w-4"></i></button>
+                                <button class="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-sm tooltip-trigger"><i data-lucide="archive" class="h-4 w-4"></i></button>
+                                <div class="w-px h-4 bg-zinc-200 mx-1"></div>
+                                <button class="px-2 py-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 rounded-sm">View details</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 3: Matching Status -->
+                    <div class="grid-table-row interactive-row list-row grid grid-cols-[minmax(280px,2.5fr)_140px_100px_minmax(320px,2.5fr)_80px] items-center gap-4 px-5 py-4 border-b border-zinc-100 group relative bg-white" style="--row-idx: 3;">
+                        <div>
+                            <a href="#" class="block font-semibold text-zinc-900 group-hover:text-emerald-700 transition-colors text-[14px]">Project Horizon</a>
+                            <p class="mt-0.5 text-[13px] text-zinc-500 flex items-center gap-1.5">
+                                Horizon MediTech <span class="text-zinc-300">|</span> Healthcare
+                            </p>
+                        </div>
+                        <div>
+                            <!-- Spec calls Matching Blue -->
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">
+                                <i data-lucide="sparkles" class="h-3 w-3"></i> Matching
+                            </span>
+                        </div>
+                        <div class="text-right text-sm text-zinc-500 tabular-nums">4d</div>
+                        <div class="metrics-col flex items-center gap-6">
+                            <div class="flex flex-col min-w-[60px]">
+                                <span class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-0.5 flex items-center gap-1">
+                                    Matched <span class="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                                </span>
+                                <span class="text-sm font-medium text-zinc-900">84</span>
+                            </div>
+                            <div class="h-6 w-px bg-zinc-200 hidden sm:block"></div>
+                            <div class="flex flex-col min-w-[60px] opacity-40">
+                                <span class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-0.5 pl-1">Outreach</span>
+                                <span class="text-xs text-zinc-500 font-medium pl-1">Awaiting review</span>
+                            </div>
+                        </div>
+                        <div class="owner-col flex justify-end items-center gap-3 pr-1">
+                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" alt="Owner" class="h-6 w-6 rounded-full bg-zinc-100 ring-2 ring-white shadow-xs">
+                            
+                            <div class="row-actions absolute right-4 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none transition-opacity hidden lg:flex items-center gap-1 bg-white p-1 rounded-md shadow-[0_4px_12px_-4px_rgba(16,24,40,0.1)] border border-zinc-200">
+                                <button class="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-sm tooltip-trigger"><i data-lucide="settings-2" class="h-4 w-4"></i></button>
+                                <button class="px-2 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-sm border border-blue-200/50">Review Matches</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 4: Sourcing Status -->
+                    <div class="grid-table-row interactive-row list-row grid grid-cols-[minmax(280px,2.5fr)_140px_100px_minmax(320px,2.5fr)_80px] items-center gap-4 px-5 py-4 group relative bg-white border-b-transparent rounded-b-md" style="--row-idx: 4;">
+                        <div>
+                            <a href="#" class="block font-semibold text-zinc-900 group-hover:text-emerald-700 transition-colors text-[14px]">Project Delta</a>
+                            <p class="mt-0.5 text-[13px] text-zinc-500 flex items-center gap-1.5">
+                                Acme Industrials <span class="text-zinc-300">|</span> Manufacturing
+                            </p>
+                        </div>
+                        <div>
+                            <!-- Spec calls Sourcing Yellow/Amber -->
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-yellow-50 px-2 py-0.5 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/30">
+                                <i data-lucide="database" class="h-3 w-3"></i> Sourcing
+                            </span>
+                        </div>
+                        <div class="text-right text-sm text-zinc-500 tabular-nums">2d</div>
+                        <div class="metrics-col flex items-center gap-6">
+                            <!-- Showing a loading/progress indicator because it's actively sourcing -->
+                            <div class="flex items-center gap-3 bg-zinc-50 px-3 py-1.5 rounded-md border border-zinc-200/60 w-full max-w-[240px]">
+                                <i data-lucide="loader-2" class="h-4 w-4 text-zinc-400 animate-spin"></i>
+                                <span class="text-xs font-medium text-zinc-600">Agent scanning databases...</span>
+                            </div>
+                        </div>
+                        <div class="owner-col flex justify-end items-center gap-3 pr-1">
+                            <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" alt="Owner" class="h-6 w-6 rounded-full bg-zinc-100 ring-2 ring-white shadow-xs">
+                            
+                            <div class="row-actions absolute right-4 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none transition-opacity hidden lg:flex items-center gap-1 bg-white p-1 rounded-md shadow-[0_4px_12px_-4px_rgba(16,24,40,0.1)] border border-zinc-200">
+                                <button class="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-sm tooltip-trigger"><i data-lucide="settings-2" class="h-4 w-4"></i></button>
+                                <button class="px-2 py-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 rounded-sm">View details</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. LOADING STATE (Hidden by default, displayed via UI toggle) -->
+                <div id="view-loading" class="hidden bg-white border border-zinc-200 rounded-md shadow-xs flex-1 flex-col overflow-hidden">
+                    <div class="table-header grid grid-cols-[minmax(280px,2.5fr)_140px_100px_minmax(320px,2.5fr)_80px] items-center gap-4 px-5 py-3 border-b border-zinc-200 bg-zinc-50/50">
+                        <div class="text-xs font-semibold uppercase tracking-[0.04em] text-zinc-500">Mandate / Seller</div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.04em] text-zinc-500">Status</div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.04em] text-zinc-500 text-right">Time</div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.04em] text-zinc-500">Funnel Metrics</div>
+                    </div>
+                    <!-- Skeleton Rows -->
+                    <div class="p-4 border-b border-zinc-100 flex items-center justify-between">
+                        <div class="w-1/3"><div class="skeleton-block h-5 w-48 rounded-md mb-2"></div><div class="skeleton-block h-3 w-32 rounded-md"></div></div>
+                        <div class="w-24"><div class="skeleton-block h-6 w-full rounded-full"></div></div>
+                        <div class="w-16"><div class="skeleton-block h-4 w-full rounded-md ml-auto"></div></div>
+                        <div class="w-1/3 flex gap-4"><div class="skeleton-block h-8 w-16 rounded-md"></div><div class="skeleton-block h-8 w-16 rounded-md"></div></div>
+                    </div>
+                    <div class="p-4 border-b border-zinc-100 flex items-center justify-between">
+                        <div class="w-1/3"><div class="skeleton-block h-5 w-40 rounded-md mb-2"></div><div class="skeleton-block h-3 w-28 rounded-md"></div></div>
+                        <div class="w-24"><div class="skeleton-block h-6 w-full rounded-full"></div></div>
+                        <div class="w-16"><div class="skeleton-block h-4 w-full rounded-md ml-auto"></div></div>
+                        <div class="w-1/3 flex gap-4"><div class="skeleton-block h-8 w-16 rounded-md"></div><div class="skeleton-block h-8 w-16 rounded-md"></div></div>
+                    </div>
+                    <div class="p-4 flex items-center justify-between">
+                        <div class="w-1/3"><div class="skeleton-block h-5 w-56 rounded-md mb-2"></div><div class="skeleton-block h-3 w-40 rounded-md"></div></div>
+                        <div class="w-24"><div class="skeleton-block h-6 w-full rounded-full"></div></div>
+                        <div class="w-16"><div class="skeleton-block h-4 w-full rounded-md ml-auto"></div></div>
+                        <div class="w-1/3 flex gap-4"><div class="skeleton-block h-8 w-16 rounded-md"></div></div>
+                    </div>
+                </div>
+
+                <!-- 3. EMPTY STATE (Hidden by default) -->
+                <div id="view-empty" class="hidden bg-white border border-zinc-200 border-dashed rounded-xl shadow-sm flex-1 flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
+                    <div class="w-16 h-16 bg-zinc-50 rounded-2xl flex items-center justify-center mb-5 ring-1 ring-zinc-200 shadow-sm relative overflow-hidden">
+                        <!-- Subtle background pattern inside icon box -->
+                        <div class="absolute inset-0 opacity-[0.03]" style="background-image: radial-gradient(#000 1px, transparent 1px); background-size: 8px 8px;"></div>
+                        <i data-lucide="briefcase" class="h-8 w-8 text-zinc-400 relative z-10"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-zinc-900 mb-1">No mandates yet</h3>
+                    <p class="text-sm text-zinc-500 max-w-md mx-auto mb-6">Create your first mandate to begin sourcing and matching buyers. Our AI will identify qualified candidates based on your criteria.</p>
+                    <button class="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium h-10 px-5 rounded-md shadow-[0_2px_10px_-4px_rgba(16,185,129,0.5)] transition-all">
+                        <i data-lucide="plus" class="h-4 w-4"></i> Create mandate
+                    </button>
+                    <a href="#" class="mt-4 text-xs font-medium text-zinc-400 hover:text-zinc-600 underline underline-offset-4 decoration-zinc-300">Need help? Read the setup guide</a>
+                </div>
+
+                <!-- 4. ERROR STATE (Hidden by default) -->
+                <div id="view-error" class="hidden bg-white border border-red-200 rounded-md shadow-xs flex-1 flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
+                    <div class="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mb-4 ring-8 ring-red-50/50">
+                        <i data-lucide="alert-triangle" class="h-6 w-6 text-red-600"></i>
+                    </div>
+                    <h3 class="text-base font-semibold text-zinc-900 mb-1">Failed to load mandates</h3>
+                    <p class="text-sm text-zinc-500 max-w-sm mx-auto mb-5">An error occurred while fetching your data. Please check your connection and try again.</p>
+                    <div class="flex items-center gap-3">
+                        <button class="inline-flex items-center justify-center gap-2 bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-sm font-medium h-9 px-4 rounded-md shadow-sm transition-all">
+                            Contact support
+                        </button>
+                        <button class="inline-flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium h-9 px-4 rounded-md shadow-sm transition-all focus:ring-2 focus:ring-zinc-900/20">
+                            <i data-lucide="refresh-cw" class="h-4 w-4"></i> Retry
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- ARCHITECTURAL DEMO CONTROLS (For viewing states defined in prompt requirements) -->
+    <div class="fixed bottom-6 right-6 z-50 flex items-center bg-zinc-900/95 backdrop-blur shadow-md rounded-full p-1.5 border border-zinc-700/50">
+        <div class="text-[10px] font-bold tracking-widest uppercase text-zinc-500 pl-3 pr-2">UI State:</div>
+        <button onclick="switchState('data')" class="px-3 py-1 text-xs font-medium rounded-full text-zinc-300 hover:text-white transition-colors state-btn data-active text-emerald-400 bg-zinc-800">Data</button>
+        <button onclick="switchState('loading')" class="px-3 py-1 text-xs font-medium rounded-full text-zinc-300 hover:text-white transition-colors state-btn">Loading</button>
+        <button onclick="switchState('empty')" class="px-3 py-1 text-xs font-medium rounded-full text-zinc-300 hover:text-white transition-colors state-btn">Empty</button>
+        <button onclick="switchState('error')" class="px-3 py-1 text-xs font-medium rounded-full text-zinc-300 hover:text-white transition-colors state-btn">Error</button>
+    </div>
+
+    <!-- Initialization Scripts -->
+    <script>
+        // Init Icons
+        lucide.createIcons();
+
+        // State switcher logic for demonstrative completeness of the spec.
+        function switchState(stateId) {
+            // Hide all views
+            ['data', 'loading', 'empty', 'error'].forEach(id => {
+                document.getElementById('view-' + id).classList.add('hidden');
+                document.getElementById('view-' + id).classList.remove('flex');
+            });
+            
+            // Show selected view
+            const target = document.getElementById('view-' + stateId);
+            target.classList.remove('hidden');
+            target.classList.add('flex');
+            
+            // Re-trigger cascade animation if switching to data view
+            if(stateId === 'data') {
+                const rows = document.querySelectorAll('.list-row');
+                rows.forEach(row => {
+                    row.style.animation = 'none';
+                    row.offsetHeight; /* trigger reflow */
+                    row.style.animation = null; 
+                });
+            }
+
+            // Update button styles in dev controller
+            document.querySelectorAll('.state-btn').forEach(btn => {
+                btn.classList.remove('text-emerald-400', 'bg-zinc-800');
+                if(btn.innerText.toLowerCase() === stateId) {
+                    btn.classList.add('text-emerald-400', 'bg-zinc-800');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

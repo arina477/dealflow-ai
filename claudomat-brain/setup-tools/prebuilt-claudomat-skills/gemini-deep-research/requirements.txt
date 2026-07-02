@@ -1,0 +1,6 @@
+# Runtime dependencies for scripts/*.py.
+#
+# Update by verifying latest stable releases on PyPI, then editing these exact
+# pins and the install docs in this skill.
+httpx==0.28.1
+requests==2.34.2

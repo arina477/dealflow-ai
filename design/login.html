@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased text-zinc-900 bg-zinc-25">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — DealFlow AI</title>
+    <!-- 
+      aesthetic_dna: Corporate/FinTech High-Precision (Linear/Stripe inspired)
+      ui_paradigm: Asymmetric Ambient Split-Screen (Breaks center-card bias)
+      palette_choice: Zinc Scale Base + Emerald-600 Accent
+    -->
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Tailwind Config for precise token mapping -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        },
+                        status: {
+                            positive: '#10B981',
+                            info: '#2563EB',
+                            warn: '#D97706',
+                            danger: '#DC2626',
+                            neutral: '#9CA3AF'
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                        'focus': '0 0 0 4px rgba(16, 185, 129, 0.15)',
+                    },
+                    transitionTimingFunction: {
+                        'spring': 'cubic-bezier(0.16, 1, 0.3, 1)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Typography overrides */
+        body { font-family: 'Inter', sans-serif; }
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        
+        /* High-end Input styling */
+        .premium-input {
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 1px 2px rgb(16 24 40 / 0.05), inset 0 0 0 1px transparent;
+        }
+        .premium-input:focus {
+            box-shadow: 0 1px 2px rgb(16 24 40 / 0.05), inset 0 0 0 1px #10B981, 0 0 0 4px rgba(16, 185, 129, 0.15);
+            border-color: #10B981;
+            outline: none;
+        }
+        
+        /* Button press physics */
+        .btn-active:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        /* Staggered Orchestration */
+        .stagger-1 { animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 50ms; opacity: 0; }
+        .stagger-2 { animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 150ms; opacity: 0; }
+        .stagger-3 { animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 250ms; opacity: 0; }
+        .stagger-4 { animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 350ms; opacity: 0; }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Ambient Background Motion Engine */
+        .data-flow-path {
+            stroke-dasharray: 100;
+            animation: flowDash 20s linear infinite;
+        }
+        .data-node {
+            animation: pulseNode 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .node-delay-1 { animation-delay: 1s; }
+        .node-delay-2 { animation-delay: 2.5s; }
+        
+        @keyframes flowDash {
+            to { stroke-dashoffset: -1000; }
+        }
+        @keyframes pulseNode {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.5); fill: #10B981; }
+        }
+
+        /* Glass Refraction */
+        .glass-refract {
+            background: rgba(3, 7, 18, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+
+        /* Checkbox custom */
+        .custom-checkbox {
+            appearance: none;
+            background-color: transparent;
+            margin: 0;
+            color: currentColor;
+            width: 1rem;
+            height: 1rem;
+            border: 1px solid #D1D5DB;
+            border-radius: 4px;
+            display: grid;
+            place-content: center;
+            transition: all 0.15s ease-in-out;
+        }
+        .custom-checkbox::before {
+            content: "";
+            width: 0.65em;
+            height: 0.65em;
+            transform: scale(0);
+            transition: 120ms transform ease-in-out;
+            box-shadow: inset 1em 1em white;
+            background-color: white;
+            transform-origin: center;
+            clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+        }
+        .custom-checkbox:checked {
+            background-color: #10B981;
+            border-color: #10B981;
+        }
+        .custom-checkbox:checked::before {
+            transform: scale(1);
+        }
+        .custom-checkbox:focus {
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+            outline: none;
+        }
+    </style>
+</head>
+<body class="min-h-[100dvh] w-full m-0 p-0 overflow-x-hidden selection:bg-emerald-500/20 selection:text-emerald-700">
+
+    <!-- Global Layout: Asymmetric Split Screen -->
+    <main class="flex min-h-[100dvh] w-full bg-zinc-25">
+        
+        <!-- Left Shell: Authentication Area -->
+        <section class="relative z-20 flex w-full flex-col justify-between px-6 py-8 sm:px-12 sm:py-12 lg:w-[45%] xl:w-[40%] bg-zinc-25 shadow-[1px_0_24px_rgba(0,0,0,0.02)]">
+            
+            <!-- Top Branding -->
+            <header class="stagger-1 shrink-0">
+                <a href="#" class="inline-flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 rounded-sm">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-md bg-zinc-900 text-white shadow-sm">
+                        <i data-lucide="layout-dashboard" class="h-4 w-4"></i>
+                    </div>
+                    <span class="text-[17px] font-semibold tracking-tight text-zinc-900">DealFlow AI</span>
+                </a>
+            </header>
+
+            <!-- Meso-Architecture: The Form Core -->
+            <div class="my-auto flex w-full flex-col justify-center max-w-[380px] mx-auto py-12">
+                
+                <div class="mb-8 stagger-2">
+                    <h1 id="page-title" class="text-2xl font-semibold tracking-tight text-zinc-900 mb-2">Welcome back</h1>
+                    <p id="page-subtitle" class="text-[14px] leading-5 text-zinc-500">Sign in to access deal intelligence and compliance workflows.</p>
+                </div>
+
+                <!-- Global Alert Injection Container (Empty State initially) -->
+                <div id="alert-container" class="hidden mb-6 rounded-md p-3 text-[13px] border stagger-2" role="alert" aria-live="assertive">
+                    <div class="flex items-start gap-2.5">
+                        <i id="alert-icon" data-lucide="alert-triangle" class="h-4 w-4 mt-0.5 shrink-0"></i>
+                        <span id="alert-message" class="font-medium leading-relaxed"></span>
+                    </div>
+                </div>
+
+                <form id="auth-form" class="space-y-4" novalidate>
+                    <!-- Email -->
+                    <div class="space-y-1.5 stagger-3">
+                        <label for="email" class="block text-[12px] font-semibold uppercase tracking-[0.04em] text-zinc-500">Email address</label>
+                        <input 
+                            type="email" 
+                            id="email" 
+                            name="email" 
+                            placeholder="name@firm.com" 
+                            required
+                            autocomplete="email"
+                            class="premium-input block w-full rounded-md border border-zinc-200 bg-white px-3.5 py-2.5 text-[14px] text-zinc-900 placeholder:text-zinc-400 transition-colors"
+                        >
+                    </div>
+
+                    <!-- Password Core -->
+                    <div id="password-group" class="space-y-1.5 stagger-3">
+                        <div class="flex items-center justify-between">
+                            <label for="password" class="block text-[12px] font-semibold uppercase tracking-[0.04em] text-zinc-500">Password</label>
+                            <a href="#" class="text-[12px] font-medium text-zinc-500 hover:text-zinc-900 transition-colors focus:outline-none focus-visible:underline">Forgot password?</a>
+                        </div>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            placeholder="••••••••" 
+                            required
+                            autocomplete="current-password"
+                            class="premium-input block w-full rounded-md border border-zinc-200 bg-white px-3.5 py-2.5 text-[14px] text-zinc-900 placeholder:text-zinc-400 font-mono tracking-widest text-lg h-[46px]"
+                        >
+                    </div>
+
+                    <!-- Options -->
+                    <div id="options-group" class="flex items-center gap-2 pt-2 stagger-3">
+                        <input type="checkbox" id="remember" class="custom-checkbox shrink-0">
+                        <label for="remember" class="text-[13px] text-zinc-600 select-none cursor-pointer">Keep me signed in for 30 days</label>
+                    </div>
+
+                    <!-- Submit Action -->
+                    <div class="pt-4 stagger-4">
+                        <button 
+                            type="submit" 
+                            id="submit-btn"
+                            class="btn-active group relative flex w-full items-center justify-center rounded-md bg-emerald-600 px-4 py-2.5 text-[14px] font-medium text-white shadow-sm transition-all hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500"
+                        >
+                            <span id="btn-text">Sign in</span>
+                            <i id="btn-spinner" data-lucide="loader-2" class="absolute hidden h-4 w-4 animate-spin"></i>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- SSO Alternative (Optional Pilot Phase) -->
+                <div id="sso-group" class="mt-8 stagger-4">
+                    <div class="relative">
+                        <div class="absolute inset-0 flex items-center" aria-hidden="true">
+                            <div class="w-full border-t border-zinc-200"></div>
+                        </div>
+                        <div class="relative flex justify-center">
+                            <span class="bg-zinc-25 px-3 text-[12px] font-medium text-zinc-400 uppercase tracking-widest">Or</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <button type="button" class="btn-active flex w-full items-center justify-center gap-3 rounded-md border border-zinc-200 bg-white px-4 py-2.5 text-[14px] font-medium text-zinc-700 shadow-xs transition-colors hover:bg-zinc-50 hover:text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/20">
+                            <!-- SVG Google Logo Primitive -->
+                            <svg class="h-4 w-4" viewBox="0 0 24 24">
+                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                            </svg>
+                            Continue with Google
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer Metadada -->
+            <footer class="stagger-4 shrink-0 flex items-center justify-between text-[12px] text-zinc-500">
+                <span class="tabular-nums">© 2024 DealFlow AI</span>
+                <div class="flex gap-4">
+                    <a href="#" class="hover:text-zinc-900 transition-colors">Privacy</a>
+                    <a href="#" class="hover:text-zinc-900 transition-colors">Terms</a>
+                </div>
+            </footer>
+        </section>
+
+        <!-- Right Shell: Ambient Intelligence (Visually represents AI depth) -->
+        <section class="hidden lg:flex relative w-[55%] xl:w-[60%] bg-zinc-950 items-center justify-center overflow-hidden">
+            
+            <!-- Absolute top-right secure badge -->
+            <div class="absolute top-8 right-8 z-30 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium text-emerald-500 uppercase tracking-widest backdrop-blur-md">
+                <i data-lucide="shield-check" class="h-3.5 w-3.5"></i>
+                SOC 2 Type II
+            </div>
+
+            <!-- Background Data Overlay / Grid -->
+            <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_20%,transparent_100%)]"></div>
+
+            <!-- Abstract SVG Network visualization -->
+            <div class="relative z-10 w-[80%] max-w-2xl opacity-60">
+                <svg width="100%" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Base Paths -->
+                    <path class="data-flow-path" d="M100 300 C 300 300, 200 100, 400 100 C 600 100, 500 500, 700 300" stroke="#10B981" stroke-width="1.5" stroke-opacity="0.3" fill="none" />
+                    <path class="data-flow-path" style="animation-direction: reverse; animation-duration: 25s;" d="M50 450 C 250 450, 350 200, 500 300 C 650 400, 600 150, 750 250" stroke="#374151" stroke-width="1" stroke-opacity="0.6" fill="none" />
+                    <path class="data-flow-path" style="animation-duration: 15s;" d="M150 150 C 350 150, 300 450, 450 400 C 600 350, 550 50, 750 100" stroke="#10B981" stroke-width="1" stroke-opacity="0.2" fill="none" />
+                    
+                    <!-- Nodes -->
+                    <circle cx="100" cy="300" r="4" fill="#374151" class="data-node" />
+                    <circle cx="400" cy="100" r="6" fill="#10B981" class="data-node node-delay-1 shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
+                    <circle cx="700" cy="300" r="5" fill="#374151" class="data-node node-delay-2" />
+                    
+                    <circle cx="500" cy="300" r="8" fill="#10B981" class="data-node shadow-[0_0_20px_rgba(16,185,129,0.6)]" />
+                    <circle cx="450" cy="400" r="4" fill="#374151" class="data-node node-delay-1" />
+                    <circle cx="750" cy="250" r="3" fill="#374151" class="data-node" />
+                </svg>
+
+                <!-- Floating Glass Card showcasing meso-architecture data density -->
+                <div class="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] rounded-[12px] glass-refract p-5 text-zinc-50 shadow-2xl z-20">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="flex h-8 w-8 items-center justify-center rounded bg-emerald-500/20 text-emerald-400">
+                            <i data-lucide="sparkles" class="h-4 w-4"></i>
+                        </div>
+                        <div>
+                            <p class="text-[12px] font-semibold uppercase tracking-widest text-zinc-400">System Status</p>
+                            <p class="text-[14px] font-medium text-white">Intelligence Engine Active</p>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-end border-b border-white/10 pb-3">
+                            <span class="text-[13px] text-zinc-400">Market Entities Analyzed</span>
+                            <span class="text-[16px] font-mono tracking-tight text-white tabular-nums">14,284,910</span>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-[13px] text-zinc-400">Active Mandates</span>
+                            <span class="text-[16px] font-mono tracking-tight text-white tabular-nums">342</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom ambient glow -->
+            <div class="absolute bottom-0 left-0 right-0 h-[400px] bg-gradient-to-t from-emerald-900/20 to-transparent blur-3xl pointer-events-none"></div>
+        </section>
+    </main>
+
+    <!-- Interactive Logic (Vanilla JS simulating real-world physics/states) -->
+    <script>
+        // Init Icons
+        lucide.createIcons();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('auth-form');
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            const submitBtn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('btn-text');
+            const btnSpinner = document.getElementById('btn-spinner');
+            
+            const alertContainer = document.getElementById('alert-container');
+            const alertIcon = document.getElementById('alert-icon');
+            const alertMessage = document.getElementById('alert-message');
+
+            const pageTitle = document.getElementById('page-title');
+            const pageSubtitle = document.getElementById('page-subtitle');
+            const passwordGroup = document.getElementById('password-group');
+            const ssoGroup = document.getElementById('sso-group');
+            const optionsGroup = document.getElementById('options-group');
+
+            // --- 1. Environmental Setup based on URL Params ---
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Check for pre-fill email
+            if (urlParams.has('email')) {
+                emailInput.value = urlParams.get('email');
+                passwordInput.focus();
+            }
+
+            // Check for invite token (Meso-architecture state change)
+            if (urlParams.has('token')) {
+                pageTitle.textContent = "Complete your setup";
+                pageSubtitle.textContent = "Set a secure password to access your firm's platform.";
+                btnText.textContent = "Create account";
+                ssoGroup.style.display = 'none'; // Hide SSO for invites
+                optionsGroup.style.display = 'none'; // Hide remember me
+                
+                // Decode jwt purely for visual simulation (dummy logic)
+                const mockEmail = "investor@apexcapital.com";
+                emailInput.value = mockEmail;
+                emailInput.readOnly = true;
+                emailInput.classList.add('bg-zinc-50', 'text-zinc-500');
+                passwordInput.focus();
+            }
+
+            // Check for session expiry
+            if (urlParams.get('error') === 'session_expired') {
+                showAlert('info', 'Your session ended. Sign in again to continue.');
+            }
+
+            // --- 2. Alert System ---
+            function showAlert(type, message) {
+                alertContainer.classList.remove('hidden', 'bg-red-50', 'border-red-200', 'text-red-900', 'bg-blue-50', 'border-blue-200', 'text-blue-900', 'bg-amber-50', 'border-amber-200', 'text-amber-900');
+                
+                let iconName = 'alert-triangle';
+                
+                if (type === 'danger') {
+                    alertContainer.classList.add('bg-red-50', 'border-red-200', 'text-red-900');
+                    iconName = 'alert-octagon'; // Lucide icon
+                } else if (type === 'info') {
+                    alertContainer.classList.add('bg-blue-50', 'border-blue-200', 'text-blue-900');
+                    iconName = 'info';
+                } else if (type === 'warn') {
+                    alertContainer.classList.add('bg-amber-50', 'border-amber-200', 'text-amber-900');
+                    iconName = 'alert-triangle';
+                }
+
+                alertMessage.innerHTML = message; // Use innerHTML to allow robust links if needed
+                
+                // Re-render specifically that icon
+                alertIcon.setAttribute('data-lucide', iconName);
+                lucide.createIcons({ root: alertContainer });
+                
+                // Small CSS shake for errors
+                if (type === 'danger') {
+                    alertContainer.animate([
+                        { transform: 'translateX(0)' },
+                        { transform: 'translateX(-4px)' },
+                        { transform: 'translateX(4px)' },
+                        { transform: 'translateX(-4px)' },
+                        { transform: 'translateX(0)' }
+                    ], { duration: 300, easing: 'ease-in-out' });
+                }
+            }
+
+            function hideAlert() {
+                alertContainer.classList.add('hidden');
+            }
+
+            // --- 3. Form Submission Simulation ---
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                hideAlert();
+
+                // Validation
+                if (!emailInput.value || !passwordInput.value) return;
+
+                // Loading State (Micro-interaction)
+                submitBtn.disabled = true;
+                emailInput.disabled = true;
+                passwordInput.disabled = true;
+                btnText.classList.add('opacity-0');
+                btnSpinner.classList.remove('hidden');
+
+                const emailVal = emailInput.value.toLowerCase();
+
+                // Simulate Network Latency
+                setTimeout(() => {
+                    // Reset loading state
+                    submitBtn.disabled = false;
+                    emailInput.disabled = false;
+                    passwordInput.disabled = false;
+                    btnText.classList.remove('opacity-0');
+                    btnSpinner.classList.add('hidden');
+
+                    // Simulate Server Responses based on specific inputs
+                    if (emailVal.includes('locked')) {
+                        // 403 Account Locked
+                        showAlert('danger', 'This account is locked. <a href="#" class="underline font-semibold hover:text-red-950">Contact support@dealflow.local</a>');
+                        passwordInput.value = '';
+                    } 
+                    else if (emailVal.includes('rate')) {
+                        // 429 Too Many Requests
+                        showAlert('warn', 'Too many attempts. Try again in 5 minutes.');
+                        submitBtn.disabled = true; // Hard lockout simulation
+                    }
+                    else if (emailVal.includes('error')) {
+                        // Network/Server Error
+                        showAlert('danger', 'Connection error. Check your internet and try again.');
+                    }
+                    else if (passwordInput.value !== 'password' && !urlParams.has('token')) {
+                        // 401 Invalid Creds (Assuming 'password' is the only valid demo password unless setting new)
+                        // Note: Using a generic catch-all for demo purposes to show error state.
+                        showAlert('danger', 'Invalid email or password.');
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    } 
+                    else {
+                        // 200 OK Success State
+                        submitBtn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+                        submitBtn.classList.add('bg-zinc-900');
+                        btnText.textContent = "Authenticating...";
+                        
+                        setTimeout(() => {
+                            btnText.textContent = "Redirecting...";
+                            btnSpinner.classList.remove('hidden');
+                            btnText.classList.add('flex', 'items-center', 'gap-2');
+                            
+                            // In a real app: window.location.href = '/dashboard';
+                        }, 500);
+                    }
+                }, 1200); // 1.2s artificial delay
+            });
+        });
+    </script>
+</body>
+</html>

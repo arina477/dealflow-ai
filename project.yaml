@@ -1,0 +1,60 @@
+# project.yaml — structured project facts read by claudomat agents/recipes.
+#
+# Created by `claudomat init`, filled in via install.md Phase 2 / onboarding
+# loop. Never replaced by `claudomat sync` — edit this file (NOT `CLAUDE.md`)
+# to change project facts. `claudomat doctor` validates schema (required keys,
+# enum constraints, no-password-in-test-users guard).
+
+name: "DealFlow AI"
+description: "AI platform that sources M&A deals, ranks buyer-seller matches, and runs compliant, audited email outreach in one workflow — for M&A advisory firms replacing stitched-together sourcing, contact, and outreach tools."
+
+stack:
+  repo_shape: "monorepo"
+  backend: "NestJS"
+  database: "Postgres 16"
+  frontend: "Next.js 15"
+  shared_contracts: "Zod"
+  deploy_platform: "railway"
+  compliance_regime: "none"
+  industry_domain: "m&a advisory (fintech / deal sourcing)"
+
+quick_start:
+  # Shell snippets read by T-4 (local DB setup) and surfaced in README.md.
+  install: "pnpm install"
+  db_setup: "pnpm db:migrate"
+  run_dev: "pnpm dev"
+
+commands:
+  # Project-defined commands (build / lint / test / typecheck / PR conventions).
+  # Read by C-1 (PR conventions), C-2 (deploy commands), simplify skill.
+  - name: "build"
+    description: "turbo run build — build all packages/apps"
+  - name: "lint"
+    description: "biome check . — lint + format check (single tool)"
+  - name: "test"
+    description: "vitest run — unit + integration; Playwright MCP for live E2E"
+  - name: "typecheck"
+    description: "turbo run typecheck — tsc --noEmit across packages (strict)"
+
+merge_strategy: "squash"
+
+# --- Deployment + access (claudomat default; the brain reads this in the C-block) ---
+# Bring-your-own Railway: the founder supplies the Railway account + token at deploy
+# time (C-2 Action 0); nothing is pre-provisioned. The brain provisions the project /
+# service / database / public domain on first deploy and back-fills the sub-keys below.
+deploy_targets:
+  - platform: "railway"
+    project: "awaiting-provisioning"   # brain names + provisions on first deploy (C-2 Action 0)
+    service_name_template: "dealflow-${SERVICE}"
+    health_endpoint: "/health"
+    canary_threshold_dau: 1000
+
+test_users:
+  # Local-dev test accounts. Commit-able. NEVER include passwords / tokens /
+  # secrets / api keys (claudomat doctor fails the schema if any appear here).
+  # Prod-fixture credentials live in command-center/testing/test-accounts.md
+  # (gitignored) — that's where passwords belong.
+  # Auto-provisioned via the project's own signup flow at the first UI wave's B-5
+  # (one local-dev + one prod-fixture per persona: advisor / analyst / compliance / admin).
+  # No credentials needed at handoff. Re-fire v13 step 2d to provide accounts directly.
+  local_dev: []

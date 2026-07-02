@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased text-[#374151] bg-[#FCFCFD]">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Mandate | DealFlow AI</title>
+    
+    <!-- 
+      aesthetic_dna: Premium SaaS, "Linear/Stripe" execution, Restrained Corporate Finance
+      ui_paradigm: Asymmetric Split View (Form + Sticky Tracker) with Progressive Disclosure
+      palette: Zinc neutral scale, Emerald primary accent, Tabular pure-data numbers
+    -->
+
+    <!-- Typography -->
+    <link rel="preconnect" href="https://rsms.me/">
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Icons (Lucide) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Custom System Configuration & Principles -->
+    <style>
+        :root {
+            /* Neutrals */
+            --zinc-25: #FCFCFD;
+            --zinc-50: #F9FAFB;
+            --zinc-100: #F3F4F6;
+            --zinc-200: #E5E7EB;
+            --zinc-300: #D1D5DB;
+            --zinc-400: #9CA3AF;
+            --zinc-500: #6B7280;
+            --zinc-600: #4B5563;
+            --zinc-700: #374151;
+            --zinc-800: #1F2937;
+            --zinc-900: #111827;
+            --zinc-950: #030712;
+
+            /* Accents & Status */
+            --emerald-50: #ECFDF5;
+            --emerald-600: #10B981;
+            --emerald-700: #047857;
+            
+            --status-positive: #10B981;
+            --status-info: #2563EB;
+            --status-warn: #D97706;
+            --status-danger: #DC2626;
+
+            /* Shadows & Effects */
+            --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+            --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.08);
+            --shadow-md: 0 8px 24px rgba(16, 24, 40, 0.12);
+            --focus-ring: 0 0 0 3px rgba(16, 185, 129, 0.4);
+
+            /* Motion */
+            --anim-speed: 0.4s;
+            --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        body {
+            font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+            background-color: var(--zinc-25);
+            min-height: 100dvh;
+            overflow-x: hidden;
+            display: flex;
+        }
+
+        /* Tabular numbers for financial/metric data */
+        .tabular-data {
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Layout Architecture */
+        .app-layout {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            width: 100%;
+        }
+
+        @media (max-width: 1024px) {
+            .app-layout {
+                grid-template-columns: 1fr; /* Hide sidebar on small screens for this mockup logic */
+            }
+            .sidebar { display: none; }
+        }
+
+        /* Custom Input Styling (Form Primitives) */
+        .df-input {
+            width: 100%;
+            background: #FFFFFF;
+            border: 1px solid var(--zinc-200);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 14px;
+            color: var(--zinc-800);
+            box-shadow: var(--shadow-xs);
+            transition: all 150ms var(--anim-ease);
+        }
+        
+        .df-input::placeholder {
+            color: var(--zinc-400);
+        }
+
+        .df-input:focus {
+            outline: none;
+            border-color: var(--emerald-600);
+            box-shadow: var(--focus-ring);
+        }
+
+        .df-input.error {
+            border-color: var(--status-danger);
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2);
+        }
+
+        .df-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--zinc-700);
+            margin-bottom: 6px;
+        }
+
+        /* Standard Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 8px;
+            padding: 8px 16px;
+            transition: all 150ms var(--anim-ease);
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background-color: var(--emerald-600);
+            color: #FFFFFF;
+            border: 1px solid transparent;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background-color: var(--emerald-700);
+        }
+
+        .btn-primary:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
+        }
+
+        .btn-primary:disabled {
+            background-color: var(--zinc-300);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background-color: #FFFFFF;
+            color: var(--zinc-700);
+            border: 1px solid var(--zinc-300);
+            box-shadow: var(--shadow-xs);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: var(--zinc-50);
+            color: var(--zinc-900);
+        }
+
+        /* Checkbox primitive */
+        .df-checkbox {
+            appearance: none;
+            background-color: #fff;
+            margin: 0;
+            font: inherit;
+            color: currentColor;
+            width: 16px;
+            height: 16px;
+            border: 1px solid var(--zinc-300);
+            border-radius: 4px;
+            display: grid;
+            place-content: center;
+            transition: all 150ms ease;
+            cursor: pointer;
+        }
+        
+        .df-checkbox::before {
+            content: "";
+            width: 10px;
+            height: 10px;
+            transform: scale(0);
+            transition: 120ms transform ease-in-out;
+            box-shadow: inset 1em 1em white;
+            background-color: white;
+            transform-origin: center;
+            clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+        }
+
+        .df-checkbox:checked {
+            background-color: var(--emerald-600);
+            border-color: var(--emerald-600);
+        }
+        
+        .df-checkbox:checked::before {
+            transform: scale(1);
+        }
+
+        .df-checkbox:focus {
+            box-shadow: var(--focus-ring);
+            outline: none;
+        }
+
+        /* Multi-select Pills visually mocked */
+        .select-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--zinc-100);
+            border: 1px solid var(--zinc-200);
+            border-radius: 9999px;
+            padding: 2px 10px;
+            font-size: 13px;
+            color: var(--zinc-800);
+        }
+
+        /* Choice Cards (e.g., Buyer Types) */
+        .choice-card-input:checked + .choice-card {
+            border-color: var(--emerald-600);
+            background-color: var(--emerald-50);
+            box-shadow: inset 0 0 0 1px var(--emerald-600);
+        }
+
+        /* Stepper/Accordion Logic */
+        .section-body {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows var(--anim-speed) var(--anim-ease);
+        }
+        
+        .section-body > div {
+            overflow: hidden;
+        }
+
+        .section-wrapper.is-open .section-body {
+            grid-template-rows: 1fr;
+        }
+
+        .section-wrapper {
+            opacity: 0.5;
+            pointer-events: none;
+            transition: opacity var(--anim-speed) ease;
+        }
+
+        .section-wrapper.is-open, .section-wrapper.is-completed {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Summary Panel Sticky Behavior */
+        .summary-panel {
+            position: sticky;
+            top: 24px;
+            max-height: calc(100vh - 48px);
+            overflow-y: auto;
+        }
+        
+        /* Custom Scrollbar for summary if needed */
+        .summary-panel::-webkit-scrollbar { width: 4px; }
+        .summary-panel::-webkit-scrollbar-track { background: transparent; }
+        .summary-panel::-webkit-scrollbar-thumb { background: var(--zinc-200); border-radius: 4px; }
+
+        /* Animation utilities */
+        @keyframes slideDownIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-reveal { animation: slideDownIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="text-[#374151]">
+
+    <div class="app-layout">
+        
+        <!-- SIDEBAR (Macro Architecture) -->
+        <aside class="sidebar bg-[#111827] text-white border-r border-[#1F2937] flex flex-col h-[100dvh] sticky top-0">
+            <div class="p-4 flex items-center gap-3">
+                <div class="w-8 h-8 rounded bg-[#10B981] flex items-center justify-center shadow-lg">
+                    <i data-lucide="layers" class="w-5 h-5 text-white"></i>
+                </div>
+                <span class="font-semibold tracking-tight text-[#F9FAFB]">DealFlow</span>
+            </div>
+            
+            <nav class="flex-1 px-3 py-6 space-y-1">
+                <a href="#" class="flex items-center gap-3 px-3 py-2 text-sm text-[#9CA3AF] hover:text-white rounded-md transition-colors">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Overview
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2 text-sm text-white bg-[#1F2937] rounded-md relative transition-colors shadow-sm">
+                    <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#10B981] rounded-r-md"></div>
+                    <i data-lucide="briefcase" class="w-4 h-4 text-[#10B981]"></i> Mandates
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2 text-sm text-[#9CA3AF] hover:text-white rounded-md transition-colors">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i> Matches
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2 text-sm text-[#9CA3AF] hover:text-white rounded-md transition-colors">
+                    <i data-lucide="git-branch" class="w-4 h-4"></i> Pipeline
+                </a>
+            </nav>
+
+            <div class="p-4 border-t border-[#1F2937]">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-[#374151] flex items-center justify-center border border-[#4B5563]">
+                        <span class="text-xs font-medium text-[#F3F4F6]">EK</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-xs font-medium text-[#F3F4F6]">Evan K.</span>
+                        <span class="text-[10px] text-[#9CA3AF]">Partner · Tech</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN LAYOUT -->
+        <main class="flex flex-col w-full min-h-screen">
+            
+            <!-- TOP NAVBAR -->
+            <header class="h-14 border-b border-[#E5E7EB] bg-white flex items-center justify-between px-6 sticky top-0 z-10">
+                <div class="flex items-center text-sm">
+                    <span class="text-[#6B7280]">Mandates</span>
+                    <i data-lucide="chevron-right" class="w-4 h-4 mx-2 text-[#D1D5DB]"></i>
+                    <span class="font-medium text-[#111827]">New Mandate</span>
+                </div>
+                <div class="flex items-center gap-4 text-sm text-[#6B7280]">
+                    <span id="draft-status" class="flex items-center gap-1.5 tabular-data text-xs">
+                        <span class="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
+                        Draft autosaved 1m ago
+                    </span>
+                    <button class="btn btn-secondary !py-1.5 !px-3 !text-xs">
+                        <i data-lucide="history" class="w-3.5 h-3.5"></i> Use Template
+                    </button>
+                </div>
+            </header>
+
+            <!-- FORM & TRACKER GRID -->
+            <div class="flex-1 p-6 lg:p-8">
+                <div class="max-w-7xl mx-auto grid lg:grid-cols-[1fr_360px] gap-8 items-start">
+                    
+                    <!-- LEFT COLUMN: BUILDER FORM -->
+                    <div class="flex flex-col space-y-6 pb-24">
+                        
+                        <div class="mb-4">
+                            <h1 class="text-2xl font-semibold text-[#111827] tracking-tight">Create Engagement</h1>
+                            <p class="text-sm text-[#4B5563] mt-1">Configure target profile, buyer criteria, and compliance guardrails.</p>
+                        </div>
+
+                        <!-- SECTION 1: TARGET PROFILE -->
+                        <div id="section-1" class="section-wrapper is-open bg-white border border-[#E5E7EB] rounded-lg shadow-sm">
+                            <div class="p-5 flex items-center justify-between border-b border-[#F3F4F6] cursor-default">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-7 h-7 rounded-full bg-[#F3F4F6] text-[#6B7280] font-medium text-sm flex items-center justify-center tracking-tighter" id="badge-1">1</div>
+                                    <h2 class="text-base font-semibold text-[#111827]">Seller & Target Profile</h2>
+                                </div>
+                                <span class="text-xs font-semibold text-[#10B981] uppercase tracking-wider hidden" id="check-1">
+                                    <i data-lucide="check" class="w-4 h-4"></i> Complete
+                                </span>
+                            </div>
+
+                            <div class="section-body">
+                                <div><div class="p-5 flex flex-col space-y-5">
+                                    
+                                    <!-- Dynamic Duplicate Warning Container (Hidden initially) -->
+                                    <div id="duplicate-warning" class="hidden bg-[#FFFBEB] border border-[#FDE68A] p-4 rounded-md">
+                                        <div class="flex items-start gap-3">
+                                            <i data-lucide="alert-triangle" class="w-5 h-5 text-[#D97706] shrink-0 mt-0.5"></i>
+                                            <div class="flex-1">
+                                                <h4 class="text-sm font-medium text-[#92400E]">Active mandate exists</h4>
+                                                <p class="text-sm text-[#B45309] mt-1">A mandate for "<span id="warn-company-name" class="font-medium"></span>" is currently active. ID: MND-0842.</p>
+                                                <div class="mt-3 flex gap-3">
+                                                    <button class="text-sm font-medium text-[#D97706] hover:text-[#92400E]">View existing</button>
+                                                    <button id="dismiss-duplicate" class="text-sm font-medium text-[#6B7280]">Dismiss & continue</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <div>
+                                            <label class="df-label">Company Name <span class="text-[#DC2626]">*</span></label>
+                                            <input type="text" id="target-name" class="df-input" placeholder="e.g. Acme Manufacturing Inc." required autocomplete="off">
+                                        </div>
+                                        <div>
+                                            <label class="df-label">Industry / Sector <span class="text-[#DC2626]">*</span></label>
+                                            <div class="relative">
+                                                <select id="target-industry" class="df-input appearance-none bg-white">
+                                                    <option value="" disabled selected>Select primary sector...</option>
+                                                    <option value="software">Enterprise Software / SaaS</option>
+                                                    <option value="manufacturing">Advanced Manufacturing</option>
+                                                    <option value="healthcare">Healthcare Services</option>
+                                                    <option value="fintech">Financial Technology</option>
+                                                </select>
+                                                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-3 text-[#9CA3AF] pointer-events-none"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="df-label space-x-1">
+                                            <span>Geography</span> <span class="text-[#DC2626]">*</span>
+                                        </label>
+                                        <!-- Mock Multi-select visual -->
+                                        <div class="df-input min-h-[40px] flex flex-wrap gap-2 items-center cursor-text" tabindex="0">
+                                            <span class="select-pill">North America <i data-lucide="x" class="w-3 h-3 text-[#6B7280] cursor-pointer hover:text-red-500"></i></span>
+                                            <span class="select-pill">Europe (EU) <i data-lucide="x" class="w-3 h-3 text-[#6B7280] cursor-pointer hover:text-red-500"></i></span>
+                                            <input type="text" class="bg-transparent border-none outline-none text-sm w-32 flex-1" placeholder="Add region...">
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="df-label">Company Size (Revenue) <span class="text-[#DC2626]">*</span></label>
+                                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                            <!-- Size Radios -->
+                                            <label class="cursor-pointer relative">
+                                                <input type="radio" name="size" value="micro" class="peer sr-only choice-card-input">
+                                                <div class="choice-card border border-[#E5E7EB] rounded bg-white py-2 text-center text-xs font-medium text-[#4B5563] transition-all peer-hover:border-[#D1D5DB] tabular-data">
+                                                    < $10M
+                                                </div>
+                                            </label>
+                                            <label class="cursor-pointer relative">
+                                                <input type="radio" name="size" value="small" class="peer sr-only choice-card-input" checked>
+                                                <div class="choice-card border border-[#E5E7EB] rounded bg-white py-2 text-center text-xs font-medium text-[#4B5563] transition-all peer-hover:border-[#D1D5DB] tabular-data">
+                                                    $10M–$50M
+                                                </div>
+                                            </label>
+                                            <label class="cursor-pointer relative">
+                                                <input type="radio" name="size" value="mid" class="peer sr-only choice-card-input">
+                                                <div class="choice-card border border-[#E5E7EB] rounded bg-white py-2 text-center text-xs font-medium text-[#4B5563] transition-all peer-hover:border-[#D1D5DB] tabular-data">
+                                                    $50M–$250M
+                                                </div>
+                                            </label>
+                                            <label class="cursor-pointer relative">
+                                                <input type="radio" name="size" value="large" class="peer sr-only choice-card-input">
+                                                <div class="choice-card border border-[#E5E7EB] rounded bg-white py-2 text-center text-xs font-medium text-[#4B5563] transition-all peer-hover:border-[#D1D5DB] tabular-data">
+                                                    $250M–$1B
+                                                </div>
+                                            </label>
+                                            <label class="cursor-pointer relative">
+                                                <input type="radio" name="size" value="mega" class="peer sr-only choice-card-input">
+                                                <div class="choice-card border border-[#E5E7EB] rounded bg-white py-2 text-center text-xs font-medium text-[#4B5563] transition-all peer-hover:border-[#D1D5DB] tabular-data">
+                                                    $1B+
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="pt-2">
+                                        <div class="flex items-center gap-2 mb-3">
+                                            <h3 class="text-sm font-semibold text-[#374151]">Deal Thesis & Context</h3>
+                                            <div class="h-px bg-[#E5E7EB] flex-1"></div>
+                                        </div>
+                                        
+                                        <label class="df-label">Executive Snippet</label>
+                                        <textarea id="target-thesis" class="df-input min-h-[80px] resize-y" placeholder="Family-owned, profitable, seeking liquidity. Strong margins, recurring revenue..."></textarea>
+                                        <div class="text-right mt-1 text-[11px] text-[#9CA3AF]">0 / 500</div>
+                                    </div>
+
+                                    <div class="flex justify-end pt-4 border-t border-[#F3F4F6] mt-2">
+                                        <button type="button" id="btn-next-1" class="btn btn-primary w-full sm:w-auto">
+                                            Continue to Buyer Criteria
+                                        </button>
+                                    </div>
+                                </div></div>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 2: BUYER CRITERIA -->
+                        <div id="section-2" class="section-wrapper bg-white border border-[#E5E7EB] rounded-lg shadow-sm">
+                            <div class="p-5 flex items-center justify-between border-b border-[#F3F4F6]">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-7 h-7 rounded-full bg-[#F3F4F6] text-[#6B7280] font-medium text-sm flex items-center justify-center tracking-tighter" id="badge-2">2</div>
+                                    <h2 class="text-base font-semibold text-[#111827]">Buyer Universe Criteria</h2>
+                                </div>
+                                <span class="text-xs font-semibold text-[#10B981] uppercase tracking-wider hidden" id="check-2">
+                                    <i data-lucide="check" class="w-4 h-4"></i> Complete
+                                </span>
+                            </div>
+
+                            <div class="section-body">
+                                <div><div class="p-5 flex flex-col space-y-6">
+                                    
+                                    <!-- Conflicting Criteria Warning -->
+                                    <div id="conflict-warning" class="hidden bg-[#FEF2F2] border border-[#FECACA] p-4 rounded-md">
+                                        <div class="flex items-start gap-3">
+                                            <i data-lucide="alert-circle" class="w-5 h-5 text-[#DC2626] shrink-0 mt-0.5"></i>
+                                            <div>
+                                                <h4 class="text-sm font-medium text-[#991B1B]">Filtering Conflict Detected</h4>
+                                                <p class="text-sm text-[#B91C1C] mt-1">Buyer geography excludes all regions matching the target profile. This will yield zero AI matches.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="df-label">Acceptable Buyer Types <span class="text-[#DC2626]">*</span></label>
+                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <label class="relative flex p-4 border border-[#E5E7EB] rounded-lg cursor-pointer hover:bg-[#F9FAFB] transition-colors has-[:checked]:border-[#10B981] has-[:checked]:bg-[#ECFDF5]/50 outline-focus-group">
+                                                <div class="flex items-start w-full">
+                                                    <div class="flex items-center h-5">
+                                                        <input type="checkbox" class="df-checkbox checkbox-buyer" value="Strategic" checked>
+                                                    </div>
+                                                    <div class="ml-3 flex flex-col">
+                                                        <span class="text-sm font-medium text-[#111827]">Strategic</span>
+                                                        <span class="text-xs text-[#6B7280] mt-0.5">Corporates & peers</span>
+                                                    </div>
+                                                </div>
+                                            </label>
+                                            <label class="relative flex p-4 border border-[#E5E7EB] rounded-lg cursor-pointer hover:bg-[#F9FAFB] transition-colors has-[:checked]:border-[#10B981] has-[:checked]:bg-[#ECFDF5]/50 outline-focus-group">
+                                                <div class="flex items-start w-full">
+                                                    <div class="flex items-center h-5">
+                                                        <input type="checkbox" class="df-checkbox checkbox-buyer" value="Financial" checked>
+                                                    </div>
+                                                    <div class="ml-3 flex flex-col">
+                                                        <span class="text-sm font-medium text-[#111827]">Financial</span>
+                                                        <span class="text-xs text-[#6B7280] mt-0.5">PE, Growth Equity</span>
+                                                    </div>
+                                                </div>
+                                            </label>
+                                            <label class="relative flex p-4 border border-[#E5E7EB] rounded-lg cursor-pointer hover:bg-[#F9FAFB] transition-colors has-[:checked]:border-[#10B981] has-[:checked]:bg-[#ECFDF5]/50 outline-focus-group">
+                                                <div class="flex items-start w-full">
+                                                    <div class="flex items-center h-5">
+                                                        <input type="checkbox" class="df-checkbox checkbox-buyer" value="Institutional">
+                                                    </div>
+                                                    <div class="ml-3 flex flex-col">
+                                                        <span class="text-sm font-medium text-[#111827]">Institutional</span>
+                                                        <span class="text-xs text-[#6B7280] mt-0.5">Family office, SWF</span>
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                        <div>
+                                            <label class="df-label">Ideal Check Size (USD)</label>
+                                            <div class="flex items-center gap-2">
+                                                <div class="relative w-full">
+                                                    <span class="absolute left-3 top-2 text-[#9CA3AF] text-sm tabular-data">$</span>
+                                                    <input type="number" class="df-input pl-7 tabular-data" placeholder="Min" value="5000000">
+                                                </div>
+                                                <span class="text-[#9CA3AF]">-</span>
+                                                <div class="relative w-full">
+                                                    <span class="absolute left-3 top-2 text-[#9CA3AF] text-sm tabular-data">$</span>
+                                                    <input type="number" class="df-input pl-7 tabular-data" placeholder="Max" value="25000000">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="df-label">Deal Complexity Tolerance</label>
+                                            <select class="df-input appearance-none">
+                                                <option value="low">Introductory (Clean)</option>
+                                                <option value="med" selected>Medium (Bolt-on)</option>
+                                                <option value="high">Complex (Turnaround)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="df-label">Exclude Geographies</label>
+                                        <div class="relative">
+                                            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-3 text-[#9CA3AF]"></i>
+                                            <input type="text" id="geo-exclude-input" class="df-input pl-9" placeholder="Search region or country to block...">
+                                        </div>
+                                    </div>
+
+                                    <div class="flex justify-between items-center pt-4 border-t border-[#F3F4F6]">
+                                        <button class="text-sm font-medium text-[#4B5563] hover:text-[#111827] px-2 py-1">Back</button>
+                                        <button type="button" id="btn-next-2" class="btn btn-primary w-full sm:w-auto">
+                                            Continue to Compliance
+                                        </button>
+                                    </div>
+                                </div></div>
+                            </div>
+                        </div>
+
+                        <!-- SECTION 3: COMPLIANCE PROFILE -->
+                        <div id="section-3" class="section-wrapper bg-white border border-[#E5E7EB] rounded-lg shadow-sm">
+                            <div class="p-5 flex items-center justify-between border-b border-[#F3F4F6]">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-7 h-7 rounded-full bg-[#F3F4F6] text-[#6B7280] font-medium text-sm flex items-center justify-center tracking-tighter" id="badge-3">3</div>
+                                    <h2 class="text-base font-semibold text-[#111827]">Compliance Guardrails</h2>
+                                </div>
+                            </div>
+
+                            <div class="section-body">
+                                <div><div class="p-5 flex flex-col space-y-6">
+                                    
+                                    <div>
+                                        <label class="df-label">Legal Jurisdiction <span class="text-[#DC2626]">*</span></label>
+                                        <select class="df-input max-w-sm">
+                                            <option value="us_delaware" selected>US - Delaware</option>
+                                            <option value="us_federal">US - Federal</option>
+                                            <option value="uk">UK</option>
+                                            <option value="eu">European Union</option>
+                                        </select>
+                                        <p class="text-xs text-[#6B7280] mt-1">Dictates disclaimer formats applied to NDA distributions.</p>
+                                    </div>
+
+                                    <div>
+                                        <label class="df-label">Suppression List / Conflict Blocking</label>
+                                        
+                                        <!-- File Upload Dropzone Primitive -->
+                                        <div class="border-2 border-dashed border-[#D1D5DB] rounded-lg p-6 flex flex-col items-center justify-center text-center bg-[#F9FAFB] hover:bg-[#F3F4F6] transition-colors cursor-pointer group">
+                                            <div class="w-10 h-10 rounded-full bg-white shadow-sm border border-[#E5E7EB] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                                                <i data-lucide="upload-cloud" class="w-5 h-5 text-[#6B7280]"></i>
+                                            </div>
+                                            <p class="text-sm font-medium text-[#374151]">Upload CSV of restricted buyers</p>
+                                            <p class="text-xs text-[#9CA3AF] mt-1">Drag and drop or click to browse</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg p-4 space-y-4">
+                                        <h3 class="text-xs font-bold text-[#4B5563] uppercase tracking-wider mb-2">Required Acknowledgments</h3>
+                                        
+                                        <label class="flex items-start gap-3 cursor-pointer group">
+                                            <div class="pt-0.5">
+                                                <input type="checkbox" class="df-checkbox chk-compliance" required>
+                                            </div>
+                                            <span class="text-sm text-[#374151] group-hover:text-[#111827]">
+                                                I confirm this engagement is lawfully authorized by the seller.
+                                            </span>
+                                        </label>
+                                        <label class="flex items-start gap-3 cursor-pointer group">
+                                            <div class="pt-0.5">
+                                                <input type="checkbox" class="df-checkbox chk-compliance" required>
+                                            </div>
+                                            <span class="text-sm text-[#374151] group-hover:text-[#111827]">
+                                                I understand buyer-matching results are AI-generated and must be validated before outreach. <a href="#" class="text-[#2563EB] hover:underline relative z-10">Policy</a>
+                                            </span>
+                                        </label>
+                                        <label class="flex items-start gap-3 cursor-pointer group">
+                                            <div class="pt-0.5">
+                                                <input type="checkbox" class="df-checkbox chk-compliance" required>
+                                            </div>
+                                            <span class="text-sm text-[#374151] group-hover:text-[#111827]">
+                                                I have reviewed relevant conflict DBs and uploaded necessary suppression lists.
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                </div></div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- RIGHT COLUMN: LIVE SUMMARY STICKY PANEL -->
+                    <aside class="hidden lg:block relative z-0">
+                        <div class="summary-panel flex flex-col pt-1">
+                            
+                            <h3 class="text-xs font-bold text-[#9CA3AF] uppercase tracking-widest mb-3">Live Preview</h3>
+                            
+                            <div class="bg-white border border-[#E5E7EB] rounded-xl shadow-xs overflow-hidden flex flex-col">
+                                
+                                <!-- Header Badge Area -->
+                                <div class="bg-[#111827] px-5 py-4 pb-12 relative overflow-hidden">
+                                    <!-- Subtle BG texture pattern (vanilla CSS construct) -->
+                                    <div class="absolute inset-0 opacity-[0.03]" style="background-image: radial-gradient(white 1px, transparent 1px); background-size: 8px 8px;"></div>
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-white/10 text-white backdrop-blur-sm border border-white/10 mb-2">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse"></span> Sourcing Draft
+                                    </span>
+                                    <h3 id="summary-title" class="text-lg font-semibold text-white tracking-tight truncate relative z-10">Untitled Mandate</h3>
+                                </div>
+
+                                <!-- Detail List -->
+                                <div class="p-5 flex-1 bg-white -mt-8 rounded-t-xl relative z-10">
+                                    <div class="flex items-center justify-between shadow-sm border border-[#E5E7EB] bg-white rounded-lg p-3 mb-5">
+                                        <div class="flex flex-col">
+                                            <span class="text-[10px] text-[#6B7280] font-semibold uppercase tracking-wider">AI Sourcing Pool</span>
+                                            <span class="text-sm font-medium text-[#111827] tabular-data">Pending Data...</span>
+                                        </div>
+                                        <div class="w-8 h-8 rounded-full bg-[#ECFDF5] flex items-center justify-center">
+                                            <i data-lucide="database" class="w-4 h-4 text-[#10B981]"></i>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-4">
+                                        <div class="grid grid-cols-2 gap-4 text-sm">
+                                            <div>
+                                                <span class="block text-xs text-[#6B7280] mb-1 font-medium">Industry</span>
+                                                <span id="summary-industry" class="font-medium text-[#374151] truncate">--</span>
+                                            </div>
+                                            <div>
+                                                <span class="block text-xs text-[#6B7280] mb-1 font-medium">Target Size</span>
+                                                <span id="summary-size" class="font-medium text-[#374151] tabular-data">$10M–$50M</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="pt-3 border-t border-[#F3F4F6]">
+                                            <span class="block text-xs text-[#6B7280] mb-2 font-medium">Buyer Scope</span>
+                                            <div id="summary-buyers" class="flex flex-wrap gap-1.5">
+                                                <span class="select-pill !bg-[#F3F4F6] !border-transparent !text-[#4B5563] text-xs">Strategic</span>
+                                                <span class="select-pill !bg-[#F3F4F6] !border-transparent !text-[#4B5563] text-xs">Financial</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="pt-3 border-t border-[#F3F4F6]">
+                                            <span class="block text-xs text-[#6B7280] mb-1 font-medium">Clearance</span>
+                                            <div class="flex items-center gap-2">
+                                                <i data-lucide="shield-alert" class="w-4 h-4 text-[#D97706]" id="summary-compliance-icon"></i>
+                                                <span class="text-sm text-[#4B5563]" id="summary-compliance-text">Pending acknowledgment</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Static Error Block for demo -->
+                            <div class="mt-4 bg-[#FEF2F2] border border-[#FECACA] rounded-lg p-3 hidden" id="save-error-block">
+                                <div class="flex items-center gap-2 text-[#B91C1C]">
+                                    <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                                    <span class="text-xs font-semibold">Missing Compliance Fields</span>
+                                </div>
+                            </div>
+
+                        </div>
+                    </aside>
+                </div>
+            </div>
+
+            <!-- STICKY ACTION FOOTER -->
+            <footer class="sticky bottom-0 bg-white border-t border-[#E5E7EB] py-4 px-6 flex items-center justify-between shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
+                <button class="btn btn-secondary text-[#6B7280]">Cancel</button>
+                
+                <div class="flex items-center gap-3">
+                    <button class="btn btn-secondary hidden sm:inline-flex">Save as Draft</button>
+                    <button id="btn-save" class="btn btn-primary" disabled>
+                        <i data-lucide="zap" class="w-4 h-4"></i> Activate & Source
+                    </button>
+                </div>
+            </footer>
+
+        </main>
+    </div>
+
+    <!-- Frontend Interaction Logic (Vanilla JS simulating framer/react states) -->
+    <script>
+        // Init Icons
+        lucide.createIcons();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- DOM Elements ---
+            const inputs = {
+                name: document.getElementById('target-name'),
+                industry: document.getElementById('target-industry'),
+                thesis: document.getElementById('target-thesis'),
+                geoExclude: document.getElementById('geo-exclude-input')
+            };
+            
+            const summary = {
+                title: document.getElementById('summary-title'),
+                industry: document.getElementById('summary-industry'),
+                buyers: document.getElementById('summary-buyers'),
+                complianceIcon: document.getElementById('summary-compliance-icon'),
+                complianceText: document.getElementById('summary-compliance-text')
+            };
+
+            const sections = [
+                document.getElementById('section-1'),
+                document.getElementById('section-2'),
+                document.getElementById('section-3')
+            ];
+
+            const btnNext1 = document.getElementById('btn-next-1');
+            const btnNext2 = document.getElementById('btn-next-2');
+            const btnSave = document.getElementById('btn-save');
+            const chkCompliance = document.querySelectorAll('.chk-compliance');
+            const chkBuyers = document.querySelectorAll('.checkbox-buyer');
+
+            // --- Micro-Interactions & State Sync ---
+
+            // 1. Live Sync input -> Summary Panel
+            inputs.name.addEventListener('input', (e) => {
+                const val = e.target.value.trim();
+                summary.title.textContent = val || 'Untitled Mandate';
+                
+                // Duplicate check simulation
+                if (val.toLowerCase() === 'acme manufacturing' || val.toLowerCase() === 'acme') {
+                    document.getElementById('duplicate-warning').classList.remove('hidden');
+                    document.getElementById('duplicate-warning').classList.add('animate-reveal');
+                    document.getElementById('warn-company-name').textContent = val;
+                } else {
+                    document.getElementById('duplicate-warning').classList.add('hidden');
+                }
+            });
+
+            inputs.industry.addEventListener('change', (e) => {
+                summary.industry.textContent = e.target.options[e.target.selectedIndex].text;
+            });
+
+            inputs.geoExclude.addEventListener('input', (e) => {
+                if(e.target.value.toLowerCase() === 'north america') {
+                    document.getElementById('conflict-warning').classList.remove('hidden');
+                    document.getElementById('conflict-warning').classList.add('animate-reveal');
+                } else {
+                    document.getElementById('conflict-warning').classList.add('hidden');
+                }
+            });
+
+            // Sync Buyers
+            chkBuyers.forEach(box => {
+                box.addEventListener('change', () => {
+                    const activeBoxes = Array.from(chkBuyers).filter(b => b.checked);
+                    summary.buyers.innerHTML = '';
+                    activeBoxes.forEach(b => {
+                        const s = document.createElement('span');
+                        s.className = 'select-pill !bg-[#F3F4F6] !border-transparent !text-[#4B5563] text-xs';
+                        s.textContent = b.value;
+                        summary.buyers.appendChild(s);
+                    });
+                });
+            });
+
+            // 2. Stepper / Accordion Logic
+            const completeSection = (index) => {
+                // Update badge to checkmark visually
+                document.getElementById(`badge-${index}`).classList.add('hidden');
+                document.getElementById(`check-${index}`).classList.remove('hidden');
+                sections[index-1].classList.add('is-completed');
+            };
+
+            const openSection = (index) => {
+                sections[index-1].classList.add('is-open');
+                // Scroll behavior simulation
+                setTimeout(() => {
+                    sections[index-1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+            };
+
+            btnNext1.addEventListener('click', () => {
+                // Basic validation visual
+                if(!inputs.name.value) {
+                    inputs.name.classList.add('error');
+                    inputs.name.focus();
+                    return;
+                }
+                inputs.name.classList.remove('error');
+                
+                completeSection(1);
+                openSection(2);
+            });
+
+            btnNext2.addEventListener('click', () => {
+                completeSection(2);
+                openSection(3);
+                // Highlight compliance area
+                document.getElementById('section-3').style.borderColor = 'var(--emerald-600)';
+                setTimeout(() => document.getElementById('section-3').style.borderColor = '', 1000);
+            });
+
+            // 3. Compliance Guardrails -> Enable Save
+            const checkCompliance = () => {
+                const allChecked = Array.from(chkCompliance).every(cb => cb.checked);
+                if (allChecked) {
+                    btnSave.disabled = false;
+                    summary.complianceIcon.setAttribute('data-lucide', 'shield-check');
+                    summary.complianceIcon.classList.remove('text-[#D97706]');
+                    summary.complianceIcon.classList.add('text-[#10B981]');
+                    summary.complianceText.textContent = "Cleared & Acknowledged";
+                    lucide.createIcons();
+                    document.getElementById('save-error-block').classList.add('hidden');
+                } else {
+                    btnSave.disabled = true;
+                    summary.complianceIcon.setAttribute('data-lucide', 'shield-alert');
+                    summary.complianceIcon.classList.add('text-[#D97706]');
+                    summary.complianceIcon.classList.remove('text-[#10B981]');
+                    summary.complianceText.textContent = "Pending acknowledgment";
+                    lucide.createIcons();
+                }
+            };
+
+            chkCompliance.forEach(box => box.addEventListener('change', checkCompliance));
+
+            // 4. Save Interaction Simulation
+            btnSave.addEventListener('click', (e) => {
+                e.preventDefault();
+                const originalText = btnSave.innerHTML;
+                btnSave.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline mt-[-2px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Saving...`;
+                btnSave.disabled = true;
+                
+                // Simulate network latency
+                setTimeout(() => {
+                    btnSave.innerHTML = `<i data-lucide="check" class="w-4 h-4 inline mr-1"></i> Activated`;
+                    btnSave.classList.add('!bg-[#047857]');
+                    lucide.createIcons();
+                    
+                    // Show a toast or redirect logic here usually
+                    alert("Mandate saved and activation triggered.");
+                    btnSave.innerHTML = originalText;
+                    btnSave.disabled = false;
+                    btnSave.classList.remove('!bg-[#047857]');
+                }, 1500);
+            });
+
+            // Dismiss warnings
+            document.getElementById('dismiss-duplicate').addEventListener('click', () => {
+                document.getElementById('duplicate-warning').classList.add('hidden');
+            });
+        });
+    </script>
+
+</body>
+</html>

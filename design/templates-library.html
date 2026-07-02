@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DealFlow AI — Template Editor</title>
+    
+    <!-- Fonts: Inter for UI -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                        'focus': '0 0 0 4px rgba(16, 185, 129, 0.15)',
+                    },
+                    animation: {
+                        'shimmer': 'shimmer 2s infinite linear',
+                        'slide-up': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                    },
+                    keyframes: {
+                        shimmer: {
+                            '0%': { backgroundPosition: '-1000px 0' },
+                            '100%': { backgroundPosition: '1000px 0' },
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Base Resets & Typographic strictness */
+        body { margin: 0; padding: 0; overflow: hidden; background-color: var(--theme-bg, #FCFCFD); }
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+
+        /* Hardware Acceleration & Micro-interactions */
+        .btn-active-state:active { transform: scale(0.98); }
+        
+        /* Blueprint grid for preview area */
+        .bg-blueprint {
+            background-image: radial-gradient(#E5E7EB 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        /* Loading Skeleton Gradient */
+        .skeleton-block {
+            background: linear-gradient(to right, #F3F4F6 4%, #E5E7EB 25%, #F3F4F6 36%);
+            background-size: 1000px 100%;
+            animation: shimmer 2s infinite linear;
+        }
+
+        /* Compliance Block Striping (Subtle visual cue for locked content) */
+        .bg-repeating-stripes {
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.01) 10px, rgba(0,0,0,0.01) 20px);
+        }
+    </style>
+</head>
+<body class="flex h-full text-zinc-700 text-[14px] leading-[20px]">
+
+    <!-- Macro Architecture: Application Sidebar -->
+    <nav class="hidden lg:flex w-64 bg-zinc-900 border-r border-zinc-950 flex-col justify-between flex-shrink-0 z-20">
+        <div>
+            <!-- Brand -->
+            <div class="h-14 flex items-center px-5 border-b border-zinc-800">
+                <div class="text-zinc-50 font-semibold tracking-tight flex items-center gap-2">
+                    <i class="ph-fill ph-circles-three text-emerald-600 text-xl"></i>
+                    DealFlow AI
+                </div>
+            </div>
+            
+            <!-- Links -->
+            <div class="px-3 py-4 space-y-1">
+                <p class="px-2 text-[12px] font-semibold text-zinc-500 uppercase tracking-[0.04em] mb-2">Deal Sourcing</p>
+                <a href="#" class="flex items-center gap-3 px-2 py-1.5 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 rounded-md transition-colors group">
+                    <i class="ph ph-database text-[18px]"></i>
+                    Prospects
+                </a>
+                <a href="#" class="flex items-center gap-3 px-2 py-1.5 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 rounded-md transition-colors group">
+                    <i class="ph ph-briefcase text-[18px]"></i>
+                    Mandates
+                </a>
+                
+                <p class="px-2 text-[12px] font-semibold text-zinc-500 uppercase tracking-[0.04em] mt-6 mb-2">Outreach & Ops</p>
+                <!-- Active State -->
+                <a href="#" class="flex items-center gap-3 px-2 py-1.5 text-zinc-50 bg-zinc-800 rounded-md relative shadow-sm">
+                    <div class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-emerald-600 rounded-r-full"></div>
+                    <i class="ph ph-copy text-[18px] text-emerald-600"></i>
+                    Templates
+                </a>
+                <a href="#" class="flex items-center gap-3 px-2 py-1.5 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 rounded-md transition-colors group">
+                    <i class="ph ph-paper-plane-tilt text-[18px]"></i>
+                    Campaigns
+                </a>
+                <a href="#" class="flex items-center gap-3 px-2 py-1.5 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 rounded-md transition-colors group">
+                    <i class="ph ph-shield-check text-[18px]"></i>
+                    Compliance Checks
+                </a>
+            </div>
+        </div>
+
+        <!-- User -->
+        <div class="p-4 border-t border-zinc-800">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-50 font-medium text-xs shadow-inner">
+                    MH
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-zinc-50 truncate">M. Halpert</p>
+                    <p class="text-[12px] text-zinc-500 truncate">Analyst</p>
+                </div>
+                <button class="text-zinc-500 hover:text-zinc-300">
+                    <i class="ph ph-gear text-[18px]"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col min-w-0 bg-white">
+        
+        <!-- Topbar Context -->
+        <header class="h-14 bg-white border-b border-zinc-200 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 z-10 shadow-xs">
+            <div class="flex items-center gap-2 text-sm">
+                <!-- Mobile Nav Toggle -->
+                <button class="lg:hidden p-1 -ml-1 text-zinc-500 hover:text-zinc-900 rounded-md">
+                    <i class="ph ph-list text-xl"></i>
+                </button>
+                <a href="#" class="text-zinc-500 hover:text-zinc-900 transition-colors hidden sm:block">Templates Library</a>
+                <span class="text-zinc-300 hidden sm:block">/</span>
+                <span class="font-medium text-zinc-900">SaaS Warm Buyer Intro (Draft)</span>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-50 border border-zinc-200 text-xs font-semibold text-zinc-600 uppercase tracking-wide">
+                    <i class="ph ph-pencil-simple"></i> Draft
+                </div>
+            </div>
+        </header>
+
+        <!-- Split Screen Tool -->
+        <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+            
+            <!-- Left: Editor Panel (60%) -->
+            <section class="w-full lg:w-[60%] lg:max-w-4xl border-r border-zinc-200 flex flex-col relative z-10 bg-white shadow-[1px_0_12px_rgba(0,0,0,0.02)]">
+                
+                <div class="flex-1 overflow-y-auto" id="editor-scroll">
+                    <div class="p-6 lg:p-8 space-y-8 animate-slide-up">
+                        
+                        <!-- Header Config -->
+                        <div class="space-y-4">
+                            <h1 class="text-[20px] leading-[28px] font-semibold text-zinc-900">Template Details</h1>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div class="sm:col-span-2">
+                                    <label class="block text-[12px] font-semibold text-zinc-900 uppercase tracking-[0.04em] mb-1.5">Template Name</label>
+                                    <input type="text" value="SaaS Warm Buyer Intro" class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-xs focus:border-emerald-600 focus:outline-none focus:ring focus:boxShadow-focus transition-all placeholder-zinc-400">
+                                </div>
+                                <div>
+                                    <label class="block text-[12px] font-semibold text-zinc-900 uppercase tracking-[0.04em] mb-1.5">Category</label>
+                                    <div class="relative">
+                                        <select class="w-full appearance-none rounded-md border border-zinc-300 bg-white px-3 py-2 pr-8 text-sm text-zinc-900 shadow-xs focus:border-emerald-600 focus:outline-none focus:ring focus:boxShadow-focus transition-all">
+                                            <option>Buyer intro</option>
+                                            <option>Seller warm-up</option>
+                                            <option>Follow-up</option>
+                                        </select>
+                                        <i class="ph ph-caret-down absolute right-3 top-2.5 text-zinc-400 pointer-events-none"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="border-zinc-200">
+
+                        <!-- Body Editor -->
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h2 class="text-[16px] leading-[24px] font-semibold text-zinc-900 flex items-center gap-2">
+                                    Message Body
+                                    <div class="group relative flex items-center justify-center">
+                                        <i class="ph ph-info text-zinc-400 cursor-help"></i>
+                                        <div class="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full mb-1 w-48 bg-zinc-900 text-zinc-50 text-xs p-2 rounded shadow-md pointer-events-none z-50">
+                                            Use semantic HTML or plain text. Merge fields will evaluate on send.
+                                        </div>
+                                    </div>
+                                </h2>
+                                
+                                <!-- AI Assist Button -->
+                                <button id="btn-ai" class="btn-active-state inline-flex items-center gap-1.5 bg-zinc-50 border border-zinc-200 text-zinc-700 hover:text-emerald-700 hover:border-emerald-200 hover:bg-emerald-50 rounded-md px-2.5 py-1 text-[13px] font-medium transition-all shadow-xs">
+                                    <i class="ph ph-sparkle text-emerald-600"></i>
+                                    Generate with AI
+                                </button>
+                            </div>
+
+                            <div class="border border-zinc-300 rounded-md shadow-xs overflow-hidden focus-within:border-emerald-600 focus-within:ring focus-within:boxShadow-focus transition-all group">
+                                <!-- Formatting Toolbar -->
+                                <div class="bg-zinc-50 border-b border-zinc-200 px-2 py-1.5 flex flex-wrap items-center gap-1">
+                                    <div class="flex items-center pr-2 border-r border-zinc-200 gap-0.5">
+                                        <button class="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 rounded transition-colors"><i class="ph ph-text-b"></i></button>
+                                        <button class="p-1.5 text-zinc-500 justify-center hover:text-zinc-900 hover:bg-zinc-200 rounded transition-colors"><i class="ph ph-text-italic"></i></button>
+                                        <button class="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 rounded transition-colors"><i class="ph ph-link"></i></button>
+                                    </div>
+                                    
+                                    <div class="pl-2 flex items-center flex-wrap gap-1.5">
+                                        <span class="text-[11px] font-semibold text-zinc-400 uppercase mr-1">Insert:</span>
+                                        <button onclick="insertMergeField('buyerName')" class="px-2 py-1 rounded bg-white border border-zinc-200 text-[12px] text-zinc-600 hover:border-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors shadow-xs">{{buyerName}}</button>
+                                        <button onclick="insertMergeField('dealName')" class="px-2 py-1 rounded bg-white border border-zinc-200 text-[12px] text-zinc-600 hover:border-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors shadow-xs">{{dealName}}</button>
+                                        <button onclick="insertMergeField('industry')" class="px-2 py-1 rounded bg-white border border-zinc-200 text-[12px] text-zinc-600 hover:border-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors shadow-xs">{{industry}}</button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Textarea -->
+                                <textarea id="main-editor" class="w-full min-h-[240px] p-4 text-sm text-zinc-800 bg-white border-0 focus:ring-0 resize-y" placeholder="Draft your message here...">Hi {{buyerName}},
+
+I'm reaching out regarding Project {{dealName}}, a highly profitable B2B SaaS platform in the {{industry}} space. Given your recent acquisitions, I believe this aligns strongly with your current strategy.
+
+Are you available for a brief introductory call next week?</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Compliance Gatekeepers (The Core App Logic) -->
+                        <div class="space-y-4 pt-4">
+                            <h2 class="text-[16px] leading-[24px] font-semibold text-zinc-900 flex justify-between items-end">
+                                Required Compliance Blocks
+                                <span class="text-xs font-normal text-zinc-500">Legal guardrails enforced</span>
+                            </h2>
+                            
+                            <!-- Block 1: Disclaimer (Valid State) -->
+                            <div class="border border-zinc-200 rounded-md overflow-hidden bg-white shadow-xs">
+                                <div class="bg-zinc-50/50 bg-repeating-stripes px-4 py-3 flex items-start sm:items-center justify-between border-b border-zinc-200 gap-4">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                                            <i class="ph-bold ph-check text-emerald-600 text-[12px]"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-semibold text-zinc-900">Confidentiality Disclaimer</p>
+                                            <p class="text-[12px] text-zinc-500">Standard M&A non-disclosure appended to footer.</p>
+                                        </div>
+                                    </div>
+                                    <button class="text-[12px] font-medium text-emerald-600 hover:text-emerald-700 shrink-0">Customize</button>
+                                </div>
+                                <div class="p-4 bg-zinc-25">
+                                    <p class="text-[13px] text-zinc-600 italic">"This communication is for authorized recipients only and may contain confidential information. If you are not the intended recipient, please delete this email and any attachments immediately."</p>
+                                </div>
+                            </div>
+
+                            <!-- Block 2: Opt-out (Warning/Error State to show UI validation) -->
+                            <div id="opt-out-block" class="border border-amber-300 rounded-md overflow-hidden bg-white shadow-xs transition-colors duration-300 relative">
+                                <!-- Edge highlight -->
+                                <div class="absolute left-0 top-0 bottom-0 w-1 bg-amber-400 group-valid:bg-emerald-500 transition-colors" id="opt-out-marker"></div>
+                                
+                                <div class="bg-amber-50/50 px-4 py-3 pl-5 flex items-start sm:items-center justify-between border-b border-amber-200 gap-4" id="opt-out-header">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0" id="opt-out-icon-bg">
+                                            <i class="ph-bold ph-warning text-amber-600 text-[12px]" id="opt-out-icon"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-semibold text-amber-900" id="opt-out-title">Opt-out Mechanism</p>
+                                            <p class="text-[12px] text-amber-700" id="opt-out-desc">Missing required unsubscribe language (e.g. 'STOP').</p>
+                                        </div>
+                                    </div>
+                                    <button class="text-[12px] font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-1 rounded shrink-0 transition-colors" onclick="fixOptOut()">Restore Default</button>
+                                </div>
+                                <div class="p-4 bg-zinc-25">
+                                    <textarea id="opt-out-editor" class="w-full min-h-[60px] p-2 text-[13px] text-zinc-800 bg-white border border-amber-200 rounded focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20 resize-none transition-all" placeholder="Enter opt-out language..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Padding for fixed footer -->
+                        <div class="h-24"></div>
+                    </div>
+                </div>
+
+                <!-- Sticky Action Footer -->
+                <div class="absolute bottom-0 left-0 right-0 bg-white border-t border-zinc-200 p-4 lg:px-8 flex items-center justify-between shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)]">
+                    <button class="text-sm text-zinc-500 hover:text-zinc-900 font-medium btn-active-state">Discard Draft</button>
+                    <div class="flex items-center gap-3">
+                        <button class="btn-active-state px-4 py-2 bg-white border border-zinc-300 text-zinc-700 rounded-md text-sm font-medium hover:bg-zinc-50 shadow-xs transition-colors">
+                            Save Draft
+                        </button>
+                        <div class="relative group">
+                            <button id="btn-submit" disabled class="btn-active-state px-4 py-2 bg-emerald-600 text-white rounded-md text-sm font-medium hover:bg-emerald-700 shadow-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                                Submit for Approval
+                                <i class="ph-bold ph-arrow-right"></i>
+                            </button>
+                            <!-- Tooltip over disabled element requires a wrapper or pointer-events hack. We'll use sibling pure CSS here. -->
+                            <div id="submit-tooltip" class="absolute bottom-full right-0 mb-2 w-56 p-2 bg-zinc-900 text-zinc-50 text-[12px] rounded shadow-md pointer-events-none opacity-100 transition-opacity text-center before:content-[''] before:absolute before:-bottom-1 before:right-6 before:w-2 before:h-2 before:bg-zinc-900 before:rotate-45">
+                                Resolve compliance errors to submit
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right: Live Preview Panel (40%) -->
+            <section class="hidden lg:flex w-[40%] bg-zinc-100 bg-blueprint flex-col border-l border-zinc-200 relative overflow-hidden items-center justify-center p-8">
+                
+                <!-- Macro controls for preview -->
+                <div class="absolute top-4 w-full px-6 flex justify-between items-center z-10">
+                    <div class="text-[12px] font-semibold text-zinc-500 uppercase tracking-wide flex items-center gap-2">
+                        <i class="ph ph-device-mobile"></i> Live Preview
+                    </div>
+                    <div class="flex gap-1">
+                        <div class="w-3 h-3 rounded-full bg-zinc-300"></div>
+                        <div class="w-3 h-3 rounded-full bg-zinc-300"></div>
+                        <div class="w-3 h-3 rounded-full bg-zinc-300"></div>
+                    </div>
+                </div>
+
+                <!-- 375px Mobile Frame constraint -->
+                <div class="w-[375px] h-[700px] bg-white rounded-[24px] shadow-md border-8 border-zinc-200 flex flex-col overflow-hidden relative transform transition-transform hover:scale-[1.01] duration-300">
+                    
+                    <!-- Fake Email Client Header -->
+                    <div class="bg-zinc-50 border-b border-zinc-200 p-4 space-y-3 shrink-0">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-semibold text-sm shrink-0">
+                                BA
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-[14px] font-semibold text-zinc-900 truncate">SaaS Warm Buyer Intro</p>
+                                <p class="text-[12px] text-zinc-500 flex items-center gap-1">
+                                    From: Michael Halpert <i class="ph-fill ph-caret-down text-[10px]"></i>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="text-[13px] text-zinc-600 border-t border-zinc-200 pt-2 flex items-center">
+                            <span class="w-12 text-zinc-400">To:</span> <span class="bg-zinc-100 px-1.5 py-0.5 rounded text-zinc-700 border border-zinc-200">[buyerEmail]</span>
+                        </div>
+                    </div>
+
+                    <!-- Email Body / The Preview -->
+                    <div class="p-5 flex-1 overflow-y-auto w-full break-words text-[14px] leading-[22px] text-zinc-800 space-y-4" id="preview-content">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <!-- Appended Compliance Overlay -->
+                    <div class="bg-zinc-50 border-t border-zinc-200 p-4 shrink-0 space-y-3">
+                        <p class="text-[11px] leading-tight text-zinc-500 italic block border-l-2 border-emerald-300 pl-2">
+                            This communication is for authorized recipients only and may contain confidential information. If you are not the intended recipient, please delete this email and any attachments immediately.
+                        </p>
+                        <div id="preview-optout" class="text-[11px] leading-tight text-amber-600 bg-amber-50 p-2 rounded border border-amber-200 text-center font-medium opacity-50">
+                            [Opt-out mechanism missing]
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Simulation Toggle text -->
+                 <p class="absolute bottom-6 text-[11px] text-zinc-400 max-w-[300px] text-center">
+                    Merge fields simulate runtime evaluation. Data is mapped from Deal CRM upon execution.
+                 </p>
+            </section>
+        </div>
+    </main>
+
+    <!-- Synthetic AI Loading Overlay (Hidden by default) -->
+    <div id="ai-modal" class="fixed inset-0 bg-zinc-950/40 backdrop-blur-sm z-50 hidden items-center justify-center opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-lg shadow-md w-full max-w-md p-6 transform scale-95 transition-transform duration-300" id="ai-panel">
+            <div class="flex items-center gap-3 mb-4">
+                <i class="ph-duotone ph-magic-wand text-2xl text-emerald-600 animate-pulse"></i>
+                <h3 class="text-[16px] font-semibold text-zinc-900">AI Drafting in Progress</h3>
+            </div>
+            
+            <div class="space-y-3">
+                <div class="h-2 w-3/4 rounded-full skeleton-block"></div>
+                <div class="h-2 w-full rounded-full skeleton-block animation-delay-100"></div>
+                <div class="h-2 w-5/6 rounded-full skeleton-block animation-delay-200"></div>
+            </div>
+            <p class="text-[12px] text-zinc-500 mt-4 tabular-nums">Optimizing tone for M&A Buyer Outreach...</p>
+        </div>
+    </div>
+
+    <!-- Frontend Engine logic to simulate reactivity -->
+    <script>
+        // DOM Elements
+        const editor = document.getElementById('main-editor');
+        const preview = document.getElementById('preview-content');
+        const optOutEditor = document.getElementById('opt-out-editor');
+        const submitBtn = document.getElementById('btn-submit');
+        const submitTooltip = document.getElementById('submit-tooltip');
+        
+        let isValid = false;
+
+        // Reactive sync function
+        function updatePreview() {
+            let rawText = editor.value;
+            
+            // Format whitespace to HTML breaks
+            let formatted = rawText.replace(/\n/g, '<br>');
+
+            // Highlight merge tags for visual distinction in preview using RegEx
+            // e.g. {{buyerName}} -> stylize
+            formatted = formatted.replace(/{{([^}]+)}}/g, function(match, p1) {
+                return `<span class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 py-0.5 rounded text-[12px] font-medium inline-flex items-center gap-1 align-baseline shadow-xs"><i class="ph-fill ph-code text-[10px]"></i>${p1}</span>`;
+            });
+
+            preview.innerHTML = formatted;
+        }
+
+        // Editor input listener
+        editor.addEventListener('input', updatePreview);
+        
+        // Initial render
+        updatePreview();
+
+        // Simulate inserting merge tag at cursor (naive append for demo)
+        function insertMergeField(tag) {
+            const cursorPosition = editor.selectionStart;
+            const textBefore = editor.value.substring(0, cursorPosition);
+            const textAfter = editor.value.substring(cursorPosition);
+            editor.value = textBefore + `{{${tag}}}` + textAfter;
+            
+            // Refocus and place cursor
+            editor.focus();
+            editor.setSelectionRange(cursorPosition + tag.length + 4, cursorPosition + tag.length + 4);
+            updatePreview();
+        }
+
+        // Simulate fixing compliance block to unlock Submit button
+        function fixOptOut() {
+            optOutEditor.value = "To unsubscribe from future communications regarding this project, please reply with STOP.";
+            
+            // Visual state update: Swap amber to emerald
+            const block = document.getElementById('opt-out-block');
+            block.classList.replace('border-amber-300', 'border-emerald-300');
+            
+            const marker = document.getElementById('opt-out-marker');
+            marker.classList.replace('bg-amber-400', 'bg-emerald-500');
+
+            const header = document.getElementById('opt-out-header');
+            header.classList.replace('bg-amber-50/50', 'bg-zinc-50/50');
+            header.classList.replace('border-amber-200', 'border-zinc-200');
+
+            const iconBg = document.getElementById('opt-out-icon-bg');
+            iconBg.classList.replace('bg-amber-100', 'bg-emerald-100');
+            
+            const icon = document.getElementById('opt-out-icon');
+            icon.classList.replace('ph-warning', 'ph-check');
+            icon.classList.replace('text-amber-600', 'text-emerald-600');
+
+            document.getElementById('opt-out-title').classList.replace('text-amber-900', 'text-zinc-900');
+            document.getElementById('opt-out-desc').innerText = "Valid opt-out text present.";
+            document.getElementById('opt-out-desc').classList.replace('text-amber-700', 'text-zinc-500');
+
+            optOutEditor.classList.replace('border-amber-200', 'border-emerald-200');
+            optOutEditor.classList.replace('focus:border-amber-400', 'focus:border-emerald-600');
+            optOutEditor.classList.replace('focus:ring-amber-400/20', 'focus:ring-emerald-600/20');
+
+            // Update preview appended text
+            const previewOptout = document.getElementById('preview-optout');
+            previewOptout.className = "text-[11px] leading-tight text-zinc-500 border-l-2 border-emerald-300 pl-2 block";
+            previewOptout.innerText = optOutEditor.value;
+
+            // Enable submit
+            isValid = true;
+            submitBtn.disabled = false;
+            submitTooltip.style.opacity = '0';
+        }
+
+        // Listen for typing in opt out to validate naturally
+        optOutEditor.addEventListener('input', function(e) {
+            if(e.target.value.toLowerCase().includes('stop') || e.target.value.toLowerCase().includes('unsubscribe')) {
+                // If they type a valid trigger, auto-resolve it
+                if(!isValid) fixOptOut();
+            }
+        });
+
+        // AI Sync
+        const aiBtn = document.getElementById('btn-ai');
+        const modal = document.getElementById('ai-modal');
+        const panel = document.getElementById('ai-panel');
+        
+        aiBtn.addEventListener('click', () => {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            // Micro-task delay for transition
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                panel.classList.remove('scale-95');
+            }, 10);
+
+            // Simulate generation delay
+            setTimeout(() => {
+                editor.value = "Hi {{buyerName}},\n\nMy name is Mike and I'm a Director at DealFlow Advisory. We are currently representing Project {{dealName}}, a $25M ARR B2B SaaS platform focused on the {{industry}} sector.\n\nGiven your recent acquisition of [Competitor Name], this asset presents a profound synergistic opportunity to expand your market footprint.\n\nI have attached the blind teaser. Let me know if you are open to reviewing an NDA.";
+                updatePreview();
+                
+                // Close modal
+                modal.classList.add('opacity-0');
+                panel.classList.add('scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }, 300);
+            }, 2500);
+        });
+    </script>
+</body>
+</html>

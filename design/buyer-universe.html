@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased text-zinc-900 bg-zinc-25">
+<!--
+  aesthetic_dna: Restrained, dense institutional data terminal. Linear/Stripe aesthetic. 
+  ui_paradigm: Multi-pane workstation (App shell + Context Header + Filter Sidebar + Dense Data Table + Floating Utility Panel).
+  palette: Neutral Zinc scale bases (zinc-900 app shell, zinc-50 surface variations) + Emerald accent (emerald-600) + Semantic status signaling.
+-->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buyer Universe | DealFlow AI</title>
+    
+    <!-- Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Icons (Lucide) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            500: '#10B981', // Added for progress bars
+                            600: '#10B981',
+                            700: '#047857',
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                        'xl-up': '0 -10px 40px -10px rgb(16 24 40 / 0.15)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Base Design System Tokens & Resets */
+        :root {
+            --bg-app: #FCFCFD;
+            --bg-surface: #FFFFFF;
+            --bg-muted: #F9FAFB;
+            --bg-sidebar: #111827;
+            --border: #E5E7EB;
+            --primary: #10B981;
+            
+            /* Status Colors Map */
+            --status-positive-bg: #ECFDF5;
+            --status-positive-text: #047857;
+            --status-info-bg: #EFF6FF;
+            --status-info-text: #1D4ED8;
+            --status-warn-bg: #FEF3C7;
+            --status-warn-text: #B45309;
+            --status-danger-bg: #FEF2F2;
+            --status-danger-text: #B91C1C;
+            --status-neutral-bg: #F3F4F6;
+            --status-neutral-text: #4B5563;
+        }
+
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        
+        /* Dense Typography */
+        .text-body-m { font-size: 14px; line-height: 20px; font-weight: 400; }
+        .text-body-s { font-size: 13px; line-height: 18px; font-weight: 400; }
+        .text-label { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+
+        /* Custom Scrollbar for dense data areas */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+
+        /* Table structural styling */
+        .table-container { --row-height: 44px; }
+        th { @apply sticky top-0 bg-white z-10 text-label text-zinc-500 border-b border-zinc-200 px-4 py-3 text-left font-semibold shadow-[0_1px_0_0_#E5E7EB]; }
+        td { @apply text-body-s px-4 py-3 border-b border-zinc-100 whitespace-nowrap; }
+        tr.interactive:hover td { @apply bg-zinc-50; }
+        
+        /* Specific Row States */
+        .row-flagged td { @apply bg-[#FFFAF0] border-b-[#FDE68A]; }
+        .row-flagged td:first-child { box-shadow: inset 3px 0 0 0 #F59E0B; }
+        
+        .row-inflight td { @apply bg-[#F0F9FF] border-b-[#BAE6FD]; }
+        
+        .row-excluded td { @apply bg-zinc-50 opacity-60; }
+        .row-excluded td.strikethrough { text-decoration: line-through; }
+        
+        .row-duplicate { @apply outline outline-1 outline-indigo-200 outline-offset-[-1px] rounded-sm relative z-0; }
+        .row-duplicate td { @apply bg-indigo-50/30; }
+
+        /* Checkbox & Radio styling */
+        .system-checkbox { 
+            @apply appearance-none w-4 h-4 rounded-sm border border-zinc-300 bg-white checked:bg-emerald-600 checked:border-emerald-600 cursor-pointer relative transition-colors duration-150;
+        }
+        .system-checkbox:checked::after {
+            content: '';
+            position: absolute;
+            left: 4px; top: 1px; width: 5px; height: 9px;
+            border: solid white; border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        /* Micro-Animations */
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.98); }
+        }
+        .animate-spin-slow { animation: spin 2s linear infinite; }
+        
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
+        .skeleton-block {
+            background: #F3F4F6;
+            background-image: linear-gradient(90deg, #F3F4F6 0px, #E5E7EB 160px, #F3F4F6 320px);
+            background-size: 1000px 100%;
+            animation: shimmer 2s infinite linear;
+        }
+
+        /* Form Inputs */
+        .input-base { @apply w-full bg-white border border-zinc-300 rounded-md py-1.5 px-3 text-body-s text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-600/40 focus:border-emerald-600 transition-shadow duration-150; }
+        
+        /* Buttons */
+        .btn { @apply inline-flex items-center justify-center gap-2 rounded-md font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-emerald-600/40 focus:ring-offset-1; }
+        .btn-sm { @apply px-3 py-1.5 text-body-s; }
+        .btn-md { @apply px-4 py-2 text-body-m; }
+        .btn-primary { @apply bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs active:scale-[0.98]; }
+        .btn-secondary { @apply bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50 shadow-xs active:scale-[0.98]; }
+        .btn-ghost { @apply bg-transparent text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900; }
+        
+        /* Status Badges */
+        .badge { @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-label font-semibold border; }
+        .badge-verified { background: var(--status-positive-bg); color: var(--status-positive-text); border-color: rgba(4, 120, 87, 0.2); }
+        .badge-pending { background: var(--status-warn-bg); color: var(--status-warn-text); border-color: rgba(180, 83, 9, 0.2); }
+        .badge-partial { background: var(--status-info-bg); color: var(--status-info-text); border-color: rgba(29, 78, 216, 0.2); }
+        .badge-failed { background: var(--status-danger-bg); color: var(--status-danger-text); border-color: rgba(185, 28, 28, 0.2); }
+        .badge-draft { background: var(--status-neutral-bg); color: var(--status-neutral-text); border-color: rgba(75, 85, 99, 0.2); }
+
+        /* Utility */
+        .divider-y { @apply border-t border-zinc-200 my-4; }
+    </style>
+</head>
+<body class="h-screen w-full flex overflow-hidden selection:bg-emerald-100 selection:text-emerald-900">
+
+    <!-- LAYER 1: Global App Shell (Navigation) -->
+    <nav class="w-16 lg:w-64 flex-shrink-0 bg-zinc-900 border-r border-zinc-800 flex flex-col justify-between transition-all duration-300">
+        <div>
+            <!-- Logo area -->
+            <div class="h-14 flex items-center px-4 border-b border-zinc-800 gap-3 text-white sticky top-0 z-20 bg-zinc-900">
+                <div class="w-8 h-8 rounded-md bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center flex-shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
+                    <i data-lucide="layers" class="w-5 h-5 text-white"></i>
+                </div>
+                <span class="font-bold text-[15px] tracking-tight hidden lg:block">DealFlow AI</span>
+            </div>
+            
+            <!-- Nav Items -->
+            <div class="py-4 flex flex-col gap-1 px-3">
+                <div class="px-2 pb-2 text-[10px] uppercase font-semibold text-zinc-500 tracking-wider hidden lg:block">Current Mandate</div>
+                
+                <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors group">
+                    <i data-lucide="briefcase" class="w-5 h-5 flex-shrink-0"></i>
+                    <span class="text-body-m font-medium hidden lg:block">Overview</span>
+                </a>
+                <!-- Active State -->
+                <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md bg-zinc-800 text-white relative group">
+                    <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-emerald-500 rounded-r-full"></div>
+                    <i data-lucide="database" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i>
+                    <span class="text-body-m font-medium hidden lg:block">Buyer Universe</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors group">
+                    <i data-lucide="sparkles" class="w-5 h-5 flex-shrink-0"></i>
+                    <span class="text-body-m font-medium hidden lg:block">AI Matching</span>
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors group">
+                    <i data-lucide="send" class="w-5 h-5 flex-shrink-0"></i>
+                    <span class="text-body-m font-medium hidden lg:block">Outreach</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-zinc-800">
+            <button class="flex items-center gap-3 w-full text-zinc-400 hover:text-white transition-colors">
+                <div class="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center flex-shrink-0">
+                    <span class="text-xs font-semibold text-zinc-300">JS</span>
+                </div>
+                <div class="text-left hidden lg:block">
+                    <div class="text-sm font-medium text-white leading-tight">J. Smith</div>
+                    <div class="text-[11px] text-zinc-500">Analyst</div>
+                </div>
+            </button>
+        </div>
+    </nav>
+
+    <!-- LAYER 2: Main Application Canvas -->
+    <main class="flex-1 flex flex-col h-screen min-w-0 bg-white">
+        
+        <!-- Header (Context & Status) -->
+        <header class="h-auto min-h-[64px] border-b border-zinc-200 bg-white flex flex-col pt-1 z-20">
+            <!-- Breadcrumb row -->
+            <div class="px-6 flex items-center text-[13px] text-zinc-500 gap-2 font-medium">
+                <a href="#" class="hover:text-zinc-900 transition-colors">Mandates</a>
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                <a href="#" class="hover:text-zinc-900 transition-colors">Project Titan - CyberSec Takeout</a>
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                <span class="text-zinc-900">Build Universe</span>
+            </div>
+            
+            <!-- Title & Actions Row -->
+            <div class="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-[24px] leading-tight font-semibold text-zinc-900 tracking-tight">Buyer Universe</h1>
+                    <span class="badge badge-draft mt-1">Draft</span>
+                    <div class="hidden lg:flex items-center gap-4 ml-4 pl-4 border-l border-zinc-200">
+                        <div class="flex flex-col">
+                            <span class="text-label text-zinc-500">Total</span>
+                            <span class="text-body-m font-semibold tabular-nums">241</span>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-label text-zinc-500">Enriched</span>
+                            <span class="text-body-m font-semibold text-emerald-600 tabular-nums">68%</span>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-label flex items-center gap-1 text-zinc-500"><i data-lucide="alert-triangle" class="w-3 h-3 text-amber-500"></i> Needs Review</span>
+                            <span class="text-body-m font-semibold text-amber-600 tabular-nums">3</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    <button class="btn btn-secondary btn-sm">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        Import CSV
+                    </button>
+                    <button class="btn btn-secondary btn-sm">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        Add Buyers
+                    </button>
+                    <!-- Submit Button: Shows gated state via tooltip logic (simulated) -->
+                    <div class="relative group">
+                        <button class="btn btn-primary btn-sm opacity-50 cursor-not-allowed hidden md:flex" disabled>
+                            Submit to Match Engine
+                            <i data-lucide="arrow-right" class="w-4 h-4 ml-1"></i>
+                        </button>
+                        <!-- Inline Tooltip simulation -->
+                        <div class="absolute right-0 top-full mt-2 w-64 bg-zinc-900 text-white text-[12px] p-3 rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                            <strong>Submission Locked</strong><br/>
+                            Requires ≥70% enriched (currently 68%) and 0 flagged records (currently 3).
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- LAYER 3: Split Workspace Level -->
+        <div class="flex-1 flex overflow-hidden relative">
+            
+            <!-- Left Pane: Criteria Filters (Sidebar inside main content) -->
+            <aside class="w-72 flex-shrink-0 border-r border-zinc-200 bg-zinc-50 overflow-y-auto flex flex-col hidden md:flex z-10">
+                <div class="p-4 border-b border-zinc-200 flex items-center justify-between sticky top-0 bg-zinc-50/90 backdrop-blur-sm z-10">
+                    <h2 class="text-[14px] font-semibold text-zinc-800">Criteria Filters</h2>
+                    <button class="text-[12px] text-zinc-500 hover:text-zinc-900 font-medium">Reset</button>
+                </div>
+                
+                <div class="p-4 flex flex-col gap-6">
+                    
+                    <!-- Search Input -->
+                    <div>
+                        <div class="relative">
+                            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+                            <input type="text" placeholder="Search company or contact..." class="input-base pl-9">
+                        </div>
+                    </div>
+
+                    <!-- Filter Group: Buyer Segment -->
+                    <div>
+                        <label class="block text-label text-zinc-500 mb-3">Buyer Segment</label>
+                        <div class="flex flex-col gap-2">
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" class="system-checkbox" checked>
+                                <span class="text-body-s font-medium text-zinc-700 group-hover:text-zinc-900 transition-colors">Financial (PE/Growth)</span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" class="system-checkbox" checked>
+                                <span class="text-body-s font-medium text-zinc-700 group-hover:text-zinc-900 transition-colors">Strategic (Corporate)</span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" class="system-checkbox">
+                                <span class="text-body-s font-medium text-zinc-700 group-hover:text-zinc-900 transition-colors">Family Office</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Filter Group: Transaction Size / EV Slider (Mock) -->
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <label class="block text-label text-zinc-500">Target EV Match ($M)</label>
+                            <span class="text-[11px] tabular-nums font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Active</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="text" value="50" class="input-base w-full text-center tabular-nums font-medium h-8">
+                            <span class="text-zinc-400 text-sm">-</span>
+                            <input type="text" value="300" class="input-base w-full text-center tabular-nums font-medium h-8">
+                        </div>
+                    </div>
+
+                    <!-- Filter Group: Data Readiness -->
+                    <div>
+                        <label class="block text-label text-zinc-500 mb-3">Data Readiness</label>
+                        <div class="bg-white border border-zinc-200 rounded-md p-1 flex shadow-sm">
+                            <button class="flex-1 py-1 text-[12px] font-semibold text-zinc-900 bg-zinc-100 rounded shadow-[0_1px_2px_rgba(0,0,0,0.05)] border border-zinc-200/50">All Records</button>
+                            <button class="flex-1 py-1 text-[12px] font-medium text-zinc-500 hover:text-zinc-900">Enriched Only</button>
+                        </div>
+                    </div>
+
+                    <div class="divider-y"></div>
+
+                    <!-- Filter Group: Exclusions (Collapsible structural map) -->
+                    <div>
+                        <div class="flex items-center justify-between cursor-pointer group mb-2">
+                            <label class="block text-label text-zinc-800 cursor-pointer group-hover:text-zinc-900">Exclusion Rules</label>
+                            <i data-lucide="chevron-up" class="w-4 h-4 text-zinc-400 group-hover:text-zinc-600"></i>
+                        </div>
+                        <div class="flex flex-col gap-2 bg-white p-3 rounded-md border border-zinc-200 shadow-xs">
+                            <label class="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" class="system-checkbox mt-0.5" checked>
+                                <span class="text-[12px] font-medium text-zinc-700 leading-tight">Exclude competitors (from mandate scope)</span>
+                            </label>
+                            <label class="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" class="system-checkbox mt-0.5">
+                                <span class="text-[12px] font-medium text-zinc-700 leading-tight">Exclude prior failed engagements (12mo)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+            </aside>
+
+            <!-- Right Pane: Data Table Workspace -->
+            <div class="flex-1 flex flex-col bg-white overflow-hidden relative table-container">
+                
+                <!-- Table Action Bar -->
+                <div class="h-12 border-b border-zinc-200 flex items-center justify-between px-4 bg-white flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" class="system-checkbox" title="Select all visible">
+                        <span class="text-body-s font-medium text-zinc-600">45 records shown</span>
+                        <div class="h-4 w-px bg-zinc-300 mx-1"></div>
+                        <span class="flex items-center gap-1 text-[12px] font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full ring-1 ring-emerald-200">
+                            <i data-lucide="filter" class="w-3 h-3"></i>
+                            3 Filters Active
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button class="btn btn-ghost btn-sm text-zinc-500">
+                            <i data-lucide="settings-2" class="w-4 h-4"></i>
+                            Columns
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scrollable Table -->
+                <div class="flex-1 overflow-auto bg-zinc-25">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr>
+                                <th class="w-10 px-4 text-center"></th> <!-- Checkbox -->
+                                <th class="min-w-[220px]">Company Name</th>
+                                <th class="min-w-[140px]">Sector</th>
+                                <th class="min-w-[120px]">Stage / Status</th>
+                                <th class="min-w-[140px]">Contact Readiness</th>
+                                <th class="min-w-[160px]">Completeness</th>
+                                <th class="min-w-[120px] text-center">Included</th>
+                                <th class="w-[80px] text-right sticky right-0 bg-white shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.05)]">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white">
+                            
+                            <!-- ROW STATE: Standard (Verified) -->
+                            <tr class="interactive group relative overflow-hidden transition-colors border-l-[3px] border-l-transparent hover:border-l-zinc-300">
+                                <td class="px-4 text-center">
+                                    <input type="checkbox" class="system-checkbox opacity-0 group-hover:opacity-100 transition-opacity">
+                                </td>
+                                <td>
+                                    <a href="#" class="font-semibold text-zinc-900 group-hover:text-emerald-700 transition-colors">Apex Capital Partners</a>
+                                    <div class="text-[12px] text-zinc-500 flex items-center gap-1 mt-0.5">
+                                        <i data-lucide="map-pin" class="w-3 h-3"></i> New York, NY
+                                    </div>
+                                </td>
+                                <td><span class="px-2 py-1 bg-zinc-100 text-zinc-700 rounded text-[11px] font-medium">B2B Software</span></td>
+                                <td><span class="text-zinc-600 font-medium">Active Buyer</span></td>
+                                <td>
+                                    <span class="badge badge-verified">
+                                        <i data-lucide="check-circle" class="w-3 h-3"></i> Verified
+                                    </span>
+                                </td>
+                                <td class="tabular-nums">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-full max-w-[100px] h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                                            <div class="h-full bg-emerald-500 rounded-full w-full"></div>
+                                        </div>
+                                        <span class="text-[12px] font-semibold text-zinc-700">100%</span>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <button class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2">
+                                        <span class="pointer-events-none absolute h-full w-full rounded-md bg-transparent"></span>
+                                        <span aria-hidden="true" class="pointer-events-none absolute mx-auto h-4 w-9 rounded-full bg-emerald-600 transition-colors duration-200 ease-in-out"></span>
+                                        <span aria-hidden="true" class="pointer-events-none absolute left-0 inline-block h-5 w-5 translate-x-4 transform rounded-full border border-gray-200 bg-white shadow ring-0 transition-transform duration-200 ease-in-out"></span>
+                                    </button>
+                                </td>
+                                <td class="text-right px-4 sticky right-0 bg-white shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.05)] group-hover:bg-zinc-50 transition-colors">
+                                    <button class="p-1.5 text-zinc-400 hover:text-zinc-800 rounded bg-white hover:bg-zinc-100 shadow-sm border border-zinc-200/60 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                        <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- ROW STATE: In-Flight Enrichment -->
+                            <tr class="row-inflight interactive group relative overflow-hidden transition-colors border-l-[3px] border-l-sky-400">
+                                <td class="px-4 text-center">
+                                    <input type="checkbox" class="system-checkbox opacity-50 cursor-not-allowed" disabled>
+                                </td>
+                                <td>
+                                    <div class="font-semibold text-zinc-900">Sentinel Dynamics</div>
+                                    <div class="text-[12px] text-zinc-500 flex items-center gap-1 mt-0.5">
+                                        <i data-lucide="map-pin" class="w-3 h-3"></i> Austin, TX
+                                    </div>
+                                </td>
+                                <td><span class="px-2 py-1 bg-zinc-100 text-zinc-700 rounded text-[11px] font-medium">Cybersecurity</span></td>
+                                <td><span class="text-zinc-600 font-medium">Platform Focus</span></td>
+                                <td>
+                                    <span class="badge badge-partial flex items-center w-max gap-1">
+                                        <i data-lucide="loader-2" class="w-3 h-3 animate-spin-slow"></i> Enriching...
+                                    </span>
+                                </td>
+                                <td class="tabular-nums">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-full max-w-[100px] h-1.5 bg-zinc-200 rounded-full overflow-hidden relative">
+                                            <!-- Animated indeterminate bar -->
+                                            <div class="absolute top-0 bottom-0 left-0 bg-blue-500 rounded-full w-1/3 animate-spin-slow" style="animation: shimmer 1.5s infinite linear;"></div>
+                                        </div>
+                                        <span class="text-[12px] font-medium text-zinc-500">40%</span>
+                                    </div>
+                                </td>
+                                <td class="text-center opacity-50 cursor-not-allowed">
+                                   <!-- Disabled Toggle -->
+                                   <div class="relative inline-flex h-5 w-9 shrink-0 items-center justify-center rounded-full">
+                                        <span class="pointer-events-none absolute mx-auto h-4 w-9 rounded-full bg-zinc-200"></span>
+                                        <span class="pointer-events-none absolute left-0 inline-block h-5 w-5 transform rounded-full border border-gray-200 bg-white shadow"></span>
+                                    </div>
+                                </td>
+                                <td class="text-right px-4 sticky right-0 bg-[#F0F9FF] border-b-[#BAE6FD] shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.05)]">
+                                    <button class="p-1.5 text-zinc-400 hover:text-zinc-800 rounded bg-white hover:bg-zinc-100 shadow-sm border border-zinc-200/60 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                        <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- ROW STATE: Data-Gap Flagged -->
+                            <tr class="row-flagged interactive group relative overflow-hidden transition-colors border-l-[3px] border-l-amber-500">
+                                <td class="px-4 text-center">
+                                    <input type="checkbox" class="system-checkbox opacity-0 group-hover:opacity-100 transition-opacity">
+                                </td>
+                                <td>
+                                    <a href="#" class="font-semibold text-zinc-900 flex items-center gap-2">
+                                        Meridian Strategy Group
+                                        <div class="w-2 h-2 rounded-full bg-amber-500 relative" title="Action Required">
+                                            <div class="absolute inset-0 rounded-full bg-amber-500 animate-ping opacity-75"></div>
+                                        </div>
+                                    </a>
+                                    <div class="text-[12px] text-zinc-500 flex items-center gap-1 mt-0.5">
+                                        <i data-lucide="map-pin" class="w-3 h-3"></i> Boston, MA
+                                    </div>
+                                </td>
+                                <td><span class="px-2 py-1 bg-zinc-100 text-zinc-700 rounded text-[11px] font-medium">FinTech</span></td>
+                                <td><span class="text-zinc-600 font-medium">Divested Recent</span></td>
+                                <td>
+                                    <!-- Embedded alert in tooltip style -->
+                                    <div class="group/alert relative flex items-center">
+                                        <span class="badge badge-pending cursor-help border-amber-300">
+                                            <i data-lucide="alert-triangle" class="w-3 h-3"></i> Flagged
+                                        </span>
+                                        <div class="absolute bottom-full mb-2 left-0 w-48 bg-zinc-900 text-white text-[11px] p-2 rounded shadow-md opacity-0 group-hover/alert:opacity-100 transition-opacity pointer-events-none z-50">
+                                            Missing primary Decision Maker email. Enrichment source timeout.
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="tabular-nums">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-full max-w-[100px] h-1.5 bg-zinc-200 rounded-full overflow-hidden">
+                                            <div class="h-full bg-amber-400 rounded-full w-[65%]"></div>
+                                        </div>
+                                        <span class="text-[12px] font-semibold text-zinc-700">65%</span>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <button class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full">
+                                        <span class="pointer-events-none absolute mx-auto h-4 w-9 rounded-full bg-emerald-600"></span>
+                                        <span class="pointer-events-none absolute left-0 inline-block h-5 w-5 translate-x-4 transform rounded-full border border-gray-200 bg-white shadow ring-0"></span>
+                                    </button>
+                                </td>
+                                <td class="text-right px-4 sticky right-0 bg-[#FFFAF0] border-b-[#FDE68A] shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.05)]">
+                                    <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                        <button class="btn btn-secondary !px-2 !py-1 !text-[11px]">Review</button>
+                                        <button class="p-1.5 text-zinc-400 hover:text-zinc-800 rounded bg-white hover:bg-zinc-100 shadow-sm border border-zinc-200/60">
+                                            <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- ROW STATE: Duplicate Detected (Dedup Match) -->
+                            <tr class="row-duplicate interactive group relative overflow-hidden transition-colors border-l-[3px] border-l-transparent mt-1 mb-1">
+                                <td class="px-4 text-center">
+                                    <i data-lucide="copy" class="w-4 h-4 text-indigo-400 mx-auto"></i>
+                                </td>
+                                <td>
+                                    <div class="font-semibold text-zinc-700 flex items-center gap-2">
+                                        Apex Capital (Fund IV)
+                                        <span class="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded border border-indigo-200">Duplicate?</span>
+                                    </div>
+                                    <div class="text-[12px] text-zinc-500 mt-0.5">
+                                        Matches: <a href="#" class="text-indigo-600 hover:underline">Apex Capital Partners</a>
+                                    </div>
+                                </td>
+                                <td><span class="px-2 py-1 bg-zinc-100 text-zinc-700 rounded text-[11px] font-medium">B2B Software</span></td>
+                                <td><span class="text-zinc-600 font-medium text-[12px] italic">Inherited Profile</span></td>
+                                <td>
+                                    <span class="badge badge-partial">Unverified</span>
+                                </td>
+                                <td class="tabular-nums text-zinc-400 text-[12px]">-</td>
+                                <td class="text-center">
+                                   <!-- Off Toggle -->
+                                   <button class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full">
+                                        <span class="pointer-events-none absolute mx-auto h-4 w-9 rounded-full bg-zinc-200"></span>
+                                        <span class="pointer-events-none absolute left-0 inline-block h-5 w-5 translate-x-0 transform rounded-full border border-gray-200 bg-white shadow ring-0 transition-transform"></span>
+                                    </button>
+                                </td>
+                                <td class="text-right px-4 sticky right-0 bg-indigo-50/90 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.05)]">
+                                    <button class="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 bg-white border border-indigo-200 py-1 px-2 rounded opacity-0 group-hover:opacity-100 hover:bg-indigo-50 transition-all shadow-sm">
+                                        Merge Record
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- ROW STATE: Excluded by User -->
+                            <tr class="row-excluded group relative overflow-hidden transition-colors border-l-[3px] border-l-transparent">
+                                <td class="px-4 text-center">
+                                    <input type="checkbox" class="system-checkbox" disabled>
+                                </td>
+                                <td class="strikethrough">
+                                    <div class="font-semibold text-zinc-500">Nexus Tech Holdings</div>
+                                    <div class="text-[12px] text-zinc-400 mt-0.5">San Francisco, CA</div>
+                                </td>
+                                <td><span class="text-zinc-400 strikethrough">Infrastructure</span></td>
+                                <td><span class="text-zinc-400 text-[12px] italic">Excluded via Rule</span></td>
+                                <td><span class="text-zinc-400 text-[12px]">-</span></td>
+                                <td><span class="text-zinc-400 text-[12px]">-</span></td>
+                                <td class="text-center">
+                                   <!-- Off Toggle -->
+                                   <div class="relative inline-flex h-5 w-9 shrink-0 items-center justify-center rounded-full opacity-50">
+                                        <span class="pointer-events-none absolute mx-auto h-4 w-9 rounded-full bg-zinc-200"></span>
+                                        <span class="pointer-events-none absolute left-0 inline-block h-5 w-5 transform rounded-full border border-gray-200 bg-white shadow"></span>
+                                    </div>
+                                </td>
+                                <td class="text-right px-4 sticky right-0 bg-zinc-50 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.05)]">
+                                    <button class="text-[11px] font-medium text-zinc-500 hover:text-zinc-800 underline decoration-zinc-300 underline-offset-2 opacity-0 group-hover:opacity-100 transition-all">
+                                        Restore
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- SKELETON ROW (to simulate infinite scroll density visually) -->
+                            <tr class="border-l-[3px] border-l-transparent">
+                                <td class="px-4 py-4"><div class="w-4 h-4 rounded-sm skeleton-block mx-auto"></div></td>
+                                <td>
+                                    <div class="w-32 h-4 rounded skeleton-block mb-1.5"></div>
+                                    <div class="w-20 h-3 rounded skeleton-block"></div>
+                                </td>
+                                <td><div class="w-16 h-5 rounded skeleton-block"></div></td>
+                                <td><div class="w-24 h-4 rounded skeleton-block"></div></td>
+                                <td><div class="w-20 h-5 rounded-full skeleton-block"></div></td>
+                                <td><div class="w-24 h-2 rounded-full skeleton-block"></div></td>
+                                <td><div class="w-9 h-5 rounded-full skeleton-block mx-auto"></div></td>
+                                <td></td>
+                            </tr>
+
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer Gradient/Fade (Subtle touch for scroll signaling) -->
+                <div class="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-white to-transparent pointer-events-none z-10"></div>
+            </div>
+            
+        </div>
+    </main>
+
+    <!-- LAYER 4: Persistent Utility Overlays -->
+
+    <!-- Floating Enrichment Progress Panel (Bottom Right) -->
+    <div class="fixed bottom-6 right-6 w-80 bg-white rounded-lg border border-zinc-200 shadow-xl-up z-50 overflow-hidden transform translate-y-0 transition-transform duration-300">
+        <!-- Panel Header -->
+        <div class="px-4 py-3 border-b border-zinc-100 bg-zinc-50/50 flex justify-between items-center backdrop-blur text-sm">
+            <div class="flex items-center gap-2 text-zinc-800 font-semibold">
+                <i data-lucide="zap" class="w-4 h-4 text-sky-500"></i>
+                Enrichment Core
+            </div>
+            <button class="text-zinc-400 hover:text-zinc-700">
+                <i data-lucide="minimize-2" class="w-3.5 h-3.5"></i>
+            </button>
+        </div>
+        
+        <!-- Panel Body -->
+        <div class="p-4 bg-white flex flex-col gap-3">
+            <div class="flex justify-between text-[12px] font-medium text-zinc-600 mb-1">
+                <span>Enriching pending records...</span>
+                <span class="text-sky-600">~2 min left</span>
+            </div>
+            
+            <!-- Custom Progress Bar -->
+            <div class="w-full bg-zinc-100 h-2 rounded-full overflow-hidden relative shadow-inner">
+                <div class="absolute left-0 top-0 h-full bg-gradient-to-r from-sky-400 to-sky-500 w-[72%] transition-all duration-500 ease-out">
+                    <div class="absolute inset-0 bg-white/20 w-full" style="animation: shimmer 1.5s infinite linear; transform: skewX(-20deg);"></div>
+                </div>
+            </div>
+            
+            <div class="flex justify-between items-center mt-1 text-[11px] tabular-nums font-medium">
+                <span class="text-zinc-500">14 / 45 processed</span>
+                <span class="text-emerald-600">3 errors bypassed</span>
+            </div>
+
+            <!-- Mini Log Drawer Trigger -->
+            <button class="mt-2 w-full text-left flex justify-between items-center text-[12px] text-zinc-500 hover:text-zinc-800 font-medium py-1">
+                View detailed logs <i data-lucide="chevron-down" class="w-3 h-3"></i>
+            </button>
+        </div>
+    </div>
+
+
+    <!-- LAYER 5: Modals (Hidden state simulated) -->
+    <!-- AI Match Submission Gate (Example of complex states requested in prompt) -->
+    <!-- Note: class 'hidden' removed for presentation of architectural completeness, wrapped in a fixed pointer-events-none invisible container unless activated -->
+    <div class="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300" id="submitModal">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-zinc-950/60 backdrop-blur-sm pointer-events-auto"></div>
+        
+        <!-- Modal Content -->
+        <div class="relative bg-white rounded-[12px] shadow-2xl w-full max-w-md p-6 pointer-events-auto transform scale-95 transition-transform duration-300 delay-75 border border-zinc-200">
+            <!-- Header -->
+            <div class="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center mb-4 border border-amber-100">
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-amber-600"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-zinc-900 mb-2">Review Required Before AI Submission</h3>
+            <p class="text-body-m text-zinc-600 mb-6 leading-relaxed">
+                You have <strong class="text-zinc-900">3 records</strong> flagged for data gaps. The Matching Engine requires highly enriched data to rank buyers accurately.
+            </p>
+            
+            <!-- Warning Block -->
+            <div class="bg-zinc-50 border border-zinc-200 rounded-md p-4 mb-6">
+                <ul class="text-body-s text-zinc-700 flex flex-col gap-2">
+                    <li class="flex items-start gap-2">
+                        <i data-lucide="x-circle" class="w-4 h-4 text-zinc-400 mt-0.5 shrink-0"></i>
+                        <span>Cannot submit with un-reviewed flags.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 mt-0.5 shrink-0"></i>
+                        <span>Universe size &gt; 10 records.</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-3 justify-end mt-4">
+                <button class="btn btn-secondary btn-md">Cancel</button>
+                <button class="btn btn-primary btn-md">
+                    Review 3 Records
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Initialize Icons -->
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

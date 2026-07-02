@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased bg-zinc-25 text-zinc-800">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DealFlow AI — Outreach Composer</title>
+    
+    <!-- 
+      aesthetic_dna: Restrained, credible "Linear/Stripe" feel for regulated M&A data tool.
+      ui_paradigm: Multi-pane Bento-box workspace representing a deep software environment. Assymetric split (List/Preview vs Config/Compliance)
+      palette: Zinc (neutral text/surfaces) + Emerald (status/accent), strict tabular-nums.
+    -->
+
+    <!-- Framework & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Base Configuration & Custom Primitives -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                        'inner-border': 'inset 0 0 0 1px var(--tw-shadow-color)',
+                        'glow-error': '0 0 0 2px rgba(220, 38, 38, 0.2)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Properties & Performance Utilities */
+        :root {
+            --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
+            --anim-speed: 0.6s;
+        }
+
+        body { font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11'; }
+        .tabular { font-variant-numeric: tabular-nums; }
+        
+        /* Layout Hardware Acceleration for scrolling edges */
+        .scroll-container {
+            overscroll-behavior-y: contain;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Custom Scrollbar minimal - Hidden for ultra-clean look but functionally present */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+
+        /* Liquid Glass Panel Logic (Stripe/Linear aesthetic) */
+        .panel-surface {
+            background-color: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 0.75rem; 
+            box-shadow: 0 1px 2px rgb(16 24 40 / 0.05); 
+            transition: all 150ms var(--anim-ease);
+        }
+
+        .input-surface {
+            background-color: #FFFFFF;
+            border: 1px solid #D1D5DB;
+            border-radius: 0.375rem;
+            transition: all 150ms ease-in-out;
+        }
+        .input-surface:focus-within {
+            border-color: #10B981;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+            outline: none;
+        }
+        
+        /* Perpetual Micro-Interactions & Physics */
+        @keyframes pulse-dot {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+        }
+        .live-dot::after {
+            content: '';
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            background-color: inherit;
+            border-radius: 50%;
+            animation: pulse-dot 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+            z-index: -1;
+        }
+
+        /* Staggered Reveal Cascade */
+        .stagger-item {
+            opacity: 0;
+            transform: translateY(6px);
+            animation: revealCascade 0.5s var(--anim-ease) forwards;
+        }
+        @keyframes revealCascade {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .stagger-item:nth-child(1) { animation-delay: 50ms; }
+        .stagger-item:nth-child(2) { animation-delay: 100ms; }
+        .stagger-item:nth-child(3) { animation-delay: 150ms; }
+        .stagger-item:nth-child(4) { animation-delay: 200ms; }
+        .stagger-item:nth-child(5) { animation-delay: 250ms; }
+
+        /* Status Pill Primitives */
+        .badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 9999px; padding: 0.125rem 0.5rem;
+            font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+        }
+        .badge-positive { background-color: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; }
+        .badge-info { background-color: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+        .badge-warn { background-color: #FEF3C7; color: #B45309; border: 1px solid #FDE68A; }
+        .badge-danger { background-color: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+        .badge-neutral { background-color: #F3F4F6; color: #6B7280; border: 1px solid #E5E7EB; }
+
+        /* Custom Table Layout Mechanics */
+        .data-table th { position: sticky; top: 0; background-color: #F9FAFB; z-index: 10; border-bottom: 1px solid #E5E7EB; }
+        .data-table tr:hover td { background-color: #F9FAFB; }
+        
+        /* Interactive button physical push */
+        button:active:not(:disabled) { transform: translateY(1px) scale(0.98); }
+        
+        /* Compliance specific UI */
+        .compliance-lock-bg {
+            background-image: repeating-linear-gradient(45deg, #F3F4F6 0, #F3F4F6 2px, #FFFFFF 2px, #FFFFFF 6px);
+        }
+    </style>
+</head>
+<body class="flex h-[100dvh] w-full overflow-hidden text-sm">
+
+    <!-- CANONICAL SIDEBAR -->
+    <aside class="hidden lg:flex flex-col w-64 flex-shrink-0 bg-zinc-900 text-zinc-50 border-r border-zinc-800 transition-all duration-300 z-20">
+        <div class="h-16 flex items-center px-6 border-b border-zinc-800 shrink-0">
+            <div class="flex items-center gap-2 text-white font-semibold tracking-tight">
+                <div class="w-6 h-6 rounded bg-emerald-600 flex items-center justify-center">
+                    <i data-lucide="network" class="w-4 h-4 text-white"></i>
+                </div>
+                DealFlow AI
+            </div>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto scroll-container py-4 px-3 flex flex-col gap-1">
+            <div class="px-3 mb-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Workspace</div>
+            
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 transition-colors">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                <span class="text-sm font-medium">Dashboard</span>
+            </a>
+            
+            <!-- ACTIVE ITEM SET HERE PER INSTRUCTIONS -->
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md bg-zinc-800 text-white relative before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:bg-emerald-600 before:rounded-r shadow-[inset_0_1px_rgba(255,255,255,0.05)]">
+                <i data-lucide="briefcase" class="w-4 h-4 text-emerald-500"></i>
+                <span class="text-sm font-medium">Mandates</span>
+            </a>
+            
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 transition-colors">
+                <i data-lucide="database" class="w-4 h-4"></i>
+                <span class="text-sm font-medium">Sourcing</span>
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 transition-colors group">
+                <i data-lucide="shield-check" class="w-4 h-4 group-hover:text-amber-500 transition-colors"></i>
+                <span class="text-sm font-medium">Compliance</span>
+                <span class="ml-auto text-[10px] font-bold bg-amber-500/20 text-amber-400 px-1.5 rounded tabular">2</span>
+            </a>
+
+            <div class="mt-8 px-3 mb-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Config</div>
+            
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 transition-colors">
+                <i data-lucide="users" class="w-4 h-4"></i>
+                <span class="text-sm font-medium">Team</span>
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 transition-colors">
+                <i data-lucide="settings" class="w-4 h-4"></i>
+                <span class="text-sm font-medium">Settings</span>
+            </a>
+        </div>
+
+        <div class="p-4 border-t border-zinc-800 shrink-0">
+            <button class="flex items-center gap-3 w-full p-2 rounded-md hover:bg-zinc-800 transition-colors text-left text-sm group">
+                <div class="w-8 h-8 rounded-full bg-zinc-700 font-medium flex items-center justify-center text-zinc-300 ring-2 ring-zinc-800 group-hover:ring-zinc-700">
+                    MR
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="font-medium text-zinc-200 truncate">Michael Ridge</div>
+                    <div class="text-xs text-zinc-500 truncate">Deal Lead</div>
+                </div>
+            </button>
+        </div>
+    </aside>
+
+    <!-- MAIN APP CANVAS -->
+    <main class="flex-1 flex flex-col min-w-0 bg-zinc-50 relative">
+        
+        <!-- Top Application Bar -->
+        <header class="h-16 shrink-0 bg-white border-b border-zinc-200 px-4 lg:px-6 flex items-center justify-between z-10">
+            <div class="flex items-center gap-3 min-w-0">
+                <!-- Breadcrumb -->
+                <nav class="hidden md:flex items-center gap-2 text-sm text-zinc-500">
+                    <a href="#" class="hover:text-zinc-800 transition-colors">Mandates</a>
+                    <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                    <a href="#" class="hover:text-zinc-800 transition-colors">Project Titan</a>
+                    <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                </nav>
+                <!-- Editable Header -->
+                <div class="flex items-center gap-3 group px-2 py-1 -ml-2 rounded hover:bg-zinc-50 transition-colors cursor-text">
+                    <h1 class="text-lg font-semibold text-zinc-900 tracking-tight truncate max-w-[200px] md:max-w-md">Project Titan → 35 Buyers</h1>
+                    <i data-lucide="pencil" class="w-3.5 h-3.5 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </div>
+                <span class="badge badge-warn shrink-0"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Draft Version</span>
+            </div>
+            
+            <div class="flex items-center gap-3 shrink-0">
+                <p class="text-xs text-zinc-500 hidden md:block mr-2">Last saved <span class="tabular">2 mins ago</span></p>
+                <button class="px-3 py-1.5 text-sm font-medium text-zinc-700 bg-white border border-zinc-200 rounded-md shadow-xs hover:bg-zinc-50 transition-colors flex items-center gap-2">
+                    <i data-lucide="save" class="w-4 h-4 text-zinc-500"></i>
+                    Save Draft
+                </button>
+                <!-- Mobile menu toggle -->
+                <button class="lg:hidden p-2 text-zinc-500 hover:text-zinc-700 transition-colors">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Complex Asymmetric Workspace Layout -->
+        <div class="flex-1 flex overflow-hidden">
+            <div class="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 p-4 lg:p-6 h-full max-w-screen-2xl mx-auto w-full">
+                
+                <!-- LEFT COLUMN: Meso-Architecture / Data Density (Recipients & Previews) -->
+                <div class="flex-1 flex flex-col min-w-0 gap-4 lg:gap-6">
+                    
+                    <!-- RECIPIENT LIST PANEL (Expands to fill available vertical space) -->
+                    <div class="panel-surface flex-1 flex flex-col min-h-[300px] lg:min-h-0 overflow-hidden relative">
+                        <!-- Panel Header -->
+                        <div class="px-4 py-3 border-b border-zinc-200 bg-white flex items-center justify-between shrink-0">
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-sm font-semibold text-zinc-900 flex items-center gap-1.5">
+                                    <i data-lucide="users" class="w-4 h-4 text-zinc-400"></i>
+                                    Shortlisted Recipients
+                                </h2>
+                                <span class="px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 text-xs font-semibold tabular">35</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button class="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors" title="Export CSV">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                </button>
+                                <button class="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors" title="Filter list">
+                                    <i data-lucide="filter" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Dense Data Table Wrapper -->
+                        <div class="flex-1 overflow-auto scroll-container data-table bg-white">
+                            <table class="w-full text-left border-collapse whitespace-nowrap">
+                                <thead>
+                                    <tr>
+                                        <th class="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-8">
+                                            <input type="checkbox" class="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-600">
+                                        </th>
+                                        <th class="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Buyer / Fund</th>
+                                        <th class="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Decision Maker</th>
+                                        <th class="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Fit Score</th>
+                                        <th class="px-4 py-2.5 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider text-center">Compliance</th>
+                                        <th class="px-4 py-2.5 w-10"></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-zinc-100">
+                                    <!-- Row 1: Pass -->
+                                    <tr class="stagger-item group">
+                                        <td class="px-4 py-2.5"><input type="checkbox" checked class="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-600"></td>
+                                        <td class="px-4 py-2.5 flex items-center gap-2">
+                                            <div class="w-5 h-5 rounded overflow-hidden bg-zinc-100 border border-zinc-200 shrink-0">
+                                                <img src="https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?auto=format&fit=crop&w=40&q=80" alt="Acorn" class="w-full h-full object-cover grayscale opacity-70">
+                                            </div>
+                                            <span class="font-medium text-zinc-900">Acorn Dynamics Partners</span>
+                                        </td>
+                                        <td class="px-4 py-2.5">
+                                            <div class="flex flex-col">
+                                                <span class="text-zinc-800">Sarah Chen</span>
+                                                <span class="text-xs text-zinc-500">Managing Partner</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-right font-medium text-emerald-700 tabular">94%</td>
+                                        <td class="px-4 py-2.5 text-center">
+                                            <div class="flex items-center justify-center text-emerald-600" title="Cleared Suppression">
+                                                <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-right">
+                                            <button class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-600 transition-all"><i data-lucide="x" class="w-4 h-4"></i></button>
+                                        </td>
+                                    </tr>
+                                    <!-- Row 2: Warning (Missing data) -->
+                                    <tr class="stagger-item group">
+                                        <td class="px-4 py-2.5"><input type="checkbox" checked class="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-600"></td>
+                                        <td class="px-4 py-2.5 flex items-center gap-2">
+                                            <div class="w-5 h-5 rounded overflow-hidden bg-zinc-100 border border-zinc-200 shrink-0 flex items-center justify-center text-[10px] font-bold text-zinc-400">
+                                                HR
+                                            </div>
+                                            <span class="font-medium text-zinc-900">Horizon Ventures LLC</span>
+                                        </td>
+                                        <td class="px-4 py-2.5">
+                                            <div class="flex flex-col">
+                                                <span class="text-zinc-800">Michael Ross</span>
+                                                <span class="text-xs text-amber-500 flex items-center gap-1"><i data-lucide="alert-circle" class="w-3 h-3"></i> Verify email</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-right font-medium text-zinc-700 tabular">88%</td>
+                                        <td class="px-4 py-2.5 text-center">
+                                            <div class="flex items-center justify-center text-amber-500" title="Missing info requires review">
+                                                <i data-lucide="help-circle" class="w-4 h-4"></i>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-right">
+                                            <button class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-600 transition-all"><i data-lucide="x" class="w-4 h-4"></i></button>
+                                        </td>
+                                    </tr>
+                                    <!-- Row 3: DANGER (Blocked by compliance) - Selected state -->
+                                    <tr class="stagger-item bg-red-50/30 group">
+                                        <td class="px-4 py-2.5"><input type="checkbox" class="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-600"></td>
+                                        <td class="px-4 py-2.5 flex items-center gap-2">
+                                            <div class="w-5 h-5 rounded overflow-hidden bg-zinc-100 border border-zinc-200 shrink-0 flex items-center justify-center text-[10px] font-bold text-zinc-400">
+                                                BL
+                                            </div>
+                                            <span class="font-medium text-red-900 border-b border-dashed border-red-300">Blue Ridge Capital</span>
+                                        </td>
+                                        <td class="px-4 py-2.5">
+                                            <div class="flex flex-col">
+                                                <span class="text-zinc-800 line-through opacity-70">David Reynolds</span>
+                                                <span class="text-xs text-zinc-500">david@blueridge.com</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-right font-medium text-zinc-700 tabular">82%</td>
+                                        <td class="px-4 py-2.5 text-center">
+                                            <div class="flex items-center justify-center text-red-600 relative" title="On firm suppression list">
+                                                <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                                                <div class="absolute w-2 h-2 rounded-full bg-red-500 -top-1 -right-1 ring-2 ring-white"></div>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-right">
+                                            <button class="text-zinc-400 hover:text-red-600 transition-all"><i data-lucide="x" class="w-4 h-4"></i></button>
+                                        </td>
+                                    </tr>
+                                    <!-- Row 4: Pass -->
+                                    <tr class="stagger-item group">
+                                        <td class="px-4 py-2.5"><input type="checkbox" checked class="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-600"></td>
+                                        <td class="px-4 py-2.5 flex items-center gap-2">
+                                            <div class="w-5 h-5 rounded overflow-hidden bg-zinc-100 border border-zinc-200 shrink-0">
+                                                <img src="https://images.unsplash.com/photo-1554774853-719586f82d77?auto=format&fit=crop&w=40&q=80" alt="Nexus" class="w-full h-full object-cover grayscale opacity-70">
+                                            </div>
+                                            <span class="font-medium text-zinc-900">Nexus Strategic Holdings</span>
+                                        </td>
+                                        <td class="px-4 py-2.5">
+                                            <div class="flex flex-col">
+                                                <span class="text-zinc-800">Elena Rostova</span>
+                                                <span class="text-xs text-zinc-500">Director of Corp Dev</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-right font-medium text-emerald-700 tabular">81%</td>
+                                        <td class="px-4 py-2.5 text-center">
+                                            <div class="flex items-center justify-center text-emerald-600">
+                                                <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-right">
+                                            <button class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-600 transition-all"><i data-lucide="x" class="w-4 h-4"></i></button>
+                                        </td>
+                                    </tr>
+                                    <!-- Truncated list simulation -->
+                                    <tr>
+                                        <td colspan="6" class="px-4 py-4 text-center text-zinc-400 text-sm italic">
+                                            + 31 more recipients loaded...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- PREVIEW PANL (Dynamic Document Rendering Visual) -->
+                    <div class="panel-surface shrink-0 h-[280px] lg:h-[340px] flex flex-col overflow-hidden relative">
+                        <!-- Preview Header / Controls -->
+                        <div class="px-4 py-2.5 border-b border-zinc-200 bg-zinc-50 flex items-center justify-between">
+                            <h2 class="text-sm font-semibold text-zinc-900 flex items-center gap-1.5">
+                                <i data-lucide="eye" class="w-4 h-4 text-zinc-500"></i>
+                                Per-Recipient Preview
+                            </h2>
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs font-medium text-zinc-500 tabular hidden sm:block">Recipient 1 of 35</span>
+                                <div class="flex items-center gap-1">
+                                    <button class="p-1 border border-zinc-200 rounded text-zinc-400 hover:text-zinc-700 hover:border-zinc-300 bg-white transition-all"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                                    <button class="p-1 border border-zinc-200 rounded text-zinc-400 hover:text-zinc-700 hover:border-zinc-300 bg-white transition-all"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Email Frame rendered view -->
+                        <div class="flex-1 overflow-y-auto scroll-container p-5 md:p-6 bg-white flex flex-col gap-4">
+                            <!-- Email Meta -->
+                            <div class="flex flex-col gap-1.5 text-sm pb-4 border-b border-zinc-100">
+                                <div class="flex">
+                                    <span class="text-zinc-400 w-16 shrink-0">From:</span>
+                                    <span class="font-medium text-zinc-800">Michael Ridge <span class="text-zinc-500 font-normal">&lt;mridge@dealflow.ai&gt;</span></span>
+                                </div>
+                                <div class="flex">
+                                    <span class="text-zinc-400 w-16 shrink-0">To:</span>
+                                    <span class="font-medium text-zinc-800">Sarah Chen <span class="text-zinc-500 font-normal">&lt;schen@acorndynamics.com&gt;</span></span>
+                                </div>
+                                <div class="flex mt-1">
+                                    <span class="text-zinc-400 w-16 shrink-0 pt-0.5">Subject:</span>
+                                    <span class="font-semibold text-zinc-900">Highly confidential strategic acquisition opportunity in <span class="px-1 rounded bg-zinc-100 border border-zinc-200 text-zinc-600 font-mono text-xs">Healthcare IT</span></span>
+                                </div>
+                            </div>
+                            
+                            <!-- Email Body -->
+                            <div class="text-zinc-700 leading-relaxed text-[13px] whitespace-pre-wrap">Sarah,
+
+I’m reaching out because we are advising a highly profitable, privately-held B2B Healthcare IT provider exploring strategic alternatives. Given Acorn Dynamics Partners’s recent rollup in the payer-side billing space, we believe this presents a direct synergetic fit.
+
+The Company ("Project Titan") generated $42M in ARR last year with 88% NDR, focusing on AI-driven claims adjudication.
+
+If this aligns with your current mandate, please let me know and I will send over the NDA.
+
+Best,
+Michael Ridge
+Managing Director
+
+<div class="mt-8 p-3 rounded rounded-lg compliance-lock-bg border border-zinc-200 text-zinc-500 text-[11px] leading-snug flex gap-3 opacity-80" shadow="sm">
+<i data-lucide="lock" class="w-4 h-4 shrink-0 text-emerald-600 mt-0.5"></i>
+<div class="flex flex-col gap-1.5">
+    <strong class="text-zinc-700 uppercase tracking-wider text-[9px]">Required Compliance Block — FINRA Rule 2210</strong>
+    <p>This communication is highly confidential and intended solely for the person to whom it is addressed. DealFlow AI Advisory LLC is a registered broker-dealer and member of FINRA/SIPC. This material is not an offer to sell or a solicitation of an offer to buy any securities. To opt out of future highly-targeted M&A communications from our firm, <a href="#" class="underline text-emerald-600">click here</a>.</p>
+</div>
+</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT COLUMN: The Control & Compliance Wedge Engine -->
+                <div class="w-full lg:w-[380px] xl:w-[440px] shrink-0 flex flex-col h-full min-h-[500px] lg:min-h-0 relative z-10">
+                    
+                    <div class="flex-1 flex flex-col gap-4 overflow-y-auto scroll-container pb-24 pr-1">
+                        
+                        <!-- 1. TEMPLATE CONFIGURATION -->
+                        <div class="panel-surface p-4 flex flex-col gap-4 relative overflow-hidden group">
+                            <!-- decorative ambient glow behind config -->
+                            <div class="absolute -top-10 -right-10 w-32 h-32 bg-emerald-50 rounded-full blur-2xl opacity-50 pointer-events-none"></div>
+                            
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-sm font-semibold text-zinc-900 border-b-2 border-emerald-600 pb-0.5 inline-block">1. Personalization</h3>
+                                <button class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Browse Library→</button>
+                            </div>
+
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Active Template</label>
+                                <div class="input-surface flex items-center justify-between px-3 py-2 cursor-pointer shadow-xs">
+                                    <div class="flex items-center gap-2 truncate">
+                                        <i data-lucide="file-text" class="w-4 h-4 text-zinc-400 shrink-0"></i>
+                                        <span class="text-sm font-medium text-zinc-800 truncate">Strategic Buyer Intro v4 (Approved)</span>
+                                    </div>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 shrink-0"></i>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col gap-2">
+                                <div class="flex items-center justify-between">
+                                    <label class="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Variables Mapping</label>
+                                    <span class="text-[10px] text-zinc-400">4 fields detected</span>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <span class="px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-[11px] font-mono text-zinc-600">{buyer_name} <i data-lucide="check" class="w-3 h-3 inline text-emerald-500 ml-0.5"></i></span>
+                                    <span class="px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-[11px] font-mono text-zinc-600">{industry} <i data-lucide="check" class="w-3 h-3 inline text-emerald-500 ml-0.5"></i></span>
+                                    <span class="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-[11px] font-mono text-amber-700">{custom_icp_tie} <i data-lucide="alert-circle" class="w-3 h-3 inline ml-0.5"></i></span>
+                                </div>
+                                <button class="mt-2 w-full py-1.5 px-3 rounded-md border border-zinc-200 bg-white shadow-xs text-xs font-medium text-zinc-700 hover:bg-zinc-50 transition-colors flex items-center justify-center gap-1.5">
+                                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-500"></i>
+                                    AI Auto-Draft Missing Fields (35/35)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 2. THE COMPLIANCE WEDGE (Primary focus of prompt logic) -->
+                        <div class="panel-surface flex flex-col shadow-[0_4px_24px_-12px_rgba(220,38,38,0.2)] border-zinc-300">
+                            <div class="p-4 border-b border-zinc-200 flex items-center justify-between bg-zinc-50 rounded-t-[calc(0.75rem-1px)]">
+                                <h3 class="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+                                    <i data-lucide="shield-alert" class="w-4 h-4 text-amber-600"></i>
+                                    Pre-Send Compliance Gate
+                                </h3>
+                                <span class="badge badge-danger blink-soft">Action Required</span>
+                            </div>
+                            
+                            <div class="p-4 flex flex-col gap-4 bg-white">
+                                <!-- The Hard Error Block -->
+                                <div class="p-3 rounded-md bg-red-50 border border-red-200 flex items-start gap-3 relative shadow-inner-border shadow-red-200/50">
+                                    <i data-lucide="alert-triangle" class="w-5 h-5 text-red-600 shrink-0 mt-0.5"></i>
+                                    <div class="flex flex-col gap-1 text-sm text-red-900">
+                                        <strong class="font-semibold">Compliance check failed.</strong>
+                                        <p class="text-red-700 leading-snug">1 recipient is listed on the firm's strict suppression list. You must remove them to proceed with the campaign.</p>
+                                        <button class="mt-1 self-start text-xs font-semibold px-2 py-1 bg-white border border-red-200 rounded text-red-700 hover:bg-red-50 transition-colors shadow-xs">Auto-Remove Flagged (1)</button>
+                                    </div>
+                                </div>
+
+                                <!-- The Rules Checklist -->
+                                <ul class="flex flex-col gap-3 text-[13px]">
+                                    <!-- Rule Fail -->
+                                    <li class="flex items-start gap-2.5">
+                                        <div class="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+                                            <i data-lucide="x" class="w-3 h-3 text-red-600"></i>
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="font-medium text-zinc-800">Clear firm suppression list</span>
+                                            <span class="text-zinc-500">34 cleared. 1 blocked (Blue Ridge Capital).</span>
+                                        </div>
+                                    </li>
+                                    <!-- Rule Pass -->
+                                    <li class="flex items-start gap-2.5 opacity-80">
+                                        <div class="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+                                            <i data-lucide="check" class="w-3 h-3 text-emerald-600"></i>
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="font-medium text-zinc-800">Required legal disclaimers present</span>
+                                            <span class="text-zinc-500">FINRA Rule 2210 block is locked in template.</span>
+                                        </div>
+                                    </li>
+                                    <!-- Rule Pass -->
+                                    <li class="flex items-start gap-2.5 opacity-80">
+                                        <div class="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+                                            <i data-lucide="check" class="w-3 h-3 text-emerald-600"></i>
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="font-medium text-zinc-800">Audit-logging enabled</span>
+                                            <span class="text-zinc-500">Hash will be written to WORM storage upon send.</span>
+                                        </div>
+                                    </li>
+                                    <!-- Rule pending action -->
+                                    <li class="flex items-start gap-2.5">
+                                        <div class="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5 relative live-dot">
+                                            <i data-lucide="clock" class="w-3 h-3 text-amber-600 relative z-10"></i>
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="font-medium text-zinc-800">Gating Policy Status</span>
+                                            <span class="text-zinc-500">Awaiting clearance to submit for Advisor approval.</span>
+                                        </div>
+                                    </li>
+                                </ul>
+
+                                <div class="pt-3 flex border-t border-zinc-100">
+                                    <button class="w-full py-2 px-3 rounded-md border border-zinc-300 bg-white text-sm font-semibold text-zinc-700 shadow-xs hover:bg-zinc-50 transition-colors flex items-center justify-center gap-2">
+                                        <i data-lucide="refresh-cw" class="w-4 h-4 text-zinc-400"></i> Re-Run Verification Rules
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- STICKY ACTION BAR (Absolute bottom of right col) -->
+                    <div class="absolute bottom-0 left-0 right-0 p-4 bg-zinc-50/90 backdrop-blur-md border-t border-zinc-200 z-20 shadow-[0_-8px_24px_-10px_rgba(0,0,0,0.05)]">
+                        <div class="flex flex-col gap-2">
+                            <!-- Disabled state to reflect the compliance error above -->
+                            <div class="relative group">
+                                <button disabled class="w-full py-2.5 px-4 rounded-md bg-emerald-600 text-white text-sm font-semibold shadow-sm transition-all opacity-50 cursor-not-allowed flex items-center justify-center gap-2">
+                                    <i data-lucide="send" class="w-4 h-4"></i>
+                                    Send Immediate Campaign (35)
+                                </button>
+                                <!-- Tooltip overriding disabled hover -->
+                                <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity whitespace-nowrap whitespace-nowrap shadow-md">
+                                    Clear compliance errors to send
+                                </div>
+                            </div>
+                            
+                            <div class="flex gap-2">
+                                <button disabled class="flex-1 py-[9px] px-3 rounded-md bg-white border border-zinc-200 text-zinc-700 text-sm font-medium shadow-xs opacity-50 cursor-not-allowed text-center">
+                                    Schedule Send...
+                                </button>
+                                <button class="w-10 flex items-center justify-center rounded-md bg-white border border-zinc-200 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-50 shadow-xs transition-colors" title="Settings">
+                                    <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Init JS & Motion Simulation -->
+    <script>
+        // Init Lucide Icons instantly
+        lucide.createIcons();
+
+        // Simulate advanced interaction (just for visual representation of physics requested)
+        document.querySelectorAll('tr.stagger-item').forEach(tr => {
+            tr.addEventListener('mouseenter', () => {
+                const actionBtn = tr.querySelector('button');
+                if(actionBtn) actionBtn.style.transform = 'scale(1.1)';
+            });
+            tr.addEventListener('mouseleave', () => {
+                const actionBtn = tr.querySelector('button');
+                if(actionBtn) actionBtn.style.transform = 'scale(1)';
+            });
+        });
+    </script>
+</body>
+</html>

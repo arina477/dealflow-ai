@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DealFlow AI | Sourcing Workspace</title>
+    
+    <!-- Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons (Phosphor -> mapping visually to Lucide constraints) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Design System Configuration -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        },
+                        status: {
+                            positive: '#10B981',
+                            info: '#2563EB',
+                            warn: '#D97706',
+                            danger: '#DC2626',
+                            neutral: '#9CA3AF'
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                        'glass': '0 20px 40px -15px rgba(0,0,0,0.1)',
+                    },
+                    transitionTimingFunction: {
+                        'spring': 'cubic-bezier(0.16, 1, 0.3, 1)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Core Primitives & Typography */
+        :root {
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-pill: 9999px;
+            --anim-speed: 0.6s;
+            --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        body {
+            background-color: theme('colors.zinc.25');
+            color: theme('colors.zinc.800');
+            /* Prevent body scroll, everything handled internally */
+            overflow: hidden; 
+        }
+
+        .tn { font-variant-numeric: tabular-nums; }
+        
+        .label-text {
+            font-size: 12px;
+            line-height: 16px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        /* Scrollbar Architecture */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: theme('colors.zinc.200');
+            border-radius: var(--radius-pill);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: theme('colors.zinc.300');
+        }
+
+        /* High-End Interactive States */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-md);
+            font-weight: 500;
+            transition: all 150ms var(--anim-ease);
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary {
+            background-color: theme('colors.emerald.600');
+            color: white;
+        }
+        .btn-primary:hover { background-color: theme('colors.emerald.700'); }
+        .btn-secondary {
+            background-color: #FFFFFF;
+            border: 1px solid theme('colors.zinc.200');
+            color: theme('colors.zinc.700');
+            box-shadow: theme('boxShadow.xs');
+        }
+        .btn-secondary:hover {
+            background-color: theme('colors.zinc.50');
+            border-color: theme('colors.zinc.300');
+            box-shadow: theme('boxShadow.sm');
+        }
+        
+        .input-base {
+            border-radius: var(--radius-sm);
+            border: 1px solid theme('colors.zinc.200');
+            background: #FFFFFF;
+            transition: all 150ms ease;
+        }
+        .input-base:focus {
+            outline: none;
+            border-color: theme('colors.emerald.600');
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15); /* Focus Ring @ 15% */
+        }
+
+        /* Custom Checkbox */
+        .custom-checkbox {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border: 1px solid theme('colors.zinc.300');
+            border-radius: 4px;
+            background-color: #FFF;
+            position: relative;
+            cursor: pointer;
+            transition: all 150ms;
+        }
+        .custom-checkbox:checked {
+            background-color: theme('colors.emerald.600');
+            border-color: theme('colors.emerald.600');
+        }
+        .custom-checkbox:checked::after {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 1px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        /* Complex Layout & Motion Systems */
+        .panel-border {
+            border: 1px solid theme('colors.zinc.200');
+        }
+
+        /* Staggered Row Animation */
+        @keyframes fadeInRow {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .stagger-row {
+            opacity: 0;
+            animation: fadeInRow 0.4s var(--anim-ease) forwards;
+        }
+        
+        /* Pulse for live sources */
+        @keyframes pulseIndicator {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        .pulse-live {
+            background-color: theme('colors.emerald.600');
+            animation: pulseIndicator 2s infinite;
+        }
+
+        /* Glassmorphism Action Bar Refraction */
+        .action-bar-glass {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,1);
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .action-bar-glass.active {
+            transform: translateY(0);
+        }
+
+        /* Off-canvas Drawers and Modals */
+        .drawer-overlay {
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .drawer-panel {
+            transform: translateX(100%);
+            transition: transform 0.4s var(--anim-ease);
+        }
+        .drawer-active .drawer-overlay {
+            opacity: 1;
+            visibility: visible;
+        }
+        .drawer-active .drawer-panel {
+            transform: translateX(0);
+        }
+
+        .modal-overlay {
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+        }
+        .modal-panel {
+            opacity: 0;
+            transform: scale(0.96) translateY(10px);
+            transition: all 0.3s var(--anim-ease);
+        }
+        .modal-active .modal-overlay {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-active .modal-panel {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+
+        /* Table Specific */
+        .table-sticky-header th {
+            position: sticky;
+            top: 0;
+            background-color: theme('colors.zinc.25');
+            z-index: 10;
+        }
+        /* Subhead for tabular alignment */
+        .cell-numeric {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+    </style>
+</head>
+<body class="flex h-screen w-full font-sans antialiased text-[14px]">
+
+    <!-- 1. MACRO-ARCHITECTURE: Global Application Shell -->
+    
+    <!-- Sidebar Navigation (Zinc-900) -->
+    <nav class="hidden lg:flex flex-col w-64 bg-zinc-900 border-r border-zinc-800 text-zinc-400 h-full flex-shrink-0 relative z-20">
+        <!-- Firm Logo Header -->
+        <div class="h-16 flex items-center px-6 border-b border-zinc-800">
+            <div class="w-6 h-6 rounded bg-emerald-600 flex items-center justify-center mr-3">
+                <i class="ph ph-hexagon text-white text-sm"></i>
+            </div>
+            <span class="text-zinc-50 font-semibold tracking-tight">DealFlow AI</span>
+        </div>
+
+        <!-- Nav Items -->
+        <div class="flex-1 py-6 px-4 space-y-1 overflow-y-auto">
+            <div class="px-2 mb-2 label-text text-zinc-500">Workspace</div>
+            
+            <a href="#" class="flex items-center px-2 py-2 rounded-md hover:bg-zinc-800 transition-colors group">
+                <i class="ph ph-layout text-lg mr-3 group-hover:text-zinc-200"></i>
+                <span class="group-hover:text-zinc-200">Dashboard</span>
+            </a>
+            
+            <a href="#" class="flex items-center px-2 py-2 rounded-md hover:bg-zinc-800 transition-colors group">
+                <i class="ph ph-briefcase text-lg mr-3 group-hover:text-zinc-200"></i>
+                <span class="group-hover:text-zinc-200">Mandates</span>
+                <span class="ml-auto bg-zinc-800 text-zinc-300 text-[11px] px-1.5 py-0.5 rounded tn">4</span>
+            </a>
+
+            <!-- Active Nav Item -->
+            <a href="#" class="flex items-center px-2 py-2 rounded-md bg-zinc-800 border-l-2 border-emerald-600 text-zinc-50 shadow-[inset_1px_0_0_#10B981]">
+                <i class="ph ph-database text-lg mr-3 text-emerald-500"></i>
+                <span class="font-medium">Sourcing</span>
+            </a>
+
+            <a href="#" class="flex items-center px-2 py-2 rounded-md hover:bg-zinc-800 transition-colors group">
+                <i class="ph ph-target text-lg mr-3 group-hover:text-zinc-200"></i>
+                <span class="group-hover:text-zinc-200">Match Engine</span>
+            </a>
+
+            <div class="px-2 mt-8 mb-2 label-text text-zinc-500">Operations</div>
+            
+            <a href="#" class="flex items-center px-2 py-2 rounded-md hover:bg-zinc-800 transition-colors group">
+                <i class="ph ph-shield-check text-lg mr-3 group-hover:text-zinc-200"></i>
+                <span class="group-hover:text-zinc-200">Compliance</span>
+            </a>
+            <a href="#" class="flex items-center px-2 py-2 rounded-md hover:bg-zinc-800 transition-colors group">
+                <i class="ph ph-paper-plane-tilt text-lg mr-3 group-hover:text-zinc-200"></i>
+                <span class="group-hover:text-zinc-200">Outreach</span>
+            </a>
+        </div>
+
+        <!-- User Footer -->
+        <div class="p-4 border-t border-zinc-800">
+            <div class="flex items-center gap-3 w-full">
+                <div class="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center text-zinc-300 text-xs font-semibold uppercase">JD</div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-zinc-100 truncate">J. Doe</p>
+                    <p class="text-[12px] text-zinc-500 truncate">SVP, M&A</p>
+                </div>
+                <i class="ph ph-gear text-zinc-500 hover:text-zinc-200 cursor-pointer transition-colors"></i>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        
+        <!-- Top App Bar -->
+        <header class="h-16 flex items-center justify-between px-6 lg:px-8 border-b panel-border bg-white flex-shrink-0 z-10">
+            <div class="flex items-center">
+                <!-- Mobile Menu Trigger -->
+                <button class="lg:hidden mr-4 text-zinc-500 hover:text-zinc-800">
+                    <i class="ph ph-list text-xl"></i>
+                </button>
+                <div class="flex items-center text-sm">
+                    <span class="text-zinc-500">Workspace</span>
+                    <i class="ph ph-caret-right text-zinc-400 mx-2 text-xs"></i>
+                    <span class="font-semibold text-zinc-800 text-[16px]">Target Sourcing</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <!-- Source Indicators -->
+                <div class="hidden md:flex items-center gap-3 mr-4 border-r panel-border pr-6">
+                    <span class="label-text text-zinc-400 mr-1">Connectors</span>
+                    <div class="flex items-center gap-1.5 px-2 py-1 rounded border border-emerald-600/20 bg-emerald-50 text-emerald-700 text-xs font-medium cursor-pointer" title="PitchBook - Active">
+                        <div class="w-1.5 h-1.5 rounded-full pulse-live"></div>
+                        PB
+                    </div>
+                    <div class="flex items-center gap-1.5 px-2 py-1 rounded border border-emerald-600/20 bg-emerald-50 text-emerald-700 text-xs font-medium cursor-pointer" title="Crunchbase - Active">
+                        <div class="w-1.5 h-1.5 rounded-full pulse-live"></div>
+                        CB
+                    </div>
+                    <div class="flex items-center gap-1.5 px-2 py-1 rounded border panel-border bg-white text-zinc-600 text-xs font-medium cursor-pointer" title="Internal DB - Active">
+                        <div class="w-1.5 h-1.5 rounded-full bg-zinc-300"></div>
+                        INT
+                    </div>
+                </div>
+                
+                <button class="btn btn-secondary h-9 px-3 text-sm hidden sm:flex">
+                    <i class="ph ph-arrows-clockwise mr-2"></i>
+                    Sync Status
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic Workspace Panel Layout -->
+        <div class="flex-1 flex overflow-hidden">
+            
+            <!-- Left: Query Builder (Collapsible/Sticky) -->
+            <aside class="w-72 flex-shrink-0 border-r panel-border bg-white flex flex-col hidden md:flex h-full relative z-10 transition-transform">
+                <div class="p-5 border-b panel-border">
+                    <h2 class="text-[16px] font-semibold text-zinc-800 mb-1">Query Builder</h2>
+                    <p class="text-xs text-zinc-500 leading-snug">Define criteria to search across all enabled proprietary databases.</p>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                    <!-- Filters List -->
+                    <div class="space-y-4">
+                        
+                        <!-- Search Name -->
+                        <div>
+                            <label class="label-text text-zinc-700 mb-2 block">Target Name</label>
+                            <div class="relative">
+                                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+                                <input type="text" placeholder="Fuzzy match..." class="input-base w-full h-9 pl-9 pr-3 text-sm placeholder-zinc-400 font-medium">
+                            </div>
+                        </div>
+
+                        <hr class="border-zinc-200">
+
+                        <!-- Industry -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="label-text text-zinc-700">Industry Sector</label>
+                                <span class="bg-zinc-100 text-zinc-600 px-1.5 rounded text-[10px] tn">2 selected</span>
+                            </div>
+                            <div class="input-base p-2 min-h-[36px] flex flex-wrap gap-1 cursor-text bg-zinc-50/50">
+                                <span class="inline-flex items-center gap-1 bg-white border panel-border rounded px-2 py-0.5 text-xs font-medium shadow-xs">
+                                    SaaS <i class="ph ph-x cursor-pointer text-zinc-400 hover:text-zinc-700"></i>
+                                </span>
+                                <span class="inline-flex items-center gap-1 bg-white border panel-border rounded px-2 py-0.5 text-xs font-medium shadow-xs">
+                                    Healthcare IT <i class="ph ph-x cursor-pointer text-zinc-400 hover:text-zinc-700"></i>
+                                </span>
+                            </div>
+                            <button class="text-emerald-600 text-[12px] font-medium mt-1.5 hover:text-emerald-700">+ Add Sector (SIC)</button>
+                        </div>
+
+                        <!-- Revenue Band -->
+                        <div>
+                            <label class="label-text text-zinc-700 block mb-2">Revenue Range ($M)</label>
+                            <div class="flex items-center gap-2">
+                                <input type="text" value="10" class="input-base w-full h-9 px-3 text-sm text-center tn" title="Min">
+                                <span class="text-zinc-400">—</span>
+                                <input type="text" value="50" class="input-base w-full h-9 px-3 text-sm text-center tn" title="Max">
+                            </div>
+                            <!-- Mock Slider track -->
+                            <div class="relative w-full h-1 bg-zinc-200 rounded mt-3">
+                                <div class="absolute left-[20%] right-[40%] top-0 bottom-0 bg-emerald-600 rounded"></div>
+                                <div class="absolute left-[20%] top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-white border border-zinc-300 rounded-full shadow-sm"></div>
+                                <div class="absolute right-[40%] top-1/2 -translate-y-1/2 translate-x-1/2 w-3 h-3 bg-white border border-zinc-300 rounded-full shadow-sm"></div>
+                            </div>
+                        </div>
+
+                        <!-- Location -->
+                        <div>
+                            <label class="label-text text-zinc-700 block mb-2">Geography</label>
+                            <div class="relative">
+                                <select class="input-base w-full h-9 px-3 pr-8 text-sm appearance-none cursor-pointer">
+                                    <option>North America (US & Canada)</option>
+                                    <option>EMEA</option>
+                                    <option>APAC</option>
+                                    <option>Custom selection...</option>
+                                </select>
+                                <i class="ph ph-caret-down absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"></i>
+                            </div>
+                        </div>
+
+                        <hr class="border-zinc-200">
+                        
+                        <!-- Advanced Switch -->
+                        <div class="flex items-center justify-between">
+                            <span class="text-[13px] font-medium text-zinc-700">Exclude existing targets</span>
+                            <button class="w-8 h-4 bg-emerald-600 rounded-full relative transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1" role="switch" aria-checked="true">
+                                <span class="absolute left-0.5 top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transform translate-x-4 transition-transform"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-5 border-t panel-border bg-zinc-50 mt-auto">
+                    <button class="btn btn-primary w-full h-10 shadow-sm" onclick="simulateSearch()">
+                        <i class="ph ph-magnifying-glass mr-2"></i>
+                        Run Sourcing Search
+                    </button>
+                    <div class="text-center mt-3 text-xs text-zinc-500">Retrieving up to 500 limits</div>
+                </div>
+            </aside>
+
+            <!-- Right: Results Matrix (Meso-Architecture) -->
+            <div class="flex-1 bg-zinc-25 flex flex-col overflow-hidden relative">
+                
+                <!-- Table View Settings -->
+                <div class="h-14 flex items-center justify-between px-6 border-b panel-border flex-shrink-0 bg-white">
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-[16px] font-semibold text-zinc-800">Candidates Found <span class="ml-1 text-zinc-400 font-normal tn">(142)</span></h2>
+                        <div class="h-4 w-px bg-zinc-300 mx-1"></div>
+                        <span class="flex items-center text-[12px] text-zinc-500">
+                            <i class="ph ph-check-circle text-emerald-600 mr-1.5"></i> Deduplication active
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="relative">
+                            <input type="text" placeholder="Filter this list..." class="input-base h-8 pl-8 pr-3 text-[13px] w-64 bg-zinc-50">
+                            <i class="ph ph-funnel absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-sm"></i>
+                        </div>
+                        <button class="btn btn-secondary h-8 px-2" title="Export to CSV">
+                            <i class="ph ph-download-simple text-[16px]"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="flex-1 overflow-auto bg-white" id="main-table-container">
+                    <table class="w-full text-left border-collapse min-w-[900px]">
+                        <thead class="table-sticky-header box-shadow-xs">
+                            <tr class="border-b border-zinc-200">
+                                <th class="py-3 px-4 w-12 text-center">
+                                    <input type="checkbox" class="custom-checkbox" id="selectAll" onclick="toggleAllRows(this)">
+                                </th>
+                                <th class="py-3 px-4 label-text text-zinc-500 cursor-pointer hover:text-zinc-800 transition-colors">Target Company <i class="ph ph-caret-up ml-1 align-baseline inline-block"></i></th>
+                                <th class="py-3 px-4 label-text text-zinc-500 cursor-pointer hover:text-zinc-800 transition-colors">Source</th>
+                                <th class="py-3 px-4 label-text text-zinc-500 cursor-pointer hover:text-zinc-800 transition-colors">Industry</th>
+                                <th class="py-3 px-4 label-text text-zinc-500 cursor-pointer hover:text-zinc-800 transition-colors">Location</th>
+                                <th class="py-3 px-4 label-text text-zinc-500 cursor-pointer hover:text-zinc-800 transition-colors cell-numeric">Revenue</th>
+                                <th class="py-3 px-4 label-text text-zinc-500 cursor-pointer hover:text-zinc-800 transition-colors cell-numeric">Headcount</th>
+                                <th class="py-3 px-4 w-12"></th>
+                            </tr>
+                        </thead>
+                        
+                        <!-- Table Body (Staggered Animation applied via JS/CSS) -->
+                        <tbody id="resultsTableBody" class="text-[13px] divide-y divide-zinc-100">
+                            
+                            <!-- Row 1: High Conviction -->
+                            <tr class="hover:bg-zinc-50 transition-colors group stagger-row" style="--index: 1;">
+                                <td class="py-3 px-4 text-center">
+                                    <input type="checkbox" class="custom-checkbox row-checkbox" onchange="checkSelection()">
+                                </td>
+                                <td class="py-3 px-4 font-medium text-zinc-800">
+                                    <button class="hover:text-emerald-600 transition-colors flex items-center gap-2 w-full text-left" onclick="openDrawer('Cortex Analytics')">
+                                        <div class="w-6 h-6 rounded border panel-border bg-emerald-50 flex items-center justify-center text-emerald-700 test-[10px] font-bold uppercase shrink-0">CA</div>
+                                        Cortex Analytics
+                                    </button>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-sm bg-blue-50 text-blue-700 border border-blue-100 text-[11px] font-medium tn">PitchBook</span>
+                                </td>
+                                <td class="py-3 px-4 text-zinc-600 truncate max-w-[150px]">Predictive AI, Healthcare IT</td>
+                                <td class="py-3 px-4 text-zinc-600">Austin, TX</td>
+                                <td class="py-3 px-4 cell-numeric font-medium">$42.5M</td>
+                                <td class="py-3 px-4 cell-numeric text-zinc-500">185</td>
+                                <td class="py-3 px-4 text-right">
+                                    <button class="text-zinc-400 hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" title="Quick View" onclick="openDrawer('Cortex Analytics')">
+                                        <i class="ph ph-eye text-[16px]"></i>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- Row 2: Standard Data -->
+                            <tr class="hover:bg-zinc-50 transition-colors group stagger-row" style="--index: 2;">
+                                <td class="py-3 px-4 text-center">
+                                    <input type="checkbox" class="custom-checkbox row-checkbox" onchange="checkSelection()">
+                                </td>
+                                <td class="py-3 px-4 font-medium text-zinc-800">
+                                    <button class="hover:text-emerald-600 transition-colors flex items-center gap-2 w-full text-left" onclick="openDrawer('SynthWave Systems')">
+                                        <div class="w-6 h-6 rounded border panel-border bg-orange-50 flex items-center justify-center text-orange-700 test-[10px] font-bold uppercase shrink-0">SW</div>
+                                        SynthWave Systems
+                                    </button>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-sm bg-purple-50 text-purple-700 border border-purple-100 text-[11px] font-medium tn">Crunchbase</span>
+                                </td>
+                                <td class="py-3 px-4 text-zinc-600 truncate max-w-[150px]">B2B SaaS, Audio DSP</td>
+                                <td class="py-3 px-4 text-zinc-600">London, UK</td>
+                                <td class="py-3 px-4 cell-numeric font-medium">$18.2M</td>
+                                <td class="py-3 px-4 cell-numeric text-zinc-500">92</td>
+                                <td class="py-3 px-4 text-right">
+                                    <button class="text-zinc-400 hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" onclick="openDrawer('SynthWave Systems')"><i class="ph ph-eye text-[16px]"></i></button>
+                                </td>
+                            </tr>
+
+                            <!-- Row 3: Internal Sourcing Match (Shows warning of potential dupe visually) -->
+                            <tr class="hover:bg-zinc-50 transition-colors group stagger-row bg-zinc-50/50" style="--index: 3;">
+                                <td class="py-3 px-4 text-center">
+                                    <input type="checkbox" class="custom-checkbox row-checkbox" onchange="checkSelection()">
+                                </td>
+                                <td class="py-3 px-4 font-medium text-zinc-800">
+                                    <button class="hover:text-emerald-600 transition-colors flex items-center gap-2 w-full text-left" onclick="openDrawer('Aura Dynamics')">
+                                        <div class="w-6 h-6 rounded border panel-border bg-zinc-100 flex items-center justify-center text-zinc-500 test-[10px] font-bold uppercase shrink-0">AD</div>
+                                        Aura Dynamics
+                                        <i class="ph ph-warning-circle text-amber-500 ml-1" title="High confidence match with existing Target"></i>
+                                    </button>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-sm bg-zinc-100 text-zinc-600 border border-zinc-200 text-[11px] font-medium tn">Internal DB</span>
+                                </td>
+                                <td class="py-3 px-4 text-zinc-600 truncate max-w-[150px]">LogisticsTech</td>
+                                <td class="py-3 px-4 text-zinc-600">Chicago, IL</td>
+                                <td class="py-3 px-4 cell-numeric font-medium">$65.0M</td>
+                                <td class="py-3 px-4 cell-numeric text-zinc-500">310</td>
+                                <td class="py-3 px-4 text-right">
+                                    <button class="text-zinc-400 hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" onclick="openDrawer('Aura Dynamics')"><i class="ph ph-eye text-[16px]"></i></button>
+                                </td>
+                            </tr>
+
+                            <!-- Row 4: Sparse Data -->
+                            <tr class="hover:bg-zinc-50 transition-colors group stagger-row" style="--index: 4;">
+                                <td class="py-3 px-4 text-center">
+                                    <input type="checkbox" class="custom-checkbox row-checkbox" onchange="checkSelection()">
+                                </td>
+                                <td class="py-3 px-4 font-medium text-zinc-800">
+                                    <button class="hover:text-emerald-600 transition-colors flex items-center gap-2 w-full text-left" onclick="openDrawer('Nebula Networks')">
+                                        <div class="w-6 h-6 rounded border panel-border bg-indigo-50 flex items-center justify-center text-indigo-700 test-[10px] font-bold uppercase shrink-0">NN</div>
+                                        Nebula Networks
+                                    </button>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-sm bg-blue-50 text-blue-700 border border-blue-100 text-[11px] font-medium tn">PitchBook</span>
+                                </td>
+                                <td class="py-3 px-4 text-zinc-600 truncate max-w-[150px]">Network Infra</td>
+                                <td class="py-3 px-4 text-zinc-600">Seattle, WA</td>
+                                <td class="py-3 px-4 cell-numeric text-zinc-400 font-medium">--</td>
+                                <td class="py-3 px-4 cell-numeric text-zinc-500">12 - 50</td>
+                                <td class="py-3 px-4 text-right">
+                                    <button class="text-zinc-400 hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" onclick="openDrawer('Nebula Networks')"><i class="ph ph-eye text-[16px]"></i></button>
+                                </td>
+                            </tr>
+                            
+                            <!-- Padding row to allow scrolling past floating action bar -->
+                            <tr><td colspan="8" class="h-24"></td></tr>
+
+                        </tbody>
+                    </table>
+
+                    <!-- Loading State (Hidden by default, shown via JS) -->
+                    <div id="loadingState" class="hidden absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+                        <div class="w-12 h-12 rounded-full border-4 border-zinc-100 border-t-emerald-600 animate-spin mb-4"></div>
+                        <p class="font-medium text-zinc-800">Querying data sources...</p>
+                        <p class="text-sm text-zinc-500 mt-1">Connecting to PitchBook and Crunchbase via API.</p>
+                    </div>
+
+                </div>
+            </div>
+            
+        </div>
+
+        <!-- Floating Action Bar (Pops up when rows selected) -->
+        <div id="actionBar" class="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-xl p-3 flex items-center gap-4 z-20 action-bar-glass pointer-events-none w-[480px]">
+            <div class="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 font-bold tn text-sm pointer-events-none" id="selectionCount">0</div>
+            <div class="flex-1 min-w-0 pointer-events-none">
+                <p class="font-semibold text-zinc-800 text-[14px]">Candidates Selected</p>
+                <p class="text-[12px] text-zinc-500">Ready to run deduplication and import.</p>
+            </div>
+            <button class="btn btn-primary h-10 px-5 shadow-md pointer-events-auto shrink-0" onclick="openModal()">
+                Review & Import <i class="ph ph-arrow-right ml-2"></i>
+            </button>
+        </div>
+
+    </main>
+
+    <!-- RIGHT DRAWER: Candidate Detail -->
+    <div id="detailDrawer" class="fixed inset-0 z-50 drawer-overlay">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-zinc-950/50 backdrop-blur-sm cursor-pointer" onclick="closeDrawer()"></div>
+        
+        <!-- Panel -->
+        <div class="absolute right-0 top-0 bottom-0 w-full md:w-[480px] bg-white shadow-md border-l border-zinc-200 flex flex-col drawer-panel">
+            
+            <!-- Drawer Header -->
+            <div class="h-16 flex items-center justify-between px-6 border-b panel-border flex-shrink-0 bg-zinc-25">
+                <div class="label-text text-zinc-500">Data Source Record</div>
+                <button class="text-zinc-400 hover:text-zinc-800 transition-colors p-1" onclick="closeDrawer()">
+                    <i class="ph ph-x text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Drawer Scrollable Content -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-8">
+                
+                <!-- Company Header -->
+                <div class="flex items-start gap-4">
+                    <div class="w-16 h-16 rounded-lg border panel-border bg-emerald-50 flex items-center justify-center text-emerald-700 text-2xl font-bold uppercase shadow-sm">CA</div>
+                    <div class="pt-1">
+                        <h2 class="text-2xl font-bold text-zinc-900 tracking-tight leading-none mb-2" id="drawerTitle">Cortex Analytics</h2>
+                        <div class="flex items-center gap-3 text-sm text-zinc-500">
+                            <span class="flex items-center gap-1"><i class="ph ph-map-pin"></i> Austin, TX</span>
+                            <span class="flex items-center gap-1"><i class="ph ph-globe"></i> cortex-ai.io</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="text-[14px] text-zinc-600 leading-relaxed border-l-2 border-zinc-200 pl-4">
+                    Cortex Analytics develops predictive AI models specifically designed for hospital operations and patient flow optimization. Their core SaaS offering integrates directly mapping EHR data streams.
+                </p>
+
+                <!-- Key Metrics Grid -->
+                <div>
+                    <h3 class="text-[13px] font-semibold text-zinc-800 mb-3 uppercase tracking-wide">Core Financials (Est.)</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-zinc-50 rounded-md p-3 border panel-border">
+                            <div class="text-[12px] text-zinc-500 mb-1">Trailing Revenue</div>
+                            <div class="text-lg font-semibold text-zinc-900 tn">$42.5M</div>
+                        </div>
+                        <div class="bg-zinc-50 rounded-md p-3 border panel-border">
+                            <div class="text-[12px] text-zinc-500 mb-1">EBITDA Margin</div>
+                            <div class="text-lg font-semibold text-zinc-900 tn">14.2%</div>
+                        </div>
+                        <div class="bg-zinc-50 rounded-md p-3 border panel-border">
+                            <div class="text-[12px] text-zinc-500 mb-1">Est. Headcount</div>
+                            <div class="text-lg font-semibold text-zinc-900 tn">185</div>
+                        </div>
+                        <div class="bg-zinc-50 rounded-md p-3 border panel-border">
+                            <div class="text-[12px] text-zinc-500 mb-1">Founded / Ownership</div>
+                            <div class="text-lg font-semibold text-zinc-900 tn">2018 / PE-backed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Enrichment / Lineage -->
+                <div>
+                    <h3 class="text-[13px] font-semibold text-zinc-800 mb-3 uppercase tracking-wide">Source Lineage</h3>
+                    <div class="rounded-md border panel-border overflow-hidden">
+                        <div class="flex items-center gap-3 p-3 bg-white border-b border-zinc-100">
+                            <div class="w-8 h-8 rounded bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">PB</div>
+                            <div>
+                                <div class="text-sm font-medium text-zinc-900">PitchBook Data</div>
+                                <div class="text-[12px] text-zinc-500 tn flex items-center gap-1">Last synced: Today, 08:14 AM <i class="ph ph-check-circle text-emerald-600"></i></div>
+                            </div>
+                            <a href="#" class="ml-auto text-emerald-600 text-[13px] font-medium hover:underline flex items-center gap-1">View API Record <i class="ph ph-arrow-up-right"></i></a>
+                        </div>
+                        <div class="p-3 bg-zinc-50 text-[12px] text-zinc-600 font-mono tn">
+                            uuid: "pb-tgt-0091823-x",<br>
+                            confidence_score: 0.94,<br>
+                            enrichment_flags: ["executive_data", "recent_news"]
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Drawer Footer Action -->
+            <div class="p-5 border-t panel-border bg-white mt-auto">
+                <button class="btn btn-secondary w-full mb-2 h-10">Mark as 'Not a fit'</button>
+                <button class="btn btn-primary w-full h-10 shadow-sm" onclick="closeDrawer()">Select for Import</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CENTRAL MODAL: Deduplication & Import Review -->
+    <div id="importModal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 sm:p-0">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-zinc-950/60 backdrop-blur-sm cursor-pointer" onclick="closeModal()"></div>
+        
+        <!-- Panel -->
+        <div class="relative bg-white rounded-xl shadow-md border panel-border w-full max-w-4xl max-h-[90vh] flex flex-col modal-panel overflow-hidden">
+            
+            <!-- Header -->
+            <div class="px-6 py-5 border-b panel-border bg-zinc-25 flex items-center justify-between flex-shrink-0">
+                <div>
+                    <h2 class="text-xl font-bold text-zinc-900">Review Targets for Import</h2>
+                    <p class="text-sm text-zinc-500 mt-1">Deduplication engine ran <span class="tn font-medium text-zinc-700">2</span> selected records against existing CRM.</p>
+                </div>
+                <button class="text-zinc-400 hover:text-zinc-800 transition-colors bg-white rounded shadow-sm border border-zinc-200 p-1.5" onclick="closeModal()">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+
+            <!-- Dedupe Split View (Meso-Architecture Highlight) -->
+            <div class="flex-1 overflow-y-auto bg-zinc-50 p-6">
+                
+                <!-- Clean Import (No matches) -->
+                <div class="mb-8">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">1</span>
+                        <h3 class="text-sm font-semibold text-zinc-800 uppercase tracking-wide">Clean For Import (No Duplicates)</h3>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg border border-emerald-200 shadow-sm overflow-hidden p-4 flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 rounded border panel-border bg-emerald-50 flex items-center justify-center text-emerald-700 font-bold">CA</div>
+                            <div>
+                                <div class="font-semibold text-zinc-900 text-[15px]">Cortex Analytics</div>
+                                <div class="text-sm text-zinc-500 flex items-center gap-2 mt-0.5">
+                                    <span class="inline-flex items-center gap-1"><i class="ph ph-database text-zinc-400"></i> PitchBook</span>
+                                    <span>•</span>
+                                    <span class="tn">Austin, TX</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm text-emerald-600 font-medium flex items-center"><i class="ph ph-check-circle mr-1"></i> Clear</span>
+                            <span class="px-3 py-1 rounded bg-zinc-100 text-zinc-600 text-sm font-medium border border-zinc-200">Import as New</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Conflict Detection -->
+                <div>
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-bold text-[10px]">1</span>
+                        <h3 class="text-sm font-semibold text-zinc-800 uppercase tracking-wide flex items-center">Conflict Detected <i class="ph ph-warning-circle text-amber-500 ml-1.5"></i></h3>
+                    </div>
+
+                    <div class="bg-white rounded-lg border border-amber-200 shadow-sm overflow-hidden flex flex-col md:flex-row">
+                        
+                        <!-- Incoming Source -->
+                        <div class="flex-1 p-5 border-b md:border-b-0 md:border-r border-zinc-100 bg-zinc-50/50 relative">
+                            <span class="absolute top-0 right-0 bg-zinc-200 text-zinc-600 text-[10px] uppercase font-bold px-2 py-0.5 rounded-bl-md">Incoming Data</span>
+                            <div class="mb-3">
+                                <div class="font-semibold text-zinc-900 text-[15px]">Aura Dynamics</div>
+                                <div class="text-sm text-zinc-500 truncate">LogisticsTech • Chicago, IL</div>
+                            </div>
+                            <div class="space-y-1 mt-4 border-t border-zinc-200 pt-3 text-[13px] text-zinc-600 tn">
+                                <div class="flex justify-between"><span class="text-zinc-400">Source</span> <span class="font-medium text-zinc-800">Internal DB</span></div>
+                                <div class="flex justify-between"><span class="text-zinc-400">Website</span> <span class="font-medium text-zinc-800">auradynamics.com</span></div>
+                                <div class="flex justify-between"><span class="text-zinc-400">Rev Est.</span> <span class="font-medium text-zinc-800">$65.0M</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Match Arrow -->
+                        <div class="hidden md:flex flex-col items-center justify-center w-12 bg-white z-10 shrink-0 border-r border-l panel-border shadow-sm">
+                            <div class="text-[10px] font-bold text-amber-600 uppercase tracking-widest bg-amber-50 py-1 w-full text-center border-b border-amber-100 tn">98%</div>
+                            <i class="ph ph-arrows-merge text-zinc-400 mt-2 text-lg"></i>
+                        </div>
+
+                        <!-- Existing CRM Target -->
+                        <div class="flex-1 p-5 relative">
+                            <span class="absolute top-0 right-0 bg-blue-100 text-blue-700 text-[10px] uppercase font-bold px-2 py-0.5 rounded-bl-md">Existing Target</span>
+                            <div class="mb-3">
+                                <div class="font-semibold text-zinc-900 text-[15px] flex items-center gap-1">Aura Dynamics Inc. <i class="ph ph-shield-check text-blue-500" title="Verified Target"></i></div>
+                                <div class="text-sm text-zinc-500 truncate">Supply Chain Software • Chicago, IL</div>
+                            </div>
+                            <div class="space-y-1 mt-4 border-t border-zinc-200 pt-3 text-[13px] text-zinc-600 tn">
+                                <div class="flex justify-between"><span class="text-zinc-400">Status</span> <span class="inline-flex items-center text-blue-700 bg-blue-50 px-1.5 rounded"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1.5"></span> Contacted</span></div>
+                                <div class="flex justify-between"><span class="text-zinc-400">Mandate</span> <span class="font-medium text-zinc-800 underline decoration-zinc-300">Project Velocity</span></div>
+                                <div class="flex justify-between"><span class="text-zinc-400">Data Lag</span> <span>Updated 8 mos ago</span></div>
+                            </div>
+                            
+                            <!-- Resolution Action -->
+                            <div class="mt-4 pt-3 border-t border-zinc-100">
+                                <div class="flex gap-2">
+                                    <button class="btn btn-secondary flex-1 text-[13px] h-8 bg-zinc-50 border-zinc-300" onclick="alert('Merge selected')">Merge to update</button>
+                                    <button class="btn btn-secondary flex-1 text-[13px] h-8 text-zinc-400 border-zinc-200" onclick="alert('Import skipped')">Skip</button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer: Tagging & Submit -->
+            <div class="p-6 border-t panel-border bg-white flex flex-col md:flex-row items-center gap-4 justify-between flex-shrink-0">
+                <div class="flex-1 w-full md:w-auto">
+                    <label class="label-text text-zinc-700 block mb-1">Assign to Mandate (Optional)</label>
+                    <select class="input-base w-full md:w-64 h-9 px-3 text-sm">
+                        <option>General Sourcing Pool</option>
+                        <option>Project Titan (SaaS Acq.)</option>
+                        <option>Project Velocity</option>
+                        <option disabled>──────────</option>
+                        <option>+ Create New Mandate</option>
+                    </select>
+                </div>
+                
+                <div class="flex gap-3 w-full md:w-auto mt-4 md:mt-0">
+                    <button class="btn btn-secondary h-10 px-4" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary h-10 px-6 shadow-sm" onclick="confirmImport(this)">
+                        <span class="mr-2 tn border border-emerald-500 bg-emerald-700 px-1.5 py-0.5 rounded text-[11px]">1</span>
+                        Confirm Import
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- UI State Orchestration Logic (Vanilla JS) -->
+    <script>
+        // Custom interactive physics logic
+        
+        let selectedCount = 0;
+        const actionBar = document.getElementById('actionBar');
+        const countDisplay = document.getElementById('selectionCount');
+        const selectAllInput = document.getElementById('selectAll');
+        const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+
+        function toggleAllRows(source) {
+            rowCheckboxes.forEach(cb => {
+                cb.checked = source.checked;
+                highlightRow(cb);
+            });
+            updateSelectionState();
+        }
+
+        function checkSelection() {
+            // Update Master Checkbox state
+            const allChecked = Array.from(rowCheckboxes).every(cb => cb.checked);
+            const someChecked = Array.from(rowCheckboxes).some(cb => cb.checked);
+            
+            selectAllInput.checked = allChecked;
+            selectAllInput.indeterminate = someChecked && !allChecked;
+            
+            updateSelectionState();
+        }
+
+        function highlightRow(checkbox) {
+            const tr = checkbox.closest('tr');
+            if(checkbox.checked) {
+                tr.classList.add('bg-zinc-50');
+            } else {
+                tr.classList.remove('bg-zinc-50');
+            }
+        }
+
+        function updateSelectionState() {
+            selectedCount = document.querySelectorAll('.row-checkbox:checked').length;
+            
+            // Visual row highlight
+            rowCheckboxes.forEach(cb => highlightRow(cb));
+
+            // Float Action Bar Logic
+            if (selectedCount > 0) {
+                countDisplay.textContent = selectedCount;
+                actionBar.classList.add('active');
+                actionBar.classList.remove('pointer-events-none');
+            } else {
+                actionBar.classList.remove('active');
+                actionBar.classList.add('pointer-events-none');
+            }
+        }
+
+        // Drawers & Modals
+        function openDrawer(titleStr) {
+            document.getElementById('drawerTitle').textContent = titleStr;
+            document.getElementById('detailDrawer').classList.add('drawer-active');
+        }
+
+        function closeDrawer() {
+            document.getElementById('detailDrawer').classList.remove('drawer-active');
+        }
+
+        function openModal() {
+            document.getElementById('importModal').classList.add('modal-active');
+        }
+
+        function closeModal() {
+            document.getElementById('importModal').classList.remove('modal-active');
+        }
+
+        // Simulating search loading state to show comprehensive micro-architecture
+        function simulateSearch() {
+            const loader = document.getElementById('loadingState');
+            const tbody = document.getElementById('resultsTableBody');
+            const rows = tbody.querySelectorAll('tr.stagger-row');
+            
+            loader.classList.remove('hidden');
+            
+            // Reset animations
+            rows.forEach(r => {
+                r.style.animation = 'none';
+                r.offsetHeight; /* trigger reflow */
+                r.style.opacity = '0';
+            });
+            
+            setTimeout(() => {
+                loader.classList.add('hidden');
+                rows.forEach((r, idx) => {
+                    r.style.animation = ''; // restore CSS animation
+                    // Add slight random delay to simulate waterfall
+                    r.style.animationDelay = `${(idx * 75) + 50}ms`;
+                });
+            }, 1200);
+        }
+
+        // Submit action
+        function confirmImport(btn) {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div> Processing...';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                closeModal();
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                
+                // Show standard notification in a real app, reset table here
+                rowCheckboxes.forEach(cb => cb.checked = false);
+                checkSelection();
+                alert('Success: 1 candidate imported to Target Repository.');
+            }, 800);
+        }
+        
+    </script>
+</body>
+</html>

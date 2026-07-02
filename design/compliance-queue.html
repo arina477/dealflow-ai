@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased text-zinc-700 bg-zinc-25">
+<!--
+  aesthetic_dna: Restrained, credible, high-density financial/regulatory tool.
+  ui_paradigm: Data-dense table view with a contextual, sliding right-hand inspector panel for detailed review workflows.
+  palette: Zinc/Grey base (neutrality, seriousness) with Emerald (approval/positive) and Red/Amber (rejection/risk) structural accents.
+-->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compliance Queue | DealFlow AI</title>
+    
+    <!-- Fonts: Inter for UI, tabular-nums configured in CSS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Icons: Lucide via unpkg (using script at bottom to initialize) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Design System Configurations & Custom CSS -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: {
+                            25:  '#FCFCFD',
+                            50:  '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50:  '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                    },
+                    keyframes: {
+                        shimmer: {
+                            '0%': { backgroundPosition: '-1000px 0' },
+                            '100%': { backgroundPosition: '1000px 0' },
+                        }
+                    },
+                    animation: {
+                        shimmer: 'shimmer 2s infinite linear',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Base typography optimizations */
+        body { text-rendering: optimizeLegibility; }
+        
+        /* Tabular numerals for specific data */
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        
+        /* Custom UI Scrollbar to fit aesthetic */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+
+        /* Form Reset & Focus Rings */
+        .df-focus { outline: none; box-shadow: 0 0 0 2px #FCFCFD, 0 0 0 4px rgba(16, 185, 129, 0.4); }
+        .df-input { 
+            appearance: none; background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 6px; 
+            padding: 0.375rem 0.75rem; font-size: 0.875rem; line-height: 1.25rem; color: #111827;
+            transition: all 150ms cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .df-input:focus { border-color: #10B981; outline: none; box-shadow: 0 0 0 1px #10B981; }
+
+        /* Loading Skeleton gradients */
+        .skeleton-block {
+            background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+            background-size: 1000px 100%;
+        }
+
+        /* Slide panel animation logic */
+        #review-panel.open { transform: translateX(0); box-shadow: -20px 0 40px rgba(0,0,0,0.05); }
+        #panel-backdrop.open { opacity: 1; pointer-events: auto; }
+        
+        /* Tab underline animation */
+        .tab-indicator { transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+
+        /* Badge Base */
+        .df-badge { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium uppercase tracking-widest; letter-spacing: 0.04em; }
+    </style>
+</head>
+<body class="flex h-[100dvh] overflow-hidden selection:bg-emerald-100 selection:text-emerald-900">
+
+    <!-- SIDEBAR NAVIGATION -->
+    <nav class="hidden lg:flex w-64 bg-zinc-900 text-zinc-300 flex-col border-r border-zinc-800 z-10 shrink-0 relative">
+        <div class="h-16 flex items-center px-6 border-b border-zinc-800">
+            <span class="text-white font-bold tracking-tight text-lg flex items-center gap-2">
+                <i data-lucide="layers" class="size-5 text-emerald-500"></i> DealFlow AI
+            </span>
+        </div>
+        
+        <div class="px-3 py-6 flex-1 overflow-y-auto space-y-1">
+            <div class="text-xs uppercase tracking-widest text-zinc-500 font-semibold px-3 mb-2 mt-4">Workspace</div>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-zinc-800 hover:text-white transition-colors text-sm font-medium">
+                <i data-lucide="layout-dashboard" class="size-4"></i> Dashboard
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-zinc-800 hover:text-white transition-colors text-sm font-medium">
+                <i data-lucide="briefcase" class="size-4"></i> Mandates
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-zinc-800 hover:text-white transition-colors text-sm font-medium">
+                <i data-lucide="send" class="size-4"></i> Campaigns
+            </a>
+            
+            <div class="text-xs uppercase tracking-widest text-zinc-500 font-semibold px-3 mb-2 mt-8">Risk & Legal</div>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md bg-zinc-800 text-white relative text-sm font-medium">
+                <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-emerald-500 rounded-r-full"></div>
+                <i data-lucide=" shield-check" class="size-4 text-emerald-400"></i> Compliance Queue
+                <span class="ml-auto bg-amber-500/20 text-amber-300 text-xs py-0.5 px-2 rounded-full tabular-nums">12</span>
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-zinc-800 hover:text-white transition-colors text-sm font-medium">
+                <i data-lucide="file-check" class="size-4"></i> Audit Logs
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-zinc-800 hover:text-white transition-colors text-sm font-medium">
+                <i data-lucide="database" class="size-4"></i> Suppression Lists
+            </a>
+        </div>
+        
+        <div class="p-4 border-t border-zinc-800">
+            <div class="flex items-center gap-3">
+                <div class="size-8 rounded-full bg-zinc-800 border border-zinc-600 flex items-center justify-center text-xs font-semibold text-white">
+                    CR
+                </div>
+                <div>
+                    <p class="text-xs font-medium text-white">Compliance Role</p>
+                    <p class="text-[11px] text-zinc-500 truncate">review@firm.com</p>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- MAIN APP AREA -->
+    <main class="flex-1 flex flex-col min-w-0 bg-zinc-25 relative">
+        <!-- Top header -->
+        <header class="h-16 bg-white border-b border-zinc-200 flex items-center justify-between px-6 shrink-0 lg:hidden">
+             <span class="text-zinc-900 font-bold tracking-tight flex items-center gap-2">
+                <i data-lucide="layers" class="size-5 text-emerald-600"></i> DealFlow AI
+            </span>
+            <button class="p-2 text-zinc-500 rounded-md hover:bg-zinc-100">
+                <i data-lucide="menu" class="size-5"></i>
+            </button>
+        </header>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto w-full p-4 md:p-8">
+            <div class="max-w-7xl mx-auto space-y-6 relative">
+                
+                <!-- Page Header & Stats -->
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2 text-sm text-zinc-500 mb-1">
+                            <span>Compliance</span>
+                            <i data-lucide="chevron-right" class="size-3"></i>
+                            <span class="font-medium text-zinc-700">Queue</span>
+                        </div>
+                        <h1 class="text-2xl font-bold text-zinc-900 tracking-tight">Pending Reviews</h1>
+                        <div class="text-sm text-zinc-500 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span class="font-medium text-amber-600 flex items-center gap-1.5 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                <i data-lucide="clock" class="size-3.5"></i> <span class="tabular-nums">12</span> pending
+                            </span>
+                            <span class="text-zinc-300">&bull;</span>
+                            <span class="text-emerald-700 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="size-3.5"></i> <span class="tabular-nums">34</span> approved today</span>
+                            <span class="text-zinc-300">&bull;</span>
+                            <span class="text-zinc-600 flex items-center gap-1.5"><i data-lucide="x-circle" class="size-3.5"></i> <span class="tabular-nums">2</span> rejected (7d)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters & Controls -->
+                <div class="bg-white p-3 rounded-lg border border-zinc-200 shadow-xs flex flex-col sm:flex-row gap-3 items-center justify-between">
+                    <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                        <div class="relative w-full sm:w-64">
+                            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-400"></i>
+                            <input type="text" placeholder="Search template or advisor..." class="df-input w-full pl-9" id="search-input">
+                        </div>
+                        <select class="df-input text-zinc-700 w-full sm:w-auto">
+                            <option>Status: Pending</option>
+                            <option>Status: In-Review</option>
+                            <option>Status: All</option>
+                        </select>
+                        <select class="df-input w-full sm:w-auto">
+                            <option>Priority: All</option>
+                            <option>Priority: Urgent Only</option>
+                        </select>
+                    </div>
+                    <div class="w-full sm:w-auto flex justify-end">
+                        <button class="df-input bg-zinc-50 hover:bg-zinc-100 flex items-center gap-2 font-medium text-sm transition-colors" onclick="toggleEmptyState()">
+                             <i data-lucide="filter-x" class="size-4"></i> Reset
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Main Data Table Container -->
+                <div class="bg-white rounded-lg border border-zinc-200 shadow-xs overflow-hidden relative" id="table-container">
+                    
+                    <div class="overflow-x-auto w-full">
+                        <table class="w-full text-left text-sm whitespace-nowrap">
+                            <thead class="bg-zinc-50 border-b border-zinc-200">
+                                <tr>
+                                    <th class="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-widest w-12 text-center">Pri</th>
+                                    <th class="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-widest">Type</th>
+                                    <th class="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-widest">Submission Name</th>
+                                    <th class="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-widest">Advisor</th>
+                                    <th class="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-widest">Submitted</th>
+                                    <th class="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-widest text-center">Risk Level</th>
+                                    <th class="px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-widest text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-200" id="queue-tbody">
+                                
+                                <!-- Alert Row (Urgent/High Risk) -->
+                                <tr class="hover:bg-zinc-50 transition-colors group">
+                                    <td class="px-4 py-3 text-center">
+                                        <div class="relative flex items-center justify-center">
+                                            <span class="absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-500 opacity-75 animate-ping"></span>
+                                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <span class="df-badge bg-zinc-100 text-zinc-700 border border-zinc-200">Campaign</span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <button onclick="openReviewPanel('Project Titan - Initial Teaser')" class="font-medium text-zinc-900 group-hover:text-emerald-700 transition-colors text-left flex flex-col focus:outline-none">
+                                            <span>Project Titan - Initial Teaser</span>
+                                            <span class="text-[11px] text-zinc-500 font-normal">3 specific jurisdictions targeted</span>
+                                        </button>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="flex items-center gap-2">
+                                            <div class="size-6 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-600">EV</div>
+                                            <span class="text-zinc-700">Eleanor Vance</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3 text-zinc-500 tabular-nums">1.5 hrs ago</td>
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="df-badge bg-red-50 text-red-700 border border-red-200 gap-1"><i data-lucide="alert-triangle" class="size-3"></i> High</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right">
+                                        <button onclick="openReviewPanel('Project Titan - Initial Teaser')" class="inline-flex items-center justify-center px-4 py-1.5 text-sm font-medium text-white bg-zinc-900 rounded-md hover:bg-zinc-800 active:scale-95 transition-all shadow-sm">
+                                            Review
+                                        </button>
+                                    </td>
+                                </tr>
+
+                                <!-- Medium Risk -->
+                                <tr class="hover:bg-zinc-50 transition-colors group">
+                                    <td class="px-4 py-3 text-center"></td>
+                                    <td class="px-4 py-3">
+                                        <span class="df-badge bg-zinc-100 text-zinc-700 border border-zinc-200">Template</span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <button onclick="openReviewPanel('Q3 Healthcare SaaS Rollup NDA')" class="font-medium text-zinc-900 group-hover:text-emerald-700 transition-colors text-left flex flex-col focus:outline-none">
+                                            <span>Q3 Healthcare SaaS Rollup NDA</span>
+                                            <span class="text-[11px] text-red-500 font-medium mt-0.5"><i data-lucide="flag" class="size-3 inline align-text-bottom"></i> 2 compliance flags</span>
+                                        </button>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="flex items-center gap-2">
+                                            <div class="size-6 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-600">MT</div>
+                                            <span class="text-zinc-700">Marcus Thorne</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3 text-zinc-500 tabular-nums">4 hrs ago</td>
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="df-badge bg-amber-50 text-amber-700 border border-amber-200">Medium</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right">
+                                        <button onclick="openReviewPanel('Q3 Healthcare SaaS Rollup NDA')" class="inline-flex items-center justify-center px-4 py-1.5 text-sm font-medium text-white bg-zinc-900 rounded-md hover:bg-zinc-800 active:scale-95 transition-all shadow-sm">
+                                            Review
+                                        </button>
+                                    </td>
+                                </tr>
+
+                                <!-- Low Risk Row -->
+                                <tr class="hover:bg-zinc-50 transition-colors group">
+                                    <td class="px-4 py-3 text-center"></td>
+                                    <td class="px-4 py-3">
+                                        <span class="df-badge bg-zinc-100 text-zinc-700 border border-zinc-200">Campaign</span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <button onclick="openReviewPanel('Renewables Infra - Follow Up')" class="font-medium text-zinc-900 group-hover:text-emerald-700 transition-colors text-left flex flex-col focus:outline-none">
+                                            <span>Renewables Infra - Follow Up</span>
+                                            <span class="text-[11px] text-emerald-600 font-medium mt-0.5"><i data-lucide="check-circle" class="size-3 inline align-text-bottom"></i> Engine pre-cleared</span>
+                                        </button>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="flex items-center gap-2">
+                                            <div class="size-6 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-600">SL</div>
+                                            <span class="text-zinc-700">Sarah Li</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-3 text-zinc-500 tabular-nums">Yesterday</td>
+                                    <td class="px-4 py-3 text-center">
+                                        <span class="df-badge bg-zinc-100 text-zinc-600 border border-zinc-200">Low</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right">
+                                        <button onclick="openReviewPanel('Renewables Infra - Follow Up')" class="inline-flex items-center justify-center px-4 py-1.5 text-sm font-medium text-white bg-zinc-900 rounded-md hover:bg-zinc-800 active:scale-95 transition-all shadow-sm">
+                                            Review
+                                        </button>
+                                    </td>
+                                </tr>
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Empty State Block (Hidden by default, used for demonstration) -->
+                <div id="empty-state" class="hidden bg-white border border-zinc-200 border-dashed rounded-xl p-12 text-center flex-col items-center justify-center">
+                    <div class="size-16 rounded-full bg-zinc-50 text-zinc-300 flex items-center justify-center mx-auto mb-4 ring-8 ring-zinc-50/50">
+                        <i data-lucide="inbox" class="size-8"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-zinc-900 mb-1">Queue is clear!</h3>
+                    <p class="text-zinc-500 text-sm max-w-sm mx-auto mb-6">No pending reviews match your current filters. Take a coffee break or review approved history.</p>
+                    <button class="df-input bg-white text-zinc-700 text-sm font-medium hover:bg-zinc-50" onclick="toggleEmptyState()">View Approved Templates</button>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- RIGHT SLIDE-OUT PANEL: Review Detail -->
+    <!-- Backdrop -->
+    <div id="panel-backdrop" class="fixed inset-0 bg-zinc-950/20 backdrop-blur-[2px] opacity-0 pointer-events-none transition-opacity duration-300 z-30" onclick="closeReviewPanel()"></div>
+    
+    <!-- Panel -->
+    <aside id="review-panel" class="fixed inset-y-0 right-0 w-full md:w-[680px] bg-white border-l border-zinc-200 transform translate-x-full transition-transform duration-500 cubic-bezier(0.16, 1, 0.3, 1) z-40 flex flex-col shadow-2xl">
+        
+        <!-- Loading overlay inside panel -->
+        <div id="panel-loader" class="absolute inset-0 bg-white z-50 flex flex-col p-6 hidden">
+            <div class="w-1/2 h-8 skeleton-block animate-shimmer rounded mb-4"></div>
+            <div class="w-1/4 h-4 skeleton-block animate-shimmer rounded mb-8"></div>
+            <div class="space-y-4">
+                <div class="w-full h-32 skeleton-block animate-shimmer rounded-md"></div>
+                <div class="w-full h-24 skeleton-block animate-shimmer rounded-md"></div>
+            </div>
+            <div class="mt-auto flex justify-center text-zinc-400 text-sm gap-2 items-center">
+                <i data-lucide="loader-2" class="size-4 animate-spin"></i> Running compliance engine...
+            </div>
+        </div>
+
+        <!-- Panel Header -->
+        <div class="px-6 py-5 border-b border-zinc-200 bg-zinc-50 shrink-0">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="df-badge bg-zinc-200 text-zinc-800 border-none">Campaign</span>
+                        <span class="df-badge bg-red-50 text-red-700 border border-red-200">High Risk</span>
+                    </div>
+                    <h2 class="text-xl font-bold text-zinc-900 tracking-tight" id="panel-title">Project Titan - Initial Teaser</h2>
+                    <p class="text-sm text-zinc-500 mt-1 flex items-center gap-2">
+                        Submitted by <span class="font-medium text-zinc-700">Eleanor Vance</span>
+                        <span class="text-zinc-300">&bull;</span>
+                        <span class="tabular-nums">Oct 24, 2024 · 14:32</span>
+                    </p>
+                </div>
+                <button onclick="closeReviewPanel()" class="p-2 -mr-2 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200 rounded-md transition-colors">
+                    <i data-lucide="x" class="size-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="px-6 border-b border-zinc-200 relative bg-white shrink-0">
+            <div class="flex gap-6" role="tablist">
+                <button class="pb-3 pt-4 text-sm font-medium text-emerald-600 border-b-2 border-emerald-600 focus:outline-none" id="tab-btn-content" onclick="switchTab('content')">
+                    Content Preview
+                </button>
+                <button class="pb-3 pt-4 text-sm font-medium text-zinc-500 border-b-2 border-transparent hover:text-zinc-700 focus:outline-none flex items-center gap-1.5" id="tab-btn-checks" onclick="switchTab('checks')">
+                    Compliance Checks <span class="bg-red-100 text-red-600 text-[10px] px-1.5 py-0.5 rounded-full tabular-nums leading-none">2</span>
+                </button>
+                <button class="pb-3 pt-4 text-sm font-medium text-zinc-500 border-b-2 border-transparent hover:text-zinc-700 focus:outline-none" id="tab-btn-audit" onclick="switchTab('audit')">
+                    Audit Trail
+                </button>
+            </div>
+        </div>
+
+        <!-- Scrollable Tab Content Area -->
+        <div class="flex-1 overflow-y-auto bg-zinc-25 relative p-6">
+            
+            <!-- TAB: CONTENT -->
+            <div id="tab-content" class="space-y-6 block">
+                
+                <!-- Metadata Grid -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-white p-3 rounded-md border border-zinc-200">
+                        <label class="text-[11px] font-semibold tracking-widest uppercase text-zinc-500 mb-1 block">Jurisdictions</label>
+                        <div class="text-sm font-medium text-zinc-900">US (NY, CA), UK</div>
+                    </div>
+                    <div class="bg-white p-3 rounded-md border border-zinc-200">
+                        <label class="text-[11px] font-semibold tracking-widest uppercase text-zinc-500 mb-1 block">Engine Version</label>
+                        <div class="text-sm font-medium text-zinc-900 tabular-nums">v2.4.19 (Latest)</div>
+                    </div>
+                </div>
+
+                <!-- Text Presentation -->
+                <div class="bg-white rounded-lg border border-zinc-200 shadow-xs overflow-hidden">
+                    <div class="px-4 py-2 bg-zinc-50 border-b border-zinc-200 flex items-center justify-between">
+                        <span class="text-xs font-semibold uppercase tracking-widest text-zinc-500">Email Draft</span>
+                        <button class="text-xs font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
+                            <i data-lucide="copy" class="size-3"></i> Copy Text
+                        </button>
+                    </div>
+                    <div class="p-4 text-sm text-zinc-700 leading-relaxed font-serif bg-[#FAFAFA]" style="font-family: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;">
+                        <p class="mb-4">Hi {First Name},</p>
+                        <p class="mb-4">I'm reaching out regarding Project Titan, a leading provider of B2B SaaS infrastructure for the logistics sector.</p>
+                        <p class="mb-4 bg-red-50 text-red-900 px-1 border-l-2 border-red-500">The company has seen exponential, guaranteed growth of 45% YoY and expects to dominate 80% of the market by next year.</p>
+                        <p class="mb-4">Given your recent fund focus in infrastructure, we believe this presents an unmatched opportunity.</p>
+                        <p class="mb-4">Best,<br>Eleanor Vance</p>
+                        <hr class="my-4 border-zinc-200">
+                        <div class="text-[11px] text-zinc-500 bg-amber-50 p-2 border-l-2 border-amber-500">
+                            Missing required California Form 28 disclaimer regarding forward-looking statements.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: COMPLIANCE CHECKS (Feature #12 Vibe) -->
+            <div id="tab-checks" class="space-y-4 hidden">
+                
+                <!-- System Status -->
+                <div class="flex items-center gap-2 p-3 bg-red-50 text-red-800 rounded-md border border-red-200 text-sm mb-6">
+                    <i data-lucide="alert-octagon" class="size-5 shrink-0"></i>
+                    <div>
+                        <span class="font-bold">Review halted:</span> 2 critical compliance violations detected by the engine. Must be resolved before approval.
+                    </div>
+                </div>
+
+                <!-- Check 1: Claims (Failed) -->
+                <div class="bg-white border border-red-200 rounded-lg overflow-hidden shadow-xs">
+                    <div class="p-3 bg-red-50 border-b border-red-100 flex items-start gap-3">
+                        <div class="mt-0.5"><i data-lucide="x-circle" class="size-5 text-red-600"></i></div>
+                        <div class="flex-1">
+                            <h4 class="text-sm font-semibold text-red-900">Financial Claims Validation</h4>
+                            <p class="text-xs text-red-700 mt-1">Unsubstantiated performance claims detected.</p>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-white text-sm">
+                        <ul class="space-y-3">
+                            <li class="flex items-start gap-2">
+                                <span class="bg-zinc-100 rounded px-1.5 py-0.5 font-medium text-xs text-zinc-600 tabular-nums shrink-0 mt-0.5">Line 3</span>
+                                <div>
+                                    <span class="italic text-zinc-800">"...exponential, guaranteed growth of 45% YoY and expects to dominate 80% of the market..."</span>
+                                    <div class="text-red-600 mt-1 text-xs font-medium tracking-tight">Violation: Use of word "guaranteed" in forward-looking statement. No attached substantiation for 80% market share claim.</div>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Check 2: Disclaimer (Failed) -->
+                <div class="bg-white border border-amber-200 rounded-lg overflow-hidden shadow-xs">
+                    <div class="p-3 bg-amber-50 border-b border-amber-100 flex items-start gap-3">
+                        <div class="mt-0.5"><i data-lucide="shield-alert" class="size-5 text-amber-600"></i></div>
+                        <div class="flex-1">
+                            <h4 class="text-sm font-semibold text-amber-900">Jurisdiction Disclaimers</h4>
+                            <p class="text-xs text-amber-700 mt-1">Missing required legal text for declared targets.</p>
+                        </div>
+                        <button class="text-xs bg-white border border-amber-200 px-2 py-1 rounded text-amber-700 font-medium hover:bg-amber-50">Auto-Fix</button>
+                    </div>
+                    <div class="p-4 bg-white text-sm text-zinc-600">
+                        Missing <span class="font-medium text-zinc-800">CA-Rule 42 (Forward Looking Statements)</span> footer block required for California jurisdiction targets.
+                    </div>
+                </div>
+
+                <!-- Check 3: Suppression (Passed) -->
+                <div class="bg-white border border-zinc-200 rounded-lg overflow-hidden shadow-xs">
+                    <div class="p-3 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="check-circle-2" class="size-5 text-emerald-500"></i>
+                            <div>
+                                <h4 class="text-sm font-semibold text-zinc-900">Suppression Registry</h4>
+                                <p class="text-xs text-zinc-500 mt-0.5">0 contacts in campaign match global blocklist.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                 <!-- Check 4: Recordkeeping (Passed) -->
+                 <div class="bg-white border border-zinc-200 rounded-lg overflow-hidden shadow-xs">
+                    <div class="p-3 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="check-circle-2" class="size-5 text-emerald-500"></i>
+                            <div>
+                                <h4 class="text-sm font-semibold text-zinc-900">Data Preservation (WORM)</h4>
+                                <p class="text-xs text-zinc-500 mt-0.5">SEC 17a-4 archive route verified active.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- TAB: AUDIT -->
+            <div id="tab-audit" class="hidden">
+                 <div class="relative border-l-2 border-zinc-200 ml-3 space-y-6 pb-4">
+                    
+                    <!-- Entry 1 -->
+                    <div class="relative pl-6">
+                        <div class="absolute -left-[9px] top-1 h-4 w-4 rounded-full bg-amber-100 border-2 border-white flex items-center justify-center">
+                            <div class="h-2 w-2 rounded-full bg-amber-500"></div>
+                        </div>
+                        <p class="text-xs text-zinc-500 tabular-nums">Oct 24, 2024 · 14:32:10 UTC</p>
+                        <p class="text-sm font-medium text-zinc-900 mt-0.5">Submitted by Eleanor Vance</p>
+                        <p class="text-xs text-zinc-600 mt-1 bg-white border border-zinc-200 p-2 rounded-md shadow-xs">Initial draft for Project Titan targeting Tier 1 tech rollups.</p>
+                    </div>
+
+                    <!-- Previous Rejected Entry -->
+                    <div class="relative pl-6 opacity-75">
+                         <div class="absolute -left-[9px] top-1 h-4 w-4 rounded-full bg-red-100 border-2 border-white flex items-center justify-center">
+                            <div class="h-2 w-2 rounded-full bg-red-500"></div>
+                        </div>
+                        <p class="text-xs text-zinc-500 tabular-nums">Oct 23, 2024 · 09:15:00 UTC</p>
+                        <div class="text-sm font-medium text-zinc-900 mt-0.5">Rejected by <span class="text-emerald-700">System Checker</span></div>
+                        <p class="text-xs text-red-700 mt-1 bg-red-50 border border-red-100 p-2 rounded-md font-mono">
+                            ERR: INVALID_JURISDICTION_DECLARATION
+                        </p>
+                    </div>
+
+                 </div>
+            </div>
+
+        </div> <!-- End Scrollable Area -->
+
+        <!-- DECISION FOOTER (Sticky) -->
+        <div class="border-t border-zinc-200 bg-white p-4 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            
+            <div class="mb-4">
+                <label class="text-[11px] font-semibold tracking-widest uppercase text-zinc-500 mb-2 block">Compliance Decision</label>
+                <div class="grid grid-cols-3 gap-3">
+                    
+                    <!-- Approve Radio -->
+                    <label class="relative cursor-pointer">
+                        <input type="radio" name="decision" value="approve" class="peer sr-only" onchange="updateDecisionState()">
+                        <div class="h-full border border-zinc-200 rounded-md p-3 text-center peer-checked:border-emerald-600 peer-checked:bg-emerald-50 hover:bg-zinc-50 transition-colors">
+                            <i data-lucide="check-circle" class="size-5 mx-auto mb-1 text-zinc-400 peer-checked:text-emerald-600"></i>
+                            <span class="text-sm font-medium text-zinc-700 peer-checked:text-emerald-800">Approve</span>
+                        </div>
+                    </label>
+
+                    <!-- Request Changes Radio -->
+                    <label class="relative cursor-pointer">
+                        <input type="radio" name="decision" value="changes" class="peer sr-only" onchange="updateDecisionState()">
+                        <div class="h-full border border-zinc-200 rounded-md p-3 text-center peer-checked:border-amber-500 peer-checked:bg-amber-50 hover:bg-zinc-50 transition-colors">
+                            <i data-lucide="edit-3" class="size-5 mx-auto mb-1 text-zinc-400 peer-checked:text-amber-600"></i>
+                            <span class="text-sm font-medium text-zinc-700 peer-checked:text-amber-800 leading-tight block">Request<br>Changes</span>
+                        </div>
+                    </label>
+
+                    <!-- Reject Radio -->
+                    <label class="relative cursor-pointer">
+                        <input type="radio" name="decision" value="reject" class="peer sr-only" onchange="updateDecisionState()">
+                        <div class="h-full border border-zinc-200 rounded-md p-3 text-center peer-checked:border-red-600 peer-checked:bg-red-50 hover:bg-zinc-50 transition-colors">
+                            <i data-lucide="x-octagon" class="size-5 mx-auto mb-1 text-zinc-400 peer-checked:text-red-600"></i>
+                            <span class="text-sm font-medium text-zinc-700 peer-checked:text-red-800">Reject</span>
+                        </div>
+                    </label>
+
+                </div>
+            </div>
+
+            <!-- Notes field (expands based on selection) -->
+            <div id="decision-notes-container" class="hidden mb-4 transition-all">
+                <label for="decision-notes" class="text-xs font-medium text-zinc-700 mb-1 block" id="notes-label">Feedback specific to advisor</label>
+                <textarea id="decision-notes" rows="2" class="df-input w-full resize-none text-sm" placeholder="Provide actionable feedback..."></textarea>
+            </div>
+
+            <!-- Action Button -->
+            <button id="btn-submit-decision" disabled class="w-full py-2.5 rounded-md text-sm font-semibold text-white bg-zinc-300 cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2">
+                Select a decision
+            </button>
+        </div>
+
+    </aside>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // UI State Variables
+        const panel = document.getElementById('review-panel');
+        const backdrop = document.getElementById('panel-backdrop');
+        const loader = document.getElementById('panel-loader');
+        const tableContainer = document.getElementById('table-container');
+        const emptyState = document.getElementById('empty-state');
+        let emptyStateToggle = false;
+
+        // Open/Close Panel Logic
+        function openReviewPanel(title) {
+            document.getElementById('panel-title').innerText = title;
+            backdrop.classList.add('open');
+            panel.classList.add('open');
+            document.body.style.overflow = 'hidden'; // prevent background scroll
+            
+            // Reset state
+            resetDecisionState();
+            switchTab('content'); // default to content
+            
+            // Simulate loading system rules
+            loader.classList.remove('hidden');
+            setTimeout(() => {
+                loader.classList.add('hidden');
+                // Auto switch to checks tab to show the error if desired, but content is spec default.
+            }, 600);
+        }
+
+        function closeReviewPanel() {
+            backdrop.classList.remove('open');
+            panel.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        // Tab Switching Logic
+        function switchTab(tabId) {
+            // Hide all contents
+            ['content', 'checks', 'audit'].forEach(id => {
+                document.getElementById(`tab-${id}`).classList.add('hidden');
+                document.getElementById(`tab-${id}`).classList.remove('block');
+                
+                // Reset button styles
+                const btn = document.getElementById(`tab-btn-${id}`);
+                btn.classList.remove('text-emerald-600', 'border-emerald-600');
+                btn.classList.add('text-zinc-500', 'border-transparent');
+            });
+
+            // Show active content
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabId}`).classList.add('block', 'animate-[fade-in_0.2s_ease-out]');
+
+            // Style active button
+            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+            activeBtn.classList.remove('text-zinc-500', 'border-transparent');
+            activeBtn.classList.add('text-emerald-600', 'border-emerald-600');
+        }
+
+        // Decision Logic (Footer interaction)
+        function resetDecisionState() {
+            document.querySelectorAll('input[name="decision"]').forEach(r => r.checked = false);
+            updateDecisionState();
+        }
+
+        function updateDecisionState() {
+            const selected = document.querySelector('input[name="decision"]:checked');
+            const submitBtn = document.getElementById('btn-submit-decision');
+            const notesContainer = document.getElementById('decision-notes-container');
+            const notesLabel = document.getElementById('notes-label');
+            const textarea = document.getElementById('decision-notes');
+
+            // Reset classes
+            submitBtn.className = "w-full py-2.5 rounded-md text-sm font-semibold text-white transition-all duration-200 flex items-center justify-center gap-2";
+            submitBtn.disabled = false;
+            notesContainer.classList.remove('hidden'); // Show for all, require for some
+
+            if (!selected) {
+                submitBtn.classList.add('bg-zinc-300', 'cursor-not-allowed');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = "Select a decision";
+                notesContainer.classList.add('hidden');
+                return;
+            }
+
+            if (selected.value === 'approve') {
+                submitBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-700', 'shadow-[0_2px_10px_-2px_rgba(16,185,129,0.5)]');
+                submitBtn.innerHTML = `<i data-lucide="check" class="size-4"></i> Confirm Approval`;
+                notesLabel.innerText = "Optional Approval Notes";
+                textarea.placeholder = "e.g., Authorized with standard caveats.";
+                textarea.required = false;
+            } else if (selected.value === 'changes') {
+                submitBtn.classList.add('bg-amber-600', 'hover:bg-amber-700', 'shadow-[0_2px_10px_-2px_rgba(217,119,6,0.5)]');
+                submitBtn.innerHTML = `<i data-lucide="send" class="size-4"></i> Send Feedback to Advisor`;
+                notesLabel.innerText = "Required Changes (Sent to Advisor)";
+                textarea.placeholder = "List specific line numbers and required edits...";
+                textarea.required = true;
+                notesContainer.querySelector('textarea').focus();
+            } else if (selected.value === 'reject') {
+                submitBtn.classList.add('bg-red-600', 'hover:bg-red-700', 'shadow-[0_2px_10px_-2px_rgba(220,38,38,0.5)]');
+                submitBtn.innerHTML = `<i data-lucide="ban" class="size-4"></i> Confirm Rejection`;
+                notesLabel.innerText = "Reason for Rejection (Required)";
+                textarea.placeholder = "Explain why this cannot be salvaged...";
+                textarea.required = true;
+                notesContainer.querySelector('textarea').focus();
+            }
+            
+            // Re-init newly injected icons
+            lucide.createIcons();
+        }
+
+        // Mock empty state toggle for demonstration
+        function toggleEmptyState() {
+            emptyStateToggle = !emptyStateToggle;
+            if(emptyStateToggle) {
+                tableContainer.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                tableContainer.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+            }
+        }
+
+        // Add tailwind arbitrary animation class for tab switching
+        tailwind.config.theme.extend.keyframes = {
+            ...tailwind.config.theme.extend.keyframes,
+            'fade-in': {
+                '0%': { opacity: '0', transform: 'translateY(5px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+            }
+        }
+    </script>
+</body>
+</html>

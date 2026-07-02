@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased text-zinc-900 bg-zinc-25 overflow-x-hidden selection:bg-emerald-100 selection:text-emerald-900">
+<head>
+<!--
+    aesthetic_dna: Restrained, high-credibility "Linear/Stripe" execution.
+    ui_paradigm: Command Center Workspace (Persistent Split-Pane overlay logic).
+    palette: Neutral Zinc scale with Emerald-600 accents. Semantic status mapping.
+-->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin · Users | DealFlow AI</title>
+    
+    <!-- Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons (Phosphor, styled like outline/lucide) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        },
+                        status: {
+                            positive: '#10B981',
+                            info: '#2563EB',
+                            warn: '#D97706',
+                            danger: '#DC2626',
+                            neutral: '#9CA3AF',
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                        'panel': '-8px 0 32px rgb(16 24 40 / 0.10)',
+                    },
+                    transitionTimingFunction: {
+                        'spring': 'cubic-bezier(0.16, 1, 0.3, 1)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Baseline Primitives & Utility Classes */
+        :root {
+            --anim-speed: 0.6s;
+            --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .tabular-nums {
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.01em;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+
+        /* Focus & Interactive States */
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.4);
+            border-color: #10B981;
+        }
+
+        .btn-press:active:not(:disabled) {
+            transform: scale(0.98) translateY(1px);
+        }
+
+        /* Micro-animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .stagger-row {
+            opacity: 0;
+            animation: fadeIn 0.4s var(--anim-ease) forwards;
+        }
+        
+        @keyframes shimmer {
+            100% { transform: translateX(100%); }
+        }
+        .shimmer-effect::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            transform: translateX(-100%);
+            background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.2) 20%, rgba(255,255,255,0.5) 60%, rgba(255,255,255,0));
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); width: 0; opacity: 0; }
+            to { transform: translateX(0); width: 440px; opacity: 1; }
+        }
+
+        .panel-open {
+            animation: slideInRight 0.4s var(--anim-ease) forwards;
+            display: flex !important;
+        }
+
+        /* Checkbox Override */
+        input[type="checkbox"] {
+            appearance: none;
+            background-color: #fff;
+            margin: 0;
+            font: inherit;
+            color: currentColor;
+            width: 1.15em;
+            height: 1.15em;
+            border: 1px solid #D1D5DB;
+            border-radius: 4px;
+            display: grid;
+            place-content: center;
+            transition: all 0.2s ease;
+        }
+        input[type="checkbox"]::before {
+            content: "";
+            width: 0.65em;
+            height: 0.65em;
+            clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+            transform: scale(0);
+            transform-origin: bottom left;
+            transition: 120ms transform ease-in-out;
+            background-color: CanvasText;
+        }
+        input[type="checkbox"]:checked {
+            background-color: #10B981;
+            border-color: #10B981;
+        }
+        input[type="checkbox"]:checked::before {
+            transform: scale(1);
+            background-color: white;
+        }
+        
+        /* Layout overrides */
+        .grid-header-align {
+            display: grid;
+            grid-template-columns: 32px 2fr 1fr 2fr 1fr 1fr 100px;
+        }
+
+        .tooltip-trigger:hover .tooltip-content {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        /* Hide things dynamically */
+        .hidden-until-visible { display: none; }
+    </style>
+</head>
+
+<body class="min-h-[100dvh] flex flex-col md:flex-row bg-zinc-25 overflow-hidden">
+
+    <!-- OVERLAYS & TOASTS (Macro Architecture Layer 5) -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+        <!-- Toasts injected via JS -->
+    </div>
+
+    <!-- SIDEBAR (Macro Architecture Layer 1) -->
+    <aside class="hidden md:flex flex-col w-[260px] bg-zinc-900 border-r border-zinc-800 text-zinc-50 flex-shrink-0 z-20">
+        <div class="h-16 flex items-center px-6 border-b border-zinc-800">
+            <i class="ph ph-cube text-xl text-emerald-600 mr-2"></i>
+            <span class="font-semibold tracking-tight text-[15px]">DealFlow AI</span>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto py-6 px-3 flex flex-col gap-1">
+            <div class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 px-3 mb-2 mt-4">Module</div>
+            
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors text-sm">
+                <i class="ph ph-layout text-lg"></i>
+                Dashboard
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors text-sm">
+                <i class="ph ph-briefcase text-lg"></i>
+                Mandates
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors text-sm">
+                <i class="ph ph-target text-lg"></i>
+                Matches & Sourcing
+            </a>
+
+            <div class="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 px-3 mb-2 mt-6">Settings & Admin</div>
+            
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors text-sm">
+                <i class="ph ph-building text-lg"></i>
+                Firm Profile
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md bg-zinc-800 text-zinc-50 border-l-2 border-emerald-600 transition-colors text-sm font-medium">
+                <i class="ph ph-users text-lg"></i>
+                Users & Roles
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800 transition-colors text-sm">
+                <i class="ph ph-shield-check text-lg"></i>
+                Compliance Audit
+            </a>
+        </div>
+
+        <div class="p-4 border-t border-zinc-800">
+            <div class="flex items-center gap-3 w-full">
+                <div class="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-semibold">SA</div>
+                <div class="flex flex-col flex-1 truncate">
+                    <span class="text-sm font-medium truncate">System Admin</span>
+                    <span class="text-xs text-zinc-500 truncate">admin@dealflow.ai</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- CONTENT WORKSPACE (Macro Architecture Layer 2) -->
+    <main class="flex-1 flex flex-col min-w-0 max-h-[100dvh]">
+        
+        <!-- Top Nav -->
+        <header class="h-16 flex items-center justify-between px-6 lg:px-8 border-b border-zinc-200 bg-white shadow-xs z-10 flex-shrink-0">
+            <div class="flex items-center gap-2 text-sm text-zinc-500">
+                <span>Settings</span>
+                <i class="ph ph-caret-right text-xs"></i>
+                <span class="text-zinc-900 font-medium tracking-tight">Users & Roles</span>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <button class="w-8 h-8 rounded-md flex items-center justify-center text-zinc-400 hover:bg-zinc-50 transition-colors">
+                    <i class="ph ph-bell text-lg"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Scrollable Area -->
+        <div class="flex-1 overflow-x-hidden overflow-y-auto flex relative layout-wrapper">
+            
+            <!-- Primary Content Col -->
+            <div class="flex-1 py-8 px-4 lg:px-8 max-w-7xl mx-auto flex flex-col gap-6 w-full transition-all duration-500 pb-24">
+                
+                <!-- Section Header -->
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div>
+                        <h1 class="text-[24px] leading-tight font-semibold text-zinc-900 tracking-tight">Manage Team</h1>
+                        <p class="text-[14px] text-zinc-500 mt-1">Provision access, assign roles, and review privileges limits.</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button onclick="toggleOfflineView()" class="btn-press h-9 px-4 rounded-md border border-zinc-200 bg-white text-zinc-700 text-[13px] font-medium hover:bg-zinc-50 hover:shadow-xs transition-all shadow-xs flex items-center gap-2">
+                            <i class="ph ph-users-slash text-zinc-400"></i>
+                            Show inactive
+                        </button>
+                        <button onclick="openPanel('invite')" class="btn-press h-9 px-4 rounded-md border border-transparent bg-emerald-600 text-white text-[13px] font-medium hover:bg-emerald-700 hover:shadow-sm transition-all shadow-xs flex items-center gap-2">
+                            <i class="ph ph-plus-circle"></i>
+                            Invite user
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table Controls Toolbar -->
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                    <!-- Filters -->
+                    <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <div class="relative w-full sm:w-64">
+                            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+                            <input type="text" placeholder="Search name or email..." class="w-full h-9 pl-9 pr-3 rounded-md border border-zinc-200 text-[13px] text-zinc-900 placeholder:text-zinc-400 bg-white focus:border-emerald-600 transition-colors shadow-xs">
+                        </div>
+                        <div class="relative">
+                            <select class="h-9 pl-3 pr-8 rounded-md border border-zinc-200 text-[13px] text-zinc-700 bg-white hover:bg-zinc-50 transition-colors shadow-xs appearance-none cursor-pointer">
+                                <option>All Roles</option>
+                                <option>Advisor</option>
+                                <option>Analyst</option>
+                                <option>Compliance</option>
+                                <option>Admin</option>
+                            </select>
+                            <i class="ph ph-caret-down absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none text-xs"></i>
+                        </div>
+                        <div class="hidden md:flex items-center h-9 px-1 rounded-md border border-zinc-200 bg-zinc-50 p-1 shadow-xs">
+                            <button class="px-3 h-full rounded text-[13px] font-medium bg-white text-zinc-900 shadow-xs border border-zinc-200/50">Active</button>
+                            <button class="px-3 h-full rounded text-[13px] font-medium text-zinc-500 hover:text-zinc-700">Pending</button>
+                        </div>
+                    </div>
+
+                    <!-- Contextual Bulk Actions (Hidden by default) -->
+                    <div id="bulk-actions" class="opacity-0 pointer-events-none flex items-center gap-2 transition-opacity duration-200 bg-zinc-50 px-3 py-1.5 rounded-md border border-zinc-200">
+                        <span class="text-[13px] font-medium text-zinc-700 mr-2 tabular-nums"><span id="sel-count">0</span> selected</span>
+                        <button class="h-7 px-3 text-[12px] font-medium text-zinc-600 bg-white border border-zinc-200 rounded hover:bg-zinc-50 transition-colors">Resend Invites</button>
+                        <button class="h-7 px-3 text-[12px] font-medium text-status-danger bg-white border border-zinc-200 rounded hover:bg-red-50 hover:border-red-200 transition-colors">Deactivate</button>
+                    </div>
+                </div>
+
+                <!-- Active Users DataTable (Meso Architecture) -->
+                <div class="bg-white border border-zinc-200 rounded-lg shadow-xs overflow-hidden flex flex-col relative">
+                    
+                    <!-- Table Header -->
+                    <div class="grid-header-align items-center px-4 py-3 bg-zinc-50 border-b border-zinc-200 text-[12px] font-semibold text-zinc-500 uppercase tracking-widest min-w-[800px]">
+                        <div class="flex items-center justify-center">
+                            <input type="checkbox" onChange="toggleAll(this)">
+                        </div>
+                        <div class="flex items-center gap-1 cursor-pointer hover:text-zinc-700 group">Name <i class="ph ph-caret-up text-[10px] text-zinc-300 group-hover:text-zinc-500"></i></div>
+                        <div>Role</div>
+                        <div>Permissions</div>
+                        <div>Status</div>
+                        <div class="text-right flex items-center justify-end gap-1 cursor-pointer hover:text-zinc-700 group">Added <i class="ph ph-caret-down text-[10px] text-zinc-900"></i></div>
+                        <div class="text-right px-2">Actions</div>
+                    </div>
+
+                    <!-- Table Body -->
+                    <div class="flex flex-col min-w-[800px] divide-y divide-zinc-100" id="user-table-body">
+                        
+                        <!-- Row 1 (Admin - Complex Permissions) -->
+                        <div class="grid-header-align items-center px-4 py-3 hover:bg-zinc-50/80 transition-colors stagger-row group" style="--index: 1;">
+                            <div class="flex items-center justify-center"><input type="checkbox" class="row-check"></div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">SJ</div>
+                                <div class="flex flex-col min-w-0">
+                                    <span class="text-[14px] font-medium text-zinc-900 truncate">Sarah Jenkins</span>
+                                    <span class="text-[13px] text-zinc-500 truncate">sarah@dealflow.ai</span>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-zinc-800 text-zinc-50 tracking-tight">Admin</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <span class="inline-flex px-2 py-0.5 rounded block text-[11px] font-medium bg-zinc-100 text-zinc-600 border border-zinc-200">System control</span>
+                                <div class="relative tooltip-trigger cursor-help">
+                                    <span class="inline-flex px-1.5 py-0.5 rounded text-[11px] font-medium bg-zinc-50 text-zinc-400 border border-zinc-200 hover:bg-zinc-100">+4</span>
+                                    <div class="tooltip-content absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-zinc-900 text-zinc-100 text-[11px] rounded shadow-md opacity-0 visibility-hidden transition-all duration-200 z-50 pointer-events-none text-center">
+                                        View deals, Manage outreach, Approve campaigns, Audit logs
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-status-positive"></div>
+                                    <span class="text-[13px] text-zinc-700 font-medium">Active</span>
+                                </div>
+                            </div>
+                            <div class="text-[13px] text-zinc-500 text-right tabular-nums">Oct 12, 2023</div>
+                            <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2">
+                                <button onclick="openPanel('edit', 'sarah')" class="p-1.5 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Edit Permissions"><i class="ph ph-pencil-simple text-[16px]"></i></button>
+                                <button onclick="triggerBlockDeactivateToast()" class="p-1.5 text-zinc-400 hover:text-status-danger hover:bg-red-50 rounded transition-colors" title="Deactivate"><i class="ph ph-trash text-[16px]"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- Row 2 (Compliance - Specific Scope) -->
+                        <div class="grid-header-align items-center px-4 py-3 hover:bg-zinc-50/80 transition-colors stagger-row group" style="--index: 2;">
+                            <div class="flex items-center justify-center"><input type="checkbox" class="row-check"></div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-zinc-200 text-zinc-700 flex items-center justify-center text-xs font-bold shrink-0">MV</div>
+                                <div class="flex flex-col min-w-0">
+                                    <span class="text-[14px] font-medium text-zinc-900 truncate">Marcus Vance</span>
+                                    <span class="text-[13px] text-zinc-500 truncate">marcus@dealflow.ai</span>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-blue-50 text-blue-700 border border-blue-200 tracking-tight">Compliance</span>
+                            </div>
+                            <div class="flex items-start gap-1 flex-wrap">
+                                <span class="inline-flex px-2 py-0.5 rounded block text-[11px] font-medium bg-zinc-50 text-zinc-600 border border-zinc-200">Approve campaigns</span>
+                                <span class="inline-flex px-2 py-0.5 rounded block text-[11px] font-medium bg-zinc-50 text-zinc-600 border border-zinc-200">Audit rules</span>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-status-positive"></div>
+                                    <span class="text-[13px] text-zinc-700 font-medium">Active</span>
+                                </div>
+                            </div>
+                            <div class="text-[13px] text-zinc-500 text-right tabular-nums">Jan 04, 2024</div>
+                            <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2">
+                                <button onclick="openPanel('edit')" class="p-1.5 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"><i class="ph ph-pencil-simple text-[16px]"></i></button>
+                                <button class="p-1.5 text-zinc-400 hover:text-status-danger hover:bg-red-50 rounded transition-colors"><i class="ph ph-trash text-[16px]"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- Row 3 (Advisor) -->
+                        <div class="grid-header-align items-center px-4 py-3 hover:bg-zinc-50/80 transition-colors stagger-row group" style="--index: 3;">
+                            <div class="flex items-center justify-center"><input type="checkbox" class="row-check"></div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-zinc-200 text-zinc-700 flex items-center justify-center text-xs font-bold shrink-0">ER</div>
+                                <div class="flex flex-col min-w-0">
+                                    <span class="text-[14px] font-medium text-zinc-900 truncate">Elena Rostova</span>
+                                    <span class="text-[13px] text-zinc-500 truncate">elena@dealflow.ai</span>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200 tracking-tight">Advisor</span>
+                            </div>
+                            <div class="flex items-start gap-1">
+                                <span class="inline-flex px-2 py-0.5 rounded block text-[11px] font-medium bg-zinc-50 text-zinc-600 border border-zinc-200">Deals & Sourcing</span>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-status-positive"></div>
+                                    <span class="text-[13px] text-zinc-700 font-medium">Active</span>
+                                </div>
+                            </div>
+                            <div class="text-[13px] text-zinc-500 text-right tabular-nums">Feb 18, 2024</div>
+                            <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2">
+                                <button onclick="openPanel('edit')" class="p-1.5 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"><i class="ph ph-pencil-simple text-[16px]"></i></button>
+                                <button class="p-1.5 text-zinc-400 hover:text-status-danger hover:bg-red-50 rounded transition-colors"><i class="ph ph-trash text-[16px]"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- Row 4 (Pending Invite - Edge state simulation) -->
+                        <div class="grid-header-align items-center px-4 py-3 hover:bg-zinc-50/80 transition-colors bg-orange-50/30 stagger-row group border-l-2 border-l-status-warn" style="--index: 4;">
+                            <div class="flex items-center justify-center"><input type="checkbox" class="row-check"></div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full border border-dashed border-zinc-300 text-zinc-400 flex items-center justify-center text-xs font-bold shrink-0">DC</div>
+                                <div class="flex flex-col min-w-0">
+                                    <span class="text-[14px] font-medium text-zinc-700 truncate italic">David Chen</span>
+                                    <span class="text-[13px] text-zinc-500 truncate">david.c@dealflow.ai</span>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium bg-zinc-100 text-zinc-500 border border-zinc-200 tracking-tight">Analyst</span>
+                            </div>
+                            <div>
+                                <span class="text-[12px] text-zinc-400 italic">Pending acceptance</span>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-status-warn animate-pulse"></div>
+                                    <span class="text-[13px] text-status-warn font-medium">Pending invite</span>
+                                </div>
+                            </div>
+                            <div class="text-[13px] text-zinc-400 text-right tabular-nums">2 hrs ago</div>
+                            <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2">
+                                <button class="h-6 px-2 text-[11px] font-medium bg-white border border-zinc-200 rounded text-zinc-600 hover:bg-zinc-50" title="Resend email">Resend</button>
+                                <button class="p-1.5 text-zinc-400 hover:text-status-danger hover:bg-red-50 rounded transition-colors"><i class="ph ph-x text-[16px]"></i></button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Inactive Users Section (Toggled) -->
+                <div id="inactive-view" class="hidden-until-visible flex-col gap-3 mt-4 animate-[fadeIn_0.3s_ease]">
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-[14px] font-semibold text-zinc-700 tracking-tight">Inactive Users</h2>
+                        <div class="h-px bg-zinc-200 flex-1"></div>
+                    </div>
+                    
+                    <div class="bg-white border border-zinc-200 rounded-lg shadow-xs overflow-hidden flex flex-col opacity-60 hover:opacity-100 transition-opacity">
+                        <div class="grid-header-align items-center px-4 py-3 border-b border-zinc-200 text-[12px] font-semibold text-zinc-500 uppercase tracking-widest min-w-[800px] bg-zinc-50/50">
+                            <div><!-- no check --></div>
+                            <div>Name</div>
+                            <div>Role</div>
+                            <div>Permissions</div>
+                            <div>Status</div>
+                            <div class="text-right">Removed</div>
+                            <div class="text-right px-2">Actions</div>
+                        </div>
+                        <div class="grid-header-align items-center px-4 py-3 min-w-[800px] bg-zinc-25">
+                            <div></div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-zinc-100 text-zinc-400 flex items-center justify-center text-xs font-bold shrink-0">JS</div>
+                                <div class="flex flex-col min-w-0 pb-1">
+                                    <span class="text-[14px] font-medium text-zinc-600 line-through truncate">James Smith</span>
+                                    <span class="text-[13px] text-zinc-400 truncate">james@dealflow.ai</span>
+                                </div>
+                            </div>
+                            <div><span class="text-[12px] text-zinc-500">Analyst</span></div>
+                            <div><span class="text-[12px] text-zinc-400 italic">Access revoked</span></div>
+                            <div><span class="text-[13px] text-zinc-500 font-medium">Inactive</span></div>
+                            <div class="text-[13px] text-zinc-400 text-right tabular-nums">Nov 14, 2023</div>
+                            <div class="flex items-center justify-end pr-2">
+                                <button class="h-7 px-3 text-[12px] font-medium bg-white border border-zinc-200 rounded text-zinc-700 hover:bg-zinc-50 hover:text-emerald-600 transition-colors shadow-xs">Reactivate</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- SLIDE-IN PANEL (Meso Architecture - Forms/Edit) -->
+            <!-- Note: Display hidden via width 0 inline, managed by CSS classes -->
+            <div id="side-panel" class="hidden w-0 bg-white border-l border-zinc-200 shadow-panel flex-col z-30 flex-shrink-0 transition-all duration-300">
+                
+                <!-- Panel Header -->
+                <div class="h-16 border-b border-zinc-200 px-6 flex items-center justify-between shrink-0 bg-zinc-25/50 backdrop-blur-sm">
+                    <div>
+                        <h2 id="panel-title" class="text-[18px] font-semibold text-zinc-900 tracking-tight">Edit Permissions</h2>
+                    </div>
+                    <button onclick="closePanel()" class="w-8 h-8 rounded flex items-center justify-center text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 transition-colors">
+                        <i class="ph ph-x"></i>
+                    </button>
+                </div>
+
+                <!-- Panel Scroll Body -->
+                <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-8">
+                    
+                    <!-- Identity Block (Edit Mode visual) -->
+                    <div id="panel-identity" class="flex items-center gap-4 hidden">
+                        <div class="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg font-bold border border-emerald-200 shadow-sm">SJ</div>
+                        <div>
+                            <div class="text-[16px] font-semibold text-zinc-900 leading-none mb-1">Sarah Jenkins</div>
+                            <div class="text-[13px] text-zinc-500">sarah@dealflow.ai</div>
+                        </div>
+                    </div>
+
+                    <!-- Detail Form -->
+                    <form onsubmit="event.preventDefault(); submitPanel();" class="flex flex-col gap-6">
+                        
+                        <!-- Inputs for Invite Mode -->
+                        <div id="invite-fields" class="flex flex-col gap-4">
+                            <div>
+                                <label class="block text-[12px] font-semibold tracking-widest text-zinc-500 uppercase mb-1.5">Full Name</label>
+                                <input type="text" placeholder="e.g. Jane Doe" class="w-full h-10 px-3 rounded-md border border-zinc-300 text-[14px] focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 transition-shadow shadow-xs">
+                            </div>
+                            <div>
+                                <label class="block text-[12px] font-semibold tracking-widest text-zinc-500 uppercase mb-1.5">Email Address</label>
+                                <input type="email" placeholder="name@firm.com" class="w-full h-10 px-3 rounded-md border border-zinc-300 text-[14px] focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 transition-shadow shadow-xs">
+                            </div>
+                        </div>
+
+                        <!-- Role Selector -->
+                        <div>
+                            <label class="block text-[12px] font-semibold tracking-widest text-zinc-500 uppercase mb-1.5">Base Role</label>
+                            <select id="role-select" class="w-full h-10 px-3 rounded-md border border-zinc-300 text-[14px] font-medium text-zinc-900 bg-white hover:bg-zinc-50 transition-colors shadow-xs outline-none">
+                                <option value="advisor">Advisor</option>
+                                <option value="analyst">Analyst</option>
+                                <option value="compliance">Compliance</option>
+                                <option value="admin" selected>Admin (Full Access)</option>
+                            </select>
+                            <p class="text-[12px] text-zinc-500 mt-2 leading-relaxed">Roles grant default permission sets. You can customize individual grants below.</p>
+                        </div>
+
+                        <hr class="border-zinc-200">
+
+                        <!-- Permissions Grid (Micro Architecture - Dense Data via Bento style) -->
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <label class="block text-[12px] font-semibold tracking-widest text-zinc-500 uppercase">Custom Grants</label>
+                                <span class="text-[11px] text-status-info font-medium bg-blue-50 px-2 py-0.5 rounded border border-blue-100 hidden" id="scope-warning">Role vs Scope Mismatch</span>
+                            </div>
+                            
+                            <!-- Checkbox Grid -->
+                            <div class="border border-zinc-200 rounded-md bg-zinc-50 overflow-hidden divide-y divide-zinc-200">
+                                
+                                <!-- Category 1 -->
+                                <label class="flex items-start gap-3 p-3 bg-white hover:bg-zinc-50 transition-colors cursor-pointer group">
+                                    <div class="mt-0.5"><input type="checkbox" checked></div>
+                                    <div class="flex-1">
+                                        <div class="text-[13px] font-medium text-zinc-900 group-hover:text-emerald-700 transition-colors">Deal Sourcing</div>
+                                        <div class="text-[12px] text-zinc-500 mt-0.5 leading-snug">Read pipelines, view mandates, run target matches.</div>
+                                    </div>
+                                </label>
+                                
+                                <label class="flex items-start gap-3 p-3 bg-white hover:bg-zinc-50 transition-colors cursor-pointer group">
+                                    <div class="mt-0.5"><input type="checkbox" checked></div>
+                                    <div class="flex-1">
+                                        <div class="text-[13px] font-medium text-zinc-900 group-hover:text-emerald-700 transition-colors">Manage Outreach</div>
+                                        <div class="text-[12px] text-zinc-500 mt-0.5 leading-snug">Sequence emails, send campaigns, manage replies.</div>
+                                    </div>
+                                </label>
+
+                                <label class="flex items-start gap-3 p-3 bg-white hover:bg-zinc-50 transition-colors cursor-pointer group">
+                                    <div class="mt-0.5"><input type="checkbox" checked></div>
+                                    <div class="flex-1">
+                                        <div class="text-[13px] font-medium text-zinc-900 group-hover:text-emerald-700 transition-colors">Approve Campaigns</div>
+                                        <div class="text-[12px] text-zinc-500 mt-0.5 leading-snug">Compliance review step before blasts execute.</div>
+                                    </div>
+                                    <div class="mt-1"><i class="ph ph-shield-check text-status-warn text-[14px]" title="Requires compliance context"></i></div>
+                                </label>
+
+                                <label class="flex items-start gap-3 p-3 bg-white hover:bg-zinc-50 transition-colors cursor-pointer group">
+                                    <div class="mt-0.5"><input type="checkbox" checked id="toggle-admin-perm"></div>
+                                    <div class="flex-1">
+                                        <div class="text-[13px] font-medium text-zinc-900 group-hover:text-emerald-700 transition-colors">Audit Export</div>
+                                        <div class="text-[12px] text-zinc-500 mt-0.5 leading-snug">Download compliance chain cryptographically signed logs.</div>
+                                    </div>
+                                </label>
+
+                            </div>
+                        </div>
+
+                    </form>
+                </div>
+
+                <!-- Panel Footer / Actions -->
+                <div class="p-6 border-t border-zinc-200 bg-zinc-50 flex items-center justify-between shrink-0">
+                    <button onclick="closePanel()" class="px-4 h-10 rounded-md text-[13px] font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200 transition-colors">Cancel</button>
+                    <button id="panel-submit" onclick="submitPanel()" class="btn-press px-6 h-10 rounded-md bg-emerald-600 text-white text-[13px] font-medium shadow-md shadow-emerald-600/20 hover:bg-emerald-700 hover:shadow-lg transition-all relative overflow-hidden">
+                        <span class="relative z-10 flex items-center gap-2" id="submit-text">Save Permissions</span>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- UI State Simulation Scripts -->
+    <script>
+        // Checkbox Bulk Action Logic
+        const checkBoxes = document.querySelectorAll('.row-check');
+        const bulkBar = document.getElementById('bulk-actions');
+        const countSpan = document.getElementById('sel-count');
+
+        function updateBulkBar() {
+            let count = Array.from(checkBoxes).filter(cb => cb.checked).length;
+            if(count > 0) {
+                bulkBar.classList.remove('opacity-0', 'pointer-events-none');
+                countSpan.innerText = count;
+            } else {
+                bulkBar.classList.add('opacity-0', 'pointer-events-none');
+            }
+        }
+
+        function toggleAll(source) {
+            checkBoxes.forEach(cb => { cb.checked = source.checked; });
+            updateBulkBar();
+        }
+
+        checkBoxes.forEach(cb => {
+            cb.addEventListener('change', updateBulkBar);
+        });
+
+        // Panel Management Logic
+        const sidePanel = document.getElementById('side-panel');
+        const pTitle = document.getElementById('panel-title');
+        const pIdentity = document.getElementById('panel-identity');
+        const pInviteFields = document.getElementById('invite-fields');
+        const pSubmit = document.getElementById('panel-submit');
+        const submitText = document.getElementById('submit-text');
+
+        function openPanel(mode, subjectId = null) {
+            sidePanel.classList.remove('hidden');
+            // small delay to allow display:flex to register before animating width
+            setTimeout(() => { sidePanel.classList.add('panel-open'); }, 10);
+
+            if(mode === 'invite') {
+                pTitle.innerText = "Invite New User";
+                pIdentity.classList.add('hidden');
+                pInviteFields.classList.remove('hidden');
+                submitText.innerHTML = `Send Invite <i class="ph ph-paper-plane-tilt"></i>`;
+                document.getElementById('role-select').value = "advisor";
+            } else {
+                pTitle.innerText = "Role & Permissions";
+                pIdentity.classList.remove('hidden');
+                pInviteFields.classList.add('hidden');
+                submitText.innerText = "Save Permissions";
+                document.getElementById('role-select').value = "admin";
+            }
+        }
+
+        function closePanel() {
+            sidePanel.classList.remove('panel-open');
+            setTimeout(() => { sidePanel.classList.add('hidden'); }, 400); // match animation duration
+        }
+
+        function submitPanel() {
+            pSubmit.innerHTML = `<i class="ph ph-spinner animate-spin"></i> Saving...`;
+            pSubmit.classList.add('opacity-80', 'pointer-events-none');
+            
+            setTimeout(() => {
+                showToast("Success", "Permissions updated and saved to audit log.", "positive");
+                closePanel();
+                // Reset button verbally
+                setTimeout(() => { 
+                    pSubmit.innerHTML = submitText.innerHTML; 
+                    pSubmit.classList.remove('opacity-80', 'pointer-events-none');
+                }, 500);
+            }, 1200);
+        }
+
+        // Logic specific to spec: Role warning conflict
+        document.getElementById('role-select').addEventListener('change', (e) => {
+            const warning = document.getElementById('scope-warning');
+            if(e.target.value !== 'admin' && document.getElementById('toggle-admin-perm').checked) {
+                warning.classList.remove('hidden');
+            } else {
+                warning.classList.add('hidden');
+            }
+        });
+
+        // Inactive View Toggle
+        function toggleOfflineView() {
+            const v = document.getElementById('inactive-view');
+            if(v.classList.contains('hidden-until-visible')) {
+                v.classList.remove('hidden-until-visible');
+                v.classList.add('flex');
+            } else {
+                v.classList.add('hidden-until-visible');
+                v.classList.remove('flex');
+            }
+        }
+
+        // Toasts & Error Handling Simulation
+        function showToast(title, message, type='info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let icn = type === 'danger' ? 'ph-warning-circle text-status-danger' : 
+                      type === 'positive' ? 'ph-check-circle text-status-positive' : 'ph-info text-status-info';
+            
+            toast.className = `bg-white border border-zinc-200 shadow-md rounded-md p-4 flex gap-3 transform transition-all duration-300 translate-y-4 opacity-0`;
+            toast.innerHTML = `
+                <div class="mt-0.5"><i class="ph ${icn} text-[18px]"></i></div>
+                <div class="flex-1">
+                    <h4 class="text-[13px] font-semibold text-zinc-900">${title}</h4>
+                    <p class="text-[13px] text-zinc-600 mt-1 leading-snug">${message}</p>
+                </div>
+                <button class="text-zinc-400 hover:text-zinc-700" onclick="this.parentElement.remove()"><i class="ph ph-x"></i></button>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Animate in
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-4', 'opacity-0');
+            });
+
+            // Auto remove
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        // Trigger specifically requested error state
+        function triggerBlockDeactivateToast() {
+            showToast("Deactivation Blocked", "Cannot deactivate. Sarah Jenkins is the last System Admin. Promote another user first to prevent total lockdown.", "danger");
+        }
+
+    </script>
+</body>
+</html>

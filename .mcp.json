@@ -1,0 +1,16 @@
+{
+  "_about": "claudomat baseline MCP wiring. Rendered by `claudomat init` if .mcp.json is absent. Required by Phase 5 of core/setup-tools/install.md. Edit per project needs (add domain-mcp / linear-mcp / slack-mcp / lucid-mcp / etc.) — `claudomat sync` NEVER overwrites this file. Conditional MCPs to add as needed: domain-mcp (Dynadot), railway-mcp (alt to railway-cli), linear-mcp (Linear ticketing), github-mcp (alt to gh CLI), slack-mcp (Slack notifications), lucid-mcp (architecture diagrams at v6b).",
+  "_playwright_note": "Playwright × 10 instances power T-5 swarm parallelism + T-6 layout + roadmap-planning competitive sweep. Partial allocation breaks the swarm patterns documented in command-center/testing/test-writing-principles.md § 15.6.",
+  "mcpServers": {
+    "playwright-1":  { "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+    "playwright-2":  { "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+    "playwright-3":  { "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+    "playwright-4":  { "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+    "playwright-5":  { "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+    "playwright-6":  { "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+    "playwright-7":  { "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+    "playwright-8":  { "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+    "playwright-9":  { "command": "npx", "args": ["-y", "@playwright/mcp@latest"] },
+    "playwright-10": { "command": "npx", "args": ["-y", "@playwright/mcp@latest"] }
+  }
+}

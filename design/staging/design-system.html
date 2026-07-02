@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased w-full h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DealFlow AI | Design System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,300,400&f[]=jet-brains-mono@400,500&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Satoshi', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        emerald: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            200: '#a7f3d0',
+                            300: '#6ee7b7',
+                            400: '#34d399',
+                            500: '#10b981',
+                            600: '#059669', // Primary accent
+                            700: '#047857',
+                            800: '#065f46',
+                            900: '#064e3b',
+                            950: '#022c22',
+                        },
+                        zinc: {
+                            50: '#fafafa',
+                            100: '#f4f4f5',
+                            200: '#e4e4e7',
+                            300: '#d4d4d8',
+                            400: '#a1a1aa',
+                            500: '#71717a',
+                            600: '#52525b',
+                            700: '#3f3f46',
+                            800: '#27272a',
+                            900: '#18181b', // Primary text
+                            950: '#09090b',
+                        }
+                    },
+                    boxShadow: {
+                        'float': '0 4px 24px -6px rgba(0, 0, 0, 0.08), 0 0 1px 0 rgba(0,0,0,0.2)',
+                        'inner-light': 'inset 0 1px 0 0 rgba(255, 255, 255, 0.8)',
+                    },
+                    animation: {
+                        'shimmer': 'shimmer 2s infinite linear',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        shimmer: {
+                            '0%': { transform: 'translateX(-100%)' },
+                            '100%': { transform: 'translateX(100%)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --df-radius-sm: 0.25rem;
+            --df-radius-md: 0.375rem;
+            --df-radius-lg: 0.5rem;
+        }
+        
+        /* Enforce strictly tabular numbers globally for figures */
+        .tnum {
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: "tnum" 1;
+            letter-spacing: -0.02em;
+        }
+        
+        /* Linear-style smooth scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d4d4d8;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1aa;
+        }
+
+        /* Abstract structural background for component display areas */
+        .lab-canvas {
+            background-image: radial-gradient(#e4e4e7 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-position: -10px -10px;
+        }
+
+        /* Input auto-fill override to prevent harsh yellow/blue standard styling */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover, 
+        input:-webkit-autofill:focus, 
+        input:-webkit-autofill:active{
+            -webkit-box-shadow: 0 0 0 30px white inset !important;
+            -webkit-text-fill-color: #18181b !important;
+        }
+
+        /* Hide scrollbar for layout but keep scroll */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+    </style>
+</head>
+<body class="flex bg-zinc-50 text-zinc-900 font-sans tracking-tight min-h-[100dvh] overflow-hidden selection:bg-emerald-200 selection:text-emerald-900">
+
+    <!-- NAVIGATION - LEFT SIDEBAR -->
+    <nav class="w-64 bg-zinc-50 border-r border-zinc-200 flex flex-col h-full flex-shrink-0 z-20 absolute md:relative transform -translate-x-full md:translate-x-0 transition-transform duration-300">
+        <div class="h-14 flex items-center px-6 border-b border-zinc-200">
+            <div class="flex items-center gap-2 text-zinc-950 font-bold text-lg tracking-tighter">
+                <div class="w-5 h-5 bg-emerald-600 rounded-sm flex items-center justify-center">
+                    <i class="ph-bold ph-trend-up text-white text-xs"></i>
+                </div>
+                DealFlow <span class="text-zinc-400 font-medium ml-1 text-sm">Design</span>
+            </div>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-4 space-y-6 text-sm">
+            <div>
+                <h3 class="text-[10px] uppercase font-bold text-zinc-500 tracking-widest mb-3 px-2">Core Foundations</h3>
+                <ul class="space-y-1">
+                    <li><a href="#typography" class="flex items-center gap-2 px-2 py-1.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-colors"><i class="ph ph-text-aa text-lg"></i> Typography</a></li>
+                    <li><a href="#colors" class="flex items-center gap-2 px-2 py-1.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-colors"><i class="ph ph-palette text-lg"></i> Color Tokens</a></li>
+                </ul>
+            </div>
+
+            <div>
+                <h3 class="text-[10px] uppercase font-bold text-zinc-500 tracking-widest mb-3 px-2">Standard UI</h3>
+                <ul class="space-y-0.5">
+                    <li><a href="#buttons" class="flex items-center gap-2 px-2 py-1.5 text-zinc-900 bg-zinc-200/50 rounded-md font-medium"><i class="ph ph-mouse-left-click text-lg text-emerald-600"></i> Buttons</a></li>
+                    <li><a href="#inputs" class="flex items-center gap-2 px-2 py-1.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-colors"><i class="ph ph-cursor-text text-lg"></i> Inputs & Controls</a></li>
+                    <li><a href="#badges" class="flex items-center gap-2 px-2 py-1.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-colors"><i class="ph ph-tag text-lg"></i> Badges & Tags</a></li>
+                    <li><a href="#datatable" class="flex items-center gap-2 px-2 py-1.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-colors"><i class="ph ph-table text-lg"></i> Data Tables</a></li>
+                    <li><a href="#overlays" class="flex items-center gap-2 px-2 py-1.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-colors"><i class="ph ph-browsers text-lg"></i> Modals & Toasts</a></li>
+                    <li><a href="#states" class="flex items-center gap-2 px-2 py-1.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-colors"><i class="ph ph-ghost text-lg"></i> Empty & Loading</a></li>
+                </ul>
+            </div>
+
+            <div>
+                <h3 class="text-[10px] uppercase font-bold text-emerald-600 tracking-widest mb-3 px-2 flex items-center gap-1"><i class="ph-fill ph-target"></i> DealFlow Custom</h3>
+                <ul class="space-y-0.5">
+                    <li><a href="#ai-match" class="flex items-center gap-2 px-2 py-1.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-colors"><i class="ph ph-sparkle text-lg"></i> AI Match Cards</a></li>
+                    <li><a href="#compliance" class="flex items-center gap-2 px-2 py-1.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-colors"><i class="ph ph-shield-check text-lg"></i> Compliance Panel</a></li>
+                    <li><a href="#mandate" class="flex items-center gap-2 px-2 py-1.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-colors"><i class="ph ph-folder-star text-lg"></i> Mandate Cards</a></li>
+                    <li><a href="#audit" class="flex items-center gap-2 px-2 py-1.5 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-md transition-colors"><i class="ph ph-list-magnifying-glass text-lg"></i> Audit Logs</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="p-4 border-t border-zinc-200">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-zinc-200 border border-zinc-300 flex items-center justify-center text-xs font-bold text-zinc-600">JD</div>
+                <div class="flex flex-col">
+                    <span class="text-sm font-medium leading-tight">J. Doe</span>
+                    <span class="text-xs text-zinc-500 leading-tight">System Admin</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- MAIN CANVAS -->
+    <main class="flex-1 flex flex-col h-full overflow-hidden bg-white relative z-10 w-full">
+        
+        <!-- TOPBAR -->
+        <header class="h-14 border-b border-zinc-200 bg-white/80 backdrop-blur-md flex items-center justify-between px-6 flex-shrink-0 sticky top-0 z-30">
+            <!-- Breadcrumb -->
+            <div class="flex items-center text-sm font-medium text-zinc-500 gap-2">
+                <span class="hover:text-zinc-900 cursor-pointer">Design System</span>
+                <i class="ph ph-caret-right text-zinc-300"></i>
+                <span class="text-zinc-900">Component References v2.4</span>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <div class="relative hidden md:block w-64">
+                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+                    <input type="text" placeholder="Search tokens, components..." class="w-full bg-zinc-100 border border-transparent rounded-md py-1.5 pl-9 pr-3 text-sm focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none">
+                    <div class="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                        <kbd class="px-1.5 py-0.5 text-[10px] font-mono bg-zinc-200 text-zinc-500 rounded border border-zinc-300">⌘</kbd>
+                        <kbd class="px-1.5 py-0.5 text-[10px] font-mono bg-zinc-200 text-zinc-500 rounded border border-zinc-300">K</kbd>
+                    </div>
+                </div>
+                <button class="w-8 h-8 flex items-center justify-center rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50">
+                    <i class="ph ph-bell text-lg"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- SCROLLING CONTENT -->
+        <div class="flex-1 overflow-y-auto p-6 md:p-10 lg:px-16 pb-32">
+            
+            <div class="max-w-6xl mx-auto space-y-24">
+                
+                <!-- HEADER -->
+                <div class="max-w-3xl">
+                    <h1 class="text-4xl md:text-5xl font-bold tracking-tighter text-zinc-900 mb-4">Component Library</h1>
+                    <p class="text-lg text-zinc-600 leading-relaxed font-light">
+                        Precise, data-dense, and highly credible UI framework for M&A deal operations. 
+                        Built on a strict Zinc scale + Emerald accent hierarchy. Tabular numerals enforced globally for fiscal data.
+                    </p>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- STANDARD COMPONENTS -->
+                <!-- ========================================== -->
+
+                <!-- BUTTONS -->
+                <section id="buttons" class="space-y-6 scroll-mt-20">
+                    <header class="border-b border-zinc-200 pb-2">
+                        <h2 class="text-xs uppercase tracking-widest font-bold text-zinc-500">Standard / 01</h2>
+                        <h3 class="text-2xl font-bold text-zinc-900 mt-1">Buttons & Actions</h3>
+                    </header>
+
+                    <div class="p-8 rounded-xl ring-1 ring-zinc-200 bg-zinc-50 lab-canvas space-y-10 shadow-sm">
+                        
+                        <!-- Primary -->
+                        <div class="grid grid-cols-1 md:grid-cols-[150px_1fr] gap-6 items-center">
+                            <div class="text-sm font-medium text-zinc-500">Primary (Emerald)</div>
+                            <div class="flex flex-wrap items-center gap-4">
+                                <button class="h-9 px-4 rounded-md bg-emerald-600 text-white text-sm font-medium shadow-sm hover:bg-emerald-700 active:scale-[0.98] transition-all flex items-center gap-2">
+                                    Send Mandate
+                                </button>
+                                <button class="h-9 px-4 rounded-md bg-emerald-600 text-white text-sm font-medium shadow-sm hover:bg-emerald-700 active:scale-[0.98] transition-all flex items-center gap-2">
+                                    <i class="ph ph-paper-plane-tilt"></i> Icon Left
+                                </button>
+                                <button class="h-9 px-4 rounded-md bg-emerald-600/50 text-white/80 cursor-not-allowed text-sm font-medium shadow-sm flex items-center gap-2">
+                                    Disabled
+                                </button>
+                                <button class="h-9 px-4 rounded-md bg-emerald-700 text-white text-sm font-medium shadow-inner flex items-center gap-2 cursor-wait">
+                                    <i class="ph ph-spinner animate-spin"></i> Processing
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Secondary -->
+                        <div class="grid grid-cols-1 md:grid-cols-[150px_1fr] gap-6 items-center border-t border-zinc-200/50 pt-8">
+                            <div class="text-sm font-medium text-zinc-500">Secondary (Outline)</div>
+                            <div class="flex flex-wrap items-center gap-4">
+                                <button class="h-9 px-4 rounded-md bg-white border border-zinc-300 text-zinc-700 text-sm font-medium shadow-sm hover:bg-zinc-50 hover:text-zinc-900 active:scale-[0.98] transition-all focus:ring-2 focus:ring-zinc-200 focus:outline-none">
+                                    View Data Room
+                                </button>
+                                <button class="h-9 w-9 flex items-center justify-center rounded-md bg-white border border-zinc-300 text-zinc-600 shadow-sm hover:bg-zinc-50 hover:text-zinc-900 active:scale-[0.98] transition-all">
+                                    <i class="ph ph-dots-three text-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Ghost & Destructive -->
+                        <div class="grid grid-cols-1 md:grid-cols-[150px_1fr] gap-6 items-center border-t border-zinc-200/50 pt-8">
+                            <div class="text-sm font-medium text-zinc-500">Contextual</div>
+                            <div class="flex flex-wrap items-center gap-6">
+                                <button class="h-9 px-3 rounded-md text-zinc-600 text-sm font-medium hover:bg-zinc-200 hover:text-zinc-900 active:bg-zinc-300 transition-colors flex items-center gap-2">
+                                    Ghost Action
+                                </button>
+                                <div class="w-px h-6 bg-zinc-300"></div>
+                                <button class="h-9 px-4 rounded-md bg-rose-50 border border-rose-200 text-rose-600 text-sm font-medium shadow-sm hover:bg-rose-100 hover:border-rose-300 active:scale-[0.98] transition-all flex items-center gap-2">
+                                    <i class="ph ph-trash"></i> Destructive
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- INPUTS & CONTROLS -->
+                <section id="inputs" class="space-y-6 scroll-mt-20">
+                    <header class="border-b border-zinc-200 pb-2">
+                        <h2 class="text-xs uppercase tracking-widest font-bold text-zinc-500">Standard / 02</h2>
+                        <h3 class="text-2xl font-bold text-zinc-900 mt-1">Form Controls</h3>
+                    </header>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <!-- Left Col -->
+                        <div class="space-y-6">
+                            <!-- Standard Input -->
+                            <div class="space-y-1.5">
+                                <label class="text-sm font-medium text-zinc-900 flex items-center justify-between">
+                                    Target Firm Name
+                                </label>
+                                <div class="relative">
+                                    <i class="ph ph-buildings absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+                                    <input type="text" placeholder="e.g. Apollo Global Management" class="w-full bg-white border border-zinc-300 rounded-md h-10 pl-10 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow shadow-sm">
+                                </div>
+                            </div>
+                            
+                            <!-- Financial Input (Tabular) -->
+                            <div class="space-y-1.5">
+                                <label class="text-sm font-medium text-zinc-900 flex items-center justify-between">
+                                    Acquisition Target Enterprise Value
+                                    <span class="text-xs text-zinc-500 font-normal">USD Millions</span>
+                                </label>
+                                <div class="relative flex items-center">
+                                    <span class="absolute left-3 text-zinc-500 text-sm">$</span>
+                                    <input type="text" value="1,450.00" class="tnum w-full bg-white border border-zinc-300 rounded-md h-10 pl-7 pr-3 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow shadow-sm text-right">
+                                </div>
+                            </div>
+
+                            <!-- Error State -->
+                            <div class="space-y-1.5">
+                                <label class="text-sm font-medium text-rose-600">Email Address</label>
+                                <input type="email" value="invalid-email@" class="w-full bg-rose-50 border border-rose-300 text-rose-900 rounded-md h-10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-shadow shadow-sm">
+                                <p class="text-xs text-rose-500 flex items-center gap-1 mt-1"><i class="ph-fill ph-warning-circle"></i> Invalid top-level domain format.</p>
+                            </div>
+                        </div>
+
+                        <!-- Right Col -->
+                        <div class="space-y-6">
+                            <!-- Select -->
+                            <div class="space-y-1.5">
+                                <label class="text-sm font-medium text-zinc-900">Industry Sector</label>
+                                <div class="relative">
+                                    <select class="w-full bg-white border border-zinc-300 rounded-md h-10 pl-3 pr-10 text-sm text-zinc-900 appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow shadow-sm cursor-pointer hover:border-zinc-400">
+                                        <option>Enterprise Software (B2B SaaS)</option>
+                                        <option>Fintech & Payments</option>
+                                        <option>Healthcare IT</option>
+                                    </select>
+                                    <i class="ph ph-caret-down absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"></i>
+                                </div>
+                            </div>
+
+                            <!-- Textarea -->
+                            <div class="space-y-1.5">
+                                <label class="text-sm font-medium text-zinc-900">Deal Rationale Memo</label>
+                                <textarea rows="3" placeholder="Briefly describe strategic alignment..." class="w-full bg-white border border-zinc-300 rounded-md p-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-shadow shadow-sm resize-none"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- BADGES & TAGS -->
+                <section id="badges" class="space-y-6 scroll-mt-20">
+                    <header class="border-b border-zinc-200 pb-2">
+                        <h2 class="text-xs uppercase tracking-widest font-bold text-zinc-500">Standard & Specific / 03</h2>
+                        <h3 class="text-2xl font-bold text-zinc-900 mt-1">Status Taxonomy</h3>
+                    </header>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        
+                        <!-- Pipeline Stages -->
+                        <div class="bg-white p-5 rounded-lg border border-zinc-200 shadow-sm">
+                            <h4 class="text-xs uppercase font-bold text-zinc-400 tracking-wider mb-4">Pipeline Status</h4>
+                            <div class="flex flex-col gap-3 items-start">
+                                <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-zinc-100 text-zinc-700 border border-zinc-200/50">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-zinc-400"></span> Shortlisted
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/50">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Contacted
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200/50">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span> Diligence
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/50">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Offer Extended
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Outreach Status -->
+                        <div class="bg-white p-5 rounded-lg border border-zinc-200 shadow-sm">
+                            <h4 class="text-xs uppercase font-bold text-zinc-400 tracking-wider mb-4">Email / Outreach</h4>
+                            <div class="flex flex-col gap-3 items-start">
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-zinc-100 text-zinc-600">
+                                    <i class="ph-fill ph-paper-plane-right"></i> Sent
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600">
+                                    <i class="ph-bold ph-envelope-open"></i> Opened
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-600">
+                                    <i class="ph-bold ph-arrow-u-up-left"></i> Replied
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-rose-50 text-rose-600">
+                                    <i class="ph-bold ph-warning-octagon"></i> Bounced
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Compliance Status -->
+                        <div class="bg-white p-5 rounded-lg border border-zinc-200 shadow-sm">
+                            <h4 class="text-xs uppercase font-bold text-zinc-400 tracking-wider mb-4">Compliance Gates</h4>
+                            <div class="flex flex-col gap-3 items-start">
+                                <div class="flex items-center gap-2 text-sm">
+                                    <i class="ph-fill ph-clock text-amber-500 text-lg"></i>
+                                    <span class="font-medium text-zinc-900">Pending Review</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-sm border-t border-zinc-100 pt-2 w-full">
+                                    <i class="ph-fill ph-check-circle text-emerald-500 text-lg"></i>
+                                    <span class="font-medium text-emerald-700">Clear to Transact</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-sm border-t border-zinc-100 pt-2 w-full">
+                                    <i class="ph-fill ph-x-circle text-rose-500 text-lg"></i>
+                                    <span class="font-medium text-rose-700">Hard Block</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- DATA TABLE & EMPTY/LOADING STATES -->
+                <section id="datatable" class="space-y-6 scroll-mt-20">
+                    <header class="border-b border-zinc-200 pb-2 flex justify-between items-end">
+                        <div>
+                            <h2 class="text-xs uppercase tracking-widest font-bold text-zinc-500">Standard / 04</h2>
+                            <h3 class="text-2xl font-bold text-zinc-900 mt-1">Financial Data Table</h3>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="px-3 py-1.5 text-xs font-medium border border-zinc-200 rounded text-zinc-600 hover:bg-zinc-50"><i class="ph ph-export"></i> CSV</button>
+                            <button class="px-3 py-1.5 text-xs font-medium border border-zinc-200 rounded text-zinc-600 hover:bg-zinc-50"><i class="ph ph-funnel"></i> Filter</button>
+                        </div>
+                    </header>
+
+                    <div class="border border-zinc-200 rounded-lg bg-white overflow-hidden shadow-sm">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm whitespace-nowrap">
+                                <thead class="bg-zinc-50 border-b border-zinc-200 text-xs uppercase tracking-wider text-zinc-500 font-semibold">
+                                    <tr>
+                                        <th class="px-4 py-3 cursor-pointer hover:text-zinc-900 group">Target Name <i class="ph-bold ph-caret-down inline-block ml-1 opacity-0 group-hover:opacity-100 transition-opacity"></i></th>
+                                        <th class="px-4 py-3">Sector</th>
+                                        <th class="px-4 py-3">Stage</th>
+                                        <th class="px-4 py-3 text-right cursor-pointer hover:text-zinc-900 group">Revenue (TTM) <i class="ph-bold ph-caret-down inline-block ml-1"></i></th>
+                                        <th class="px-4 py-3 text-right">EBITDA Mgn</th>
+                                        <th class="px-4 py-3 w-10"></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-zinc-200 text-zinc-700">
+                                    <!-- Row 1 -->
+                                    <tr class="hover:bg-zinc-50/80 transition-colors group">
+                                        <td class="px-4 py-3">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-6 h-6 rounded bg-zinc-100 border border-zinc-200 flex items-center justify-center font-bold text-[10px] text-zinc-600">SL</div>
+                                                <span class="font-medium text-zinc-900">Silver Lake Systems</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3 text-zinc-500">Cloud Infrastructure</td>
+                                        <td class="px-4 py-3">
+                                            <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200/50">
+                                                <span class="w-1 h-1 rounded-full bg-orange-500"></span> Diligence
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3 text-right tnum">$142.5M</td>
+                                        <td class="px-4 py-3 text-right tnum">24.2%</td>
+                                        <td class="px-4 py-3 text-right">
+                                            <button class="text-zinc-400 hover:text-zinc-900 opacity-0 group-hover:opacity-100 transition-opacity"><i class="ph-bold ph-dots-three"></i></button>
+                                        </td>
+                                    </tr>
+                                    <!-- Row 2 -->
+                                    <tr class="hover:bg-zinc-50/80 transition-colors group">
+                                        <td class="px-4 py-3">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-6 h-6 rounded bg-zinc-100 border border-zinc-200 flex items-center justify-center font-bold text-[10px] text-zinc-600">Q</div>
+                                                <span class="font-medium text-zinc-900">Quantum Logistics Inc.</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3 text-zinc-500">Supply Chain SaaS</td>
+                                        <td class="px-4 py-3">
+                                            <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/50">
+                                                <span class="w-1 h-1 rounded-full bg-emerald-500"></span> Offer
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3 text-right tnum">$89.1M</td>
+                                        <td class="px-4 py-3 text-right tnum">18.5%</td>
+                                        <td class="px-4 py-3 text-right">
+                                            <button class="text-zinc-400 hover:text-zinc-900 opacity-0 group-hover:opacity-100 transition-opacity"><i class="ph-bold ph-dots-three"></i></button>
+                                        </td>
+                                    </tr>
+                                    <!-- Loading State Row -->
+                                    <tr class="bg-zinc-50/30">
+                                        <td class="px-4 py-4" colspan="6">
+                                            <div class="flex items-center gap-4">
+                                                <div class="h-4 w-48 bg-zinc-200 rounded relative overflow-hidden flex-shrink-0"><div class="absolute inset-0 bg-white/40 animate-shimmer"></div></div>
+                                                <div class="h-4 w-24 bg-zinc-200 rounded relative overflow-hidden"><div class="absolute inset-0 bg-white/40 animate-shimmer"></div></div>
+                                                <div class="h-4 w-full bg-zinc-100 rounded relative overflow-hidden max-w-[200px] ml-auto"><div class="absolute inset-0 bg-white/40 animate-shimmer"></div></div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Nested Empty State Demo -->
+                    <div class="border-2 border-dashed border-zinc-200 rounded-lg p-10 flex flex-col items-center justify-center text-center bg-zinc-50/50 mt-4">
+                        <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center border border-zinc-200 shadow-sm mb-3">
+                            <i class="ph ph-magnifying-glass text-xl text-zinc-400"></i>
+                        </div>
+                        <h4 class="text-sm font-bold text-zinc-900">No active mandates</h4>
+                        <p class="text-sm text-zinc-500 mt-1 max-w-sm mb-4">There are currently no target profiles matching your sector criteria.</p>
+                        <button class="text-sm font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-md transition-colors">Clear all filters</button>
+                    </div>
+                </section>
+
+
+                <!-- ========================================== -->
+                <!-- DEALFLOW SPECIFIC COMPONENTS -->
+                <!-- ========================================== -->
+                <div class="pt-12 text-center relative">
+                    <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-zinc-200"></div>
+                    <span class="relative bg-zinc-50 px-4 text-xs font-bold text-emerald-600 uppercase tracking-widest block"><i class="ph-fill ph-asterisk"></i> DealFlow Custom Architecture</span>
+                </div>
+
+                <!-- AI MATCH CARD -->
+                <section id="ai-match" class="space-y-6 scroll-mt-20">
+                    <header class="border-b border-zinc-200 pb-2">
+                        <h2 class="text-xs uppercase tracking-widest font-bold text-zinc-500">Specific / 01</h2>
+                        <h3 class="text-2xl font-bold text-zinc-900 mt-1">AI Buyer Match Card</h3>
+                        <p class="text-sm text-zinc-500 mt-1">Algorithmic scoring component used in mandate origination.</p>
+                    </header>
+
+                    <!-- Render Context Container -->
+                    <div class="bg-zinc-100 p-8 rounded-xl ring-1 ring-zinc-200 flex justify-center items-center">
+                        
+                        <!-- The Match Card -->
+                        <div class="w-full max-w-md bg-white rounded-xl shadow-float border border-zinc-200/80 overflow-hidden relative group">
+                            <!-- High Match Glow (Pseudo via div) -->
+                            <div class="absolute -top-10 -right-10 w-32 h-32 bg-emerald-400/20 rounded-full blur-2xl pointer-events-none"></div>
+
+                            <div class="p-5">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-lg bg-zinc-900 flex items-center justify-center text-white border border-zinc-800 shadow-inner overflow-hidden">
+                                            <span class="font-bold text-sm tracking-tighter">TB</span>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-zinc-900 text-base leading-tight">Thoma Bravo</h4>
+                                            <span class="text-xs font-medium text-zinc-500">Private Equity • Chicago, IL</span>
+                                        </div>
+                                    </div>
+                                    <!-- FIT SCORE -->
+                                    <div class="flex flex-col items-center">
+                                        <span class="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-0.5">Fit Score</span>
+                                        <div class="relative w-12 h-12 flex items-center justify-center">
+                                            <svg class="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                                                <path class="text-zinc-100" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                                <path class="text-emerald-500" stroke-width="3" stroke-dasharray="94, 100" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                            </svg>
+                                            <span class="tnum font-bold text-zinc-900 text-sm">94</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-zinc-50 border border-zinc-100 rounded-md p-3 mb-1">
+                                    <div class="flex items-start gap-2">
+                                        <i class="ph-fill ph-sparkle text-emerald-500 text-sm mt-0.5"></i>
+                                        <p class="text-sm text-zinc-700 leading-snug">Strong historic alignment in B2B SaaS consolidation; recently raised $3B Flagship Fund XVI actively seeking cybersecurity assets.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Action Bar -->
+                            <div class="grid grid-cols-3 border-t border-zinc-200 bg-zinc-50/50 divide-x divide-zinc-200">
+                                <button class="py-2.5 text-xs font-bold text-zinc-600 hover:text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-1.5 group/btn">
+                                    <i class="ph-bold ph-plus-circle text-base transition-transform group-hover/btn:scale-110"></i> Add to List
+                                </button>
+                                <button class="py-2.5 text-xs font-medium text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors flex items-center justify-center gap-1.5">
+                                    <i class="ph ph-eye text-base"></i> Profile
+                                </button>
+                                <button class="py-2.5 text-xs font-medium text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors flex items-center justify-center gap-1.5">
+                                    <i class="ph ph-prohibit text-base"></i> Reject
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+
+                <!-- COMPLIANCE CHECK PANEL -->
+                <section id="compliance" class="space-y-6 scroll-mt-20">
+                    <header class="border-b border-zinc-200 pb-2 flex justify-between items-end">
+                        <div>
+                            <h2 class="text-xs uppercase tracking-widest font-bold text-zinc-500">Specific / 02</h2>
+                            <h3 class="text-2xl font-bold text-zinc-900 mt-1">Pre-Send Compliance Gate</h3>
+                        </div>
+                    </header>
+
+                    <div class="grid md:grid-cols-[1fr_300px] gap-6 items-start">
+                        <!-- Panel -->
+                        <div class="bg-white border-2 border-zinc-200 rounded-xl overflow-hidden">
+                            <div class="bg-zinc-50 border-b border-zinc-200 px-5 py-3 flex justify-between items-center">
+                                <div class="flex items-center gap-2">
+                                    <i class="ph-fill ph-shield-check text-zinc-700 text-lg"></i>
+                                    <h4 class="text-sm font-bold text-zinc-900">Pre-Outreach Audit</h4>
+                                </div>
+                                <span class="text-xs font-mono text-zinc-500 bg-zinc-200 px-1.5 py-0.5 rounded">ID: 8v2A-9Lk</span>
+                            </div>
+                            
+                            <ul class="divide-y divide-zinc-100">
+                                <!-- Pass Rule -->
+                                <li class="px-5 py-3 flex items-start gap-4 hover:bg-zinc-50 transition-colors">
+                                    <div class="mt-0.5"><i class="ph-fill ph-check-circle text-emerald-500 text-xl"></i></div>
+                                    <div class="flex-1">
+                                        <div class="flex justify-between items-center mb-0.5">
+                                            <span class="text-sm font-bold text-zinc-900">NDA Status Required</span>
+                                            <span class="text-[10px] uppercase font-bold text-emerald-700 tracking-wider bg-emerald-100 px-1.5 py-0.5 rounded">Pass</span>
+                                        </div>
+                                        <p class="text-xs text-zinc-500">Standard mutual NDA active and on file.</p>
+                                    </div>
+                                </li>
+                                <!-- Warning Rule -->
+                                <li class="px-5 py-3 flex items-start gap-4 hover:bg-zinc-50 transition-colors">
+                                    <div class="mt-0.5"><i class="ph-fill ph-warning-circle text-amber-500 text-xl"></i></div>
+                                    <div class="flex-1">
+                                        <div class="flex justify-between items-center mb-0.5">
+                                            <span class="text-sm font-bold text-zinc-900">Conflict of Interest Scan</span>
+                                            <span class="text-[10px] uppercase font-bold text-amber-700 tracking-wider bg-amber-100 px-1.5 py-0.5 rounded">Warn</span>
+                                        </div>
+                                        <p class="text-xs text-zinc-500">Connected firm holds minority stake in competing entity.</p>
+                                    </div>
+                                </li>
+                                <!-- Block Rule -->
+                                <li class="px-5 py-3 flex items-start gap-4 bg-rose-50/30">
+                                    <div class="mt-0.5"><i class="ph-fill ph-x-circle text-rose-500 text-xl"></i></div>
+                                    <div class="flex-1">
+                                        <div class="flex justify-between items-center mb-0.5">
+                                            <span class="text-sm font-bold text-rose-900">AML / KYC Screening</span>
+                                            <span class="text-[10px] uppercase font-bold text-rose-700 tracking-wider bg-rose-100 px-1.5 py-0.5 rounded">Fail</span>
+                                        </div>
+                                        <p class="text-xs text-rose-700">Beneficial owner screening failed via Dow Jones Risk. Blocked.</p>
+                                    </div>
+                                </li>
+                            </ul>
+                            
+                            <div class="p-4 bg-zinc-50 border-t border-zinc-200 flex justify-end gap-3">
+                                <button class="px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-200 rounded-md transition-colors">Cancel</button>
+                                <!-- Disabled state strictly enforced by strict compliance -->
+                                <button class="px-4 py-2 text-sm font-medium text-white bg-zinc-300 cursor-not-allowed rounded-md flex items-center gap-2">
+                                    <i class="ph-bold ph-lock"></i> Execute Teaser Send
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Context Note -->
+                        <div class="text-sm text-zinc-500 p-4 border border-zinc-200 rounded-lg bg-zinc-50/50">
+                            <strong>Note:</strong> The primary CTA is programmatically locked if any compliance gate returns a 'Fail' state. Ambiguous states ('Warn') require explicit user override log.
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- AUDIT LOG ROW -->
+                <section id="audit" class="space-y-6 scroll-mt-20">
+                    <header class="border-b border-zinc-200 pb-2">
+                        <h2 class="text-xs uppercase tracking-widest font-bold text-zinc-500">Specific / 03</h2>
+                        <h3 class="text-2xl font-bold text-zinc-900 mt-1">Immutable Audit Log</h3>
+                    </header>
+
+                    <div class="bg-zinc-950 p-2 rounded-lg font-mono text-[13px] text-zinc-400 overflow-hidden shadow-inner">
+                        <div class="flex items-center gap-4 bg-zinc-900/50 p-3 rounded group hover:bg-zinc-800 transition-colors cursor-default border border-zinc-800">
+                            <!-- Verified Indicator -->
+                            <div class="relative flex items-center justify-center shadow-emerald-500/20">
+                                <i class="ph-fill ph-check-circle text-emerald-500 relative z-10 text-base"></i>
+                                <div class="absolute inset-0 bg-emerald-500/20 rounded-full blur animate-pulse-slow"></div>
+                            </div>
+                            
+                            <!-- Tabular Timestamp -->
+                            <div class="text-zinc-500 tnum flex-shrink-0">
+                                2024-10-24 14:32:01 UTC
+                            </div>
+                            
+                            <!-- Actor & Action -->
+                            <div class="flex-1 whitespace-nowrap overflow-hidden text-ellipsis px-2">
+                                <span class="text-zinc-200 font-medium">sys_admin_jd</span> 
+                                <span class="text-blue-400">EXECUTED_OVERRIDE</span> 
+                                on [Target_CIM_Access]
+                            </div>
+                            
+                            <!-- Hash (Right aligned, subdued) -->
+                            <div class="text-zinc-600 text-xs w-28 truncate select-all flex-shrink-0 group-hover:text-zinc-400 transition-colors">
+                                hf82...x9a1
+                            </div>
+                        </div>
+                        
+                        <!-- Log entry 2 -->
+                        <div class="flex items-center gap-4 p-3 rounded group hover:bg-zinc-800 transition-colors cursor-default border border-transparent">
+                            <div class="relative flex items-center justify-center">
+                                <i class="ph-fill ph-check-circle text-emerald-500 relative z-10 text-base"></i>
+                            </div>
+                            <div class="text-zinc-500 tnum flex-shrink-0">2024-10-24 14:31:45 UTC</div>
+                            <div class="flex-1 whitespace-nowrap overflow-hidden text-ellipsis px-2">
+                                <span class="text-zinc-200 font-medium">sys_system_mgr</span> 
+                                <span class="text-zinc-300">GENERATED_REPORT</span> 
+                                [Q3_Pipeline_Summary]
+                            </div>
+                            <div class="text-zinc-600 text-xs w-28 truncate select-all flex-shrink-0 group-hover:text-zinc-400">a3c9...4bx8</div>
+                        </div>
+                    </div>
+                </section>
+
+
+                <!-- MANDATE CARD -->
+                <section id="mandate" class="space-y-6 scroll-mt-20">
+                    <header class="border-b border-zinc-200 pb-2">
+                        <h2 class="text-xs uppercase tracking-widest font-bold text-zinc-500">Specific / 04</h2>
+                        <h3 class="text-2xl font-bold text-zinc-900 mt-1">Project Mandate Dashboard Card</h3>
+                    </header>
+
+                    <div class="max-w-2xl">
+                        <!-- Mandate Card -->
+                        <div class="bg-white border border-zinc-300 rounded-xl shadow-sm hover:shadow-md transition-shadow group cursor-pointer overflow-hidden p-6 relative">
+                            
+                            <!-- Top Header -->
+                            <div class="flex justify-between items-start mb-6">
+                                <div>
+                                    <h4 class="text-2xl font-bold text-zinc-900 tracking-tight flex items-center gap-2">
+                                        Project Orion <i class="ph-fill ph-star text-amber-400 text-xl"></i>
+                                    </h4>
+                                    <p class="text-sm text-zinc-500 font-medium mt-1">Acquisition Target • Healthcare SaaS</p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-zinc-900 text-white shadow-sm mb-1">
+                                        Market Prep Phase
+                                    </span>
+                                    <div class="text-xs text-zinc-400 tnum mt-1">Launched: Oct 12, 2024</div>
+                                </div>
+                            </div>
+
+                            <!-- Meso Data Grid -->
+                            <div class="grid grid-cols-3 gap-0 border border-zinc-200 rounded-lg overflow-hidden bg-zinc-50">
+                                
+                                <div class="px-4 py-3 border-r border-zinc-200 bg-white group-hover:bg-zinc-50/50 transition-colors relative">
+                                    <div class="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1">AI Matches</div>
+                                    <div class="text-2xl font-bold text-zinc-900 tnum">142</div>
+                                </div>
+                                
+                                <div class="px-4 py-3 border-r border-zinc-200 bg-white group-hover:bg-zinc-50/50 transition-colors">
+                                    <div class="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1">Approached</div>
+                                    <div class="text-2xl font-bold text-blue-600 tnum">38</div>
+                                </div>
+                                
+                                <div class="px-4 py-3 bg-white group-hover:bg-zinc-50/50 transition-colors">
+                                    <div class="text-[10px] uppercase font-bold text-zinc-500 tracking-wider mb-1 flex justify-between">
+                                        Under NDA <i class="ph-fill ph-lock-key text-zinc-400"></i>
+                                    </div>
+                                    <div class="text-2xl font-bold text-emerald-600 tnum">12</div>
+                                </div>
+
+                            </div>
+
+                            <!-- Hover Overlay / Action Prompt -->
+                            <div class="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white to-transparent transform translate-y-full group-hover:translate-y-0 transition-transform flex items-end justify-center pb-2 opacity-0 group-hover:opacity-100">
+                                <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 shadow-sm flex items-center gap-1">Open Workbench <i class="ph-bold ph-arrow-right"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="h-20"></div> <!-- Bottom Pad -->
+
+            </div>
+        </div>
+    </main>
+
+    <!-- MODAL / TOAST DEMO SHELLS (Fixed relative to body for styleguide, normally fixed to viewport) -->
+    <!-- Note: Made them statically positioned in lower right for guide visibility without breaking interaction -->
+    <div class="fixed bottom-6 right-6 flex flex-col gap-4 z-50 pointer-events-none md:w-80 w-[calc(100%-3rem)] delay-700 animate-[fade-in_1s_ease-out]">
+        
+        <!-- Toast Notification -->
+        <div class="bg-zinc-900 text-white px-4 py-3 rounded-lg shadow-float border border-zinc-800 flex items-start gap-3 pointer-events-auto">
+            <i class="ph-fill ph-check-circle text-emerald-400 text-xl mt-0.5"></i>
+            <div class="flex-1">
+                <h5 class="text-sm font-bold">Mandate Launched</h5>
+                <p class="text-xs text-zinc-400 mt-0.5">Teaser successfully dispatched to 38 shortlisted buyers.</p>
+            </div>
+            <button class="text-zinc-500 hover:text-white"><i class="ph ph-x"></i></button>
+        </div>
+
+    </div>
+
+    <!-- Hidden Vanilla JS for interactive tokens if needed (Search focus, etc.) -->
+    <script>
+        // Simple script to handle smooth scrolling offset due to sticky header
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if(target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+
+        // Add CSS keyframes dynamically for the delayed fade in of toast
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes fade-in {
+                0% { opacity: 0; transform: translateY(10px); }
+                100% { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

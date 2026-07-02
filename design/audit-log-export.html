@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased bg-zinc-25 text-zinc-800">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DealFlow AI — Audit Log & Recordkeeping</title>
+    
+    <!-- 
+      aesthetic_dna: Restrained, credible "Linear/Stripe" feel for regulated M&A data tool.
+      ui_paradigm: Multi-pane Bento-box workspace with persistent sidebar navigation, dense data tables.
+      palette: Zinc (neutral text/surfaces) + Emerald (status/accent), strict tabular-nums.
+    -->
+
+    <!-- Framework & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Base Configuration & Custom Primitives -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                        'inner-border': 'inset 0 0 0 1px var(--tw-shadow-color)',
+                        'export-panel': '-12px 0 32px rgba(0, 0, 0, 0.04)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Properties & Performance Utilities */
+        :root {
+            --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
+            --anim-speed: 0.6s;
+        }
+
+        /* Essential Structural Overrides */
+        body { font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11'; }
+        .tabular { font-variant-numeric: tabular-nums; }
+        
+        /* Layout Hardware Acceleration for scrolling edges */
+        .scroll-container {
+            overscroll-behavior-y: contain;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Custom Scrollbar minimal */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+
+        /* Liquid Glass Panel Logic */
+        .panel-surface {
+            background-color: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 0.75rem; /* radius-lg */
+            box-shadow: 0 1px 2px rgb(16 24 40 / 0.05); /* shadow-xs */
+            transition: all 150ms var(--anim-ease);
+        }
+        
+        /* Perpetual Micro-Interactions */
+        @keyframes subtle-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .live-dot::before {
+            content: '';
+            position: absolute;
+            width: 100%; height: 100%;
+            background-color: inherit;
+            border-radius: 50%;
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+            opacity: 0.7;
+        }
+
+        @keyframes shimmer {
+            100% { transform: translateX(100%); }
+        }
+        .skeleton {
+            position: relative;
+            overflow: hidden;
+            background-color: #F3F4F6;
+        }
+        .skeleton::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            transform: translateX(-100%);
+            background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.2) 20%, rgba(255,255,255,0.5) 60%, rgba(255,255,255,0));
+            animation: shimmer 2s infinite;
+        }
+
+        /* Staggered Reveal Cascade */
+        .stagger-item {
+            opacity: 0;
+            transform: translateY(8px);
+            animation: revealCascade 0.5s var(--anim-ease) forwards;
+        }
+        @keyframes revealCascade {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .stagger-item:nth-child(1) { animation-delay: 50ms; }
+        .stagger-item:nth-child(2) { animation-delay: 100ms; }
+        .stagger-item:nth-child(3) { animation-delay: 150ms; }
+        .stagger-item:nth-child(4) { animation-delay: 200ms; }
+        .stagger-item:nth-child(5) { animation-delay: 250ms; }
+        .stagger-item:nth-child(6) { animation-delay: 300ms; }
+        .stagger-item:nth-child(7) { animation-delay: 350ms; }
+
+        /* Status Pill Primitives */
+        .badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 9999px; padding: 0.125rem 0.5rem;
+            font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+        }
+        .badge-positive { background-color: #ECFDF5; color: #047857; }
+        .badge-info { background-color: #EFF6FF; color: #1D4ED8; }
+        .badge-warn { background-color: #FEF3C7; color: #B45309; }
+        .badge-danger { background-color: #FEF2F2; color: #B91C1C; }
+        .badge-neutral { background-color: #F3F4F6; color: #6B7280; }
+
+        /* Custom Checkbox/Radio Styling */
+        .custom-radio:checked + div {
+            border-color: #10B981;
+            background-color: #ECFDF5;
+        }
+        .custom-radio:checked + div .radio-dot {
+            background-color: #10B981;
+            transform: scale(1);
+        }
+        
+        /* Table enhancements */
+        .log-table th { padding-top: 10px; padding-bottom: 10px; }
+        .log-table td { padding-top: 12px; padding-bottom: 12px; }
+        .row-hover:hover .action-menu { opacity: 1; visibility: visible; }
+    </style>
+</head>
+
+<body class="flex h-[100dvh] w-full overflow-hidden bg-zinc-25">
+
+    <!-- CANONICAL SIDEBAR (Modified active state for Compliance) -->
+    <aside class="hidden lg:flex flex-col w-64 flex-shrink-0 bg-zinc-900 text-zinc-50 border-r border-zinc-800 transition-all duration-300 z-20">
+        <div class="h-16 flex items-center px-6 border-b border-zinc-800 shrink-0">
+            <div class="flex items-center gap-2 text-white font-semibold tracking-tight">
+                <div class="w-6 h-6 rounded bg-emerald-600 flex items-center justify-center">
+                    <i data-lucide="network" class="w-4 h-4 text-white"></i>
+                </div>
+                DealFlow AI
+            </div>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto scroll-container py-4 px-3 flex flex-col gap-1">
+            <div class="px-3 mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-widest label">Workspace</div>
+            
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 transition-colors group">
+                <i data-lucide="layout-dashboard" class="w-4 h-4 group-hover:text-zinc-300 transition-colors"></i>
+                <span class="text-sm font-medium">Dashboard</span>
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 transition-colors">
+                <i data-lucide="briefcase" class="w-4 h-4"></i>
+                <span class="text-sm font-medium">Mandates</span>
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 transition-colors">
+                <i data-lucide="database" class="w-4 h-4"></i>
+                <span class="text-sm font-medium">Sourcing</span>
+            </a>
+            <!-- Active State Moved Here -->
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md bg-zinc-800 text-white relative before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:bg-emerald-600 before:rounded-r">
+                <i data-lucide="shield-check" class="w-4 h-4 text-emerald-500"></i>
+                <span class="text-sm font-medium">Compliance</span>
+                <span class="ml-auto text-[10px] font-bold bg-zinc-700 text-zinc-300 px-1.5 rounded tabular">Log</span>
+            </a>
+
+            <div class="mt-8 px-3 mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-widest label">Config</div>
+            
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 transition-colors">
+                <i data-lucide="users" class="w-4 h-4"></i>
+                <span class="text-sm font-medium">Team</span>
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-md text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 transition-colors">
+                <i data-lucide="settings" class="w-4 h-4"></i>
+                <span class="text-sm font-medium">Settings</span>
+            </a>
+        </div>
+
+        <div class="p-4 border-t border-zinc-800 shrink-0">
+            <button class="flex items-center gap-3 w-full p-2 rounded-md hover:bg-zinc-800 transition-colors text-left text-sm group">
+                <div class="w-8 h-8 rounded-full bg-zinc-700 font-medium flex items-center justify-center text-zinc-300 ring-2 ring-zinc-800 group-hover:ring-zinc-700">
+                    MR
+                </div>
+                <div class="flex-1 truncate">
+                    <div class="font-medium text-zinc-200 truncate">Michael Ridge</div>
+                    <div class="text-xs text-zinc-500 truncate">Compliance Officer</div>
+                </div>
+            </button>
+        </div>
+    </aside>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 flex flex-col min-w-0 bg-white border-l border-zinc-200 lg:border-none relative z-10">
+        
+        <!-- TOP HEADER -->
+        <header class="h-16 flex items-center justify-between px-4 sm:px-6 border-b border-zinc-200 shrink-0 bg-white">
+            <div class="flex items-center gap-3 sm:gap-4">
+                <button class="lg:hidden text-zinc-500 hover:text-zinc-900">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <div class="flex flex-col">
+                    <h1 class="text-[18px] sm:text-xl font-semibold tracking-tight text-zinc-900 leading-tight">Audit Log & Recordkeeping</h1>
+                    <div class="flex items-center gap-2 text-xs text-zinc-500">
+                        <span class="badge badge-neutral bg-zinc-100 text-zinc-600 scale-90 origin-left">Compliance Reviewer</span>
+                        <span class="hidden sm:inline-block border-l border-zinc-300 pl-2">Updated 2m ago</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 sm:gap-4">
+                <!-- Integrity Status -->
+                <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-emerald-50/50 border border-emerald-100 text-emerald-700 text-xs font-semibold tracking-wide">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                    All entries verified
+                </div>
+                
+                <!-- Primary Action -->
+                <button class="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-all text-white px-3 sm:px-4 py-2 rounded-md text-sm font-medium shadow-sm ring-1 ring-emerald-600/20 focus:outline-none focus:ring-2 focus:ring-emerald-600/40 focus:ring-offset-1 flex items-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4 hidden sm:block"></i>
+                    <span>Export Data</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- 3-PANE LAYOUT CONTAINER -->
+        <div class="flex flex-1 overflow-hidden relative">
+            
+            <!-- PANE 1: FILTERS (Left Sidebar, hidden on mobile/tablet) -->
+            <div class="hidden xl:flex flex-col w-[260px] border-r border-zinc-200 bg-zinc-50/50 flex-shrink-0 relative overflow-y-auto scroll-container">
+                <div class="p-4 space-y-6">
+                    <!-- Global Search -->
+                    <div>
+                        <div class="relative">
+                            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+                            <input type="text" placeholder="Search log references..." class="w-full pl-9 pr-3 py-1.5 bg-white border border-zinc-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 placeholder:text-zinc-400 transition-shadow">
+                        </div>
+                    </div>
+
+                    <!-- Filter Group: Time -->
+                    <div class="space-y-2">
+                        <h3 class="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">Time Range</h3>
+                        <select class="w-full px-2.5 py-1.5 bg-white border border-zinc-300 rounded-md text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207l5%205%205-5%22%20stroke%3D%22%236B7280%22%20stroke-width%3D%221.5%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[position:right_0.5rem_center] bg-[length:1rem]">
+                            <option>Last 30 Days</option>
+                            <option>Last 7 Days</option>
+                            <option>Last 24 Hours</option>
+                            <option>Custom Range...</option>
+                        </select>
+                    </div>
+
+                    <!-- Filter Group: Event Type -->
+                    <div class="space-y-2 border-t border-zinc-200 pt-5">
+                        <h3 class="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Event Type</h3>
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                            <input type="checkbox" checked class="w-4 h-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-600 focus:ring-offset-0">
+                            <span class="text-[13px] text-zinc-700 group-hover:text-zinc-900">Outreach Sends</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                            <input type="checkbox" checked class="w-4 h-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-600">
+                            <span class="text-[13px] text-zinc-700 group-hover:text-zinc-900">Compliance Checks</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                            <input type="checkbox" checked class="w-4 h-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-600">
+                            <span class="text-[13px] text-zinc-700 group-hover:text-zinc-900">Approval Decisions</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                            <input type="checkbox" class="w-4 h-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-600">
+                            <span class="text-[13px] text-zinc-700 group-hover:text-zinc-900">System Rules Updates</span>
+                        </label>
+                    </div>
+
+                    <!-- Filter Group: Status -->
+                    <div class="space-y-2 border-t border-zinc-200 pt-5">
+                        <h3 class="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Integrity Validation</h3>
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                            <input type="radio" name="integrity" checked class="w-4 h-4 border-zinc-300 text-emerald-600 focus:ring-emerald-600">
+                            <span class="text-[13px] text-zinc-700 group-hover:text-zinc-900">All Entries</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                            <input type="radio" name="integrity" class="w-4 h-4 border-zinc-300 text-emerald-600 focus:ring-emerald-600">
+                            <span class="text-[13px] text-emerald-700 group-hover:text-emerald-800 font-medium">Verified Only</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                            <input type="radio" name="integrity" class="w-4 h-4 border-zinc-300 text-red-600 focus:ring-red-600">
+                            <span class="text-[13px] text-red-700 group-hover:text-red-800 font-medium">Anomalies Detected</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Sticky Filter Actions -->
+                <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-zinc-200 bg-zinc-50 flex gap-2">
+                    <button class="flex-1 px-3 py-1.5 text-xs font-semibold text-zinc-700 bg-white border border-zinc-300 rounded hover:bg-zinc-50 shadow-xs transition-colors">Reset</button>
+                    <button class="flex-1 px-3 py-1.5 text-xs font-semibold text-white bg-zinc-900 rounded hover:bg-zinc-800 shadow-xs transition-colors">Apply</button>
+                </div>
+            </div>
+
+            <!-- PANE 2: MAIN LOG TABLE -->
+            <div class="flex-1 flex flex-col min-w-0 bg-white overflow-hidden relative">
+                
+                <!-- Anomaly Banner (Optional state shown for visual tension) -->
+                <div class="shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-start gap-3 relative z-10 stagger-item">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 mt-0.5 shrink-0"></i>
+                    <div class="flex-1">
+                        <h4 class="text-sm font-semibold text-amber-800">1 Log Anomaly Detected</h4>
+                        <p class="text-[13px] text-amber-700 mt-0.5">A hash mismatch was detected in a historical entry. This may indicate a pre-migration record. <a href="#" class="font-medium underline hover:text-amber-900 transition-colors">View diagnostics</a></p>
+                    </div>
+                </div>
+
+                <!-- Table Scroll Container -->
+                <div class="flex-1 overflow-auto scroll-container">
+                    <table class="w-full text-left border-collapse whitespace-nowrap log-table text-[13px]">
+                        <thead class="sticky top-0 bg-white/95 backdrop-blur-sm shadow-[0_1px_0_0_#E5E7EB] z-10">
+                            <tr>
+                                <th class="px-4 font-semibold text-zinc-500 uppercase tracking-wider text-[11px] w-[180px]">Timestamp (UTC)</th>
+                                <th class="px-3 font-semibold text-zinc-500 uppercase tracking-wider text-[11px] w-[140px]">Event Type</th>
+                                <th class="px-3 font-semibold text-zinc-500 uppercase tracking-wider text-[11px] w-[160px]">Actor</th>
+                                <th class="px-3 font-semibold text-zinc-500 uppercase tracking-wider text-[11px] max-w-[300px]">Action Details</th>
+                                <th class="px-4 font-semibold text-zinc-500 uppercase tracking-wider text-[11px] text-right">Integrity Hash</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-100 text-zinc-700">
+                            
+                            <!-- Row 1: Outreach Send -->
+                            <tr class="hover:bg-zinc-50 transition-colors group row-hover cursor-pointer stagger-item">
+                                <td class="px-4 align-top py-3">
+                                    <div class="font-mono tabular text-zinc-600 font-medium">2026-07-15 13:47:32</div>
+                                </td>
+                                <td class="px-3 align-top py-3">
+                                    <span class="badge badge-info bg-blue-50 text-blue-700 border border-blue-100">Outreach_Send</span>
+                                </td>
+                                <td class="px-3 align-top py-3">
+                                    <div class="font-medium text-zinc-900">Alice Chen</div>
+                                    <div class="text-[11px] text-zinc-500 font-mono">usr_9x4A2p</div>
+                                </td>
+                                <td class="px-3 align-top py-3 max-w-[300px] truncate">
+                                    <div class="font-medium text-zinc-900 truncate">Email sent to <span class="text-zinc-600 font-normal">sarah.chen@techcorp.io</span></div>
+                                    <div class="text-zinc-500 truncate text-[12px] mt-0.5">Subject: Project Titan Confidential Teaser</div>
+                                </td>
+                                <td class="px-4 align-top py-3 text-right">
+                                    <div class="flex items-center justify-end gap-2 text-[12px]">
+                                        <div class="font-mono tracking-tight text-zinc-500 group-hover:text-zinc-900 transition-colors">a3f7...b4c5</div>
+                                        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                                    </div>
+                                    <!-- Hover actions injected via CSS opacity -->
+                                    <div class="absolute right-4 mt-2 hidden group-hover:flex gap-1 action-menu bg-white border border-zinc-200 shadow-sm rounded-md px-1 py-1 z-20">
+                                        <button class="p-1 text-zinc-400 hover:text-zinc-900 rounded"><i data-lucide="copy" class="w-3.5 h-3.5"></i></button>
+                                        <button class="p-1 text-zinc-400 hover:text-zinc-900 rounded"><i data-lucide="external-link" class="w-3.5 h-3.5"></i></button>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Row 2: Compliance Check (WARN) -->
+                            <tr class="hover:bg-zinc-50 transition-colors group row-hover cursor-pointer stagger-item bg-zinc-50/30">
+                                <td class="px-4 align-top py-3">
+                                    <div class="font-mono tabular text-zinc-600 font-medium">2026-07-15 13:46:10</div>
+                                </td>
+                                <td class="px-3 align-top py-3">
+                                    <span class="badge badge-warn bg-amber-50 text-amber-700 border border-amber-100">Compliance_Check</span>
+                                </td>
+                                <td class="px-3 align-top py-3">
+                                    <div class="font-medium text-zinc-900 flex items-center gap-1.5"><i data-lucide="cpu" class="w-3 h-3 text-zinc-400"></i> System Engine</div>
+                                </td>
+                                <td class="px-3 align-top py-3 max-w-[300px] truncate">
+                                    <div class="font-medium text-zinc-900 truncate">Check run: WARN (1 recipient flagged)</div>
+                                    <div class="text-zinc-500 truncate text-[12px] mt-0.5" title="Rule 4B: Existing coverage conflict detected.">Rule 4B: Existing coverage conflict detected.</div>
+                                </td>
+                                <td class="px-4 align-top py-3 text-right">
+                                    <div class="flex items-center justify-end gap-2 text-[12px]">
+                                        <div class="font-mono tracking-tight text-zinc-500 group-hover:text-zinc-900 transition-colors">d8e4...9f1a</div>
+                                        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Row 3: Approval -->
+                            <tr class="hover:bg-zinc-50 transition-colors group row-hover cursor-pointer stagger-item">
+                                <td class="px-4 align-top py-3">
+                                    <div class="font-mono tabular text-zinc-600 font-medium">2026-07-15 10:12:05</div>
+                                </td>
+                                <td class="px-3 align-top py-3">
+                                    <span class="badge badge-positive">Approval_Decision</span>
+                                </td>
+                                <td class="px-3 align-top py-3">
+                                    <div class="font-medium text-zinc-900">Jane Liu</div>
+                                    <div class="text-[11px] text-zinc-500 font-mono">usr_7x1B9m</div>
+                                </td>
+                                <td class="px-3 align-top py-3 max-w-[300px] truncate">
+                                    <div class="font-medium text-zinc-900 truncate">Campaign #T-900 Approved</div>
+                                    <div class="text-zinc-500 truncate text-[12px] mt-0.5 italic">"Proceed with outreach. Boilerplate attached."</div>
+                                </td>
+                                <td class="px-4 align-top py-3 text-right">
+                                    <div class="flex items-center justify-end gap-2 text-[12px]">
+                                        <div class="font-mono tracking-tight text-zinc-500 group-hover:text-zinc-900 transition-colors">7b2c...d4e5</div>
+                                        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Row 4: Rule Update -->
+                            <tr class="hover:bg-zinc-50 transition-colors group row-hover cursor-pointer stagger-item bg-zinc-50/30">
+                                <td class="px-4 align-top py-3">
+                                    <div class="font-mono tabular text-zinc-600 font-medium">2026-07-14 18:30:00</div>
+                                </td>
+                                <td class="px-3 align-top py-3">
+                                    <span class="badge badge-neutral bg-zinc-100 text-zinc-700 border border-zinc-200">Rule_Update</span>
+                                </td>
+                                <td class="px-3 align-top py-3">
+                                    <div class="font-medium text-zinc-900">Michael Ridge</div>
+                                    <div class="text-[11px] text-zinc-500 font-mono">usr_1x0P4a</div>
+                                </td>
+                                <td class="px-3 align-top py-3 max-w-[300px] truncate">
+                                    <div class="font-medium text-zinc-900 truncate">Suppression list appended</div>
+                                    <div class="text-zinc-500 truncate text-[12px] mt-0.5">Added 4 domain block rules (Firm-wide).</div>
+                                </td>
+                                <td class="px-4 align-top py-3 text-right">
+                                    <div class="flex items-center justify-end gap-2 text-[12px]">
+                                        <div class="font-mono tracking-tight text-zinc-500 group-hover:text-zinc-900 transition-colors">9f1a...d8e4</div>
+                                        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Row 5: Outreach Send (Past) -->
+                            <tr class="hover:bg-zinc-50 transition-colors group row-hover cursor-pointer stagger-item">
+                                <td class="px-4 align-top py-3">
+                                    <div class="font-mono tabular text-zinc-600 font-medium">2026-07-14 14:22:18</div>
+                                </td>
+                                <td class="px-3 align-top py-3">
+                                    <span class="badge badge-info bg-blue-50 text-blue-700 border border-blue-100">Outreach_Send</span>
+                                </td>
+                                <td class="px-3 align-top py-3">
+                                    <div class="font-medium text-zinc-900">Alice Chen</div>
+                                    <div class="text-[11px] text-zinc-500 font-mono">usr_9x4A2p</div>
+                                </td>
+                                <td class="px-3 align-top py-3 max-w-[300px] truncate">
+                                    <div class="font-medium text-zinc-900 truncate">Email sent to <span class="text-zinc-600 font-normal">m.jordan@growthcap.com</span></div>
+                                    <div class="text-zinc-500 truncate text-[12px] mt-0.5">Subject: Exploring synergies - Acme Corp</div>
+                                </td>
+                                <td class="px-4 align-top py-3 text-right">
+                                    <div class="flex items-center justify-end gap-2 text-[12px]">
+                                        <div class="font-mono tracking-tight text-zinc-500 group-hover:text-zinc-900 transition-colors">e5f6...a7b8</div>
+                                        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Loading Skeleton Rows (To show scale) -->
+                            <tr class="opacity-50 pointer-events-none">
+                                <td class="px-4 py-3"><div class="h-4 w-32 skeleton rounded"></div></td>
+                                <td class="px-3 py-3"><div class="h-5 w-24 skeleton rounded-full"></div></td>
+                                <td class="px-3 py-3">
+                                    <div class="h-4 w-20 skeleton rounded mb-1"></div>
+                                    <div class="h-3 w-16 skeleton rounded"></div>
+                                </td>
+                                <td class="px-3 py-3">
+                                    <div class="h-4 w-64 skeleton rounded mb-1"></div>
+                                    <div class="h-3 w-48 skeleton rounded"></div>
+                                </td>
+                                <td class="px-4 py-3"><div class="h-4 w-24 skeleton rounded ml-auto"></div></td>
+                            </tr>
+                            <tr class="opacity-30 pointer-events-none">
+                                <td colspan="5" class="py-8 text-center text-zinc-400 text-sm">
+                                    <i data-lucide="loader-2" class="w-5 h-5 animate-spin mx-auto mb-2 opacity-50"></i>
+                                    Loading historical logs...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- PANE 3: EXPORT CONFIGURATION RIGHT PANEL -->
+            <!-- Built visibly docked instead of hidden to show structural complexity of the design -->
+            <div class="hidden lg:flex flex-col w-[380px] flex-shrink-0 bg-white border-l border-zinc-200 shadow-export-panel relative z-20 transition-transform duration-300">
+                <div class="h-full flex flex-col pt-4">
+                    
+                    <!-- Header -->
+                    <div class="px-5 pb-4 border-b border-zinc-100 flex items-center justify-between shrink-0">
+                        <h2 class="text-base font-semibold text-zinc-900 tracking-tight flex items-center gap-2">
+                            <i data-lucide="file-archive" class="w-4 h-4 text-emerald-600"></i>
+                            Export Package
+                        </h2>
+                        <button class="text-zinc-400 hover:text-zinc-900 transition-colors">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Scrollable Form -->
+                    <div class="flex-1 overflow-y-auto scroll-container p-5 space-y-6">
+                        
+                        <!-- Scope Logic -->
+                        <div class="space-y-3 stagger-item">
+                            <h3 class="text-[12px] font-bold text-zinc-900 uppercase tracking-widest text-opacity-80">Export Scope</h3>
+                            <div class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-3 shadow-xs">
+                                <label class="flex items-start gap-3 cursor-pointer group relative">
+                                    <input type="radio" name="scope" class="mt-0.5 w-4 h-4 text-emerald-600 border-zinc-300 focus:ring-emerald-600">
+                                    <div class="flex-1">
+                                        <div class="text-[13px] font-medium text-zinc-900">Mandate-scoped</div>
+                                        <select class="mt-1.5 w-full text-[13px] px-2 py-1.5 border border-zinc-200 rounded bg-white text-zinc-500 opacity-50 pointer-events-none mb-1">
+                                            <option>Select mandate...</option>
+                                        </select>
+                                    </div>
+                                </label>
+                                <label class="flex items-start gap-3 cursor-pointer group relative border-t border-zinc-200 pt-3">
+                                    <input type="radio" name="scope" checked class="mt-0.5 w-4 h-4 text-emerald-600 border-zinc-300 focus:ring-emerald-600 bg-white z-10">
+                                    <div class="flex-1">
+                                        <div class="text-[13px] font-medium text-emerald-900 mb-1">Date-range-scoped</div>
+                                        <div class="text-[12px] text-zinc-500">Currently mapping: <strong class="text-zinc-700">Last 30 Days</strong> (inherited from active filters).</div>
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="text-[12px] text-zinc-500 font-medium flex items-center gap-1.5 mt-2 bg-zinc-100/50 px-2.5 py-1.5 rounded w-max">
+                                <i data-lucide="database" class="w-3.5 h-3.5 text-zinc-400"></i>
+                                Scoped query: ~1,245 entries
+                            </div>
+                        </div>
+
+                        <!-- Regulation Spec -->
+                        <div class="space-y-3 stagger-item">
+                            <h3 class="text-[12px] font-bold text-zinc-900 uppercase tracking-widest text-opacity-80">Compliance Framework</h3>
+                            <div class="relative">
+                                <select class="w-full pl-3 pr-10 py-2.5 bg-white border border-zinc-300 rounded-md text-sm text-zinc-900 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 appearance-none shadow-sm">
+                                    <option>FINRA Rule 4512 (M&A Comm.)</option>
+                                    <option>SOX Section 302</option>
+                                    <option>GDPR Data Request</option>
+                                    <option>Custom Internal Audit</option>
+                                </select>
+                                <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                            </div>
+                        </div>
+
+                        <!-- Format (Radio Cards) -->
+                        <div class="space-y-3 stagger-item">
+                            <h3 class="text-[12px] font-bold text-zinc-900 uppercase tracking-widest text-opacity-80">Format</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="relative cursor-pointer">
+                                    <input type="radio" name="format" checked class="peer sr-only custom-radio">
+                                    <div class="p-3 border border-zinc-200 rounded-md bg-white hover:bg-zinc-50 transition-all peer-focus:ring-2 peer-focus:ring-emerald-600/40 text-center">
+                                        <span class="block text-sm font-bold text-zinc-900 mb-0.5">CSV</span>
+                                        <span class="block text-[11px] text-zinc-500">Tabular raw</span>
+                                    </div>
+                                </label>
+                                <label class="relative cursor-pointer">
+                                    <input type="radio" name="format" class="peer sr-only custom-radio">
+                                    <div class="p-3 border border-zinc-200 rounded-md bg-white hover:bg-zinc-50 transition-all peer-focus:ring-2 peer-focus:ring-emerald-600/40 text-center">
+                                        <span class="block text-sm font-bold text-zinc-900 mb-0.5">JSON</span>
+                                        <span class="block text-[11px] text-zinc-500">Structured data</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Inclusions -->
+                        <div class="space-y-3 stagger-item border-y border-zinc-100 py-5">
+                            <h3 class="text-[12px] font-bold text-zinc-900 uppercase tracking-widest text-opacity-80">Payload Inclusions</h3>
+                            <div class="space-y-2.5">
+                                <label class="flex items-start gap-2.5 cursor-pointer">
+                                    <input type="checkbox" checked disabled class="mt-0.5 w-4 h-4 rounded border-zinc-300 text-emerald-600 bg-emerald-50 focus:ring-emerald-600 opacity-60">
+                                    <span class="text-[13px] text-zinc-700 leading-tight">Integrity hashes & verification <br><span class="text-[11px] text-zinc-400">Required by FINRA profile</span></span>
+                                </label>
+                                <label class="flex items-start gap-2.5 cursor-pointer">
+                                    <input type="checkbox" checked class="mt-0.5 w-4 h-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-600">
+                                    <span class="text-[13px] text-zinc-700 leading-tight">Message content (Subject & Body)</span>
+                                </label>
+                                <label class="flex items-start gap-2.5 cursor-pointer">
+                                    <input type="checkbox" checked class="mt-0.5 w-4 h-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-600">
+                                    <span class="text-[13px] text-zinc-700 leading-tight">Reviewer notes & approval chain</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer / Submission -->
+                    <div class="p-5 border-t border-zinc-100 bg-white shrink-0 space-y-4 shadow-[0_-4px_16px_rgba(0,0,0,0.02)]">
+                        <div class="bg-blue-50/50 border border-blue-100 p-3 rounded-md flex items-start gap-2">
+                            <i data-lucide="info" class="w-4 h-4 text-blue-600 mt-0.5 shrink-0"></i>
+                            <div class="text-[12px] text-blue-800 leading-tight">
+                                File sizes over 10MB may take up to 2 minutes. You will be emailed a secure link when ready.
+                            </div>
+                        </div>
+                        <button class="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-all text-white px-4 py-2.5 rounded-md text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-600/40 relative overflow-hidden group">
+                            <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out z-0 mix-blend-overlay"></div>
+                            <span class="relative z-10 flex items-center justify-center gap-2">
+                                Generate Export (est. 2.4 MB)
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </main>
+
+    <!-- Icons Initialization -->
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

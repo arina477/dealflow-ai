@@ -1,0 +1,48 @@
+# status-check.yaml — Tick state for /loop skill (automatic / degenerate modes).
+#
+# Auto-bootstrapped on first tick if absent. Owner: automatic-mode.md / degenerate-mode.md.
+# This file is the source of truth ceo-agent (degenerate) and BOARD-orchestrator (automatic)
+# read at every tick to decide whether to escalate.
+#
+# DO NOT hand-edit STATUS / last_modified_at fields — they reflect wave-loop state and
+# are managed by the orchestrator. Founder halts the loop by sending an ESC + chat
+# message (ESC bypasses the Stop hook per Claude Code docs) or by editing this file
+# directly to set STATUS: BLOCKED.
+
+# Lifecycle states (ordered):
+#   IDLE     — no wave in flight; loop tick is a no-op
+#   RUNNING  — wave in flight (some block is executing); external time-based waits
+#              (DNS propagation, async deploy, monitor still polling) stay RUNNING
+#   BLOCKED  — human action required, otherwise the loop is stuck. Terminal-until-human:
+#              no auto-resume, no ScheduleWakeup. Founder unblocks via ESC + chat
+#              message or by editing this file directly.
+#   DONE     — N-3 archived the wave; next tick will start the next wave
+
+STATUS: IDLE                      # IDLE | RUNNING | BLOCKED | DONE
+
+# Bookkeeping fields:
+last_modified_at: ""              # ISO timestamp; set by mode runner on every state change
+last_ceo_check_saw_status: ""     # ceo-agent stall-monitor reads this; updates on every tick
+current_wave: null                # null when IDLE; <N> when RUNNING / BLOCKED
+current_block: null               # null when IDLE; one of P / D / B / C / T / V / L / N
+current_stage: null               # null when IDLE; e.g. "P-2" / "B-6" / "T-9"
+last_action_summary: ""           # one-line human-readable; latest stage exit or escalation
+
+# Escalation tracking:
+last_escalation_kind: ""          # "" | "BOARD" | "ceo-agent" | "founder"
+last_escalation_at: ""            # ISO timestamp
+last_escalation_outcome: ""       # "pending" | "resolved" | "deferred"
+
+# Founder-facing notes (optional; populated by ceo-agent / BOARD when relevant):
+note: ""
+
+# Pause evidence (REQUIRED when STATUS is non-RUNNING / IDLE / DONE).
+# Per always-on rule #13 (preemptive-pause prohibition): the orchestrator MUST NOT
+# write STATUS=BLOCKED without populating this field with one of the 4 measured
+# triggers (b, d, e, f). Context overflow is handled transparently by Claude Code's
+# harness auto-compact and is NOT a pause trigger. ceo-agent's stall-monitor
+# catches violations (empty pause_evidence with non-running STATUS = discipline finding).
+pause_evidence:
+  trigger: ""                     # one of: b-status-changed | d-hard-stop-verdict | e-founder-message | f-loop-paused-yaml
+  measurement: ""                 # concrete evidence: file path / quote / verdict-source citation
+  cited_at: ""                    # ISO timestamp when evidence was measured

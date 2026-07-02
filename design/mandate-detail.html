@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased text-zinc-800 bg-zinc-25">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mandate Detail — DealFlow AI</title>
+    
+    <!-- Fonts: Inter (UI) & Space Grotesk (Display/Numbers) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS (via CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Tailwind Config & Design Tokens Injection -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        display: ['Space Grotesk', 'sans-serif'], // For premium aesthetic numbers/headers
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        },
+                        status: {
+                            positive: '#10B981',
+                            info: '#2563EB',
+                            warn: '#D97706',
+                            danger: '#DC2626',
+                            neutral: '#9CA3AF'
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                        'glass': 'inset 0 1px 0 0 rgba(255,255,255,0.8), 0 4px 12px 0 rgba(0,0,0,0.03)'
+                    },
+                    transitionTimingFunction: {
+                        'spring': 'cubic-bezier(0.16, 1, 0.3, 1)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Custom Micro-Architecture & Physics (CSS) -->
+    <style>
+        /* Typography overrides for tabular numbers */
+        .tabular-data {
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.01em;
+        }
+
+        /* Scrollbar styling for a polished look */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #E5E7EB;
+            border-radius: 99px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: #D1D5DB;
+        }
+
+        /* Hardware Accelerated Smooth Animations */
+        @keyframes fade-slide-up {
+            0% { opacity: 0; transform: translateY(12px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
+
+        .animate-stagger > * {
+            opacity: 0;
+            animation: fade-slide-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        
+        .animate-stagger > *:nth-child(1) { animation-delay: 50ms; }
+        .animate-stagger > *:nth-child(2) { animation-delay: 100ms; }
+        .animate-stagger > *:nth-child(3) { animation-delay: 150ms; }
+        .animate-stagger > *:nth-child(4) { animation-delay: 200ms; }
+        .animate-stagger > *:nth-child(5) { animation-delay: 250ms; }
+
+        .loading-skeleton {
+            background: #F3F4F6;
+            background-image: linear-gradient(90deg, #F3F4F6 0px, #E5E7EB 40px, #F3F4F6 80px);
+            background-size: 1000px;
+            animation: shimmer 2s infinite linear;
+        }
+
+        /* Interactive physical push State */
+        .btn-push:active {
+            transform: scale(0.98);
+        }
+
+        /* Hide scrollbar for tabs navigation */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none; /* IE and Edge */
+            scrollbar-width: none; /* Firefox */
+        }
+        
+        /* Specific Tab Logic (CSS only visibility) */
+        .tab-content { display: none; }
+        .tab-content[data-active="true"] { display: block; animation: fade-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+    </style>
+</head>
+<body class="h-[100dvh] w-full flex overflow-hidden bg-zinc-25">
+
+    <!-- Global App Sidebar (Macro-Nav) -->
+    <nav class="w-[64px] bg-zinc-900 border-r border-zinc-800 flex flex-col items-center py-6 gap-8 z-50 shrink-0 hidden md:flex">
+        <!-- Logo Mark (Abstract) -->
+        <div class="h-8 w-8 bg-emerald-600 rounded-md flex items-center justify-center text-white cursor-pointer hover:bg-emerald-700 transition-colors">
+            <i data-lucide="blocks" class="w-5 h-5"></i>
+        </div>
+        
+        <div class="flex flex-col gap-6 w-full px-3">
+            <button class="text-zinc-400 hover:text-white transition-colors flex justify-center w-full relative group">
+                <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+            </button>
+            <button class="text-white bg-zinc-800 p-2 rounded-md transition-colors flex justify-center w-full relative group shadow-sm">
+                <i data-lucide="briefcase" class="w-5 h-5"></i>
+                <div class="absolute left-[-12px] top-[10px] w-1 h-3 bg-emerald-600 rounded-r-full"></div>
+            </button>
+            <button class="text-zinc-400 hover:text-white transition-colors flex justify-center w-full relative group">
+                <i data-lucide="database" class="w-5 h-5"></i>
+            </button>
+            <button class="text-zinc-400 hover:text-white transition-colors flex justify-center w-full relative group">
+                <i data-lucide="kanban" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="mt-auto flex flex-col gap-6">
+            <button class="text-zinc-400 hover:text-white transition-colors flex justify-center w-full">
+                <i data-lucide="settings" class="w-5 h-5"></i>
+            </button>
+            <div class="h-8 w-8 rounded-full bg-zinc-700 border border-zinc-600 self-center uppercase text-[10px] font-bold text-white flex items-center justify-center cursor-pointer">
+                JS
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Workspace Area -->
+    <main class="flex-1 flex flex-col xl:flex-row overflow-hidden relative">
+        
+        <!-- Mobile Header (Visible only on <xl) -->
+        <header class="xl:hidden h-16 w-full border-b border-zinc-200 bg-white flex items-center px-4 justify-between shrink-0 z-30">
+            <div class="flex items-center gap-3">
+                <i data-lucide="briefcase" class="w-5 h-5 text-zinc-500"></i>
+                <span class="font-semibold text-zinc-900">Project Apex</span>
+            </div>
+            <button class="p-2 border border-zinc-200 rounded-md">
+                <i data-lucide="menu" class="w-4 h-4 text-zinc-700"></i>
+            </button>
+        </header>
+
+        <!-- LEFT PANEL: Context & Constitution (Sticky) -->
+        <aside class="w-full xl:w-[420px] bg-white border-r border-zinc-200 flex flex-col overflow-y-auto shrink-0 z-20">
+            
+            <!-- Context Header -->
+            <div class="p-6 pb-8 border-b border-zinc-100">
+                <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-6">
+                    <button class="hover:text-zinc-800 transition-colors flex items-center gap-1">
+                        <i data-lucide="arrow-left" class="w-3 h-3"></i> Mandates
+                    </button>
+                    <span class="text-zinc-300">/</span>
+                    <span>M-8492A</span>
+                </div>
+                
+                <h1 class="text-3xl font-display font-bold tracking-tight text-zinc-900 leading-none mb-4 group cursor-pointer flex items-center justify-between">
+                    Project Apex
+                    <i data-lucide="pencil" class="w-4 h-4 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </h1>
+
+                <div class="flex items-center gap-3 mb-6">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-[11px] font-bold uppercase tracking-wider border border-blue-100">
+                        <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                        Matching Phase
+                    </span>
+                    <span class="text-xs text-zinc-500 tabular-data">Initiated: Oct 12, 2024</span>
+                </div>
+
+                <!-- Seller Core Summary -->
+                <div class="bg-zinc-50 border border-zinc-200 rounded-lg p-4 space-y-4 shadow-glass">
+                    <div>
+                        <div class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Seller Entity</div>
+                        <div class="text-sm font-semibold text-zinc-900 flex items-center justify-between">
+                            Apex Analytics Inc.
+                            <span class="text-zinc-500 font-normal">B2B SaaS</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 pt-3 border-t border-zinc-200/60">
+                        <div>
+                            <div class="text-[10px] uppercase font-bold text-zinc-500 mb-0.5">Est. Revenue</div>
+                            <div class="text-sm font-medium tabular-data text-zinc-900">$45M - $55M</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] uppercase font-bold text-zinc-500 mb-0.5">Geography</div>
+                            <div class="text-sm font-medium text-zinc-900">North America</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vertical Sections -->
+            <div class="flex-1 p-6 space-y-8 animate-stagger">
+                
+                <!-- Compliance Wedge (CRITICAL) -->
+                <section>
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-xs font-bold uppercase tracking-widest text-zinc-900 flex items-center gap-2">
+                            <i data-lucide="shield-check" class="w-4 h-4 text-amber-500"></i>
+                            Compliance Gate
+                        </h2>
+                        <button class="text-[11px] text-zinc-500 hover:text-zinc-900 underline decoration-zinc-300 underline-offset-2 transition-colors">View Log</button>
+                    </div>
+
+                    <div class="border border-amber-200 bg-amber-50 rounded-lg p-4 transition-colors hover:border-amber-300 relative overflow-hidden group">
+                        <!-- Decorative hazard stripe -->
+                        <div class="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                        
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full bg-white border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
+                                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-semibold text-amber-900 mb-1">Approval Pending</h3>
+                                <p class="text-[13px] text-amber-700/80 leading-relaxed mb-3">Compliance Officer sign-off required before outreach batch can be authorized.</p>
+                                
+                                <div class="space-y-2">
+                                    <div class="flex items-center justify-between text-xs border-b border-amber-200/50 pb-2">
+                                        <span class="text-amber-800 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-500"></i> Seller OFAC Check</span>
+                                        <span class="font-medium text-emerald-700 tabular-data">Pass</span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-xs border-b border-amber-200/50 pb-2">
+                                        <span class="text-amber-800 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-500"></i> Exclusion Lists</span>
+                                        <span class="font-medium text-emerald-700 tabular-data">Pass</span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-xs pt-0.5">
+                                        <span class="text-amber-800 flex items-center gap-1.5"><i data-lucide="clock" class="w-3.5 h-3.5 text-amber-600"></i> Final Sign-off</span>
+                                        <span class="font-medium text-amber-700">Awaiting Sarah J.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Thesis Notes -->
+                <section>
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-xs font-bold uppercase tracking-widest text-zinc-900">Thesis & Narrative</h2>
+                        <button class="text-zinc-400 hover:text-zinc-800"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                    </div>
+                    <div class="text-[13px] leading-relaxed text-zinc-600 pt-2 border-t border-zinc-100">
+                        Strong strategic fit for enterprise software roll-ups or PE firms looking for a platform acquisition in the predictive analytics vertical. High retention rate (94% NRR) anchors valuation.
+                    </div>
+                </section>
+
+            </div>
+        </aside>
+
+        <!-- RIGHT PANEL: Action Canvas (Scrollable) -->
+        <section class="flex-1 flex flex-col bg-[#FAFAFA] relative overflow-hidden">
+            
+            <!-- Canvas Header & Tabs (Sticky) -->
+            <header class="bg-[#FAFAFA]/80 backdrop-blur-md border-b border-zinc-200 sticky top-0 z-30 pt-6 px-4 xl:px-12 flex flex-col gap-6 shadow-sm">
+                
+                <!-- Action Bar -->
+                <div class="flex items-center justify-between w-full">
+                    <div class="flex items-center gap-4">
+                        <h2 class="text-xl font-display font-semibold text-zinc-900 tracking-tight">Buyer Engine</h2>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button class="text-sm font-medium text-zinc-600 hover:text-zinc-900 px-3 py-1.5 rounded-md transition-colors invisible xl:visible">
+                            Save Snapshot
+                        </button>
+                        <button id="btn-outreach" class="btn-push flex items-center gap-2 bg-zinc-300 text-zinc-500 cursor-not-allowed px-4 py-2 rounded-md text-sm font-semibold transition-all relative overflow-hidden group">
+                            <!-- Tooltip wrapper on hover -->
+                            <span class="z-10 flex items-center gap-2">
+                                <i data-lucide="send" class="w-4 h-4"></i>
+                                Send Outreach
+                            </span>
+                            <div class="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-zinc-900 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
+                                Compliance lock active
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="flex items-center gap-8 text-sm font-medium text-zinc-500 overflow-x-auto no-scrollbar w-full" role="tablist">
+                    <button class="pb-3 border-b-2 border-transparent hover:text-zinc-800 whitespace-nowrap transition-colors" data-tab-target="universe">
+                        Universe <span class="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-500 tabular-data font-normal">2,410</span>
+                    </button>
+                    <button class="pb-3 border-b-2 border-emerald-600 text-zinc-900 whitespace-nowrap transition-colors" data-tab-target="matches" aria-selected="true">
+                        Matches & Shortlist <span class="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 tabular-data font-normal">84</span>
+                    </button>
+                    <button class="pb-3 border-b-2 border-transparent hover:text-zinc-800 whitespace-nowrap transition-colors" data-tab-target="outreach">
+                        Outreach
+                    </button>
+                    <button class="pb-3 border-b-2 border-transparent hover:text-zinc-800 whitespace-nowrap transition-colors flex items-center gap-1.5" data-tab-target="pipeline">
+                        Pipeline
+                    </button>
+                </div>
+            </header>
+
+            <!-- Scrollable Content Area -->
+            <div class="flex-1 overflow-y-auto px-4 xl:px-12 py-8 relative">
+                
+                <!-- CONTENT: Matches & Shortlist (Active by default) -->
+                <div class="tab-content w-full max-w-5xl mx-auto" data-active="true" id="tab-matches">
+                    
+                    <!-- Top Tuning Bar (Meso-Architecture) -->
+                    <div class="bg-white border border-zinc-200 p-1.5 rounded-xl shadow-xs mb-8 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4">
+                        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar p-1">
+                            <span class="text-xs font-bold uppercase tracking-widest text-zinc-400 px-3 shrink-0">Criteria Tuning</span>
+                            
+                            <!-- Criterion Pills -->
+                            <button class="flex items-center gap-2 group px-3 py-1.5 bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-md transition-colors shrink-0">
+                                <span class="text-[13px] text-zinc-700 font-medium">B2B SaaS</span>
+                                <i data-lucide="x" class="w-3 h-3 text-zinc-400 group-hover:text-zinc-700"></i>
+                            </button>
+                            <button class="flex items-center gap-2 group px-3 py-1.5 bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-md transition-colors shrink-0">
+                                <span class="text-[13px] text-zinc-700 font-medium">AUM > $1B</span>
+                                <i data-lucide="x" class="w-3 h-3 text-zinc-400 group-hover:text-zinc-700"></i>
+                            </button>
+                            <button class="flex items-center gap-2 group px-3 py-1.5 bg-red-50 border border-red-100 hover:border-red-200 rounded-md transition-colors shrink-0">
+                                <span class="text-[13px] text-red-700 font-medium line-through">Distressed Assets</span>
+                                <i data-lucide="x" class="w-3 h-3 text-red-400 group-hover:text-red-700"></i>
+                            </button>
+                            
+                            <button class="w-8 h-8 flex items-center justify-center border border-dashed border-zinc-300 text-zinc-400 rounded-md hover:border-zinc-500 hover:text-zinc-600 transition-colors shrink-0">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-3 px-2 xl:px-4 shrink-0 pb-2 xl:pb-0 border-t xl:border-t-0 border-zinc-100 pt-2 xl:pt-0">
+                            <div class="flex items-center gap-2 mr-2">
+                                <span class="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">Sensitivity</span>
+                                <div class="flex h-1.5 w-16 bg-zinc-100 rounded-full overflow-hidden">
+                                    <div class="w-2/3 bg-zinc-400"></div>
+                                </div>
+                            </div>
+                            <button id="btn-rerun" class="btn-push bg-white border border-zinc-200 hover:border-emerald-600 hover:text-emerald-700 text-zinc-700 text-[13px] font-semibold px-4 py-1.5 rounded-md shadow-sm transition-all flex items-center gap-2">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="icon-refresh"></i>
+                                Re-run Match
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- List Header -->
+                    <div class="flex justify-between items-end mb-4 border-b border-zinc-200 pb-2">
+                        <h3 class="text-sm font-semibold text-zinc-900">Ranked AI Candidates</h3>
+                        <div class="flex gap-4 text-xs font-semibold uppercase tracking-widest text-zinc-400">
+                            <span>Score</span>
+                            <span>Candidate</span>
+                            <span class="hidden md:inline-block">Rationale</span>
+                            <span>Action</span>
+                        </div>
+                    </div>
+
+                    <!-- Matches Feed (Staggered Animation Wrapper) -->
+                    <div class="flex flex-col gap-3 animate-stagger" id="match-list">
+                        
+                        <!-- MATCH ITEM 1 (High Fit) -->
+                        <article class="group bg-white border border-zinc-200 hover:border-emerald-500 hover:shadow-md rounded-lg p-3 xl:p-4 transition-all duration-300 flex flex-col md:flex-row md:items-center gap-4 relative isolate">
+                            <!-- Selected Indicator base -->
+                            <div class="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity rounded-l-lg"></div>
+
+                            <!-- Column 1: Score & Name -->
+                            <div class="flex items-center gap-4 md:w-1/3 shrink-0">
+                                <div class="relative flex items-center justify-center w-12 h-12 shrink-0">
+                                    <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
+                                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#ECFDF5" stroke-width="3" />
+                                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10B981" stroke-width="3" stroke-dasharray="98, 100" />
+                                    </svg>
+                                    <span class="absolute text-sm font-bold font-display text-emerald-700 tabular-data">98</span>
+                                </div>
+                                <div>
+                                    <a href="#" class="text-[15px] font-semibold text-zinc-900 group-hover:text-emerald-700 transition-colors leading-tight block">Thoma Bravo</a>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="text-[11px] font-medium text-zinc-500 border border-zinc-200 bg-zinc-50 rounded px-1.5 py-0.5">Private Equity</span>
+                                        <span class="text-[11px] text-zinc-400 tabular-data">$130B AUM</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Column 2: Rationale (Hidden on mobile for density, unless expanded) -->
+                            <div class="hidden md:flex flex-col gap-1.5 flex-1 pr-4 border-l border-zinc-100 pl-4 py-1">
+                                <div class="flex items-start gap-2 text-[13px] text-zinc-600">
+                                    <i data-lucide="check" class="w-4 h-4 text-emerald-500 shrink-0 mt-0.5"></i>
+                                    <span>Recent acquisition of similar asset (<span class="font-medium text-zinc-800">Coupa Software</span>, Dec '22)</span>
+                                </div>
+                                <div class="flex items-start gap-2 text-[13px] text-zinc-600">
+                                    <i data-lucide="check" class="w-4 h-4 text-emerald-500 shrink-0 mt-0.5"></i>
+                                    <span>Target size ($45M) perfectly aligns with lower-middle market vehicle strategy.</span>
+                                </div>
+                            </div>
+
+                            <!-- Column 3: Actions -->
+                            <div class="flex items-center justify-between md:justify-end gap-3 md:w-32 shrink-0 md:pl-4 md:border-l md:border-zinc-100">
+                                <span class="md:hidden text-xs text-zinc-400">Actions</span>
+                                <div class="flex items-center gap-2">
+                                    <button class="w-8 h-8 rounded-full border border-zinc-200 bg-white flex items-center justify-center text-zinc-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors tooltip" aria-label="Exclude">
+                                        <i data-lucide="x" class="w-4 h-4"></i>
+                                    </button>
+                                    <button class="px-3 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold hover:bg-emerald-600 hover:text-white transition-colors flex items-center gap-1">
+                                        <i data-lucide="bookmark" class="w-3.5 h-3.5 border-none"></i> Shortlist
+                                    </button>
+                                </div>
+                            </div>
+                        </article>
+
+                        <!-- MATCH ITEM 2 (Good Fit) -->
+                        <article class="group bg-white border border-zinc-200 hover:border-emerald-500 hover:shadow-md rounded-lg p-3 xl:p-4 transition-all duration-300 flex flex-col md:flex-row md:items-center gap-4 relative isolate">
+                            <div class="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity rounded-l-lg"></div>
+
+                            <div class="flex items-center gap-4 md:w-1/3 shrink-0">
+                                <div class="relative flex items-center justify-center w-12 h-12 shrink-0">
+                                    <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
+                                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#ECFDF5" stroke-width="3" />
+                                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10B981" stroke-width="3" stroke-dasharray="92, 100" />
+                                    </svg>
+                                    <span class="absolute text-sm font-bold font-display text-emerald-700 tabular-data">92</span>
+                                </div>
+                                <div>
+                                    <a href="#" class="text-[15px] font-semibold text-zinc-900 group-hover:text-emerald-700 transition-colors leading-tight block">Insight Partners</a>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="text-[11px] font-medium text-zinc-500 border border-zinc-200 bg-zinc-50 rounded px-1.5 py-0.5">Venture / Growth</span>
+                                        <span class="text-[11px] text-zinc-400 tabular-data">$90B AUM</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="hidden md:flex flex-col gap-1.5 flex-1 pr-4 border-l border-zinc-100 pl-4 py-1">
+                                <div class="flex items-start gap-2 text-[13px] text-zinc-600">
+                                    <i data-lucide="check" class="w-4 h-4 text-emerald-500 shrink-0 mt-0.5"></i>
+                                    <span>High historical volume in predictive analytics (12 deals since 2020).</span>
+                                </div>
+                                <div class="flex items-start gap-2 text-[13px] text-zinc-600">
+                                    <i data-lucide="minus" class="w-4 h-4 text-zinc-300 shrink-0 mt-0.5"></i>
+                                    <span>Usually targets slightly higher growth stage margins.</span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between md:justify-end gap-3 md:w-32 shrink-0 md:pl-4 md:border-l md:border-zinc-100">
+                                <span class="md:hidden text-xs text-zinc-400">Actions</span>
+                                <div class="flex items-center gap-2">
+                                    <button class="w-8 h-8 rounded-full border border-zinc-200 bg-white flex items-center justify-center text-zinc-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors">
+                                        <i data-lucide="x" class="w-4 h-4"></i>
+                                    </button>
+                                    <button class="px-3 py-1.5 rounded-md border border-zinc-200 bg-white text-zinc-700 text-xs font-bold hover:bg-zinc-50 hover:border-zinc-300 transition-colors flex items-center gap-1">
+                                        Add
+                                    </button>
+                                </div>
+                            </div>
+                        </article>
+
+                        <!-- MATCH ITEM 3 (Warning/Compliance Block) -->
+                        <article class="group bg-white border border-red-200 rounded-lg p-3 xl:p-4 transition-all duration-300 flex flex-col md:flex-row md:items-center gap-4 relative isolate before:content-[''] before:absolute before:inset-0 before:bg-red-50/30 before:-z-10 before:rounded-lg">
+                            <div class="absolute left-0 top-0 bottom-0 w-1 bg-red-500 rounded-l-lg"></div>
+
+                            <div class="flex items-center gap-4 md:w-1/3 shrink-0">
+                                <div class="relative flex items-center justify-center w-12 h-12 shrink-0 text-red-500 bg-red-50 border border-red-200 rounded-full">
+                                    <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                                    <!-- Replaces Fit Score graphic to show structural override -->
+                                </div>
+                                <div>
+                                    <a href="#" class="text-[15px] font-semibold text-zinc-900 leading-tight block">Alpha Strategic Holdings</a>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="text-[11px] font-bold text-red-600 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded flex items-center gap-1"> <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Restricted</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="hidden md:flex flex-col gap-1.5 flex-1 pr-4 border-l border-zinc-100 pl-4 py-1">
+                                <div class="flex items-start gap-2 text-[13px] text-zinc-600">
+                                    <i data-lucide="alert-triangle" class="w-4 h-4 text-red-500 shrink-0 mt-0.5"></i>
+                                    <span>Direct competitor flag raised by Seller profile directives.</span>
+                                </div>
+                                <div class="text-[12px] text-zinc-400 ml-6 italic">Matched pre-filter (Score: 89) – Excluded from outreach availability.</div>
+                            </div>
+
+                            <div class="flex items-center justify-between md:justify-end gap-3 md:w-32 shrink-0 md:pl-4 md:border-l md:border-zinc-100">
+                                <span class="md:hidden text-xs text-zinc-400">Actions</span>
+                                <div class="flex items-center gap-2">
+                                    <button class="px-3 py-1.5 rounded-md border border-zinc-200 bg-zinc-100 text-zinc-400 text-xs font-semibold cursor-not-allowed w-full text-center">
+                                        Blocked
+                                    </button>
+                                </div>
+                            </div>
+                        </article>
+
+                    </div>
+                    
+                    <!-- Pagination / Load More -->
+                    <div class="mt-8 flex justify-center pb-12">
+                        <button class="text-sm font-semibold text-zinc-500 hover:text-zinc-900 transition-colors flex items-center gap-2">
+                            Load next 20 matches <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- CONTENT: Pipeline (Hidden by default to demonstrate state/tabs) -->
+                <div class="tab-content w-full max-w-4xl mx-auto h-full flex flex-col items-center justify-center py-20" data-active="false" id="tab-pipeline">
+                    <div class="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mb-6">
+                        <i data-lucide="git-branch-plus" class="w-6 h-6 text-zinc-400"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-zinc-900 mb-2">No active pipeline deals</h3>
+                    <p class="text-zinc-500 text-center max-w-md text-sm leading-relaxed mb-6">
+                        The pipeline will populate automatically once outreach responses are received or buyers are manually moved into negotiation stages.
+                    </p>
+                    <button class="bg-white border border-zinc-200 text-zinc-600 px-4 py-2 rounded-md text-sm font-semibold hover:border-zinc-300 transition-colors" onclick="document.querySelector('[data-tab-target=\'matches\']').click()">
+                        Return to Matches
+                    </button>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Client-side Logic (Simulating Framework constraints) -->
+    <script>
+        // Init Lucide Icons
+        lucide.createIcons();
+
+        // 1. Tab Switching Logic
+        const tabButtons = document.querySelectorAll('[data-tab-target]');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                // Remove active styling from all tabs
+                tabButtons.forEach(btn => {
+                    btn.classList.remove('border-emerald-600', 'text-zinc-900');
+                    btn.classList.add('border-transparent', 'text-zinc-500');
+                    btn.setAttribute('aria-selected', 'false');
+                });
+                
+                // Add active styling to clicked tab
+                button.classList.remove('border-transparent', 'text-zinc-500');
+                button.classList.add('border-emerald-600', 'text-zinc-900');
+                button.setAttribute('aria-selected', 'true');
+
+                // Hide all content
+                tabContents.forEach(content => {
+                    content.setAttribute('data-active', 'false');
+                });
+
+                // Show target content (with rudimentary fallback if it doesn't exist yet)
+                const targetId = `tab-${button.getAttribute('data-tab-target')}`;
+                const targetContent = document.getElementById(targetId);
+                if (targetContent) {
+                    targetContent.setAttribute('data-active', 'true');
+                } else {
+                    // Quick mock empty state for undefined tabs to prevent blank screens
+                    document.getElementById('tab-pipeline').setAttribute('data-active', 'true');
+                }
+            });
+        });
+
+        // 2. Mock Rerun Interaction (Micro-architecture Polish)
+        const rerunBtn = document.getElementById('btn-rerun');
+        const refreshIcon = document.getElementById('icon-refresh');
+        const matchList = document.getElementById('match-list');
+        const originalListHTML = matchList.innerHTML;
+
+        rerunBtn.addEventListener('click', () => {
+            if(rerunBtn.disabled) return;
+            
+            // State: Loading
+            rerunBtn.disabled = true;
+            refreshIcon.classList.add('animate-spin');
+            
+            // Scaffold loading skeletons
+            matchList.innerHTML = '';
+            for(let i=0; i<3; i++) {
+                matchList.innerHTML += `
+                    <div class="bg-white border border-zinc-200 rounded-lg p-4 flex gap-4 h-24">
+                        <div class="w-12 h-12 rounded-full loading-skeleton shrink-0"></div>
+                        <div class="flex-1 space-y-3 py-1">
+                            <div class="h-4 w-1/3 rounded bg-zinc-200 loading-skeleton"></div>
+                            <div class="h-3 w-1/4 rounded bg-zinc-100 loading-skeleton"></div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Mock network resolution & animate back in
+            setTimeout(() => {
+                refreshIcon.classList.remove('animate-spin');
+                rerunBtn.disabled = false;
+                
+                // Re-inject original with fresh animation triggers
+                matchList.innerHTML = originalListHTML;
+                lucide.createIcons(); // re-init icons in new DOM nodes
+            }, 1500);
+        });
+
+    </script>
+</body>
+</html>

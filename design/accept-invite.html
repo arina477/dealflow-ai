@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased selection:bg-emerald-100 selection:text-emerald-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Accept Invite | DealFlow AI</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Design System Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: { 25: '#FCFCFD', 50: '#F9FAFB', 100: '#F3F4F6', 200: '#E5E7EB', 300: '#D1D5DB', 400: '#9CA3AF', 500: '#6B7280', 600: '#4B5563', 700: '#374151', 800: '#1F2937', 900: '#111827', 950: '#030712' },
+                        emerald: { 50: '#ECFDF5', 600: '#10B981', 700: '#047857' },
+                        status: { danger: '#DC2626', warn: '#D97706', info: '#2563EB', positive: '#10B981', neutral: '#9CA3AF' }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                        'float': '0 20px 40px -15px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.7)',
+                    },
+                    transitionTimingFunction: {
+                        'spring': 'cubic-bezier(0.16, 1, 0.3, 1)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Utilities & Advanced CSS */
+        :root {
+            --anim-speed: 0.6s;
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+        }
+
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        
+        /* Typography Scale Overrides based on DS */
+        .text-display { font-size: 30px; line-height: 36px; font-weight: 700; }
+        .text-h1 { font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.02em; }
+        .text-h2 { font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
+        .text-h3 { font-size: 16px; line-height: 24px; font-weight: 600; }
+        .text-body-m { font-size: 14px; line-height: 20px; font-weight: 400; }
+        .text-body-s { font-size: 13px; line-height: 18px; font-weight: 400; }
+        .text-label { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+
+        /* Form Primitives */
+        .df-input {
+            width: 100%;
+            background-color: #FFFFFF;
+            border: 1px solid theme('colors.zinc.200');
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
+            font-size: 14px;
+            color: theme('colors.zinc.800');
+            outline: none;
+            transition: all 150ms var(--anim-ease);
+            box-shadow: theme('boxShadow.xs');
+        }
+        .df-input::placeholder { color: theme('colors.zinc.400'); }
+        .df-input:hover:not(:disabled) { border-color: theme('colors.zinc.300'); }
+        .df-input:focus {
+            border-color: theme('colors.emerald.600');
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+        }
+        .df-input:disabled {
+            background-color: theme('colors.zinc.50');
+            color: theme('colors.zinc.500');
+            cursor: not-allowed;
+            border-color: theme('colors.zinc.200');
+            box-shadow: none;
+        }
+        .df-input.is-error {
+            border-color: theme('colors.status.danger');
+        }
+        .df-input.is-error:focus {
+            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
+        }
+
+        .df-btn-primary {
+            background-color: theme('colors.emerald.600');
+            color: #FFFFFF;
+            font-weight: 500;
+            font-size: 14px;
+            border-radius: var(--radius-md);
+            padding: 10px 16px;
+            transition: all 150ms var(--anim-ease);
+            box-shadow: theme('boxShadow.xs');
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .df-btn-primary:hover:not(:disabled) {
+            background-color: theme('colors.emerald.700');
+            transform: translateY(-1px);
+            box-shadow: theme('boxShadow.sm');
+        }
+        .df-btn-primary:active:not(:disabled) {
+            transform: translateY(0) scale(0.98);
+        }
+        .df-btn-primary:disabled {
+            background-color: theme('colors.zinc.300');
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Architectural / Right Pane */
+        .bg-grid-architectural {
+            background-size: 32px 32px;
+            background-image: 
+                linear-gradient(to right, rgba(229, 231, 235, 0.5) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(229, 231, 235, 0.5) 1px, transparent 1px);
+            mask-image: radial-gradient(circle at center, black 30%, transparent 80%);
+            -webkit-mask-image: radial-gradient(circle at center, black 30%, transparent 80%);
+            animation: panelexpand 20s linear infinite alternate;
+        }
+
+        /* Glassmorphism Refraction Panel */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: var(--shadow-float);
+            border-radius: var(--radius-lg);
+        }
+
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUpFade { 
+            from { opacity: 0; transform: translateY(12px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-4px); }
+            40%, 80% { transform: translateX(4px); }
+        }
+        @keyframes loadingSpin {
+            to { transform: rotate(360deg); }
+        }
+        @keyframes shim {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .animate-slide-up { animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        .animate-shake { animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+        .stagger-1 { animation-delay: 50ms; }
+        .stagger-2 { animation-delay: 100ms; }
+        .stagger-3 { animation-delay: 150ms; }
+        .stagger-4 { animation-delay: 200ms; }
+        .stagger-5 { animation-delay: 250ms; }
+        .float-slow { animation: float 6s ease-in-out infinite; }
+        .float-slower { animation: float 8s ease-in-out infinite 1s; }
+
+        /* View State Management */
+        .view-state { display: none; }
+        .view-state.is-active { display: flex; animation: fadeIn 0.4s ease-out; }
+
+        /* Password Meter Fill Transition */
+        .meter-segment { transition: background-color 0.3s ease, transform 0.2s ease; }
+    </style>
+</head>
+<body class="bg-zinc-25 text-zinc-800 min-h-[100dvh] overflow-x-hidden">
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 min-h-[100dvh]">
+        
+        <!-- MACRO-ARCHITECTURE: LEFT CONTROLS (FUNCTIONAL SHELL) -->
+        <main class="w-full flex items-center justify-center px-6 py-12 lg:px-16 xl:px-24">
+            <div class="w-full max-w-[420px] mx-auto relative">
+                
+                <!-- Logo Header -->
+                <div class="mb-10 animate-slide-up" style="animation-delay: 0ms;">
+                    <div class="flex items-center gap-2 mb-2">
+                        <!-- Abstract DealFlow Logo shape -->
+                        <div class="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center shadow-xs">
+                            <i class="ph ph-flow-arrow text-white text-lg"></i>
+                        </div>
+                        <span class="text-h2 font-bold tracking-tight text-zinc-900">DealFlow AI</span>
+                    </div>
+                </div>
+
+                <!-- STATE 1: INITIAL LOADING -->
+                <div id="view-loading" class="view-state is-active flex-col items-start gap-4">
+                    <div class="w-6 h-6 border-2 border-zinc-200 border-t-emerald-600 rounded-full animate-[loadingSpin_0.8s_linear_infinite]"></div>
+                    <div>
+                        <h2 class="text-h3 text-zinc-900">Verifying secure invitation...</h2>
+                        <p class="text-body-m text-zinc-500 mt-1">Establishing encrypted connection block.</p>
+                    </div>
+                </div>
+
+                <!-- STATE 2: ERROR / EXPIRED -->
+                <div id="view-error" class="view-state flex-col items-start gap-6">
+                    <div class="w-12 h-12 rounded-[10px] bg-red-50 border border-red-100 flex items-center justify-center mb-2">
+                        <i class="ph ph-warning-circle text-status-danger text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-h1 text-zinc-900 mb-2">Invite Link Invalid</h1>
+                        <p class="text-body-m text-zinc-600">This invite link has already been used, has expired, or does not exist. Security protocol mandates token invalidation upon use.</p>
+                    </div>
+                    <button type="button" class="df-btn-primary w-full bg-zinc-800 hover:bg-zinc-900 text-white" onclick="alert('Redirecting to support...')">
+                        Contact Administrator
+                    </button>
+                    <!-- Debug hook to reset layout logic -->
+                    <button type="button" onclick="debugSwitchTo('form')" class="text-label text-zinc-400 hover:text-zinc-600 underline mt-4">Debug: Bypass to Form</button>
+                </div>
+
+                <!-- STATE 3: ONBOARDING FORM -->
+                <form id="view-form" class="view-state flex-col gap-6" onsubmit="event.preventDefault(); submitForm();">
+                    
+                    <div class="animate-slide-up stagger-1">
+                        <h1 class="text-h1 text-zinc-900 mb-1">Set up your account</h1>
+                        <p class="text-body-m text-zinc-600">Alex Chen (admin@dealflow.ai) has invited you to collaborate on secure M&A workflows.</p>
+                    </div>
+
+                    <div class="space-y-5 w-full mt-2">
+                        
+                        <!-- Read-only Email -->
+                        <div class="animate-slide-up stagger-2">
+                            <label class="text-label text-zinc-700 block mb-1.5 flex justify-between">
+                                <span>Security Identity</span>
+                                <span class="text-zinc-400 capitalize font-normal text-[11px] tracking-normal">Pre-verified</span>
+                            </label>
+                            <div class="relative">
+                                <i class="ph ph-envelope-simple absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+                                <input type="email" id="email" class="df-input pl-9 font-medium" value="j.doe@partnerfirm.com" disabled>
+                            </div>
+                        </div>
+
+                        <!-- Full Name -->
+                        <div class="animate-slide-up stagger-3">
+                            <label for="fullName" class="text-label text-zinc-700 block mb-1.5">Full Legal Name</label>
+                            <input type="text" id="fullName" class="df-input" placeholder="e.g. Jane Doe" required autocomplete="name">
+                        </div>
+
+                        <!-- Complex Password Logic Block -->
+                        <div class="animate-slide-up stagger-4 bg-zinc-50/50 p-4 rounded-md border border-zinc-200 shadow-[inset_0_1px_3px_rgba(0,0,0,0.02)]">
+                            <label for="password" class="text-label text-zinc-700 block mb-1.5">Create Vault Password</label>
+                            <div class="relative">
+                                <input type="password" id="password" class="df-input pr-10 font-mono tracking-tight" placeholder="••••••••••••" required>
+                                <button type="button" id="togglePswd" class="absolute right-0 top-0 h-full px-3 flex items-center text-zinc-400 hover:text-zinc-600 focus:outline-none rounded-r-md transition-colors" aria-label="Toggle password visibility">
+                                    <i class="ph ph-eye text-lg"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Real-time Strength Indicator -->
+                            <div class="mt-4">
+                                <div class="flex justify-between items-center mb-1.5">
+                                    <span class="text-[11px] font-semibold tracking-wide uppercase text-zinc-500">Signal Strength</span>
+                                    <span id="strength-text" class="text-[11px] font-semibold tabular-nums text-zinc-400">0%</span>
+                                </div>
+                                <div class="flex gap-1 h-1.5 mb-3">
+                                    <div id="seg-1" class="h-full flex-1 rounded-full bg-zinc-200 meter-segment"></div>
+                                    <div id="seg-2" class="h-full flex-1 rounded-full bg-zinc-200 meter-segment"></div>
+                                    <div id="seg-3" class="h-full flex-1 rounded-full bg-zinc-200 meter-segment"></div>
+                                    <div id="seg-4" class="h-full flex-1 rounded-full bg-zinc-200 meter-segment"></div>
+                                </div>
+                                
+                                <ul class="text-[12px] text-zinc-600 space-y-1.5 grid grid-cols-2 gap-x-2">
+                                    <li class="flex items-center gap-1.5 req-item" data-req="length">
+                                        <i class="ph ph-check-circle text-zinc-300 transition-colors"></i> 12+ characters
+                                    </li>
+                                    <li class="flex items-center gap-1.5 req-item" data-req="upper">
+                                        <i class="ph ph-check-circle text-zinc-300 transition-colors"></i> Uppercase letter
+                                    </li>
+                                    <li class="flex items-center gap-1.5 req-item" data-req="lower">
+                                        <i class="ph ph-check-circle text-zinc-300 transition-colors"></i> Lowercase letter
+                                    </li>
+                                    <li class="flex items-center gap-1.5 req-item" data-req="num">
+                                        <i class="ph ph-check-circle text-zinc-300 transition-colors"></i> Number
+                                    </li>
+                                    <li class="flex items-center gap-1.5 req-item col-span-2" data-req="special">
+                                        <i class="ph ph-check-circle text-zinc-300 transition-colors"></i> Special char (!@#$%^&*)
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Confirm Password -->
+                        <div class="animate-slide-up stagger-5">
+                            <label for="confirmPswd" class="text-label text-zinc-700 block mb-1.5">Confirm Password</label>
+                            <input type="password" id="confirmPswd" class="df-input font-mono tracking-tight" placeholder="••••••••••••" required>
+                            <p id="match-error" class="text-[12px] text-status-danger mt-1.5 hidden flex items-center gap-1">
+                                <i class="ph ph-warning-circle"></i> Passwords do not match
+                            </p>
+                        </div>
+
+                    </div>
+
+                    <div class="animate-slide-up pt-2" style="animation-delay: 300ms;">
+                        <button type="submit" id="submitBtn" class="df-btn-primary w-full h-[40px]" disabled>
+                            <span id="btn-text">Accept & Create Account</span>
+                            <div id="btn-loader" class="hidden absolute inset-0 flex items-center justify-center bg-emerald-600">
+                                <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            </div>
+                        </button>
+                        <p class="text-[11px] text-zinc-500 text-center mt-4">
+                            By accepting, you yield to DealFlow AI's <a href="#" class="underline hover:text-zinc-800">TOS</a> and <a href="#" class="underline hover:text-zinc-800">Data Processing Agreement</a>.
+                        </p>
+                    </div>
+                </form>
+
+            </div>
+        </main>
+
+        <!-- MACRO-ARCHITECTURE: RIGHT CANVAS (VISUAL TENSION & MESO-DATA) -->
+        <!-- Hidden on <1024px. Displays abstract layout of SaaS tool to prove scale and materiality -->
+        <aside class="hidden lg:flex relative bg-[#F9FAFB] border-l border-zinc-200 overflow-hidden flex-col items-center justify-center p-12">
+            
+            <!-- Animated Background Grid -->
+            <div class="absolute inset-0 bg-grid-architectural opacity-80 mix-blend-multiply pointer-events-none"></div>
+            
+            <!-- Decorative Glow -->
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-100 rounded-full blur-[100px] opacity-40 pointer-events-none"></div>
+
+            <!-- Bento Composition simulating platform UI -->
+            <div class="relative w-full max-w-[480px] select-none pointer-events-none">
+                
+                <!-- Main Widget Array -->
+                <div class="glass-panel p-5 relative z-10 float-slow border-t-[1.5px] border-t-white">
+                    <div class="flex items-center justify-between mb-6 pb-4 border-b border-zinc-200/50">
+                        <div class="flex items-center gap-2">
+                            <i class="ph-fill ph-briefcase text-zinc-400"></i>
+                            <span class="text-label text-zinc-500">Pipeline Alpha</span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold shrink-0 shadow-xs border border-emerald-100 uppercase tracking-wide">Secure</span>
+                    </div>
+
+                    <!-- Faux Data Rows -->
+                    <div class="space-y-3">
+                        <!-- Row 1 -->
+                        <div class="flex items-center justify-between bg-white/60 p-3 rounded-md border border-white shadow-xs">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-600">AC</div>
+                                <div>
+                                    <div class="text-[13px] font-semibold text-zinc-800">Acme Corp Acquisition</div>
+                                    <div class="text-[11px] text-zinc-500 mt-0.5 font-medium">Stage: Diligence</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[13px] font-semibold tabular-nums text-zinc-800">92/100</div>
+                                <div class="text-[11px] text-zinc-400">Fit Score</div>
+                            </div>
+                        </div>
+
+                        <!-- Row 2 -->
+                        <div class="flex items-center justify-between bg-white/60 p-3 rounded-md border border-white shadow-xs">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-600">VX</div>
+                                <div>
+                                    <div class="text-[13px] font-semibold text-zinc-800">Vanguard Holdings</div>
+                                    <div class="text-[11px] text-zinc-500 mt-0.5 font-medium flex items-center gap-1">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-status-warn"></div> Pending
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[13px] font-semibold tabular-nums text-zinc-800">74/100</div>
+                                <div class="text-[11px] text-zinc-400">Fit Score</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secondary Accents -->
+                <div class="absolute -right-8 -top-8 glass-panel p-4 z-0 float-slower shadow-lg scale-90 opacity-90 border border-white">
+                    <div class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide mb-1">Audit Log Integrity</div>
+                    <div class="flex items-center gap-2 mt-2">
+                        <i class="ph-fill ph-shield-check text-emerald-600 text-lg"></i>
+                        <span class="text-[13px] font-medium text-zinc-800">Chain Verified</span>
+                    </div>
+                    <div class="text-[10px] text-zinc-400 font-mono tracking-tighter mt-1 tabular-nums">0x8F2...A9B</div>
+                </div>
+
+                 <div class="absolute -left-12 -bottom-10 glass-panel p-4 z-20 float-slower shadow-md scale-95 border border-white">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-zinc-900 flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
+                            <i class="ph ph-chart-line-up text-white"></i>
+                        </div>
+                        <div>
+                            <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide">Processed Deals</div>
+                            <div class="text-h2 font-bold tabular-nums text-zinc-900 leading-none mt-1">14,204</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </aside>
+
+    </div>
+
+    <!-- VANILLA JS MICRO-ARCHITECTURE: Logic & Frame Physics -->
+    <script>
+        // UI Controllers
+        const views = {
+            loading: document.getElementById('view-loading'),
+            error: document.getElementById('view-error'),
+            form: document.getElementById('view-form')
+        };
+
+        const formEls = {
+            pswd: document.getElementById('password'),
+            confirm: document.getElementById('confirmPswd'),
+            btn: document.getElementById('submitBtn'),
+            btnText: document.getElementById('btn-text'),
+            btnLoader: document.getElementById('btn-loader'),
+            name: document.getElementById('fullName'),
+            matchError: document.getElementById('match-error'),
+            toggle: document.getElementById('togglePswd'),
+            strengthText: document.getElementById('strength-text')
+        };
+
+        let state = {
+            isPswdStrong: false,
+            doPswdsMatch: false
+        };
+
+        // --- App Initialization Simulation ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Simulate network delay for token verification (adds cinematic anticipation)
+            setTimeout(() => {
+                // Determine logic based on hypothetical token (here, we force success)
+                switchView('form');
+                formEls.name.focus();
+            }, 1200);
+        });
+
+        function switchView(viewName) {
+            Object.values(views).forEach(v => {
+                v.classList.remove('is-active');
+                // Force triggering animation reflow
+                void v.offsetWidth;
+            });
+            views[viewName].classList.add('is-active');
+        }
+
+        // Debug helper exposed to global
+        window.debugSwitchTo = switchView;
+
+        // --- Password Logic & Physics ---
+        formEls.toggle.addEventListener('click', () => {
+            const type = formEls.pswd.getAttribute('type') === 'password' ? 'text' : 'password';
+            formEls.pswd.setAttribute('type', type);
+            formEls.confirm.setAttribute('type', type); // Sync confirm field
+            
+            const icon = formEls.toggle.querySelector('i');
+            if (type === 'text') {
+                icon.classList.replace('ph-eye', 'ph-eye-slash');
+            } else {
+                icon.classList.replace('ph-eye-slash', 'ph-eye');
+            }
+        });
+
+        const requirements = {
+            length: val => val.length >= 12,
+            upper: val => /[A-Z]/.test(val),
+            lower: val => /[a-z]/.test(val),
+            num: val => /[0-9]/.test(val),
+            special: val => /[^A-Za-z0-9]/.test(val)
+        };
+
+        formEls.pswd.addEventListener('input', (e) => {
+            const val = e.target.value;
+            let checksPass = 0;
+            const totalChecks = Object.keys(requirements).length;
+
+            // Evaluate specific rules & update DOM checklist
+            Object.entries(requirements).forEach(([key, checkFn]) => {
+                const isPass = checkFn(val);
+                if (isPass) checksPass++;
+                
+                const item = document.querySelector(`.req-item[data-req="${key}"]`);
+                const icon = item.querySelector('i');
+                if (isPass) {
+                    item.classList.replace('text-zinc-600', 'text-zinc-800');
+                    icon.classList.replace('ph-check-circle', 'ph-check-circle-fill');
+                    icon.classList.replace('text-zinc-300', 'text-emerald-600');
+                } else {
+                    item.classList.replace('text-zinc-800', 'text-zinc-600');
+                    icon.classList.replace('ph-check-circle-fill', 'ph-check-circle');
+                    icon.classList.replace('text-emerald-600', 'text-zinc-300');
+                }
+            });
+
+            state.isPswdStrong = checksPass === totalChecks;
+
+            // Visual Meter update
+            const percentage = Math.round((checksPass / totalChecks) * 100);
+            formEls.strengthText.textContent = `${percentage}%`;
+            
+            // Color Logic
+            let activeColor = 'bg-zinc-200';
+            if (checksPass <= 2) activeColor = 'bg-status-danger';
+            else if (checksPass <= 4) activeColor = 'bg-status-warn';
+            else activeColor = 'bg-emerald-600';
+
+            const segments = [1, 2, 3, 4];
+            // map 5 checks to 4 segments visually
+            const activeSegments = Math.ceil((checksPass / totalChecks) * 4);
+
+            segments.forEach(num => {
+                const el = document.getElementById(`seg-${num}`);
+                el.className = `h-full flex-1 rounded-full meter-segment ${num <= activeSegments ? activeColor : 'bg-zinc-200'}`;
+            });
+
+            validateForm();
+            checkMatch(); // Re-check match if main password changes
+        });
+
+        function checkMatch() {
+            const val1 = formEls.pswd.value;
+            const val2 = formEls.confirm.value;
+            
+            if (val2.length > 0) {
+                state.doPswdsMatch = val1 === val2;
+                if (!state.doPswdsMatch) {
+                    formEls.confirm.classList.add('is-error');
+                    formEls.matchError.classList.remove('hidden');
+                } else {
+                    formEls.confirm.classList.remove('is-error');
+                    formEls.matchError.classList.add('hidden');
+                }
+            } else {
+                state.doPswdsMatch = false;
+                formEls.confirm.classList.remove('is-error');
+                formEls.matchError.classList.add('hidden');
+            }
+            validateForm();
+        }
+
+        formEls.confirm.addEventListener('input', checkMatch);
+        formEls.name.addEventListener('input', validateForm);
+
+        function validateForm() {
+            const isNameValid = formEls.name.value.trim().length > 0;
+            if (isNameValid && state.isPswdStrong && state.doPswdsMatch) {
+                formEls.btn.removeAttribute('disabled');
+            } else {
+                formEls.btn.setAttribute('disabled', 'true');
+            }
+        }
+
+        // --- Submit Orchestration ---
+        window.submitForm = function() {
+            if (formEls.btn.hasAttribute('disabled')) return;
+
+            // Enter Loading State
+            formEls.btn.setAttribute('disabled', 'true');
+            formEls.btnText.classList.add('opacity-0');
+            formEls.btnLoader.classList.remove('hidden');
+
+            // Simulate Network Request POST /api/auth/set-password
+            setTimeout(() => {
+                // Success State redirection behavior
+                formEls.btnLoader.innerHTML = '<i class="ph-bold ph-check text-white text-lg"></i>';
+                formEls.btn.classList.replace('bg-emerald-600', 'bg-zinc-900'); // final lock animation
+                
+                setTimeout(() => {
+                    document.body.style.transition = 'opacity 0.4s ease';
+                    document.body.style.opacity = '0';
+                    setTimeout(() => {
+                         // Fallback alert instead of real redirect for mockup
+                        alert('Account Created. Redirecting to /dashboard...');
+                        location.reload();
+                    }, 400);
+                }, 800);
+
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

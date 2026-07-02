@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased text-zinc-900 bg-zinc-50">
+<!--
+  aesthetic_dna: Restrained, Linear/Stripe-esque, Institutional Credibility
+  ui_paradigm: Multi-Surface Settings Matrix (Bento-inspired control centers)
+  palette: Zinc (Neutral Base) + Emerald (Action/Status) + Red (Destructive)
+-->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compliance Settings - DealFlow AI</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS (Script for Config Injection) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                    },
+                    animation: {
+                        'slide-in': 'slideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'fade-in': 'fadeIn 0.4s ease-out forwards',
+                        'toast': 'toastSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                    },
+                    keyframes: {
+                        slideIn: {
+                            '0%': { transform: 'translateY(10px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        toastSlide: {
+                            '0%': { transform: 'translateX(100%)', opacity: '0' },
+                            '100%': { transform: 'translateX(0)', opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Core System Styles */
+        :root {
+            --anim-speed: 0.6s;
+            --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        body {
+            /* Restrained background matrix pattern for meso-texture */
+            background-image: radial-gradient(#E5E7EB 1px, transparent 1px);
+            background-size: 24px 24px;
+            background-attachment: fixed;
+        }
+
+        /* Tabular nums enforcer */
+        .tab-nums {
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Custom Scrollbar for dense lists */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #D1D5DB;
+            border-radius: 99px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9CA3AF;
+        }
+
+        /* Interactive Primitives */
+        .btn-press {
+            transition: transform 150ms var(--anim-ease), background-color 150ms, box-shadow 150ms;
+        }
+        .btn-press:active:not(:disabled) {
+            transform: scale(0.97);
+        }
+        
+        .card-lift {
+            transition: box-shadow 300ms var(--anim-ease), border-color 300ms;
+        }
+        .card-lift:hover {
+            box-shadow: 0 4px 12px rgb(16 24 40 / 0.05);
+            border-color: #D1D5DB;
+        }
+
+        /* Staggered lists */
+        .stagger-item {
+            opacity: 0;
+            animation: slideIn var(--anim-speed) var(--anim-ease) forwards;
+        }
+
+        /* Policy Radio Selection Logic */
+        .policy-radio input:checked + div {
+            border-color: #10B981;
+            background-color: #ECFDF5;
+            box-shadow: 0 0 0 1px #10B981;
+        }
+        .policy-radio input:checked + div .radio-indicator {
+            border-color: #10B981;
+            background-color: #10B981;
+            box-shadow: inset 0 0 0 3px #ECFDF5;
+        }
+        
+        /* Modal Glass */
+        .modal-glass {
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            background-color: rgba(3, 7, 18, 0.4);
+        }
+
+        /* Hide specific elements initially */
+        #addSuppressionModal, #toastContainer, #emptyStateDisclaimer {
+            display: none;
+        }
+        
+        #addSuppressionModal.is-active, #toastContainer.is-active, #emptyStateDisclaimer.is-active {
+            display: flex;
+        }
+    </style>
+</head>
+<body class="min-h-[100dvh] flex flex-col md:flex-row overflow-hidden">
+
+    <!-- SIDEBAR (Macro-Architecture: Global Navigation) -->
+    <aside class="w-full md:w-64 bg-zinc-900 border-r border-zinc-800 flex flex-shrink-0 flex-col transition-all duration-300 relative z-20">
+        <div class="h-16 flex items-center px-6 border-b border-zinc-800/50">
+            <svg class="w-6 h-6 text-emerald-500 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            <span class="text-zinc-50 font-semibold tracking-tight">DealFlow AI</span>
+        </div>
+        
+        <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 rounded-md transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                Dashboard
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 rounded-md transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                Active Mandates
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 rounded-md transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+                Outreach Pipeline
+            </a>
+            
+            <div class="pt-6 pb-2">
+                <p class="px-3 text-xs font-semibold text-zinc-500 uppercase tracking-widest">Governance</p>
+            </div>
+            
+            <!-- Active State Navigation -->
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-zinc-50 bg-zinc-800 rounded-md transition-colors text-sm font-medium relative overflow-hidden group">
+                <div class="absolute inset-y-0 left-0 w-1 bg-emerald-500 rounded-l-md group-hover:w-1.5 transition-all"></div>
+                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+                Compliance Rules
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 rounded-md transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h6"/><path d="M9 11h6"/></svg>
+                Audit Logs
+            </a>
+        </nav>
+        
+        <div class="p-4 border-t border-zinc-800">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-zinc-700 flex text-xs items-center justify-center text-zinc-300 font-semibold border border-zinc-600">CR</div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-zinc-200 truncate">Elara Vance</p>
+                    <p class="text-xs text-zinc-500 truncate">Compliance Officer</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 flex flex-col relative z-10 h-[100dvh] overflow-y-auto w-full">
+        
+        <!-- Top Header -->
+        <header class="h-16 bg-white/80 backdrop-blur-md border-b border-zinc-200 flex items-center justify-between px-6 lg:px-8 sticky top-0 z-30">
+            <div class="flex items-center gap-2 text-sm">
+                <span class="text-zinc-500">Governance</span>
+                <span class="text-zinc-300">/</span>
+                <span class="text-zinc-900 font-medium">Compliance Settings</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-zinc-100 border border-zinc-200 text-xs font-medium text-zinc-600 select-none hidden md:flex">
+                    <div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse"></div>
+                    Engine Active
+                </div>
+                <!-- Save visual purely for architectural completeness; forms auto-save per specs, but global states exist -->
+                <button class="btn-press bg-white border border-zinc-200 text-zinc-700 px-3 py-1.5 text-sm font-medium rounded-md shadow-xs hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-emerald-600/40 focus:ring-offset-1 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-zinc-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Export Config
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic Content Engine -->
+        <div class="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-8 animate-fade-in relative z-10">
+            
+            <!-- Page Title Header -->
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h1 class="text-2xl font-semibold text-zinc-900 tracking-tight">Compliance Rules Engine</h1>
+                    <p class="text-sm text-zinc-500 mt-1 max-w-2xl">Manage suppression logic, jurisdictional disclaimers, and send-time approval policies. Changes take effect on the next network cycle.</p>
+                </div>
+            </div>
+
+            <!-- SECTION 1: Approval-Gating Policy (Macro Constraint) -->
+            <section class="bg-white rounded-lg border border-zinc-200 shadow-xs overflow-hidden stagger-item" style="--index: 1;">
+                <div class="p-5 border-b border-zinc-100 flex items-center gap-3 bg-zinc-25">
+                    <div class="p-1.5 bg-emerald-50 rounded-md border border-emerald-100">
+                        <svg class="w-4 h-4 text-emerald-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                    </div>
+                    <h2 class="text-base font-semibold text-zinc-900">Approval & Gating Policy</h2>
+                </div>
+                
+                <div class="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Policy: Off -->
+                    <label class="policy-radio cursor-pointer group">
+                        <input type="radio" name="approvalPolicy" value="off" class="sr-only">
+                        <div class="h-full border border-zinc-200 rounded-md p-4 transition-all hover:bg-zinc-50 flex flex-col items-start card-lift relative">
+                            <div class="radio-indicator w-4 h-4 rounded-full border border-zinc-300 absolute top-4 right-4 bg-white transition-colors"></div>
+                            <span class="text-sm font-semibold text-zinc-800">No Gating</span>
+                            <p class="text-xs text-zinc-500 mt-1">Campaigns bypassed. Use only for unconstrained lists.</p>
+                        </div>
+                    </label>
+
+                    <!-- Policy: Threshold (Active) -->
+                    <label class="policy-radio cursor-pointer group">
+                        <input type="radio" name="approvalPolicy" value="threshold" checked class="sr-only" onchange="togglePolicyInputs('threshold')">
+                        <div class="h-full border border-zinc-200 rounded-md p-4 transition-all hover:bg-zinc-50 flex flex-col items-start card-lift relative">
+                            <div class="radio-indicator w-4 h-4 rounded-full border border-zinc-300 absolute top-4 right-4 bg-white transition-colors"></div>
+                            <span class="text-sm font-semibold text-zinc-800">Threshold Trigger</span>
+                            <p class="text-xs text-zinc-500 mt-1">Gate campaigns exceeding defined parameters.</p>
+                        </div>
+                    </label>
+
+                    <!-- Policy: All -->
+                    <label class="policy-radio cursor-pointer group">
+                        <input type="radio" name="approvalPolicy" value="all" class="sr-only" onchange="togglePolicyInputs('all')">
+                        <div class="h-full border border-zinc-200 rounded-md p-4 transition-all hover:bg-zinc-50 flex flex-col items-start card-lift relative">
+                            <div class="radio-indicator w-4 h-4 rounded-full border border-zinc-300 absolute top-4 right-4 bg-white transition-colors"></div>
+                            <span class="text-sm font-semibold text-zinc-800">Absolute Gating</span>
+                            <p class="text-xs text-zinc-500 mt-1">Every outreach campaign requires manual review.</p>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Conditional Input Block (Simulated Logic via CSS structure) -->
+                <div id="policyParams" class="px-5 pb-6 border-t border-zinc-100 bg-zinc-25">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-5">
+                        
+                        <div class="space-y-1">
+                            <label class="text-[12px] font-semibold text-zinc-600 uppercase tracking-wider block">Recipient Threshold</label>
+                            <div class="relative">
+                                <input type="number" value="250" class="w-full h-9 pl-3 pr-10 rounded-sm border border-zinc-300 bg-white text-sm text-zinc-900 tab-nums focus:outline-none focus:ring-2 focus:ring-emerald-600/40 focus:border-emerald-600 transition-colors">
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400">targets</span>
+                            </div>
+                            <p class="text-xs text-zinc-500">Triggers review workflow</p>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-[12px] font-semibold text-zinc-600 uppercase tracking-wider block">Review SLA</label>
+                            <div class="relative">
+                                <input type="number" value="24" class="w-full h-9 pl-3 pr-10 rounded-sm border border-zinc-300 bg-white text-sm text-zinc-900 tab-nums focus:outline-none focus:ring-2 focus:ring-emerald-600/40 focus:border-emerald-600 transition-colors">
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400">hours</span>
+                            </div>
+                            <p class="text-xs text-zinc-500">Sourcer expectation</p>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="text-[12px] font-semibold text-zinc-600 uppercase tracking-wider block text-rose-700">Auto-Decline Match %</label>
+                            <div class="relative">
+                                <input type="number" value="5" class="w-full h-9 pl-3 pr-8 rounded-sm border-rose-300 bg-rose-50/50 text-sm text-rose-900 tab-nums focus:outline-none focus:ring-2 focus:ring-rose-600/40 focus:border-rose-600 transition-colors">
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-rose-600">%</span>
+                            </div>
+                            <p class="text-xs text-zinc-500">Overrides manual review queue</p>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- BENTO GRID FOR LISTS & JURISDICTIONS -->
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                
+                <!-- SECTION 2: Suppression Manager (2 Columns Wide) -->
+                <section class="xl:col-span-2 bg-white rounded-lg border border-zinc-200 shadow-xs flex flex-col h-[500px] stagger-item" style="--index: 2;">
+                    
+                    <div class="p-4 border-b border-zinc-100 flex items-center justify-between bg-white">
+                        <div class="flex items-center gap-3">
+                            <h2 class="text-base font-semibold text-zinc-900">Suppression Matrix</h2>
+                            <span class="px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 text-[11px] font-semibold">12,492 Entities</span>
+                        </div>
+                        <button onclick="openModal()" class="btn-press bg-emerald-600 text-white px-3 py-1.5 text-sm font-medium rounded-md shadow-xs hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-600/40 focus:ring-offset-1 flex items-center gap-1.5">
+                            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                            Add Entry
+                        </button>
+                    </div>
+
+                    <div class="flex-1 flex overflow-hidden">
+                        <!-- Left Sub-Panel: Lists -->
+                        <div class="w-48 border-r border-zinc-100 bg-zinc-50/50 flex flex-col hidden md:flex overflow-y-auto">
+                            <div class="p-3 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Active Lists</div>
+                            <nav class="flex-1 px-2 space-y-0.5">
+                                <button class="w-full text-left px-3 py-2 rounded-md bg-white border border-zinc-200 text-sm font-medium text-emerald-700 shadow-xs flex justify-between items-center">
+                                    Global Master
+                                    <span class="text-xs text-zinc-400 font-normal tab-nums">1.2k</span>
+                                </button>
+                                <button class="w-full text-left px-3 py-2 rounded-md text-sm font-medium text-zinc-600 hover:bg-zinc-100 transition-colors flex justify-between items-center group">
+                                    OFAC Sanctions
+                                    <span class="text-xs text-zinc-400 font-normal tab-nums">98</span>
+                                </button>
+                                <button class="w-full text-left px-3 py-2 rounded-md text-sm font-medium text-zinc-600 hover:bg-zinc-100 transition-colors flex justify-between items-center">
+                                    EU Legal Holds
+                                    <span class="text-xs text-zinc-400 font-normal tab-nums">41</span>
+                                </button>
+                                <button class="w-full text-left px-3 py-2 rounded-md text-sm font-medium text-zinc-600 hover:bg-zinc-100 transition-colors flex justify-between items-center" onclick="showEmptySuppression()">
+                                    Custom: M&A Tech
+                                    <span class="text-xs text-zinc-400 font-normal tab-nums">0</span>
+                                </button>
+                            </nav>
+                        </div>
+
+                        <!-- Right Sub-Panel: Data Table (Active State) -->
+                        <div id="suppressionDataView" class="flex-1 flex flex-col bg-white overflow-hidden relative">
+                            <!-- Table Header -->
+                            <div class="grid grid-cols-12 gap-4 px-4 py-3 border-b border-zinc-200 bg-zinc-50 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider sticky top-0 z-10 w-full min-w-[600px]">
+                                <div class="col-span-5 flex items-center gap-1 cursor-pointer hover:text-zinc-700">Entity Name <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+                                <div class="col-span-3">Reason</div>
+                                <div class="col-span-2">Scope</div>
+                                <div class="col-span-2">Added</div>
+                            </div>
+                            
+                            <!-- Table Body (Scrollable) -->
+                            <div class="flex-1 overflow-x-auto overflow-y-auto">
+                                <div class="min-w-[600px] divide-y divide-zinc-100 pb-12" id="suppressionTableBody">
+                                    
+                                    <!-- Row 1 -->
+                                    <div class="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-zinc-50 transition-colors group cursor-pointer">
+                                        <div class="col-span-5">
+                                            <div class="text-sm font-medium text-zinc-900 truncate">Vanguard Group EMEA</div>
+                                            <div class="text-xs text-zinc-500 truncate">Holdco + Subs</div>
+                                        </div>
+                                        <div class="col-span-3">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-[11px] border border-rose-100 font-medium whitespace-nowrap">
+                                                Competitor Block
+                                            </span>
+                                        </div>
+                                        <div class="col-span-2 text-[13px] text-zinc-600">EU, UK</div>
+                                        <div class="col-span-2 flex items-center justify-between text-[13px] text-zinc-500 tab-nums">
+                                            Oct 12, '23
+                                            <button class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-700 transition-opacity">
+                                                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Row 2 -->
+                                    <div class="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-zinc-50 transition-colors group cursor-pointer">
+                                        <div class="col-span-5">
+                                            <div class="text-sm font-medium text-zinc-900 truncate">Oligarch Resourcing Ltd</div>
+                                            <div class="text-[11px] text-zinc-500 font-mono tab-nums truncate">ID: 8849-B2</div>
+                                        </div>
+                                        <div class="col-span-3">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-50 text-[11px] border border-zinc-900 font-medium whitespace-nowrap">
+                                                OFAC List
+                                            </span>
+                                        </div>
+                                        <div class="col-span-2 text-[13px] text-zinc-600 font-semibold">Global</div>
+                                        <div class="col-span-2 flex items-center justify-between text-[13px] text-zinc-500 tab-nums">
+                                            Jan 04, '24
+                                            <button class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-700 transition-opacity">
+                                                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Row 3 -->
+                                    <div class="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-zinc-50 transition-colors group cursor-pointer">
+                                        <div class="col-span-5">
+                                            <div class="text-sm font-medium text-zinc-900 truncate">Crescent Healthcare Group</div>
+                                        </div>
+                                        <div class="col-span-3">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] border-zinc-200 bg-zinc-50 text-zinc-600 font-medium whitespace-nowrap">
+                                                Legal Hold
+                                            </span>
+                                        </div>
+                                        <div class="col-span-2 text-[13px] text-zinc-600">US</div>
+                                        <div class="col-span-2 flex items-center justify-between text-[13px] text-zinc-500 tab-nums">
+                                            Feb 28, '24
+                                            <button class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-700 transition-opacity">
+                                                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Empty State View (Hidden by default) -->
+                        <div id="emptySuppressionView" class="flex-1 hidden flex-col items-center justify-center bg-zinc-25">
+                            <div class="w-12 h-12 bg-white border border-zinc-200 shadow-sm rounded-lg flex items-center justify-center mb-4">
+                                <svg class="w-5 h-5 text-zinc-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 14h6"/><path d="M9 10h6"/></svg>
+                            </div>
+                            <h3 class="text-sm font-semibold text-zinc-900 mb-1">No entries found</h3>
+                            <p class="text-sm text-zinc-500 text-center max-w-[250px] mb-4">This list is currently empty. Add entities to start blocking outreach.</p>
+                            <button onclick="openModal(); document.getElementById('reasonCode').value='Custom';" class="btn-press bg-white border border-zinc-300 text-zinc-700 px-3 py-1.5 text-sm font-medium rounded-md shadow-xs hover:bg-zinc-50 transition-colors">
+                                Add First Entry
+                            </button>
+                        </div>
+                        
+                    </div>
+                </section>
+
+                <!-- SECTION 3: Disclaimer Editor (1 Column Wide) -->
+                <section class="xl:col-span-1 bg-white rounded-lg border border-zinc-200 shadow-xs flex flex-col h-[500px] stagger-item" style="--index: 3;">
+                    <div class="p-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-25">
+                        <h2 class="text-base font-semibold text-zinc-900">Jurisdiction Templates</h2>
+                        <span class="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                            <span class="relative flex h-2 w-2">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            Auto-sync
+                        </span>
+                    </div>
+
+                    <div class="p-4 flex-1 flex flex-col gap-4 overflow-y-auto">
+                        
+                        <!-- Jurisdiction Selector -->
+                        <div class="space-y-1 relative z-20">
+                            <label class="text-[12px] font-semibold text-zinc-600 uppercase tracking-wider block">Scope Region</label>
+                            <select id="jurisdictionSelect" onchange="handleJurisdictionChange(this.value)" class="w-full text-sm font-medium text-zinc-800 bg-white border border-zinc-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 appearance-none cursor-pointer shadow-xs">
+                                <option value="eu">European Union (GDPR)</option>
+                                <option value="us">United States (SEC Safe Harbor)</option>
+                                <option value="apac">Asia Pacific (APAC)</option>
+                                <option value="uk">United Kingdom (FCA)</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 pt-5 text-zinc-500">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                        </div>
+
+                        <!-- Empty State Alert (Mock conditionally rendered via class toggles in JS) -->
+                        <div id="emptyStateDisclaimer" class="bg-amber-50 border border-amber-200 rounded-md p-3 flex gap-3 text-sm hidden">
+                            <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                            <div class="text-amber-800 leading-tight">
+                                <p class="font-medium">Missing Requirement</p>
+                                <p class="text-amber-700 mt-1 opacity-90 text-[13px]">Outreach to this region will be blocked until a valid disclaimer is provided.</p>
+                            </div>
+                        </div>
+
+                        <!-- Editor -->
+                        <div class="flex-1 flex flex-col space-y-2 mt-2 group relative">
+                            <div class="flex items-center justify-between">
+                                <label class="text-[12px] font-semibold text-zinc-600 uppercase tracking-wider">Mandatory Text</label>
+                                <button class="text-[11px] text-primary font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
+                                    <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                                    View History
+                                </button>
+                            </div>
+                            
+                            <!-- Fake Toolbar -->
+                            <div class="border border-zinc-200 border-b-0 rounded-t-md bg-zinc-50 flex items-center gap-1 px-2 py-1.5">
+                                <button class="p-1 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 rounded"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 12a4 4 0 0 0 0-8H6v8"/><path d="M15 20a4 4 0 0 0 0-8H6v8Z"/></svg></button>
+                                <button class="p-1 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 rounded"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/></svg></button>
+                                <div class="w-px h-4 bg-zinc-300 mx-1"></div>
+                                <button class="p-1 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 rounded"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/></svg></button>
+                            </div>
+                            <!-- Textarea -->
+                            <textarea id="disclaimerEditor" class="flex-1 w-full border border-zinc-200 rounded-b-md p-3 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 resize-none shadow-xs" spellcheck="false" placeholder="Enter legally required footer text...">This communication is strictly confidential and intended solely for the person or organization to whom it is addressed. If you have received this message in error, please immediately notify the sender and delete this message. This material does not constitute an offer to sell or the solicitation of an offer to buy any securities.</textarea>
+                            
+                            <!-- Context Preview -->
+                            <div class="mt-2 text-[11px] text-zinc-500 bg-zinc-50 border border-zinc-100 p-2 rounded-sm border-dashed truncate select-none">
+                                <span class="font-semibold text-zinc-400 border-r border-zinc-300 pr-2 mr-2">Email Preview</span>
+                                Best regards, [Sender Name] — <span class="italic text-zinc-400">Disclaimer appends here...</span>
+                            </div>
+                        </div>
+
+                        <!-- Footer Action -->
+                        <div class="flex justify-end pt-2 border-t border-zinc-100">
+                             <button onclick="saveDisclaimer()" class="btn-press bg-zinc-900 text-white px-4 py-1.5 text-sm font-medium rounded-md shadow-xs hover:bg-zinc-800 transition-colors">
+                                Save Template
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            
+            <!-- Bottom padding for scroll -->
+            <div class="h-12 w-full"></div>
+        </div>
+    </main>
+
+    <!-- MODAL: Add Suppression Entry -->
+    <div id="addSuppressionModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 modal-glass animate-fade-in" onclick="closeModal()"></div>
+        
+        <!-- Panel -->
+        <div class="relative bg-white rounded-xl shadow-md w-full max-w-md flex flex-col border border-zinc-200 overflow-hidden transform transition-all animate-slide-in">
+            <div class="flex justify-between items-center p-4 border-b border-zinc-100 bg-zinc-25">
+                <h3 class="text-base font-semibold text-zinc-900">Add Suppression Entry</h3>
+                <button onclick="closeModal()" class="text-zinc-400 hover:text-zinc-600 p-1">
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            
+            <form id="suppressionForm" class="p-5 space-y-4" onsubmit="event.preventDefault(); submitSuppression();">
+                <div class="space-y-1.5">
+                    <label for="entityName" class="text-sm font-medium text-zinc-700">Entity or Domain Name</label>
+                    <input type="text" id="entityName" required placeholder="e.g. Acme Corp or @competitor.com" class="w-full text-sm rounded-sm border border-zinc-300 bg-white px-3 py-2 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 shadow-xs">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label for="reasonCode" class="text-sm font-medium text-zinc-700">Reason Code</label>
+                        <select id="reasonCode" required class="w-full text-sm rounded-sm border border-zinc-300 bg-white px-3 py-2 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 shadow-xs appearance-none">
+                            <option value="Competitor_Block">Competitor Block</option>
+                            <option value="Legal_Hold">Legal Hold</option>
+                            <option value="OFAC">OFAC Sanction</option>
+                            <option value="Geo_Restricted">Geo-Restricted</option>
+                            <option value="Custom">Custom</option>
+                        </select>
+                    </div>
+                    
+                    <div class="space-y-1.5 relative">
+                        <label class="text-sm font-medium text-zinc-700">Scope</label>
+                        <button type="button" class="w-full text-left text-sm rounded-sm border border-zinc-300 bg-white px-3 py-2 text-zinc-900 focus:outline-none hover:bg-zinc-50 shadow-xs flex justify-between items-center group">
+                            Global
+                            <svg class="w-4 h-4 text-zinc-400 group-hover:text-zinc-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                        <!-- Simulated dropdown complexity; keeping it simple for the single file -->
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 mt-2 bg-zinc-50 p-3 rounded-md border border-zinc-100">
+                    <input type="checkbox" id="isActive" checked class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-zinc-300 accent-emerald-600 cursor-pointer">
+                    <label for="isActive" class="text-sm text-zinc-800 cursor-pointer font-medium select-none">Actionable immediately</label>
+                </div>
+                
+                <div class="space-y-1.5">
+                    <label for="notes" class="text-sm font-medium text-zinc-700">Internal Notes <span class="text-zinc-400 font-normal">(Optional)</span></label>
+                    <textarea id="notes" rows="2" class="w-full text-sm rounded-sm border border-zinc-300 bg-white px-3 py-2 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 resize-none shadow-xs"></textarea>
+                </div>
+                
+                <div class="pt-4 flex justify-end gap-3 border-t border-zinc-100 mt-2">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-md hover:bg-zinc-50 transition-colors">Cancel</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 shadow-xs btn-press inline-flex items-center gap-2">
+                        Append Rule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION SYSTEM -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex-col gap-2 pointer-events-none">
+        <!-- Toast Template (Rendered dynamically via JS) -->
+    </div>
+
+    <!-- JAVASCRIPT ENGINE (Simulating React/Framer behavior & Data Logic) -->
+    <script>
+        // Micro-Architecture Interactions
+        
+        function togglePolicyInputs(mode) {
+             // In a real app, 'Off' would disable the entire block visually.
+             const inputs = document.querySelectorAll('#policyParams input');
+             
+             if(mode === 'all') {
+                 // Grey out everything except Auto-Decline
+                 inputs[0].disabled = true;
+                 inputs[0].parentElement.classList.add('opacity-50');
+             } else {
+                 inputs[0].disabled = false;
+                 inputs[0].parentElement.classList.remove('opacity-50');
+             }
+             
+             showToast('Approval policy updated to: ' + mode, 'info');
+        }
+
+        // Modal Logic
+        const modal = document.getElementById('addSuppressionModal');
+        const form = document.getElementById('suppressionForm');
+        
+        function openModal() {
+            modal.classList.add('is-active');
+            // Slight delay to ensure paint
+            setTimeout(() => document.getElementById('entityName').focus(), 100);
+        }
+        
+        function closeModal() {
+            modal.classList.remove('is-active');
+            form.reset();
+        }
+
+        // Table UI Logic
+        function showEmptySuppression() {
+            document.getElementById('suppressionDataView').classList.add('hidden');
+            document.getElementById('emptySuppressionView').classList.remove('hidden');
+        }
+        
+        function restoreTableView() {
+            document.getElementById('suppressionDataView').classList.remove('hidden');
+            document.getElementById('emptySuppressionView').classList.add('hidden');
+        }
+
+        function submitSuppression() {
+            const entity = document.getElementById('entityName').value;
+            const reason = document.getElementById('reasonCode').value;
+            const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+            
+            // Format reason text
+            const reasonObj = {
+                'Competitor_Block': { text: 'Competitor Block', bg: 'bg-rose-50', textC: 'text-rose-700', border: 'border-rose-100' },
+                'Legal_Hold': { text: 'Legal Hold', bg: 'bg-zinc-50', textC: 'text-zinc-600', border: 'border-zinc-200' },
+                'OFAC': { text: 'OFAC List', bg: 'bg-zinc-800', textC: 'text-zinc-50', border: 'border-zinc-900' },
+                'Geo_Restricted': { text: 'Geo Block', bg: 'bg-amber-50', textC: 'text-amber-700', border: 'border-amber-200' },
+                'Custom': { text: 'Custom Rule', bg: 'bg-zinc-100', textC: 'text-zinc-700', border: 'border-zinc-300' }
+            };
+            const rc = reasonObj[reason] || reasonObj['Custom'];
+
+            // Construct new row HTML string
+            const rowHTML = `
+                <div class="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-zinc-50 transition-colors bg-emerald-50/20 group cursor-pointer animate-fade-in">
+                    <div class="col-span-5">
+                        <div class="text-sm font-medium text-zinc-900 truncate">${entity}</div>
+                        <div class="text-[11px] text-zinc-500 font-mono tab-nums">Just added</div>
+                    </div>
+                    <div class="col-span-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-md ${rc.bg} ${rc.textC} text-[11px] border ${rc.border} font-medium whitespace-nowrap">
+                            ${rc.text}
+                        </span>
+                    </div>
+                    <div class="col-span-2 text-[13px] text-zinc-600 font-semibold">Global</div>
+                    <div class="col-span-2 flex items-center justify-between text-[13px] text-zinc-500 tab-nums">
+                        ${date}
+                        <button class="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-700 transition-opacity">
+                            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Insert at top of table body
+            const tBody = document.getElementById('suppressionTableBody');
+            tBody.insertAdjacentHTML('afterbegin', rowHTML);
+            
+            restoreTableView();
+            closeModal();
+            showToast(`Added ${entity} to suppression rules`, 'success');
+        }
+
+        // Disclaimer JS Logic
+        const disclaimers = {
+            'eu': "This communication is strictly confidential and intended solely for the person or organization to whom it is addressed. If you have received this message in error, please immediately notify the sender and delete this message.",
+            'us': "This document is confidential and may not be reproduced without explicit consent. It does not constitute an offer to sell or the solicitation of an offer to buy any securities in any jurisdiction where such offer or sale is unlawful.",
+            'uk': "Authorised and regulated by the Financial Conduct Authority. This material is intended for professional clients only and must not be distributed to retail clients.",
+            'apac': "" // Empty state simulation
+        };
+
+        function handleJurisdictionChange(val) {
+            const editor = document.getElementById('disclaimerEditor');
+            const emptyAlert = document.getElementById('emptyStateDisclaimer');
+            
+            editor.value = disclaimers[val] || '';
+            
+            if (editor.value.trim() === '') {
+                emptyAlert.classList.remove('hidden');
+                editor.parentElement.classList.add('border', 'border-amber-300', 'rounded-md', 'bg-amber-50/20', 'p-2');
+            } else {
+                emptyAlert.classList.add('hidden');
+                editor.parentElement.classList.remove('border', 'border-amber-300', 'rounded-md', 'bg-amber-50/20', 'p-2');
+            }
+        }
+        
+        function saveDisclaimer() {
+            const val = document.getElementById('jurisdictionSelect').value;
+            const text = document.getElementById('disclaimerEditor').value;
+            
+            if (text.trim() === '') {
+                showToast(`Disclaimer required for active jurisdiction`, 'error');
+                return;
+            }
+            
+            disclaimers[val] = text; // Save to mock DB
+            showToast(`Jurisdiction template saved`, 'success');
+            
+            // Clear warning state if it existed
+            const emptyAlert = document.getElementById('emptyStateDisclaimer');
+            if(!emptyAlert.classList.contains('hidden')) {
+                emptyAlert.classList.add('hidden');
+                document.getElementById('disclaimerEditor').parentElement.classList.remove('border', 'border-amber-300', 'rounded-md', 'bg-amber-50/20', 'p-2');
+            }
+        }
+
+        // Toast Notification System
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            container.classList.add('is-active');
+            
+            const id = 'toast-' + Date.now();
+            
+            let icon, bgClass, borderClass, textClass;
+            
+            if (type === 'success') {
+                icon = `<svg class="w-5 h-5 text-emerald-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+                bgClass = 'bg-white';
+                borderClass = 'border-zinc-200';
+                textClass = 'text-zinc-900';
+            } else if (type === 'error') {
+                icon = `<svg class="w-5 h-5 text-rose-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+                bgClass = 'bg-rose-50';
+                borderClass = 'border-rose-200';
+                textClass = 'text-rose-900';
+            } else {
+                icon = `<svg class="w-5 h-5 text-zinc-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`;
+                bgClass = 'bg-white';
+                borderClass = 'border-zinc-200';
+                textClass = 'text-zinc-900';
+            }
+
+            const toastHTML = `
+                <div id="${id}" class="pointer-events-auto flex items-center gap-3 p-3 rounded-lg border ${borderClass} ${bgClass} shadow-md animate-toast transform min-w-[300px]">
+                    ${icon}
+                    <p class="text-sm font-medium ${textClass}">${message}</p>
+                </div>
+            `;
+            
+            container.insertAdjacentHTML('beforeend', toastHTML);
+            
+            const el = document.getElementById(id);
+            
+            // Auto dismiss
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(10px) translateX(100px)';
+                el.style.transition = 'all 0.3s ease';
+                setTimeout(() => { el.remove(); }, 300);
+            }, 4000);
+        }
+
+    </script>
+</body>
+</html>

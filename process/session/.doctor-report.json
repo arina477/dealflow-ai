@@ -1,0 +1,22 @@
+{
+  "exit_code": 0,
+  "ran_at": "2026-06-29T08:55:00Z",
+  "strict_mode": true,
+  "summary": {
+    "fail_count": 0,
+    "external_warn_count": 0,
+    "warn_count": 8
+  },
+  "fail_reasons": [],
+  "external_warn_reasons": [],
+  "warn_reasons": [
+    "project.yaml has 25 unfilled placeholder(s) — fill in at install Phase 2 / onboarding (v13 step 4b enforces full-fill before commit)",
+    "command-center/testing/test-accounts.md is unfilled scaffold — T-5 will block-on-credentials at first UI wave (run v13 step 2d)",
+    "no .last-wave-completed.yaml — greenfield project; run `claudomat-brain/onboarding/onboarding-loop.md` v0 onward",
+    "capability sheet missing — run `claudomat capabilities`",
+    "claudomat SessionStart hook not configured (recommended — drift only surfaces on manual `claudomat doctor`). See claudomat-brain/setup-tools/install.md § SessionStart hook.",
+    "db-readiness: hook script missing or not executable at /home/claudomat/.claude/hooks/db-readiness.sh — run `claudomat sync`",
+    "db-readiness hook NOT wired in /home/claudomat/.claude/settings.json — run `claudomat sync`",
+    "autonomous-guard hook not wired in /home/claudomat/.claude/settings.json — run `claudomat sync` to install it"
+  ]
+}

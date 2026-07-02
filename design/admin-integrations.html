@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased font-sans text-zinc-700 bg-zinc-25">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin · Integrations - DealFlow AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: {
+                            25: '#FCFCFD',
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                            950: '#030712',
+                        },
+                        emerald: {
+                            50: '#ECFDF5',
+                            600: '#10B981',
+                            700: '#047857',
+                        },
+                        ui: {
+                            positive: '#10B981', // emerald-600
+                            info: '#2563EB',     // blue-600
+                            warn: '#D97706',      // amber-600
+                            danger: '#DC2626',   // red-600
+                            neutral: '#9CA3AF',  // zinc-400
+                        }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                        'glass': 'inset 0 1px 0 rgba(255,255,255,1), 0 1px 3px rgb(16 24 40 / 0.06)',
+                        'glass-hover': 'inset 0 1px 0 rgba(255,255,255,1), 0 4px 12px rgb(16 24 40 / 0.08)',
+                    },
+                    animation: {
+                        'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'shimmer': 'shimmer 2s linear infinite',
+                        'ping-slow': 'ping-subtle 3s cubic-bezier(0, 0, 0.2, 1) infinite',
+                    },
+                    keyframes: {
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(16px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        shimmer: {
+                            '0%': { backgroundPosition: '-1000px 0' },
+                            '100%': { backgroundPosition: '1000px 0' },
+                        },
+                        'ping-subtle': {
+                            '75%, 100%': { transform: 'scale(1.5)', opacity: '0' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Scrollbar for sleekness */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #E5E7EB;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D1D5DB;
+        }
+
+        /* Typography strictness */
+        .tabular-nums {
+            font-variant-numeric: tabular-nums;
+        }
+        
+        /* Hardware Acceleration & Micro-interactions */
+        .btn-press {
+            transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1), background-color 150ms ease, box-shadow 150ms ease;
+        }
+        .btn-press:active {
+            transform: scale(0.97);
+        }
+
+        /* Staggered lists */
+        .stagger-item {
+            opacity: 0;
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .stagger-1 { animation-delay: 50ms; }
+        .stagger-2 { animation-delay: 100ms; }
+        .stagger-3 { animation-delay: 150ms; }
+        .stagger-4 { animation-delay: 200ms; }
+        .stagger-5 { animation-delay: 250ms; }
+
+        /* Skeleton Shimmer Background */
+        .skeleton {
+            background: #F3F4F6;
+            background-image: linear-gradient(to right, #F3F4F6 0%, #E5E7EB 20%, #F3F4F6 40%, #F3F4F6 100%);
+            background-repeat: no-repeat;
+            background-size: 1000px 100%;
+        }
+
+        /* Hide logic for demo */
+        .hidden-initial { display: none; }
+    </style>
+</head>
+<body class="overflow-hidden bg-zinc-25 text-sm selection:bg-emerald-100 selection:text-emerald-900 flex h-[100dvh] w-full">
+
+    <!-- OVERLAYS (Z-INDEX ROOTS) -->
+    <!-- Slide-over Drawer for Configuration -->
+    <div id="drawer-backdrop" class="fixed inset-0 bg-zinc-950/40 backdrop-blur-[2px] z-40 hidden-initial transition-opacity duration-300 opacity-0" onclick="toggleDrawer()"></div>
+    <div id="config-drawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white border-l border-zinc-200 shadow-md transform translate-x-full transition-transform duration-500 cubic-bezier(0.16, 1, 0.3, 1) flex flex-col hidden-initial">
+        
+        <!-- Drawer Header -->
+        <div class="px-6 py-5 border-b border-zinc-200 flex items-center justify-between bg-zinc-50/50">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-md bg-white border border-zinc-200 shadow-glass flex items-center justify-center p-1.5">
+                    <!-- Fake Logo CSS -->
+                    <div class="w-full h-full bg-ui-info rounded-sm flex justify-center items-center text-white font-bold text-lg leading-none tracking-tighter">S</div>
+                </div>
+                <div>
+                    <h2 class="text-zinc-800 font-semibold text-[16px] leading-tight">Salesforce CRM</h2>
+                    <p class="text-zinc-500 text-[13px] flex items-center gap-1.5 mt-0.5">
+                        <span class="relative flex h-2 w-2"><span class="relative inline-flex rounded-full h-2 w-2 bg-ui-warn"></span></span>
+                        Sync Stalled
+                    </p>
+                </div>
+            </div>
+            <button onclick="toggleDrawer()" class="p-2 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-md transition-colors btn-press">
+                <i class="ph ph-x text-lg"></i>
+            </button>
+        </div>
+
+        <!-- Drawer Body Scrollable -->
+        <div class="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+            
+            <!-- Alert Banner -->
+            <div class="bg-amber-50 border border-amber-200/60 rounded-md p-3 flex gap-3 text-[13px]">
+                <i class="ph-fill ph-warning-circle text-ui-warn text-base mt-0.5"></i>
+                <div>
+                    <p class="font-semibold text-amber-900 mb-1">OAuth Token Expired</p>
+                    <p class="text-amber-800/80 leading-relaxed">Salesforce rejected the last sync request. You need to re-authorize this connection to resume data flow.</p>
+                    <button class="mt-2 bg-white border border-amber-200 text-amber-900 px-3 py-1.5 rounded text-xs font-semibold shadow-xs hover:bg-amber-50 btn-press transition-colors">Re-authorize with Salesforce</button>
+                </div>
+            </div>
+
+            <!-- Health Dashboard Bento -->
+            <div>
+                <h4 class="text-[12px] font-semibold text-zinc-500 tracking-[0.04em] uppercase mb-3">Sync Health</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="border border-zinc-200 rounded-md p-4 bg-white shadow-glass">
+                        <p class="text-zinc-500 text-xs mb-1">Last Sync</p>
+                        <p class="text-zinc-800 font-medium tabular-nums text-[13px]">14 hours ago</p>
+                        <p class="text-ui-danger text-[11px] mt-1 flex items-center gap-1"><i class="ph-bold ph-x"></i> Failed</p>
+                    </div>
+                    <div class="border border-zinc-200 rounded-md p-4 bg-white shadow-glass">
+                        <p class="text-zinc-500 text-xs mb-1">Total Records (30d)</p>
+                        <p class="text-zinc-800 font-medium tabular-nums text-lg leading-none mt-1">124,592</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Config Form -->
+            <div>
+                <h4 class="text-[12px] font-semibold text-zinc-500 tracking-[0.04em] uppercase mb-3">Configuration</h4>
+                <div class="space-y-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[13px] font-medium text-zinc-700">Sync Cadence</label>
+                        <div class="relative">
+                            <select class="w-full appearance-none bg-white border border-zinc-300 text-zinc-700 text-[13px] rounded-md px-3 py-2 outline-none focus:border-ui-positive focus:ring-1 focus:ring-ui-positive shadow-xs transition-shadow">
+                                <option>Every 6 hours</option>
+                                <option>Every 12 hours</option>
+                                <option selected>Daily at 2 AM UTC</option>
+                                <option>On demand (Manual)</option>
+                            </select>
+                            <i class="ph-bold ph-caret-down absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between p-3 border border-zinc-200 rounded-md bg-zinc-25">
+                        <div>
+                            <p class="text-[13px] font-medium text-zinc-800">Connection Status</p>
+                            <p class="text-xs text-zinc-500">Temporarily pause sync without deleting.</p>
+                        </div>
+                        <!-- Toggle switch -->
+                        <button class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-ui-positive focus:ring-offset-2">
+                            <span class="sr-only">Use setting</span>
+                            <span aria-hidden="true" class="pointer-events-none absolute h-full w-full rounded-md bg-white"></span>
+                            <span aria-hidden="true" class="pointer-events-none mx-auto h-4 w-9 rounded-full bg-ui-positive transition-colors duration-200 ease-in-out"></span>
+                            <span aria-hidden="true" class="pointer-events-none absolute left-0 inline-block h-5 w-5 translate-x-4 transform rounded-full border border-zinc-200 bg-white shadow ring-0 transition-transform duration-200 ease-in-out"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-zinc-200">
+                <button class="w-full flex items-center justify-center gap-2 bg-white border border-zinc-200 text-zinc-700 py-2.5 rounded-md text-[13px] font-medium shadow-glass hover:bg-zinc-50 btn-press">
+                    <i class="ph-bold ph-arrows-clockwise"></i>
+                    Test Connection
+                </button>
+                <div class="mt-4 flex justify-between items-center text-xs text-zinc-400">
+                    <span>Added by Admin • Oct 12, 2025</span>
+                    <button class="text-ui-danger hover:text-red-700 font-medium">Delete Integration</button>
+                </div>
+            </div>
+            
+        </div>
+        
+    </div>
+
+    <!-- MACRO: LEFT SIDEBAR -->
+    <aside class="w-[260px] bg-zinc-900 border-r border-zinc-800 flex flex-col flex-shrink-0 hidden lg:flex">
+        <!-- Logo Area -->
+        <div class="h-16 flex items-center px-6 border-b border-zinc-800/50">
+            <div class="flex items-center gap-2.5">
+                <div class="w-6 h-6 rounded bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_0_12px_rgba(16,185,129,0.3)] flex items-center justify-center">
+                    <div class="w-2 h-2 bg-white rounded-full"></div>
+                </div>
+                <span class="text-zinc-50 font-semibold tracking-tight text-[15px]">DealFlow AI</span>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 rounded-md transition-colors text-[13px] font-medium btn-press group">
+                <i class="ph ph-layout-dashboard text-[18px] group-hover:text-zinc-300"></i>
+                Overview
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 rounded-md transition-colors text-[13px] font-medium btn-press group">
+                <i class="ph ph-briefcase text-[18px] group-hover:text-zinc-300"></i>
+                Mandates
+            </a>
+            <a href="#" class="flex items-center justify-between px-3 py-2 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 rounded-md transition-colors text-[13px] font-medium btn-press group">
+                <div class="flex items-center gap-3">
+                    <i class="ph ph-target text-[18px] group-hover:text-zinc-300"></i>
+                    Matches
+                </div>
+                <span class="bg-zinc-800 text-zinc-300 text-[10px] px-1.5 py-0.5 rounded font-bold tabular-nums">14</span>
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 rounded-md transition-colors text-[13px] font-medium btn-press group">
+                <i class="ph ph-shield-check text-[18px] group-hover:text-zinc-300"></i>
+                Compliance
+            </a>
+
+            <div class="pt-6 pb-2">
+                <p class="px-3 text-[11px] font-bold text-zinc-500 uppercase tracking-widest">Admin</p>
+            </div>
+            
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 rounded-md transition-colors text-[13px] font-medium btn-press group">
+                <i class="ph ph-users text-[18px] group-hover:text-zinc-300"></i>
+                Team Directory
+            </a>
+            <!-- Active State -->
+            <a href="#" class="flex items-center gap-3 px-3 py-2 bg-zinc-800/80 text-zinc-50 rounded-md transition-colors text-[13px] font-medium relative overflow-hidden group">
+                <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-500 rounded-r shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                <i class="ph-fill ph-database text-[18px] text-emerald-400"></i>
+                Integrations
+            </a>
+            <a href="#" class="flex items-center gap-3 px-3 py-2 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-800/50 rounded-md transition-colors text-[13px] font-medium btn-press group">
+                <i class="ph ph-file-check text-[18px] group-hover:text-zinc-300"></i>
+                Audit Logs
+            </a>
+        </nav>
+
+        <!-- User bottom -->
+        <div class="p-4 border-t border-zinc-800">
+            <div class="flex items-center gap-3 px-2 py-2 hover:bg-zinc-800/50 rounded-md cursor-pointer transition-colors">
+                <div class="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center text-zinc-300 font-semibold text-xs border border-zinc-600">
+                    AD
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-[13px] text-zinc-50 font-medium truncate">Admin User</p>
+                    <p class="text-[11px] text-zinc-500 truncate">System Operator</p>
+                </div>
+                <i class="ph-bold ph-caret-up text-zinc-600"></i>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MACRO: MAIN CONTENT AREA -->
+    <main class="flex-1 flex flex-col min-w-0 relative">
+        
+        <!-- Top Nav (Mobile collapse support + Global alerts) -->
+        <header class="flex-shrink-0 border-b border-zinc-200 bg-white/80 backdrop-blur-sm z-30 sticky top-0">
+            <!-- Alert Banner (Expiring Credential) -->
+            <div class="bg-ui-danger border-b border-red-500/30 px-6 py-2 flex items-center justify-between">
+                <div class="flex items-center gap-2 text-white">
+                    <i class="ph-fill ph-warning-circle text-[16px]"></i>
+                    <p class="text-xs font-medium">1 credential expiring soon. Review Integrations.</p>
+                </div>
+                <!-- Action link -->
+                <button class="text-xs text-white/80 hover:text-white underline decoration-white/30 underline-offset-2 font-medium">Review now</button>
+            </div>
+
+            <div class="h-16 px-4 md:px-8 flex items-center justify-between">
+                <!-- Breadcrumbs -->
+                <div class="flex items-center gap-2 text-[13px] font-medium">
+                    <span class="text-zinc-400 lg:hidden block pr-2"><i class="ph-bold ph-list text-lg"></i></span>
+                    <span class="text-zinc-400">Admin</span>
+                    <i class="ph-bold ph-caret-right text-zinc-300 text-[10px]"></i>
+                    <span class="text-zinc-800">Data Sources</span>
+                </div>
+                
+                <!-- Top Actions -->
+                <div class="flex items-center gap-4">
+                    <button class="hidden md:flex items-center justify-center w-8 h-8 rounded border border-zinc-200 text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50 transition-colors shadow-xs btn-press">
+                        <i class="ph-bold ph-bell"></i>
+                    </button>
+                    <button onclick="document.getElementById('provider-section').scrollIntoView({behavior: 'smooth'})" class="bg-ui-positive hover:bg-emerald-700 text-white px-4 py-2 rounded-md font-semibold text-[13px] shadow-sm flex items-center gap-2 transition-all btn-press">
+                        <i class="ph-bold ph-plus"></i>
+                        Add Integration
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Scrollable Canvas -->
+        <div class="flex-1 overflow-y-auto px-4 md:px-8 py-8">
+            <div class="max-w-6xl mx-auto space-y-10 pb-20">
+
+                <!-- Header block -->
+                <div class="stagger-item stagger-1">
+                    <h1 class="text-[24px] font-semibold text-zinc-800 tracking-tight leading-none mb-2">Integrations Matrix</h1>
+                    <p class="text-zinc-500 text-[14px]">Central vault for deal-sourcing APIs, enrichment operators, and outreach nodes.</p>
+                </div>
+
+                <!-- MESO: Density Bento Grid (System Pulse) -->
+                <section class="grid grid-cols-1 md:grid-cols-3 gap-4 stagger-item stagger-2">
+                    
+                    <div class="bg-white border border-zinc-200 rounded-xl p-5 shadow-glass flex flex-col justify-between">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-[12px] font-bold text-zinc-500 uppercase tracking-widest">Vault Status</span>
+                            <i class="ph-duotone ph-shield-check text-ui-positive text-xl"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-end gap-2">
+                                <span class="text-[30px] font-bold text-zinc-900 tracking-tighter leading-none tabular-nums">5</span>
+                                <span class="text-zinc-500 text-[13px] mb-1">Active nodes</span>
+                            </div>
+                            <div class="w-full bg-zinc-100 rounded-full h-1 mt-4 overflow-hidden flex">
+                                <div class="bg-ui-positive w-[60%] h-full"></div>
+                                <div class="bg-ui-warn w-[20%] h-full"></div>
+                                <div class="bg-ui-danger w-[20%] h-full"></div>
+                            </div>
+                            <div class="flex gap-3 text-[11px] text-zinc-500 mt-2 font-medium">
+                                <span class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-ui-positive"></div> 3 Healthy</span>
+                                <span class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-ui-warn"></div> 1 Stalled</span>
+                                <span class="flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-ui-danger"></div> 1 Error</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-zinc-200 rounded-xl p-5 shadow-glass flex flex-col justify-between relative overflow-hidden group">
+                        <!-- BG Decoration -->
+                        <div class="absolute -right-6 -top-6 text-zinc-50 transform rotate-12 transition-transform duration-700 group-hover:rotate-0">
+                            <i class="ph-fill ph-database text-[120px]"></i>
+                        </div>
+                        <div class="relative z-10 flex items-center justify-between mb-4">
+                            <span class="text-[12px] font-bold text-zinc-500 uppercase tracking-widest">Ingestion 24H</span>
+                        </div>
+                        <div class="relative z-10">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[30px] font-bold text-zinc-900 tracking-tighter leading-none tabular-nums">1.4M</span>
+                                <span class="bg-emerald-50 text-ui-positive flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-bold border border-emerald-100">
+                                    <i class="ph-bold ph-trend-up"></i> 12%
+                                </span>
+                            </div>
+                            <p class="text-zinc-500 text-[13px] mt-2 leading-tight">Total pipeline objects enriched or generated across all active APIs.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 shadow-glass flex flex-col justify-between relative text-zinc-50 overflow-hidden">
+                        <!-- Inner Glow -->
+                        <div class="absolute -top-10 -right-10 w-40 h-40 bg-ui-positive opacity-20 blur-3xl rounded-full mix-blend-screen mix-blend-screen pointer-events-none"></div>
+                        
+                        <div class="flex items-center justify-between mb-4 relative z-10">
+                            <span class="text-[12px] font-bold text-zinc-400 uppercase tracking-widest">Next Engine Sync</span>
+                            <span class="flex h-2.5 w-2.5 relative">
+                                <span class="animate-ping-slow absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                            </span>
+                        </div>
+                        <div class="relative z-10">
+                            <span class="text-[30px] font-bold tracking-tighter leading-none tabular-nums">08:42</span>
+                            <span class="text-zinc-400 text-sm ml-1">UTC</span>
+                            <p class="text-zinc-400 text-[13px] mt-2 flex items-center gap-2">
+                                <i class="ph-bold ph-spinner animate-spin"></i> Awaiting Cron
+                            </p>
+                        </div>
+                    </div>
+
+                </section>
+
+                <!-- SECTION: Connected Integrations Table/List -->
+                <section class="stagger-item stagger-3">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-[16px] font-semibold text-zinc-800">Active Integrations</h2>
+                        
+                        <!-- Search/Filter -->
+                        <div class="flex gap-2">
+                            <div class="relative hidden sm:block">
+                                <i class="ph-bold ph-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+                                <input type="text" placeholder="Search providers..." class="pl-8 pr-3 py-1.5 text-[13px] border border-zinc-200 rounded-md bg-white shadow-xs focus:ring-1 focus:ring-ui-positive focus:border-ui-positive outline-none w-48 transition-all">
+                            </div>
+                            <button class="border border-zinc-200 bg-white px-3 py-1.5 rounded-md text-[13px] font-medium text-zinc-600 shadow-xs hover:bg-zinc-50 flex items-center gap-1.5 btn-press">
+                                <i class="ph-bold ph-faders"></i> Filter
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- The Table Structure (Using CSS Grid for perfect alignment across borders) -->
+                    <div class="bg-white border border-zinc-200 rounded-xl shadow-glass overflow-x-auto">
+                        <div class="min-w-[800px]">
+                            <!-- Header -->
+                            <div class="grid grid-cols-[200px_1fr_1fr_1.5fr_100px] gap-4 px-5 py-3 border-b border-zinc-200 bg-zinc-50/80">
+                                <div class="text-[12px] font-bold text-zinc-500 uppercase tracking-[0.04em]">Provider</div>
+                                <div class="text-[12px] font-bold text-zinc-500 uppercase tracking-[0.04em]">Status</div>
+                                <div class="text-[12px] font-bold text-zinc-500 uppercase tracking-[0.04em]">Auth Type</div>
+                                <div class="text-[12px] font-bold text-zinc-500 uppercase tracking-[0.04em]">Last Sync & Volume</div>
+                                <div class="text-[12px] font-bold text-zinc-500 uppercase tracking-[0.04em] text-right">Actions</div>
+                            </div>
+
+                            <!-- ROW 1: Healthy (Crunchbase) -->
+                            <div class="grid grid-cols-[200px_1fr_1fr_1.5fr_100px] gap-4 px-5 py-4 border-b border-zinc-100 hover:bg-zinc-50/50 transition-colors group relative">
+                                <!-- Status Color Bar indicator -->
+                                <div class="absolute left-0 top-0 bottom-0 w-[3px] bg-ui-positive opacity-0 group-hover:opacity-100 rounded-l-xl transition-opacity"></div>
+                                
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded border border-zinc-200 bg-white shadow-xs flex items-center justify-center p-1 font-bold text-blue-600 text-sm tracking-tighter">
+                                        cb
+                                    </div>
+                                    <div>
+                                        <div class="font-semibold text-zinc-800 text-[13px]">Crunchbase</div>
+                                        <div class="text-[11px] text-zinc-500 mt-0.5">Deal Sourcing</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center text-[13px]">
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-ui-positive font-medium border border-emerald-100/50">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-ui-positive"></span> Connected
+                                    </span>
+                                </div>
+                                <div class="flex items-center text-[13px] text-zinc-600 tabular-nums">
+                                    <div class="px-2 py-1 bg-zinc-100 rounded text-[11px] border border-zinc-200 font-mono tracking-tighter flex items-center gap-1">
+                                        <i class="ph-bold ph-key"></i> Key
+                                    </div>
+                                </div>
+                                <div class="flex flex-col justify-center text-[13px]">
+                                    <span class="text-zinc-800 tabular-nums font-medium">12 mins ago</span>
+                                    <span class="text-zinc-500 text-[11px]">840 records • Next: 4 hrs</span>
+                                </div>
+                                <div class="flex items-center justify-end gap-2">
+                                    <button class="text-zinc-400 hover:text-zinc-800 btn-press px-2" title="Test Connection">
+                                        <i class="ph-bold ph-arrows-clockwise text-[16px]"></i>
+                                    </button>
+                                    <button onclick="toggleDrawer()" class="text-[12px] font-semibold text-zinc-600 border border-zinc-200 rounded px-2.5 py-1 hover:bg-zinc-100 shadow-xs btn-press">
+                                        Config
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- ROW 2: Sourcing (Pitchbook - Expiring) -->
+                            <div class="grid grid-cols-[200px_1fr_1fr_1.5fr_100px] gap-4 px-5 py-4 border-b border-zinc-100 bg-red-50/30 hover:bg-red-50/50 transition-colors relative">
+                                <div class="absolute left-0 top-0 bottom-0 w-[3px] bg-ui-danger rounded-l-xl"></div>
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded border border-zinc-200 bg-white shadow-xs flex items-center justify-center font-bold text-zinc-800 text-lg uppercase leading-none pb-0.5">
+                                        P
+                                    </div>
+                                    <div>
+                                        <div class="font-semibold text-zinc-800 text-[13px]">PitchBook</div>
+                                        <div class="text-[11px] text-zinc-500 mt-0.5">Enrichment</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center text-[13px]">
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-50 text-ui-danger font-medium border border-red-100">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-ui-danger"></span> Expiring (3d)
+                                    </span>
+                                </div>
+                                <div class="flex items-center text-[13px] text-zinc-600">
+                                    <div class="px-2 py-1 bg-zinc-100 rounded text-[11px] border border-zinc-200 font-mono tracking-tighter flex items-center gap-1">
+                                        <i class="ph-bold ph-key"></i> Key
+                                    </div>
+                                </div>
+                                <div class="flex flex-col justify-center text-[13px]">
+                                    <span class="text-zinc-800 tabular-nums font-medium">1 hour ago</span>
+                                    <span class="text-zinc-500 text-[11px]">1,204 records • Active</span>
+                                </div>
+                                <div class="flex items-center justify-end gap-2">
+                                    <button class="text-[12px] font-semibold text-white bg-ui-danger rounded px-2.5 py-1 hover:bg-red-700 shadow-sm border border-transparent btn-press" title="Rotate Key">
+                                        Rotate
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- ROW 3: Stalled (Salesforce) - Triggers Drawer on Config click -->
+                            <div class="grid grid-cols-[200px_1fr_1fr_1.5fr_100px] gap-4 px-5 py-4 border-b border-zinc-100 hover:bg-zinc-50/50 transition-colors group relative">
+                                <div class="absolute left-0 top-0 bottom-0 w-[3px] bg-ui-warn opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded border border-zinc-200 bg-white shadow-xs flex items-center justify-center p-1 font-bold bg-[#00A1E0] text-white text-lg leading-none">
+                                        S
+                                    </div>
+                                    <div>
+                                        <div class="font-semibold text-zinc-800 text-[13px]">Salesforce</div>
+                                        <div class="text-[11px] text-zinc-500 mt-0.5">Outbound CRM</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center text-[13px]">
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 text-ui-warn font-medium border border-amber-100/50">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-ui-warn"></span> Auth Failed
+                                    </span>
+                                </div>
+                                <div class="flex items-center text-[13px] text-zinc-600">
+                                    <div class="px-2 py-1 bg-zinc-100 rounded text-[11px] border border-zinc-200 font-mono tracking-tighter flex items-center gap-1">
+                                        <i class="ph-bold ph-lock-key"></i> OAuth2
+                                    </div>
+                                </div>
+                                <div class="flex flex-col justify-center text-[13px]">
+                                    <span class="text-zinc-800 tabular-nums font-medium">14 hrs ago</span>
+                                    <span class="text-ui-warn text-[11px]">Token Expired</span>
+                                </div>
+                                <div class="flex items-center justify-end gap-2">
+                                    <button class="text-zinc-400 hover:text-zinc-800 btn-press px-2" title="Test Connection">
+                                        <i class="ph-bold ph-arrows-clockwise text-[16px]"></i>
+                                    </button>
+                                    <button onclick="toggleDrawer()" class="text-[12px] font-semibold text-zinc-600 border border-zinc-200 rounded px-2.5 py-1 hover:bg-zinc-100 shadow-xs btn-press relative">
+                                        Config <div class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-ui-danger rounded-full border-2 border-white"></div>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- ROW 4: OAuth Email (Sendgrid) -->
+                            <div class="grid grid-cols-[200px_1fr_1fr_1.5fr_100px] gap-4 px-5 py-4 hover:bg-zinc-50/50 transition-colors group relative rounded-b-xl">
+                                <div class="absolute left-0 top-0 bottom-0 w-[3px] bg-ui-positive opacity-0 group-hover:opacity-100 rounded-bl-xl transition-opacity"></div>
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded border border-zinc-200 bg-zinc-900 shadow-xs flex items-center justify-center p-1 font-bold text-white text-xs tracking-tighter">
+                                        <i class="ph-fill ph-paper-plane-right"></i>
+                                    </div>
+                                    <div>
+                                        <div class="font-semibold text-zinc-800 text-[13px]">SendGrid</div>
+                                        <div class="text-[11px] text-zinc-500 mt-0.5">Outreach Engine</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center text-[13px]">
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-ui-positive font-medium border border-emerald-100/50">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-ui-positive"></span> Connected
+                                    </span>
+                                </div>
+                                <div class="flex items-center text-[13px] text-zinc-600 tabular-nums">
+                                    <div class="px-2 py-1 bg-zinc-100 rounded text-[11px] border border-zinc-200 font-mono tracking-tighter flex items-center gap-1">
+                                        <i class="ph-bold ph-key"></i> Key
+                                    </div>
+                                </div>
+                                <div class="flex flex-col justify-center text-[13px]">
+                                    <span class="text-zinc-800 tabular-nums font-medium">On-demand</span>
+                                    <span class="text-zinc-500 text-[11px]">Outbound triggers only</span>
+                                </div>
+                                <div class="flex items-center justify-end gap-2">
+                                    <button class="text-zinc-400 hover:text-zinc-800 btn-press px-2" title="Test Connection">
+                                        <i class="ph-bold ph-arrows-clockwise text-[16px]"></i>
+                                    </button>
+                                    <button class="text-[12px] font-semibold text-zinc-600 border border-zinc-200 rounded px-2.5 py-1 hover:bg-zinc-100 shadow-xs btn-press">
+                                        Config
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION: Provider Picker (Add New) -->
+                <section id="provider-section" class="stagger-item stagger-4 pt-4 border-t border-zinc-200">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-[16px] font-semibold text-zinc-800">Add New Data Source</h2>
+                        <span class="text-[12px] text-zinc-500">Pick from our pre-configured network</span>
+                    </div>
+
+                    <!-- Bento Box Grid of Providers -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        
+                        <!-- Card 1 -->
+                        <div class="group relative bg-white border border-zinc-200 hover:border-zinc-300 rounded-xl p-5 shadow-xs hover:shadow-glass-hover transition-all cursor-pointer btn-press overflow-hidden h-[160px] flex flex-col justify-between" onclick="alert('In a real app, this opens the API Key Add Modal overlay.')">
+                            <div class="flex justify-between items-start">
+                                <div class="w-10 h-10 rounded border border-zinc-200 bg-white flex items-center justify-center font-bold text-zinc-800 text-lg shadow-[inset_0_1px_0_rgba(255,255,255,1),_0_1px_2px_rgba(0,0,0,0.05)]">A</div>
+                                <span class="bg-blue-50 text-blue-700 text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded border border-blue-100">Enrichment</span>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-zinc-800 text-[14px]">Apollo.io</h3>
+                                <p class="text-zinc-500 text-[12px] mt-1 line-clamp-2">B2B contact database for enrichment and intent.</p>
+                            </div>
+                            <div class="absolute -bottom-6 -right-6 text-zinc-100 transform rotate-12 transition-transform group-hover:-translate-y-2 group-hover:-translate-x-2 pointer-events-none">
+                                <i class="ph-fill ph-plus-circle text-[100px]"></i>
+                            </div>
+                        </div>
+
+                        <!-- Card 2 -->
+                        <div class="group relative bg-white border border-zinc-200 hover:border-zinc-300 rounded-xl p-5 shadow-xs hover:shadow-glass-hover transition-all cursor-pointer btn-press overflow-hidden h-[160px] flex flex-col justify-between">
+                            <div class="flex justify-between items-start">
+                                <div class="w-10 h-10 rounded border border-zinc-200 bg-zinc-900 border border-zinc-800 flex items-center justify-center font-bold text-white text-lg shadow-glass"><i class="ph-fill ph-google-logo"></i></div>
+                                <span class="bg-amber-50 text-amber-700 text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded border border-amber-100">Outreach</span>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-zinc-800 text-[14px]">Google Workspace</h3>
+                                <p class="text-zinc-500 text-[12px] mt-1 line-clamp-2">Connect Gmail for authenticated primary sending.</p>
+                            </div>
+                        </div>
+
+                        <!-- Card 3 -->
+                        <div class="group relative bg-white border border-zinc-200 hover:border-zinc-300 rounded-xl p-5 shadow-xs hover:shadow-glass-hover transition-all cursor-pointer btn-press overflow-hidden h-[160px] flex flex-col justify-between">
+                            <div class="flex justify-between items-start">
+                                <div class="w-10 h-10 rounded border border-zinc-200 bg-white flex items-center justify-center font-bold text-purple-600 text-lg shadow-[inset_0_1px_0_rgba(255,255,255,1),_0_1px_2px_rgba(0,0,0,0.05)]"><i class="ph-fill ph-target"></i></div>
+                                <span class="bg-purple-50 text-purple-700 text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded border border-purple-100">Deal Sourcing</span>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-zinc-800 text-[14px]">Clearbit</h3>
+                                <p class="text-zinc-500 text-[12px] mt-1 line-clamp-2">Company firmographics and IP identification.</p>
+                            </div>
+                        </div>
+
+                        <!-- Card 4 (Custom) -->
+                        <div class="group relative bg-zinc-50 border border-zinc-200 hover:border-zinc-300 border-dashed rounded-xl p-5 transition-all cursor-pointer btn-press overflow-hidden h-[160px] flex flex-col items-center justify-center text-center hover:bg-zinc-100">
+                            <div class="w-10 h-10 rounded-full bg-white border border-zinc-200 flex items-center justify-center text-zinc-400 mb-2 group-hover:text-zinc-800 transition-colors shadow-xs">
+                                <i class="ph-bold ph-plugs text-xl"></i>
+                            </div>
+                            <h3 class="font-semibold text-zinc-800 text-[14px]">Custom API Webhook</h3>
+                            <p class="text-zinc-500 text-[12px] mt-1">Connect internal datalakes via Bearer token.</p>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- Footer spacing -->
+                <div class="h-10"></div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Interactions Script (Simulates React states) -->
+    <script>
+        function toggleDrawer() {
+            const drawer = document.getElementById('config-drawer');
+            const backdrop = document.getElementById('drawer-backdrop');
+            
+            // Remove hidden-initial on first click to allow transitions
+            drawer.classList.remove('hidden-initial');
+            backdrop.classList.remove('hidden-initial');
+
+            // Force reflow
+            void drawer.offsetWidth; 
+
+            if (drawer.classList.contains('translate-x-full')) {
+                // Open
+                drawer.classList.remove('translate-x-full');
+                drawer.classList.add('translate-x-0');
+                
+                backdrop.classList.remove('opacity-0');
+                backdrop.classList.add('opacity-100');
+                // Disable background scroll
+                document.body.style.overflow = 'hidden';
+            } else {
+                // Close
+                drawer.classList.add('translate-x-full');
+                drawer.classList.remove('translate-x-0');
+                
+                backdrop.classList.add('opacity-0');
+                backdrop.classList.remove('opacity-100');
+                
+                // Re-enable background scroll after transition
+                setTimeout(() => {
+                    document.body.style.overflow = '';
+                    // Option: add hidden back if you want it out of flow, but not necessary if translated fully out
+                }, 300);
+            }
+        }
+    </script>
+</body>
+</html>
