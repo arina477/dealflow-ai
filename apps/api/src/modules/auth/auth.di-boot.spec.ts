@@ -31,7 +31,11 @@
 
 import 'reflect-metadata';
 
-// ── Mock the SuperTokens SDK (supertokens.config init runs in onModuleInit) ──
+// ── Mock the SuperTokens SDK (AuthService imports supertokens-node directly) ──
+// AuthModule no longer has an OnModuleInit hook — SuperTokens init is done in
+// main.ts bootstrap() before NestFactory.create(). The mocks here cover the
+// supertokens-node imports inside AuthService so the TestingModule can compile
+// and resolve the DI container without a live SuperTokens Core.
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('supertokens-node', () => ({
@@ -58,21 +62,6 @@ vi.mock('supertokens-node/recipe/session', () => ({
     createNewSession: vi.fn(),
     getSession: vi.fn(),
   },
-}));
-
-// ── Suppress SuperTokens env validation so the module boots in test ──────────
-vi.mock('./supertokens.env', () => ({
-  loadSupertokensEnv: () => ({
-    connectionUri: 'http://localhost:3567',
-    apiKey: 'test-api-key',
-    appName: 'test',
-    apiDomain: 'http://localhost:4000',
-    websiteDomain: 'http://localhost:3000',
-  }),
-}));
-
-vi.mock('./supertokens.config', () => ({
-  initSupertokens: vi.fn(),
 }));
 
 import { Test } from '@nestjs/testing';

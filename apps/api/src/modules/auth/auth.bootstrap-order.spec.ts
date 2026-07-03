@@ -1,33 +1,39 @@
 /**
- * Bootstrap ordering regression — SuperTokens.init before getAllCORSHeaders.
+ * Bootstrap ordering regression — SuperTokens.init before getAllCORSHeaders
+ * and before middleware() registration.
  *
  * WHY THIS TEST EXISTS:
- *   main.ts calls supertokens.getAllCORSHeaders() to configure CORS.  That call
- *   throws "Initialisation not done. Did you forget to call the SuperTokens.init
- *   function?" if SuperTokens.init() has not yet run.
+ *   main.ts must call initSupertokens() BEFORE NestFactory.create() so that:
  *
- *   SuperTokens.init() runs in AuthModule.onModuleInit() (it needs DI — the
- *   role resolver depends on AuthRepository), which means it is triggered by
- *   the NestJS lifecycle via app.init(), NOT by module import alone.
+ *   (A) getAllCORSHeaders() is available for CORS wiring: the call throws
+ *       "Initialisation not done. Did you forget to call the SuperTokens.init
+ *       function?" if SuperTokens.init() has not yet run.
  *
- *   The fixed main.ts calls `await app.init()` explicitly between
- *   NestFactory.create() and the CORS / getAllCORSHeaders wiring.  This test
- *   replicates that ordering:
+ *   (B) middleware() can be registered via app.use() BEFORE app.listen()
+ *       mounts the Nest router. NestJS prepends app.use() middleware to the
+ *       Express stack ahead of the Nest router; app.listen() then triggers
+ *       app.init() which mounts the Nest router at the END. This ordering
+ *       ensures the SuperTokens middleware intercepts /auth/* auto-routes
+ *       first — before the Nest router returns 404.
  *
- *   Test 1 — MUST FAIL before init: proves the "Initialisation not done" error
- *             fires when getAllCORSHeaders() is called before SuperTokens.init().
- *
- *   Test 2 — MUST PASS after init: proves getAllCORSHeaders() returns an array
- *             once SuperTokens.init() has been called (mirrors what app.init()
- *             achieves in main.ts by running AuthModule.onModuleInit).
+ *   The prior fix (wave-2 ab23d4c) called `await app.init()` explicitly
+ *   between NestFactory.create() and getAllCORSHeaders(), which solved (A) but
+ *   not (B): middleware() was still registered AFTER app.init() had already
+ *   mounted the Nest router, so /auth/* auto-routes and OPTIONS preflights
+ *   still returned 404 from Nest in the browser. The current fix moves
+ *   initSupertokens() before NestFactory.create() entirely, registers
+ *   middleware() via app.use() before app.listen(), and eliminates the
+ *   redundant explicit app.init() call.
  *
  * WHAT IT CATCHES:
- *   - Any future refactor that moves getAllCORSHeaders() before app.init().
- *   - Any removal of the explicit app.init() call from main.ts bootstrap.
+ *   - Any future refactor that moves getAllCORSHeaders() before
+ *     initSupertokens() in main.ts.
+ *   - Any removal of initSupertokens() from bootstrap() (moving it back into
+ *     an OnModuleInit hook would break the middleware-before-router ordering).
  *
  * NOTE ON NETWORK:
  *   SuperTokens.init() is config-only — it does NOT open a connection to Core.
- *   Core connections are lazy (first recipe call).  The dummy SUPERTOKENS_*
+ *   Core connections are lazy (first recipe call). The dummy SUPERTOKENS_*
  *   env vars injected by vitest.config.ts test.env are sufficient; no live
  *   Core is required.
  *
@@ -58,17 +64,16 @@ afterEach(() => {
 });
 
 describe('Bootstrap ordering — SuperTokens.init before getAllCORSHeaders', () => {
-  it('getAllCORSHeaders() throws before SuperTokens.init() — proving the ordering bug', () => {
+  it('getAllCORSHeaders() throws before SuperTokens.init() — proving the ordering guard', () => {
     // SuperTokens.init() has NOT been called.  getAllCORSHeaders() MUST throw
-    // "Initialisation not done" — this is exactly what crashed the Railway
-    // deploy when main.ts called getAllCORSHeaders() before app.init() ran
-    // AuthModule.onModuleInit.
+    // "Initialisation not done" — this is exactly what would crash bootstrap()
+    // if initSupertokens() were called after (rather than before) NestFactory.
     expect(() => supertokens.getAllCORSHeaders()).toThrow(/Initialisation not done/i);
   });
 
   it('getAllCORSHeaders() returns an array after SuperTokens.init() — proving the fix', () => {
-    // Call supertokens.init() directly, mirroring what AuthModule.onModuleInit
-    // does when triggered by `await app.init()` in the fixed main.ts.
+    // Call supertokens.init() directly, mirroring what initSupertokens() does
+    // in bootstrap() before NestFactory.create().
     // Uses real recipe factories — init is config-only and opens no connections.
     supertokens.init({
       framework: 'express',

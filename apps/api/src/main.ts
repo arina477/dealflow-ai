@@ -3,11 +3,15 @@ import 'reflect-metadata';
 import { parseEnv } from '@dealflow/shared';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { eq } from 'drizzle-orm';
 import supertokens from 'supertokens-node';
 import { errorHandler, middleware } from 'supertokens-node/framework/express';
 import { z } from 'zod';
 
 import { AppModule } from './app.module';
+import { db } from './db';
+import { roles, users } from './db/schema';
+import { initSupertokens } from './modules/auth/supertokens.config';
 import { loadSupertokensEnv } from './modules/auth/supertokens.env';
 
 const bootEnvSchema = z.object({
@@ -24,40 +28,67 @@ async function bootstrap(): Promise<void> {
   // boot rather than starting silently-broken (security invariant #3).
   const stEnv = loadSupertokensEnv();
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Initialise SuperTokens BEFORE NestFactory.create() so that:
+  //
+  //   1. getAllCORSHeaders() is available immediately for CORS wiring (it
+  //      throws "Initialisation not done" if called before init).
+  //
+  //   2. middleware() can be registered via app.use() BEFORE app.listen()
+  //      mounts the Nest router in the Express chain. This is the canonical
+  //      SuperTokens + Express integration ordering: middleware() MUST sit
+  //      ahead of your route handlers so the SDK can serve its own auto-routes
+  //      (/auth/signin, /auth/signout, /auth/session/refresh, etc.) before
+  //      Express ever reaches the app router.
+  //
+  //      In NestJS, app.use() calls made before app.listen() are prepended to
+  //      the underlying Express stack; app.listen() triggers app.init()
+  //      internally which mounts the Nest router at the END of that stack.
+  //      This ordering guarantees SuperTokens middleware intercepts /auth/*
+  //      auto-routes first — the prior bug had middleware() registered AFTER
+  //      app.init() (via the CORS-before-init fix), so the Nest router sat
+  //      ahead of it and returned 404 on every browser real-auth call.
+  //
+  // The createNewSession role-claim override uses the module-singleton Drizzle
+  // client (src/db/index.ts) directly rather than an injected AuthRepository.
+  // This decouples SuperTokens init from the Nest DI container lifecycle —
+  // no OnModuleInit hook needed in AuthModule.
+  initSupertokens({
+    env: stEnv,
+    resolveRole: async (supertokensUserId: string): Promise<string | null> => {
+      const rows = await db
+        .select({ roleName: roles.name })
+        .from(users)
+        .innerJoin(roles, eq(users.roleId, roles.id))
+        .where(eq(users.supertokensUserId, supertokensUserId))
+        .limit(1);
+      return rows[0]?.roleName ?? null;
+    },
+  });
 
-  // Explicitly initialise all modules (runs onModuleInit hooks, including
-  // AuthModule.onModuleInit which calls SuperTokens.init). Must happen BEFORE
-  // any call to supertokens.getAllCORSHeaders() — that call throws
-  // "Initialisation not done" if the SDK has not been initialised yet.
-  // app.listen() also triggers init internally, but NestJS guards against
-  // double-init, so calling init() here first is safe.
-  await app.init();
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // CORS for the Next.js origin: must allow credentials + the SuperTokens
   // headers, or cookie sessions silently fail from the browser (gotcha #3).
-  // getAllCORSHeaders() is safe to call here because app.init() above has
-  // already run AuthModule.onModuleInit → SuperTokens.init().
+  // getAllCORSHeaders() is safe here because initSupertokens() has already run.
   app.enableCors({
     origin: stEnv.WEB_ORIGIN,
     allowedHeaders: ['content-type', ...supertokens.getAllCORSHeaders()],
     credentials: true,
   });
 
-  // SuperTokens Express middleware BEFORE route handlers — serves the SDK
-  // auto-routes and populates the session (gotcha #2).
+  // SuperTokens Express middleware registered BEFORE app.listen() (which
+  // triggers app.init() and mounts the Nest router). Because all app.use()
+  // calls before listen() are prepended to the Express stack, middleware()
+  // intercepts /auth/* auto-routes first — OPTIONS preflights get CORS
+  // headers, POST /auth/signin is handled by SuperTokens, etc. — before Nest
+  // ever sees the request (gotcha #2 / browser-login fix).
   app.use(middleware());
 
-  // SuperTokens errorHandler(). SCOPE NOTE: because Nest mounts its own router
-  // for the @Controller routes, this handler only sees errors thrown by the
-  // SuperTokens SDK AUTO-routes (/auth/signin, /auth/signout,
-  // /auth/session/refresh, /auth/user/password/*) served by middleware() above —
-  // it does NOT intercept errors thrown inside Nest controller handlers, which
-  // Nest's own exception layer renders. For those SDK auto-routes it maps
-  // SuperTokens session errors (e.g. TRY_REFRESH_TOKEN / UNAUTHORISED) to the
-  // correct 401 rather than a 500. It is registered here (right after
-  // middleware()) deliberately: our custom /auth routes handle their own session
-  // errors via SessionGuard, so this handler has nothing of ours to sit "after".
+  // SuperTokens errorHandler() — after middleware() and before app.listen()
+  // (Nest router mount). Catches errors from the SDK auto-routes served by
+  // middleware() above and maps them (e.g. TRY_REFRESH_TOKEN / UNAUTHORISED)
+  // to correct HTTP status codes. Does NOT intercept Nest controller handler
+  // errors (those go to Nest's own exception layer).
   app.use(errorHandler());
 
   await app.listen(env.PORT);
