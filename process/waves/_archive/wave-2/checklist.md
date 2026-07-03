@@ -54,6 +54,6 @@ LEARN:
 - [x] L-2 Distill — 3 tasks confirmed done; 5 observations synthesized; 1 promotion (T-5 rule 1, real-browser E2E for auth/session waves; karen APPROVE + linter OK; 5c0eb6b); OBS-1/BUILD deferred (confirmed-ready)
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M1 stays in_progress (scope not shipped); decomposition fired (judgment override) → 3-task AppShell/dashboard/RBAC bundle authored (9eeed24)
+- [x] N-2 Seed — seed 1931b452 + 2 siblings; validation PASS; claimed_task_ids emitted
+- [x] N-3 Handoff — wave→3; wave 2 closed (waves.status=ok); wave-2 archived; .last-wave-completed.yaml written
