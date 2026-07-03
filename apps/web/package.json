@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "biome check --write .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "PLAYWRIGHT_BROWSERS_PATH=$HOME/.local/share/pw-compat playwright test"
   },
   "dependencies": {
     "@dealflow/shared": "workspace:*",
@@ -18,6 +19,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
     "@tailwindcss/postcss": "4.3.2",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
