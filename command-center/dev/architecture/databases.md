@@ -96,13 +96,17 @@ Consuming features: #10, #11, #13, #25
 
 ### compliance_rules_suppression
 
-Compliance configuration: suppression lists, required disclaimer assignments, pre-send check rules, approval-gating policy.
+Compliance configuration: pre-send check rules, suppression lists, per-jurisdiction disclaimers, and content-bound approval snapshots. The four tables below are **standard-DML (mutable)** config — INSERT / UPDATE / DELETE are all permitted to the app role. They are explicitly NOT subject to the immutability controls on `audit_log_entries` (no REVOKE/GRANT restriction, no BEFORE UPDATE/DELETE trigger, no TRUNCATE guard). Their audit trail is provided by appending to the immutable `audit_log_entries` table inside every mutation transaction — enforced at the service layer, not the DB. Every FK to `users.id` is `ON DELETE SET NULL` so a config row survives its author's deletion (the role/actor is preserved in the audit log).
+
+Shapes below are the as-built shapes (schema file `apps/api/src/db/schema/compliance-rules.ts`), reconciled from an earlier stale design sketch. Enums are Drizzle `pgEnum` mirrored 1:1 by Zod enums in `packages/shared`.
 
 Tables:
-- `suppression_list` — suppressed contacts/companies (entity_type: contact/company/domain, entity_ref, reason, suppressed_by, suppressed_at, expires_at NULLABLE)
-- `disclaimer_templates` — named disclaimer text blocks (name, jurisdiction_code, body_text, is_required, created_by, created_at)
-- `compliance_rules` — pre-send check rules (rule_type: blocklist_check/disclaimer_required/approval_required/jurisdiction_check, jurisdiction_code NULLABLE, parameters_json, enabled, created_by)
-- `compliance_approvals` — approval requests and decisions (campaign_id NULLABLE, template_id NULLABLE, requested_by, requested_at, status: pending/approved/rejected, reviewed_by, reviewed_at, note)
+- `compliance_rules` — the rule registry (id UUID PK, rule_type ENUM[blocklist_check | disclaimer_required | approval_required | jurisdiction_check], jurisdiction TEXT NULLABLE [NULL = global], config JSONB NOT NULL [rule-type-specific params], enabled BOOL DEFAULT true, created_at, created_by UUID NULLABLE FK→users.id SET NULL, updated_at TIMESTAMPTZ NULLABLE via Drizzle `.$onUpdateFn`)
+- `suppression_list` — email/domain suppression entries (id UUID PK, match_type ENUM[email | domain], value TEXT NOT NULL [normalized lower-case at the service layer], reason TEXT NULLABLE, created_at, created_by UUID NULLABLE FK→users.id SET NULL). Index `(match_type, value)` — the gate's suppression lookup path.
+- `disclaimer_templates` — versioned, jurisdiction-scoped disclaimer bodies (id UUID PK, jurisdiction TEXT NOT NULL [no global rows], body TEXT NOT NULL, version INT NOT NULL [monotonic per jurisdiction, service-managed], active BOOL DEFAULT true [at most one active per jurisdiction], created_at, created_by UUID NULLABLE FK→users.id SET NULL). Append-style versioning: an edit inserts version+1 and deactivates the prior row. Index `(jurisdiction, active)` — the gate reads the active row per jurisdiction.
+- `compliance_approvals` — per-resource approval snapshots (id UUID PK, resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, content_hash TEXT NOT NULL [SHA-256 hex of content at approval time; the gate recomputes and compares, so any post-approval edit invalidates the approval], approver_user_id UUID NULLABLE FK→users.id SET NULL, approver_role TEXT NOT NULL [role snapshot at approval time, unconstrained text for forward-compat], status ENUM[approved | revoked] [revocation is a soft-delete DML UPDATE], created_at). Index `(resource_type, resource_id)` — the gate's active-approval lookup.
+
+**Separation-of-duties enforcement is application-layer, not a DB CHECK.** `approver_role` is unconstrained text at the DB; the pre-send gate's SoD evaluator ONLY accepts `approver_role = 'compliance'` (admin is excluded — "no super-role shortcut around separation of duties" per `security.md` §RBAC-SoD), and requires the approver to be a different person than the sender, with the approver identity read only from the persisted row (never client-supplied). Settings-CRUD `@Roles` on these four tables is `compliance, admin` (admin MANAGES config — a distinct authority from APPROVING a send); only the send-approval path is compliance-only.
 
 Consuming features: #11, #12
 

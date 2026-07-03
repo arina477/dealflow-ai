@@ -51,6 +51,12 @@ append-only, cryptographically chained record that no account can silently alter
 delete. Compliance and admin roles can review it at `/compliance/audit-log` and
 confirm its integrity via `GET /compliance/audit-log/verify`.
 
+**The pre-send compliance gate is live.** A single non-bypassable check enforces
+suppression lists, separation of duties (a compliance-role approver who is not the
+sender), required per-jurisdiction disclaimers, and content-bound approval before any
+outreach may be sent — every verdict recorded in the audit log. Compliance and admin
+roles manage the underlying rules at `/compliance/settings`.
+
 ---
 
 ## Quick start
