@@ -148,6 +148,67 @@ describe('rolesForRoute — exact routes', () => {
 });
 
 // ---------------------------------------------------------------------------
+// rolesForRoute / canAccess — URL normalization (trailing slash + query)
+// A trailing slash or query string must NOT fail-closed to [] and wrongly
+// 403/redirect a legit URL; both matchers normalize like isPublicRoute does.
+// ---------------------------------------------------------------------------
+
+describe('rolesForRoute — URL normalization', () => {
+  it('normalizes a trailing slash to the canonical pattern', () => {
+    expect([...rolesForRoute('/compliance/summary/')].sort()).toEqual(['admin', 'compliance']);
+    expect([...rolesForRoute('/admin/users/')].sort()).toEqual(['admin']);
+  });
+
+  it('strips a query string before matching', () => {
+    expect([...rolesForRoute('/compliance/summary?x=1')].sort()).toEqual(['admin', 'compliance']);
+    expect([...rolesForRoute('/mandates?foo=bar&baz=1')].sort()).toEqual(['advisor', 'analyst']);
+  });
+
+  it('strips both trailing slash AND query together', () => {
+    expect([...rolesForRoute('/compliance/summary/?x=1')].sort()).toEqual(['admin', 'compliance']);
+  });
+
+  it('normalizes trailing slash / query on :param routes', () => {
+    expect([...rolesForRoute('/mandates/abc123/')].sort()).toEqual(['advisor', 'analyst']);
+    expect([...rolesForRoute('/mandates/abc123?tab=buyers')].sort()).toEqual([
+      'advisor',
+      'analyst',
+    ]);
+  });
+
+  it('preserves the root route "/" (never strips to empty)', () => {
+    expect([...rolesForRoute('/')].sort()).toEqual(['admin', 'advisor', 'analyst', 'compliance']);
+    expect([...rolesForRoute('/?x=1')].sort()).toEqual([
+      'admin',
+      'advisor',
+      'analyst',
+      'compliance',
+    ]);
+  });
+});
+
+describe('canAccess — URL normalization', () => {
+  it('allows a legit role on a trailing-slash URL', () => {
+    expect(canAccess('compliance', '/compliance/summary/')).toBe(true);
+    expect(canAccess('admin', '/compliance/summary/')).toBe(true);
+  });
+
+  it('allows a legit role on a query-string URL', () => {
+    expect(canAccess('compliance', '/compliance/summary?x=1')).toBe(true);
+  });
+
+  it('still denies a wrong role on a normalized URL (fail-closed preserved)', () => {
+    expect(canAccess('advisor', '/compliance/summary/')).toBe(false);
+    expect(canAccess('analyst', '/compliance/summary?x=1')).toBe(false);
+  });
+
+  it('normalizes public routes consistently (query on /auth still public)', () => {
+    expect(canAccess('advisor', '/auth/signin?redirect=/')).toBe(true);
+    expect(canAccess('advisor', '/health/')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // rolesForRoute — :param pattern matching
 // ---------------------------------------------------------------------------
 
@@ -462,9 +523,9 @@ describe('roleRoutes — completeness against pinned matrix', () => {
 
   for (const [pattern, expectedRoles] of matrixRows) {
     it(`pattern "${pattern}" has exactly the pinned roles`, () => {
-      expect(routeMap.has(pattern)).toBe(true);
-      const actual = routeMap.get(pattern)!;
-      expect([...actual].sort()).toEqual([...expectedRoles].sort());
+      const actual = routeMap.get(pattern);
+      expect(actual).toBeDefined();
+      expect([...(actual ?? [])].sort()).toEqual([...expectedRoles].sort());
     });
   }
 });

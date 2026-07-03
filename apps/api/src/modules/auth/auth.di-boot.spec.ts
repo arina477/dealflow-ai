@@ -69,6 +69,7 @@ import { DB } from '../../db/db.provider';
 import { AuthModule } from './auth.module';
 import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
+import { RolesGuard } from './guards/roles.guard';
 
 // ── Layer 1: Reflect.getMetadata assertion ────────────────────────────────────
 describe('DI metadata — value-import guard', () => {
@@ -116,5 +117,28 @@ describe('NestJS DI container boot — AuthModule compiles', () => {
 
     const authRepository = moduleRef.get(AuthRepository);
     expect(authRepository).toBeInstanceOf(AuthRepository);
+
+    // B-6 CRITICAL-1: RolesGuard now constructor-injects AuthRepository (for the
+    // DB-authoritative role re-verify). A type-only import of AuthRepository in
+    // roles.guard.ts would strip design:paramtypes and make this resolution
+    // throw UnknownDependenciesException — this guards that regression too.
+    const rolesGuard = moduleRef.get(RolesGuard);
+    expect(rolesGuard).toBeInstanceOf(RolesGuard);
+  });
+});
+
+// ── Layer 1b: RolesGuard DI metadata (AuthRepository value-import guard) ───────
+describe('DI metadata — RolesGuard AuthRepository value-import guard', () => {
+  it('RolesGuard design:paramtypes includes the AuthRepository class', () => {
+    const paramTypes: unknown[] | undefined = Reflect.getMetadata('design:paramtypes', RolesGuard);
+    expect(
+      paramTypes,
+      'design:paramtypes on RolesGuard must be defined — check emitDecoratorMetadata is on'
+    ).toBeDefined();
+    // Constructor order is (Reflector, AuthRepository); assert AuthRepository is present.
+    expect(
+      paramTypes?.includes(AuthRepository),
+      'RolesGuard must value-import AuthRepository so NestJS can resolve the DB re-verify dependency'
+    ).toBe(true);
   });
 });

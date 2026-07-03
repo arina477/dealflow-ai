@@ -44,8 +44,25 @@ import { ComplianceService } from './compliance.service';
 /**
  * Required roles for /compliance/summary, resolved from the SINGLE source of
  * truth (shared roleRoutes) at module-eval time — not duplicated/hardcoded.
+ *
+ * FAIL-CLOSED at boot (B-6 CRITICAL-2 defence in depth): if the route pattern
+ * is ever renamed/removed in rbac.ts, rolesForRoute returns [] and the spread
+ * would yield an EMPTY @Roles() — which, absent this guard, could no-op the
+ * RolesGuard and open the route to every authenticated user. We assert the
+ * resolved set is non-empty at module load so config drift crashes the app at
+ * boot (loud, unmissable) rather than silently fail-opening at request time.
+ * The RolesGuard ALSO denies a present-but-empty @Roles() at request time —
+ * two independent fail-closed layers.
  */
 const COMPLIANCE_SUMMARY_ROLES: Role[] = [...rolesForRoute('/compliance/summary')];
+
+if (COMPLIANCE_SUMMARY_ROLES.length === 0) {
+  throw new Error(
+    "RBAC config drift: rolesForRoute('/compliance/summary') resolved to [] — " +
+      'the route pattern is missing from the shared roleRoutes matrix. Refusing to ' +
+      'boot rather than expose GET /compliance/summary to every authenticated user.'
+  );
+}
 
 @Controller('compliance')
 export class ComplianceController {

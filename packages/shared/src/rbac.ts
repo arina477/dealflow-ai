@@ -215,8 +215,30 @@ const PUBLIC_PREFIXES: ReadonlyArray<string> = ['/auth', '/health'];
  */
 export function isPublicRoute(route: string): boolean {
   return PUBLIC_PREFIXES.some(
-    (prefix) => route === prefix || route.startsWith(prefix + '/') || route.startsWith(prefix + '?')
+    (prefix) => route === prefix || route.startsWith(`${prefix}/`) || route.startsWith(`${prefix}?`)
   );
+}
+
+// ---------------------------------------------------------------------------
+// Route normalization
+//
+// The RBAC matchers (rolesForRoute / canAccess) match against canonical
+// patterns that have NO query string and NO trailing slash. A caller-supplied
+// URL like '/compliance/summary/' or '/compliance/summary?x=1' must be reduced
+// to its canonical form BEFORE matching, so both matchers treat URLs the same
+// way `isPublicRoute` already does (it prefix-matches on `/` and `?`). Without
+// this, a legit URL with a trailing slash or query would fail-closed to [] and
+// wrongly 403/redirect. The root route '/' is preserved (never stripped to '').
+// ---------------------------------------------------------------------------
+
+function normalizeRoute(route: string): string {
+  // Strip query string (everything from the first '?') and hash fragment.
+  let normalized = route.split('?')[0]?.split('#')[0] ?? route;
+  // Strip a single trailing slash, but never reduce the root '/' to ''.
+  if (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
+  }
+  return normalized;
 }
 
 // ---------------------------------------------------------------------------
@@ -242,16 +264,19 @@ function patternToRegex(pattern: string): RegExp {
  * to handle `/auth/*` or `/health`.
  */
 export function rolesForRoute(route: string): ReadonlyArray<Role> {
+  // Normalize (strip query + trailing slash) so URLs are matched identically
+  // to isPublicRoute — a trailing slash or query must NOT fail-closed to [].
+  const normalized = normalizeRoute(route);
   // Exact match first (faster and avoids regex for the common case)
   for (const entry of roleRoutes) {
-    if (entry.pattern === route) {
+    if (entry.pattern === normalized) {
       return entry.allowedRoles;
     }
   }
   // Pattern match (`:param` segments)
   for (const entry of roleRoutes) {
     if (entry.pattern.includes(':')) {
-      if (patternToRegex(entry.pattern).test(route)) {
+      if (patternToRegex(entry.pattern).test(normalized)) {
         return entry.allowedRoles;
       }
     }
@@ -264,8 +289,13 @@ export function rolesForRoute(route: string): ReadonlyArray<Role> {
  * Public routes always return true; routes not in the table return false.
  */
 export function canAccess(role: Role, route: string): boolean {
-  if (isPublicRoute(route)) return true;
-  return (rolesForRoute(route) as Role[]).includes(role);
+  // Normalize before both checks so a trailing slash / query behaves
+  // identically across isPublicRoute and rolesForRoute (rolesForRoute
+  // normalizes internally too; normalizing here keeps the public-route check
+  // consistent with the matrix check).
+  const normalized = normalizeRoute(route);
+  if (isPublicRoute(normalized)) return true;
+  return (rolesForRoute(normalized) as Role[]).includes(role);
 }
 
 // ---------------------------------------------------------------------------

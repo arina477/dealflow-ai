@@ -2,9 +2,10 @@
  * app/(app)/layout.tsx — AppLayout server component tests (wave-3, B-3).
  *
  * Coverage:
- *   - Unauthenticated: redirect('/login') when /auth/me returns non-OK.
- *   - Unauthenticated: redirect('/login') when fetch rejects (network error).
+ *   - Unauthenticated: redirect('/login') when /auth/me returns 401 or 403.
  *   - Unauthenticated: redirect('/login') when response fails schema validation.
+ *   - Availability (B-6): 5xx / network error → render error state, NO redirect
+ *     (a transient upstream failure must not log a valid user out).
  *   - Authenticated: renders children inside AppShell (does not redirect).
  *   - Cookie forwarding: passes next/headers cookie string as fetch header.
  *
@@ -66,6 +67,15 @@ function makeFetchNotOk(status: number): typeof fetch {
     status,
     json: () => Promise.resolve({}),
   } as Response);
+}
+
+// A non-ok 5xx response WITHOUT a valid JSON body (upstream fault).
+function makeFetch5xx(status: number): typeof fetch {
+  return vi.fn().mockResolvedValue({
+    ok: false,
+    status,
+    json: () => Promise.reject(new Error('not json')),
+  } as unknown as Response);
 }
 
 function makeFetchError(): typeof fetch {
@@ -135,18 +145,40 @@ describe('AppLayout (app/(app)/layout.tsx)', () => {
       expect(path).toBe('/login');
     });
 
-    it('redirects to /login when fetch rejects (network error)', async () => {
-      vi.stubGlobal('fetch', makeFetchError());
-      const { redirected, path } = await renderLayout();
-      expect(redirected).toBe(true);
-      expect(path).toBe('/login');
-    });
-
     it('redirects to /login when /auth/me body fails schema validation', async () => {
       vi.stubGlobal('fetch', makeFetchOk({ unexpected: 'shape' }));
       const { redirected, path } = await renderLayout();
       expect(redirected).toBe(true);
       expect(path).toBe('/login');
+    });
+  });
+
+  describe('availability — transient failure must NOT log the user out (B-6)', () => {
+    it('renders an error state (NOT redirect) when /auth/me returns 500', async () => {
+      vi.stubGlobal('fetch', makeFetch5xx(500));
+      const { redirected } = await renderLayout();
+      expect(redirected).toBe(false);
+      expect(mockRedirect).not.toHaveBeenCalled();
+      // Error state present; the shell (and thus the authed session) is NOT torn down.
+      expect(screen.getByRole('alert')).toBeDefined();
+      expect(screen.queryByTestId('app-shell')).toBeNull();
+    });
+
+    it('renders an error state (NOT redirect) when /auth/me returns 503', async () => {
+      vi.stubGlobal('fetch', makeFetch5xx(503));
+      const { redirected } = await renderLayout();
+      expect(redirected).toBe(false);
+      expect(mockRedirect).not.toHaveBeenCalled();
+      expect(screen.getByRole('alert')).toBeDefined();
+    });
+
+    it('renders an error state (NOT redirect) when fetch rejects (network error)', async () => {
+      vi.stubGlobal('fetch', makeFetchError());
+      const { redirected } = await renderLayout();
+      expect(redirected).toBe(false);
+      expect(mockRedirect).not.toHaveBeenCalled();
+      expect(screen.getByRole('alert')).toBeDefined();
+      expect(screen.queryByTestId('app-shell')).toBeNull();
     });
   });
 
