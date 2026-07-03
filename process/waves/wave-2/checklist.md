@@ -45,9 +45,9 @@ TEST:
 - [x] T-9 Journey — head-tester APPROVED (attempt 2); journey regen (auth routes live, /accept-invite reconciled)
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-1 Independent reviews (Karen + jenny, parallel) — Karen + jenny both APPROVE (auth live + spec-conformant)
+- [x] V-2 Triage — 0 blocking; 1 auth-hardening task (6fe232e3); 2 noise
+- [x] V-3 Fast-fix loop (or close) — head-verifier APPROVED; fast-fix skipped (0 blocking)
 
 LEARN:
 - [ ] L-1 Docs
