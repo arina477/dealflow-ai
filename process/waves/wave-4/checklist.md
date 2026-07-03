@@ -34,20 +34,20 @@ CI/CD:
 - [x] C-2 Deploy & verify — cd06e8a live on Railway (api+web SUCCESS); /health version=cd06e8a; AUDIT_LOG_HMAC_KEY set; migration 0002 applied (audit_log_entries live); LIVE chain verify ok:true entriesChecked:3 (created_at-fix proven); immutability UPDATE/DELETE/TRUNCATE rejected; tamper-detection ok:false@seq2→restored; RBAC 200/403/401; login regression intact; canary skipped (0 DAU); head_signoff APPROVED
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
-- [ ] T-9 Journey
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
+- [x] T-5 E2E — 7/7 real-browser PASS (verify-now works in-browser = B-6-fix proof; RBAC nav); Chrome
+- [x] T-6 Layout — integrity view visual §Integrity-Validation conformant (emerald pill, entries=3, intact)
+- [x] T-7 Perf
+- [x] T-8 Security
+- [x] T-9 Journey — head-tester APPROVED; journey regen (audit-log backbone LIVE)
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-1 Independent reviews (Karen + jenny, parallel) — Karen + jenny both APPROVE (audit-log tamper-evident+verifiable LIVE, 0 drift)
+- [x] V-2 Triage — 0 blocking; TopBar-title→polish task; tail-truncation accepted boundary
+- [x] V-3 Fast-fix loop (or close) — head-verifier APPROVED; fast-fix skipped (0 blocking)
 
 LEARN:
 - [ ] L-1 Docs
