@@ -34,20 +34,20 @@ CI/CD:
 - [x] C-2 Deploy & verify — **PASS** (head-ci-cd APPROVED, re-run on 935b847 after boot fix): api + web both SUCCESS on 935b847 (aligned). api boots clean (ComplianceModule resolves, "Nest application successfully started", zero UnknownDependenciesException — DI fix live). /health version==935b847. RBAC live: compliance 200 / advisor 403 / unauth 401. Login regression PASS (login works, authed / role-aware & not bounced, unauth→/login). Schema additive-only. Rollback armed (api ac721862 / web 89704a4a), not needed. Canary skipped (0 DAU). → PROCEED_TO_T.
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
-- [ ] T-9 Journey
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
+- [x] T-5 E2E — real-browser 7/7 PASS (RBAC nav per-role + login regression); Chrome
+- [x] T-6 Layout — AppShell visual baseline §10-conformant (compliance+advisor)
+- [x] T-7 Perf
+- [x] T-8 Security
+- [x] T-9 Journey — head-tester APPROVED; journey regen (AppShell+dashboard+RBAC live)
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-1 Independent reviews (Karen + jenny, parallel) — Karen + jenny both APPROVE (RBAC+AppShell live, 0 drift)
+- [x] V-2 Triage — 0 blocking; 1 AppShell-polish task; noise suppressed
+- [x] V-3 Fast-fix loop (or close) — head-verifier APPROVED; fast-fix skipped (0 blocking)
 
 LEARN:
 - [ ] L-1 Docs
