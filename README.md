@@ -46,6 +46,11 @@ dashboard at `/` inside a shared app frame (sidebar + top bar). Every protected
 route enforces role-based access control, and the navigation shows each member only
 the sections their role can open.
 
+**The tamper-evident audit log is live.** Sensitive actions are written to an
+append-only, cryptographically chained record that no account can silently alter or
+delete. Compliance and admin roles can review it at `/compliance/audit-log` and
+confirm its integrity via `GET /compliance/audit-log/verify`.
+
 ---
 
 ## Quick start

@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0/).
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-07-03
+
+The tamper-evident audit log: a cryptographic, append-only record of who did what, that no one — not even a database administrator — can silently alter or delete.
+
+### Added
+- Append-only audit log: every entry is chained to the one before it with a cryptographic signature, so any edit, deletion, or reordering breaks the chain and is detectable.
+- Database-level immutability that blocks updates, deletes, and table truncation outright, so the record cannot be rewritten even by a privileged account.
+- Chain-integrity verification endpoint (`GET /compliance/audit-log/verify`), restricted to compliance and admin roles, that confirms the full record is intact or pinpoints where it was tampered.
+- Compliance integrity view at `/compliance/audit-log` showing the live record and its verification status.
+
 ## [0.3.0] — 2026-07-03
 
 The authenticated shell: a shared app frame, a role-aware landing dashboard, and access control that enforces who can reach what.
