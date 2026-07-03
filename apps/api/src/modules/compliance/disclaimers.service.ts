@@ -3,13 +3,23 @@
  *
  * DISCLAIMER VERSIONING (append-style, load-bearing per spec block-3/4):
  *   An EDIT (PATCH) does NOT mutate an existing row. Instead, it:
- *     1. Reads the current max(version) for the jurisdiction.
- *     2. INSERTs a new row with version = max + 1, active = true.
- *     3. Sets active = false on ALL prior rows for that jurisdiction.
- *   Steps 2–3 are in the same tx so the invariant (exactly one active row
- *   per jurisdiction) is never broken mid-transaction. Historical rows are
- *   preserved so the gate can resolve the exact disclaimer body that was
- *   active at any prior approval time.
+ *     1. Acquires a per-jurisdiction advisory lock (pg_advisory_xact_lock on
+ *        hashtext(jurisdiction)) as the FIRST statement of the tx. This
+ *        serializes concurrent edits for the same jurisdiction so the
+ *        read-max→deactivate→insert sequence is atomic per-jurisdiction.
+ *        Two concurrent edits for different jurisdictions proceed in parallel
+ *        (different lock keys). Released automatically at tx commit/rollback.
+ *     2. Reads the current max(version) for the jurisdiction.
+ *     3. INSERTs a new row with version = max + 1, active = true.
+ *     4. Sets active = false on ALL prior rows for that jurisdiction.
+ *   Steps 2–4 are in the same tx and the advisory lock guarantees no second
+ *   concurrent tx can interleave steps 2–4 for the same jurisdiction.
+ *
+ *   DB backstop: disclaimer_templates has a partial unique index
+ *   (jurisdiction) WHERE active = true (migration 0003 hand-append, wave-5
+ *   B-6 CRITICAL-2 fix). If the advisory lock is somehow bypassed, the
+ *   second concurrent INSERT active=true fails with SQLSTATE 23505 rather
+ *   than silently creating two active rows.
  *
  * CREATE follows the same versioning: if a disclaimer for the jurisdiction
  * already exists, a new version row is inserted and prior deactivated.
@@ -27,7 +37,7 @@ import type {
   DisclaimerUpdate,
 } from '@dealflow/shared';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { eq, max } from 'drizzle-orm';
+import { eq, max, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
@@ -77,6 +87,15 @@ export class DisclaimersService {
     actorRole: string
   ): Promise<DisclaimerTemplate> {
     return this.db.transaction(async (tx) => {
+      // Serialize concurrent edits for the same jurisdiction via a per-jurisdiction
+      // advisory lock. hashtext(jurisdiction) maps the text key to a stable int4
+      // that is consistent within a single Postgres instance (same hash function
+      // used by Postgres internally for hash-partitioning; not portable across
+      // major versions, but stable within a running instance). The lock is
+      // transaction-scoped (pg_advisory_xact_lock) and is released automatically
+      // at tx commit or rollback — no explicit release needed.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.jurisdiction}))`);
+
       // Find the current max version for this jurisdiction (may be null if first).
       const [maxRow] = await tx
         .select({ maxVersion: max(disclaimerTemplates.version) })
@@ -142,6 +161,11 @@ export class DisclaimersService {
   ): Promise<DisclaimerTemplate> {
     return this.db.transaction(async (tx) => {
       // Fetch the referenced row (any version — the PATCH target).
+      // We read the existing row BEFORE acquiring the advisory lock so that a
+      // NotFoundException on a non-existent id fails fast (no lock acquired for
+      // a row that will never be written). The lock is then taken on the TARGET
+      // jurisdiction (which may differ from existing.jurisdiction if the caller
+      // is remapping jurisdictions), so the lock key covers the write path.
       const [existing] = await tx
         .select()
         .from(disclaimerTemplates)
@@ -154,6 +178,11 @@ export class DisclaimersService {
       // The new jurisdiction is the updated one (if provided) or the existing one.
       const newJurisdiction = input.jurisdiction ?? existing.jurisdiction;
       const newBody = input.body ?? existing.body;
+
+      // Serialize concurrent edits for the target jurisdiction via advisory lock.
+      // Must be acquired BEFORE reading max(version) so the read-max→deactivate→
+      // insert sequence is atomic for this jurisdiction.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${newJurisdiction}))`);
 
       // Compute next version for the target jurisdiction.
       const [maxRow] = await tx

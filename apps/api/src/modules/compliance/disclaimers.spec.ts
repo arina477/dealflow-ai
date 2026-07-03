@@ -135,6 +135,8 @@ describe('DisclaimersService — CRUD + versioning + audit-in-tx', () => {
     chain.update = vi.fn().mockReturnValue(chain);
     chain.set = vi.fn().mockReturnValue(chain);
     chain.delete = vi.fn().mockReturnValue(chain);
+    // Advisory lock: tx.execute() is called for pg_advisory_xact_lock(hashtext(jurisdiction)).
+    chain.execute = vi.fn().mockResolvedValue(undefined);
 
     mockTx = chain;
 
@@ -162,7 +164,7 @@ describe('DisclaimersService — CRUD + versioning + audit-in-tx', () => {
     expect(mockAuditService.append).not.toHaveBeenCalled();
   });
 
-  it('createDisclaimer (first version) — inserts row AND calls AuditService.append in-tx', async () => {
+  it('createDisclaimer (first version) — acquires advisory lock, inserts row, calls AuditService.append in-tx', async () => {
     // No prior rows: max(version) = null → nextVersion = 1
     mockTx.where.mockResolvedValueOnce([{ maxVersion: null }]);
     mockTx.returning.mockResolvedValueOnce([EXISTING_ROW]);
@@ -175,6 +177,10 @@ describe('DisclaimersService — CRUD + versioning + audit-in-tx', () => {
 
     expect(result.id).toBe(EXISTING_ROW.id);
     expect(result.version).toBe(1);
+
+    // Advisory lock must be the first tx call — serializes per-jurisdiction edits.
+    expect(mockTx.execute).toHaveBeenCalledOnce();
+
     expect(mockAuditService.append).toHaveBeenCalledOnce();
     const firstCall = mockAuditService.append.mock.calls[0] ?? [];
     const auditInput = firstCall[0] as { action: string; actorUserId: string };
@@ -184,9 +190,37 @@ describe('DisclaimersService — CRUD + versioning + audit-in-tx', () => {
     expect(tx).toBeDefined();
   });
 
+  it('createDisclaimer — unique-violation on active-disclaimer index (23505) propagates cleanly (DB backstop)', async () => {
+    // Simulate what happens when the advisory lock is bypassed or two processes
+    // race and the DB partial-unique index rejects the second INSERT:
+    //   disclaimer_templates_jurisdiction_active_unique (jurisdiction) WHERE active
+    // The service does NOT swallow 23505 — it lets the tx roll back, surfacing
+    // a clean DB error to the caller (no silent duplicate active rows).
+    const uniqueViolation = Object.assign(
+      new Error('duplicate key value violates unique constraint'),
+      {
+        code: '23505',
+        constraint: 'disclaimer_templates_jurisdiction_active_unique',
+      }
+    );
+    mockTx.where.mockResolvedValueOnce([{ maxVersion: 1 }]); // max(version) read
+    mockTx.returning.mockRejectedValueOnce(uniqueViolation); // INSERT fails
+
+    await expect(
+      service.createDisclaimer(
+        { jurisdiction: 'US', body: 'Conflicting text' },
+        ACTOR_USER_ID,
+        ACTOR_ROLE
+      )
+    ).rejects.toMatchObject({ code: '23505' });
+
+    // Audit must NOT have been written — the tx rolled back.
+    expect(mockAuditService.append).not.toHaveBeenCalled();
+  });
+
   describe('updateDisclaimer — edit = new version + deactivate prior', () => {
-    it('inserts new version row (version+1) AND deactivates prior', async () => {
-      // updateDisclaimer flow: select existing → max(version) → update(set active=false) → insert
+    it('acquires advisory lock, inserts new version row (version+1) AND deactivates prior', async () => {
+      // updateDisclaimer flow: select existing → advisory lock → max(version) → update(set active=false) → insert
       mockTx.where
         .mockResolvedValueOnce([EXISTING_ROW]) // fetch existing by id
         .mockResolvedValueOnce([{ maxVersion: 1 }]) // max(version) for jurisdiction
@@ -204,6 +238,9 @@ describe('DisclaimersService — CRUD + versioning + audit-in-tx', () => {
       expect(result.id).toBe(NEW_VERSION_ROW.id);
       expect(result.version).toBe(NEW_VERSION_ROW.version);
       expect(result.active).toBe(true);
+
+      // Advisory lock must be acquired for the target jurisdiction.
+      expect(mockTx.execute).toHaveBeenCalledOnce();
 
       // Prior row deactivation: set({ active: false }) must be called
       expect(mockTx.update).toHaveBeenCalled();
@@ -238,6 +275,39 @@ describe('DisclaimersService — CRUD + versioning + audit-in-tx', () => {
       await expect(
         service.updateDisclaimer('nonexistent-id', { body: 'new body' }, ACTOR_USER_ID, ACTOR_ROLE)
       ).rejects.toBeInstanceOf(NotFoundException);
+      expect(mockAuditService.append).not.toHaveBeenCalled();
+    });
+
+    it('concurrent update — unique-violation on active-disclaimer index (23505) propagates cleanly (DB backstop)', async () => {
+      // Simulates the race where two concurrent updateDisclaimer calls for the
+      // same jurisdiction both pass the advisory lock (e.g. different app instances
+      // not sharing the same PG connection pool lock key) and the second INSERT
+      // active=true hits the partial unique index:
+      //   disclaimer_templates_jurisdiction_active_unique (jurisdiction) WHERE active
+      // The service must NOT swallow the error — it propagates so the caller
+      // receives a clean 409/500 and audit is NOT written.
+      const uniqueViolation = Object.assign(
+        new Error('duplicate key value violates unique constraint'),
+        {
+          code: '23505',
+          constraint: 'disclaimer_templates_jurisdiction_active_unique',
+        }
+      );
+      mockTx.where
+        .mockResolvedValueOnce([EXISTING_ROW]) // fetch existing
+        .mockResolvedValueOnce([{ maxVersion: 1 }]); // max(version)
+      mockTx.returning.mockRejectedValueOnce(uniqueViolation); // INSERT fails
+
+      await expect(
+        service.updateDisclaimer(
+          EXISTING_ROW.id,
+          { body: 'Conflicting update' },
+          ACTOR_USER_ID,
+          ACTOR_ROLE
+        )
+      ).rejects.toMatchObject({ code: '23505' });
+
+      // Audit was NOT written — tx rolled back before audit.append could be called.
       expect(mockAuditService.append).not.toHaveBeenCalled();
     });
   });
