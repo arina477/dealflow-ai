@@ -514,6 +514,7 @@ describe('roleRoutes — completeness against pinned matrix', () => {
     ['/templates', ['analyst', 'compliance']],
     ['/compliance/queue', ['compliance', 'advisor']],
     ['/compliance/audit-log', ['compliance']],
+    ['/compliance/audit-log/verify', ['compliance', 'admin']],
     ['/compliance/settings', ['compliance']],
     ['/compliance/summary', ['compliance', 'admin']],
     ['/admin/users', ['admin']],
@@ -528,4 +529,131 @@ describe('roleRoutes — completeness against pinned matrix', () => {
       expect([...(actual ?? [])].sort()).toEqual([...expectedRoles].sort());
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Wave-4 additions — audit-log verify endpoint + Audit Log nav item
+// ---------------------------------------------------------------------------
+
+describe('wave-4 — /compliance/audit-log/verify endpoint RBAC', () => {
+  it('rolesForRoute returns compliance + admin (not advisor/analyst)', () => {
+    const roles = rolesForRoute('/compliance/audit-log/verify');
+    expect(roles).toContain('compliance');
+    expect(roles).toContain('admin');
+    expect(roles).not.toContain('advisor');
+    expect(roles).not.toContain('analyst');
+    expect([...roles].sort()).toEqual(['admin', 'compliance']);
+  });
+
+  it('compliance can access the verify endpoint', () => {
+    expect(canAccess('compliance', '/compliance/audit-log/verify')).toBe(true);
+  });
+
+  it('admin can access the verify endpoint', () => {
+    expect(canAccess('admin', '/compliance/audit-log/verify')).toBe(true);
+  });
+
+  it('advisor is denied the verify endpoint', () => {
+    expect(canAccess('advisor', '/compliance/audit-log/verify')).toBe(false);
+  });
+
+  it('analyst is denied the verify endpoint', () => {
+    expect(canAccess('analyst', '/compliance/audit-log/verify')).toBe(false);
+  });
+
+  it('verify endpoint does NOT resolve to the audit-log screen roles', () => {
+    // The screen (/compliance/audit-log) is compliance-only; the endpoint adds admin.
+    // Exact-match must win over any partial match.
+    const screenRoles = rolesForRoute('/compliance/audit-log');
+    const endpointRoles = rolesForRoute('/compliance/audit-log/verify');
+    expect([...screenRoles].sort()).toEqual(['compliance']);
+    expect([...endpointRoles].sort()).toEqual(['admin', 'compliance']);
+  });
+});
+
+describe('wave-4 — Audit Log nav item (compliance role only)', () => {
+  it('compliance role sees the Audit Log nav item', () => {
+    const items = navItemsForRole('compliance');
+    const routes = items.map((i) => i.route);
+    expect(routes).toContain('/compliance/audit-log');
+  });
+
+  it('the Audit Log nav item has the correct label and icon', () => {
+    const items = navItemsForRole('compliance');
+    const auditItem = items.find((i) => i.route === '/compliance/audit-log');
+    expect(auditItem).toBeDefined();
+    expect(auditItem?.label).toBe('Audit Log');
+    expect(auditItem?.icon).toBe('scroll');
+    expect(auditItem?.group).toBe('workspace');
+  });
+
+  it('advisor does NOT see the Audit Log nav item', () => {
+    const items = navItemsForRole('advisor');
+    expect(items.some((i) => i.route === '/compliance/audit-log')).toBe(false);
+  });
+
+  it('analyst does NOT see the Audit Log nav item', () => {
+    const items = navItemsForRole('analyst');
+    expect(items.some((i) => i.route === '/compliance/audit-log')).toBe(false);
+  });
+
+  it('admin does NOT see the Audit Log nav item (admin accesses verify API, not the screen)', () => {
+    const items = navItemsForRole('admin');
+    expect(items.some((i) => i.route === '/compliance/audit-log')).toBe(false);
+  });
+
+  it('Audit Log nav item is in ALL_NAV_ITEMS', () => {
+    expect(ALL_NAV_ITEMS.some((i) => i.route === '/compliance/audit-log')).toBe(true);
+  });
+});
+
+describe('wave-4 — /compliance/settings untouched', () => {
+  it('/compliance/settings remains compliance-only (unchanged from pre-wave-4)', () => {
+    const roles = rolesForRoute('/compliance/settings');
+    expect([...roles].sort()).toEqual(['compliance']);
+  });
+
+  it('compliance can access /compliance/settings', () => {
+    expect(canAccess('compliance', '/compliance/settings')).toBe(true);
+  });
+
+  it('admin is denied /compliance/settings', () => {
+    expect(canAccess('admin', '/compliance/settings')).toBe(false);
+  });
+
+  it('/compliance/settings has NO nav item (Rules Engine deferred)', () => {
+    const entry = roleRoutes.find((e) => e.pattern === '/compliance/settings');
+    expect(entry).toBeDefined();
+    expect(entry?.navItem).toBeUndefined();
+  });
+});
+
+describe('wave-4 — nav ⊆ RBAC invariant preserved after additions', () => {
+  for (const role of ALL_ROLES) {
+    it(`navItemsForRole('${role}') — every item still passes canAccess after wave-4 additions`, () => {
+      const items = navItemsForRole(role);
+      for (const item of items) {
+        expect(canAccess(role, item.route)).toBe(true);
+      }
+    });
+  }
+
+  it('no nav item appears for a role denied at the route level (ALL_NAV_ITEMS check)', () => {
+    for (const navItem of ALL_NAV_ITEMS) {
+      const deniedRoles = ALL_ROLES.filter((r) => !(navItem.allowedRoles as Role[]).includes(r));
+      for (const deniedRole of deniedRoles) {
+        const items = navItemsForRole(deniedRole);
+        const isShown = items.some((i) => i.route === navItem.route);
+        expect(isShown).toBe(false);
+      }
+    }
+  });
+
+  it('verify endpoint (compliance+admin) does not surface a nav item for admin (endpoint ≠ screen nav)', () => {
+    // The /compliance/audit-log/verify entry has no navItem — admin gets RBAC access
+    // to the endpoint but no sidebar link. Only compliance sees the nav item (for the screen).
+    const adminItems = navItemsForRole('admin');
+    expect(adminItems.some((i) => i.route === '/compliance/audit-log')).toBe(false);
+    expect(adminItems.some((i) => i.route === '/compliance/audit-log/verify')).toBe(false);
+  });
 });

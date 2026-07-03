@@ -110,6 +110,14 @@ const NAV_SETTINGS: NavItem = {
   allowedRoles: ['admin'],
 };
 
+const NAV_AUDIT_LOG: NavItem = {
+  label: 'Audit Log',
+  route: '/compliance/audit-log',
+  icon: 'scroll',
+  group: 'workspace',
+  allowedRoles: ['compliance'],
+};
+
 // ---------- Route entries (the canonical role → route matrix) ----------
 
 export const roleRoutes: ReadonlyArray<RouteEntry> = [
@@ -175,6 +183,11 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
   {
     pattern: '/compliance/audit-log',
     allowedRoles: ['compliance'],
+    navItem: NAV_AUDIT_LOG,
+  },
+  {
+    pattern: '/compliance/audit-log/verify',
+    allowedRoles: ['compliance', 'admin'],
   },
   {
     pattern: '/compliance/settings',
@@ -338,6 +351,7 @@ export const ALL_NAV_ITEMS: ReadonlyArray<NavItem> = [
   NAV_MANDATES,
   NAV_SOURCING,
   NAV_COMPLIANCE,
+  NAV_AUDIT_LOG,
   NAV_TEAM,
   NAV_SETTINGS,
 ];
