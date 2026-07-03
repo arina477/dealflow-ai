@@ -25,3 +25,12 @@ export {
 export { parseEnv } from './env';
 export type { HealthResponse } from './health';
 export { healthResponseSchema } from './health';
+export type { NavGroup, NavItem, RouteEntry } from './rbac';
+export {
+  ALL_NAV_ITEMS,
+  canAccess,
+  isPublicRoute,
+  navItemsForRole,
+  roleRoutes,
+  rolesForRoute,
+} from './rbac';
