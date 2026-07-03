@@ -6,7 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0/).
 
 ## [Unreleased]
 
-## [0.2.0] — 2026-07-03
+## [0.3.0] — 2026-07-03
+
+The authenticated shell: a shared app frame, a role-aware landing dashboard, and access control that enforces who can reach what.
+
+### Added
+- Shared application shell (sidebar + top bar) rendered once and used by every signed-in page, with a role-aware landing dashboard on `/`.
+- Per-route access control (RBAC): every protected API and web route now checks the signed-in member's role and blocks anyone without permission, failing closed by default.
+- Role-based navigation that shows each member only the sections their role can open, driven by the same source of truth as access control so the menu can never offer a link the rules would deny.
+- Roles are read from the server-verified session on every request, so access reflects a member's current role rather than a stale sign-in claim.
+
+
 
 Invite-only user accounts and sign-in: the platform's first authenticated surface, with a role-aware data model and hardened sessions.
 

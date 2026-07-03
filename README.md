@@ -41,6 +41,11 @@ curl -s https://dealflow-api-production-66d4.up.railway.app/health
 member issues an invite, and the recipient sets a password via the accept-invite
 screen before they can sign in. Screens: `/login`, `/accept-invite`, `/reset-password`.
 
+**The authenticated shell is live.** After sign-in, members land on a role-aware
+dashboard at `/` inside a shared app frame (sidebar + top bar). Every protected
+route enforces role-based access control, and the navigation shows each member only
+the sections their role can open.
+
 ---
 
 ## Quick start
