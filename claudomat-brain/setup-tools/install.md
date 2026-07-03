@@ -537,6 +537,10 @@ No manual setup. The `autonomous-guard` Stop hook (`claudomat-brain/hooks/autono
 
 No manual setup. The `db-readiness` SessionStart hook (`claudomat-brain/hooks/db-readiness.sh`) is auto-wired into `~/.claude/settings.json` on every `claudomat sync`. It is project-scoped: outside a tree containing `claudomat-brain/`, it exits silently; inside one, it requires `CLAUDOMAT_DB_URL` to be set to a postgres-shaped URL. Exact behavior lives in the hook script and `_db_readiness_install` in `lib/claudomat/commands/hooks/permanent_hooks.bash`.
 
+### 6j — Railway-guard hook (auto-installed; no manual step)
+
+No manual setup. The `railway-guard` PreToolUse(Bash) hook (`claudomat-brain/hooks/railway-guard.sh`) is auto-wired into `~/.claude/settings.json` on every `claudomat sync`. It hard-blocks any attempt to install or invoke the Railway CLI and redirects the model to the Railway GraphQL API (`claudomat-brain/monitors/railway-deploy.md`); it is inert on non-Railway Bash commands (it allowlists the approved GraphQL host and the `RAILWAY_*` env vars). Exact behavior lives in the hook script and `_railway_guard_install` in `lib/claudomat/commands/hooks/permanent_hooks.bash`.
+
 ---
 
 ## Phase 7 — Capability sheet generation

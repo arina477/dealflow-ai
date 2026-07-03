@@ -43,6 +43,7 @@ Exact settings.json merge behavior lives in
 | `snapshot-sessions.sh` | Stop + SessionEnd via `claudomat archive snapshot` | Optional archive snapshot. Installed by `claudomat archive install`; command behavior lives in `archive.bash`. |
 | `autonomous-guard.sh` | Stop via `claudomat autonomous-guard` | Permanent autonomous-mode stop guard. Auto-wired by `claudomat sync`. |
 | `db-readiness.sh` | SessionStart via `claudomat db-readiness` | Permanent project-scoped DB readiness guard. Auto-wired by `claudomat sync`. |
+| `railway-guard.sh` | PreToolUse(Bash) via `claudomat railway-guard` | Blocks installing or invoking the Railway CLI, redirects to the GraphQL API. Auto-wired by `claudomat sync`. |
 | `env-persist.sh` | PostToolUse(Bash) via `claudomat env-persist hook` | Worker-only env persistence hook. Wired by `claudomat env-persist install`, not by `claudomat sync`. |
 
 ## Adding a new hook
