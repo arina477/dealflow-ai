@@ -22,6 +22,7 @@ import {
   Scroll,
   Settings,
   ShieldCheck,
+  Sliders,
   Users,
 } from 'lucide-react';
 import type { ComponentType, SVGProps } from 'react';
@@ -42,6 +43,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   users: Users as unknown as LucideIcon,
   settings: Settings as unknown as LucideIcon,
   scroll: Scroll as unknown as LucideIcon,
+  // Wave-5: NAV_COMPLIANCE_SETTINGS icon (rbac.ts icon: 'sliders')
+  sliders: Sliders as unknown as LucideIcon,
 };
 
 // ---------------------------------------------------------------------------

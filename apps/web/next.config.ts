@@ -40,10 +40,14 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return {
       // afterFiles: page routes win; only unmatched paths fall through here.
-      // /auth/:path*  → API (wave-2/3 SuperTokens same-origin cookie fix)
-      // /compliance/audit-log/verify → API (wave-4 audit-log verify endpoint)
-      //   The page /compliance/audit-log is matched by Next.js BEFORE this
-      //   rewrite runs, so the React page is never shadowed.
+      // /auth/:path*                       → API (wave-2/3 SuperTokens cookie fix)
+      // /compliance/audit-log/verify       → API (wave-4 audit integrity endpoint)
+      // /compliance/rules[/:id]            → API (wave-5 rules CRUD)
+      // /compliance/suppression[/:id]      → API (wave-5 suppression CRUD)
+      // /compliance/disclaimers[/:id]      → API (wave-5 disclaimer CRUD)
+      //
+      // The page /compliance/settings (and /compliance/audit-log) are matched by
+      // Next.js BEFORE these rewrites run, so the React pages are never shadowed.
       afterFiles: [
         {
           source: '/auth/:path*',
@@ -52,6 +56,35 @@ const nextConfig: NextConfig = {
         {
           source: '/compliance/audit-log/verify',
           destination: `${apiProxyTarget}/compliance/audit-log/verify`,
+        },
+        // Wave-5: CRUD API paths for the compliance rules-engine.
+        // These must NOT hijack the /compliance/settings PAGE route.
+        // afterFiles means Next.js resolves pages first; only API sub-paths
+        // (/compliance/rules, /compliance/suppression, /compliance/disclaimers)
+        // fall through here because no page exists at those paths.
+        {
+          source: '/compliance/rules',
+          destination: `${apiProxyTarget}/compliance/rules`,
+        },
+        {
+          source: '/compliance/rules/:id',
+          destination: `${apiProxyTarget}/compliance/rules/:id`,
+        },
+        {
+          source: '/compliance/suppression',
+          destination: `${apiProxyTarget}/compliance/suppression`,
+        },
+        {
+          source: '/compliance/suppression/:id',
+          destination: `${apiProxyTarget}/compliance/suppression/:id`,
+        },
+        {
+          source: '/compliance/disclaimers',
+          destination: `${apiProxyTarget}/compliance/disclaimers`,
+        },
+        {
+          source: '/compliance/disclaimers/:id',
+          destination: `${apiProxyTarget}/compliance/disclaimers/:id`,
         },
       ],
       beforeFiles: [],
