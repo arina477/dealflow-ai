@@ -175,3 +175,112 @@ head_signoff:
     script + credentials removed, no secrets logged. Canary skipped per 0 DAU < 1000 threshold.
   next_action: PROCEED_TO_T
 ```
+
+---
+
+# CSRF-fix re-verify (13e55ef) — head-ci-cd focused C-2 re-run
+
+**Trigger.** T-5 caught that authenticated CRUD POSTs 401'd in a real browser: SuperTokens was configured `antiCsrf: 'VIA_TOKEN'`, which requires an anti-csrf *token* echoed per mutation, but the web client's plain `fetch()` never carried it → every first authenticated mutating POST 401'd at `Session.getSession`. Fix `13e55ef`: api switches `antiCsrf: 'VIA_TOKEN' → 'VIA_CUSTOM_HEADER'` (same-origin posture; presence of a custom header satisfies CSRF); web adds an `apiFetch` helper that injects `rid: 'anti-csrf'` on every mutation. The fix spans api config + web client, so BOTH services redeploy.
+
+## SHA provenance (anti-Ghost-Green) — PASS
+- `13e55ef88ba5f49518b5dadd0fe3d6102a61da5c` IS `HEAD` of local `main` AND `git merge-base --is-ancestor 13e55ef origin/main` confirms it is on `origin/main`. Per brief, CI on main was 5/5 green.
+- Diff is exactly the fix, 9 files, **purely additive code** (no migration files, no destructive DDL): `apps/api/.../supertokens.config.ts` (`VIA_TOKEN`→`VIA_CUSTOM_HEADER` + bootstrap-order spec), new `apps/web/app/(app)/_lib/apiFetch.ts` (+test) exporting `rid:'anti-csrf'`, and 4 compliance components switched onto it.
+- Deployed commit (both services, `serviceInstanceDeployV2 commitSha=13e55ef…`) == HEAD of main. Latest-deployment-per-service == my exact deploy IDs (no Railway "Wait for CI" phantom skip). No `SKIPPED`.
+
+## Deploy — PASS
+- `GIT_SHA` upserted to `13e55ef` on BOTH services (the `/health` version source) via GraphQL `variableUpsert` before triggering the deploy.
+- `serviceInstanceDeployV2(commitSha=13e55ef…)` both services (BUILDING→DEPLOYING→SUCCESS ~81s):
+  - dealflow-api deployment `e0d2c2e6-e5a7-4115-8a12-a247c2d9f7bb` → SUCCESS.
+  - dealflow-web deployment `59dd897f-f962-4bb0-a4a5-3aa57856a849` → SUCCESS.
+- **Boot-clean (api logs):** all modules initialized (`AppModule` / `HealthModule` / `AuditModule` / `ComplianceGateModule` / `AuthModule` / `ComplianceModule dependencies initialized`) — NO `UnknownDependenciesException`, no keyring throw. `Nest application successfully started`, `API listening on port 3001`, `[✓] migrations applied successfully!` (0003 replay, additive one-shot preDeploy). **The antiCsrf config change did NOT regress startup.**
+- **`/health` on the api's OWN deployment URL** (not a stale global route): `GET https://dealflow-api-production-66d4.up.railway.app/health` → `{"status":"ok","db":"ok","version":"13e55ef"}`. **version == deployed SHA — health-check-mirage defeated.**
+- web `/login` → 200.
+
+## THE FIX PROOF — the 401→201 flip (browser-equivalent: cookie jar + `rid` header, via web-origin same-origin proxy — exactly what the fixed client sends) — PASS
+Fresh compliance user minted via `/auth/invite` ({email,role}) → `/auth/signup` ({inviteToken,password}) → 201, session cookies captured. JWT payload carried `antiCsrfToken: null` — confirming the api is NOT minting an anti-csrf token (VIA_CUSTOM_HEADER posture live, not VIA_TOKEN).
+
+| Test | Request | Result | Expect |
+|---|---|---|---|
+| **1. THE FIX** | `POST /compliance/suppression` **WITH** `rid: anti-csrf` + session cookie | **201** — row `c0752d4e…`, `createdBy` = valid app `users.id` `08b43a27…` (FK-safe) | 201 (was 401) |
+| **2. read-back** | `GET /compliance/suppression` | **200**, the created entry appears (1 match) | appears |
+| **3. CSRF STILL ON** | `POST /compliance/suppression` **WITHOUT** the rid header, same cookie | **401** `{"message":"Unauthorized"}` | 401 |
+
+- **The `rid` header is the exact discriminator: present → 201, absent → 401.** That is the VIA_CUSTOM_HEADER contract proven live. The 401→201 flip is real (Test 1), and anti-CSRF is **still enforced — NOT disabled** (Test 3). No `antiCsrf:'NONE'` bypass.
+
+## Mutation audited — PASS
+- `GET /compliance/audit-log/verify` before a fresh suppression POST: `{"ok":true,"entriesChecked":20}`.
+- POST new suppression (201, WITH rid).
+- After: `{"ok":true,"entriesChecked":21}` — **delta +1, chain `ok:true` both** (audited in-tx, HMAC hash-chain unbroken).
+
+## Login regression — PASS (the critical auth-not-regressed check)
+- Wave-2 SuperTokens frontend login flow replicated exactly: `POST /auth/signin` (`rid: emailpassword`, `formFields` body, via web-origin proxy) → `{status:OK}` HTTP **200**, fresh session cookies minted.
+- Dashboard `/` (authed with that login session) → **200**. `/auth/me` → role `compliance`.
+- Control: `/` unauth → **307** redirect to login (AppShell guard intact).
+- **Login works under VIA_CUSTOM_HEADER — the antiCsrf change did NOT regress auth.**
+
+## GET flows unaffected — PASS
+- `/auth/me` → 200 (role compliance); `/compliance/audit-log/verify` → 200. Idempotent reads are anti-CSRF-lenient and continue to work.
+
+## Canary — SKIPPED
+- Real-user traffic = 0 DAU < `canary_threshold_dau` 1000. Synthetic live verification above is the post-deploy signal.
+
+## Rollback path (armed before deploy)
+- Captured PRE-deploy: dealflow-api `4c1322ec-c1c3-45b4-b418-eb426f1938d1` (commit `ce97423`, SUCCESS) + dealflow-web `0b35531a-08a8-49ea-a347-e5a8947c26b4` (commit `ce97423`, SUCCESS) — the prior C-2 known-good baseline.
+- **Rollback NOT triggered** — `13e55ef` deploy is healthy, boots clean, and passes every live check.
+
+## Infra hygiene
+- **No Railway TCP DB proxy created this run** — all verification ran through the live web origin (no lingering public DB exposure). Temp cookie jars + ctx removed. Git working tree clean; no stray files, no secrets logged.
+- Test users provisioned this run (emails only): `c2csrf-compliance-<ts>@dealflow-c2verify.test` (+ suppression target fixtures under `@target-c2verify.test`).
+
+### Iron Law check
+- api did NOT crash (boot clean, /health 200 version==13e55ef). ✓
+- CRUD POST with the rid header is **201, not 401** (the fix works). ✓
+- Login **not** regressed by the antiCsrf change (signin OK, dashboard 200). ✓
+- Anti-CSRF **not** fully bypassable — POST without rid → **401** (CSRF still on, not disabled). ✓
+- None of the Iron Law FAIL conditions fired.
+
+```yaml
+csrf_fix_reverify:
+  ci_stage_verdict: PASS
+  deploy_commit: 13e55ef88ba5f49518b5dadd0fe3d6102a61da5c
+  verdict_source: railway github
+  verdict_evidence:
+    - "SHA provenance: 13e55ef == HEAD of main == ancestor of origin/main; diff is additive-only (9 files: supertokens.config.ts VIA_TOKEN→VIA_CUSTOM_HEADER + new apiFetch.ts rid:'anti-csrf' + 4 components); no migration, no destructive DDL"
+    - "railway dealflow-api: deployment e0d2c2e6-e5a7-4115-8a12-a247c2d9f7bb SUCCESS commit 13e55ef (BUILDING→DEPLOYING→SUCCESS ~81s); latest==my deploy id (no phantom skip)"
+    - "railway dealflow-web: deployment 59dd897f-f962-4bb0-a4a5-3aa57856a849 SUCCESS commit 13e55ef; latest==my deploy id"
+    - "api boot clean: all modules initialized incl. ComplianceModule (no UnknownDependenciesException, no keyring throw), 'Nest application successfully started', '[✓] migrations applied successfully!' — antiCsrf change did not regress startup"
+    - "/health on api's OWN deployment URL: 200 {status:ok,db:ok,version:13e55ef} — version==deployed SHA (health-check-mirage defeated); web /login 200"
+    - "THE FIX: POST /compliance/suppression WITH rid:anti-csrf + session cookie → 201 (was 401), row c0752d4e..., createdBy valid app users.id 08b43a27... (FK-safe); GET → 200 entry appears"
+    - "CSRF STILL ON: POST /compliance/suppression WITHOUT rid header, same cookie → 401 Unauthorized — anti-CSRF enforced, NOT disabled (rid present→201 / absent→401 is the exact VIA_CUSTOM_HEADER discriminator)"
+    - "mutation AUDITED: audit-log/verify entriesChecked 20→21 (delta +1) across a suppression POST, chain ok:true both — audited in-tx, HMAC hash-chain unbroken"
+    - "LOGIN REGRESSION PASS: /auth/signin (rid:emailpassword) → {status:OK} 200, session minted; dashboard / authed → 200; /auth/me role compliance; / unauth → 307 (AppShell guard). Auth NOT regressed by antiCsrf change"
+    - "GET flows unaffected: /auth/me 200 + /compliance/audit-log/verify 200"
+    - "canary skipped (0 DAU < 1000)"
+    - "no Railway DB proxy created (verified via live web origin); temp cookie jars removed; git tree clean; no secrets logged"
+  rollback_armed: "api 4c1322ec (ce97423) + web 0b35531a (ce97423), both SUCCESS — cached pre-deploy known-good; NOT triggered (13e55ef healthy, all live checks pass)"
+  canary_status: skipped
+  iron_law: "no FAIL condition fired — api boots clean, CRUD POST-with-rid 201, login not regressed, anti-CSRF still enforced (POST-without-rid 401)"
+
+  head_signoff:
+    verdict: APPROVED
+    stage: C-2 (CSRF-fix re-verify 13e55ef)
+    reviewers: {}
+    failed_checks: []
+    rationale: >
+      The T-5 defect is proven resolved LIVE against the deployed 13e55ef artifact, and the fix did not
+      trade one break for another. Provenance: 13e55ef is HEAD==origin/main==CI-green SHA, the diff is
+      additive-only (config flip + new client helper, no migration/destructive DDL), and both services'
+      latest deployment equals the exact deploy IDs I triggered — no Ghost Green, no phantom skip. Deploy:
+      both SUCCESS at 13e55ef; api boots clean (all modules initialized, no UnknownDependenciesException,
+      no keyring throw); /health returns the exact deployed hash on the deployment's OWN URL — health-check
+      mirage defeated. The fix proof is the load-bearing part: a real cookie-jar session sending the exact
+      header the fixed client sends (rid:'anti-csrf') gets 201 on the authed CRUD POST that previously 401'd,
+      and the created row carries an FK-safe app users.id; the read-back confirms it; the mutation is audited
+      in-tx (entriesChecked +1, chain ok). Crucially, the security invariant holds both directions — the SAME
+      session WITHOUT the rid header still 401s, proving anti-CSRF is enforced, not disabled (no antiCsrf:'NONE'
+      bypass). And the antiCsrf change did NOT regress auth: the wave-2 SuperTokens frontend login flow signs in
+      to {status:OK} and the dashboard renders 200. GET flows unaffected. Rollback was armed pre-deploy (ce97423
+      baseline) and correctly not needed. No DB proxy was opened; temp jars removed; tree clean; no secrets logged.
+      Every Iron Law FAIL condition was explicitly checked and none fired.
+    next_action: PROCEED_TO_T
+```
