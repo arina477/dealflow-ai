@@ -54,6 +54,6 @@ LEARN:
 - [x] L-2 Distill
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M1 in_progress→done (shipped; 3 non-core follow-ups re-parented to M2); M2 promoted todo→in_progress; decomposition fired (milestone-decomposer, 1 seed + 3 siblings audit-log slice)
+- [x] N-2 Seed — bundle picked: seed ec1f279d + 3 siblings (a8b2b5a2, e6a4cbfe, 031d79fc); validation PASS; vertical slice (DB→service→API→UI)
+- [x] N-3 Handoff — wave→4; wave-3 closed (waves.status=ok); archived to _archive/wave-3/; handoff written
