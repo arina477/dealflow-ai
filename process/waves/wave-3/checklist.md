@@ -31,7 +31,7 @@ BUILD:
 
 CI/CD:
 - [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [ ] C-2 Deploy & verify — **FAIL** (head-ci-cd REJECTED): api crash-loops on boot on 8a5854a (NestJS DI: RolesGuard cannot resolve AuthRepository in ComplianceModule). web SUCCESS. RBAC + login UNVERIFIABLE. Iron Law → route to B-block; prod safe (old api bc558f7d still serving). canary skipped (0 DAU). Rollback armed (api ac721862 / web a4c60302), not needed.
 
 TEST:
 - [ ] T-1 Static
