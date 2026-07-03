@@ -162,3 +162,11 @@ _(empty)_
 - caller: N-1-next-bundle
 - decomposed by: milestone-decomposer sub-agent
 - Slice: end-to-end auth vertical (DB + API + UI). Seed "Integrate SuperTokens auth + user/role data model" (SuperTokens on its own Postgres per #11, users/roles/invites additive Drizzle schema, invite-only, role session claim) + siblings "Build invite-only auth API: signup, session, reset" (NestJS auth endpoints + role-aware guard primitive) and "Wire login, accept-invite, reset-password screens end-to-end" (three Next.js 15 auth pages, Playwright E2E to authenticated placeholder). AppShell (DESIGN-SYSTEM.md section 10), role-aware dashboard shell, and full per-route RBAC enforcement deliberately deferred to a FOLLOW-UP M1 bundle to keep this slice within the size rubric.
+
+---
+
+## [2026-07-03] M1 (M1 — Foundation: auth, roles, app shell, data model, CI): bundle authored — 3 tasks (AppShell + role-aware dashboard shell + per-route RBAC)
+- caller: N-1-next-bundle
+- decomposed by: milestone-decomposer sub-agent
+- Slice: the M1 shell + RBAC vertical explicitly deferred by the 2026-07-02 auth-vertical bundle. Seed "Build shared AppShell chrome + role-aware dashboard shell" (single shared `<AppShell>` = `<Sidebar>` + `<TopBar>` + base primitives per DESIGN-SYSTEM.md section 10 — zinc/emerald, lucide-react only, 4px grid; replaces the wave-2 dashboard placeholder with a role-aware landing reading the SuperTokens role claim for the 4 roles advisor/analyst/compliance/admin) + siblings "Enforce per-route RBAC across API and web routes" (extends the wave-2 guard primitive to per-route API 403s + web route protection off one canonical route→allowed-roles mapping) and "Make AppShell navigation role-aware for the 4 roles" (sidebar items render per role off the SAME mapping — no drift between shown nav and reachable route). Vertical slice (UI + API + guard wiring); closes M1's "land on a role-aware dashboard shell" + per-route RBAC success-metric gap. N-1 judgment override: two existing open follow-ups (test-fixture typing bfadcec1; auth-hardening 6fe232e3) left in queue — they do not advance M1's defining unshipped scope.
+- N-1 judgment note: seed-candidate guard count returned 0 (both open follow-ups carry a wave_id); authored per N-1 Action 7 re-ordering allowance, not the standard empty-queue trigger.
