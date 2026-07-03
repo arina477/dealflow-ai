@@ -54,6 +54,6 @@ LEARN:
 - [x] L-2 Distill
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M2 in_progress→done (compliance backbone shipped, both named halves live-verified); M3 promoted todo→in_progress; 3 M1-followups re-parented M2→M3; decomposition fired (M3 first bundle seed ff378a95 + 3 siblings)
+- [x] N-2 Seed — bundle: seed ff378a95 (data-source store + adapter) + 3 siblings (ingestion, dedupe w/ provenance, companies-contacts screen); validation PASS; vertical DB→service→job→UI slice
+- [x] N-3 Handoff — next wave 6; wave-5 archived; waves.status=ok; .last-wave-completed.yaml updated
