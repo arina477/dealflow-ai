@@ -39,6 +39,8 @@ Canonical inventory of every screen / route + the flows that connect them. Sourc
 | 14 | Templates library | `/templates` · `/templates/:id` | An, Comp | F8 | Outreach engine, compliance |
 | 15 | Compliance queue (approvals) | `/compliance/queue` | Comp, Adv | F10 | Compliance rules, audit log |
 | 16 | Audit log & recordkeeping export | `/compliance/audit-log` | Comp | F11 | Audit-log service, export |
+
+> **Wave 4 (audit-log backbone) — LIVE (deployed cd06e8a + real-browser E2E 7/7):** the tamper-evident audit-log SERVICE is live — an append-only `audit_log_entries` table (DB-layer immutability: INSERT/SELECT-only grant + BEFORE UPDATE/DELETE/TRUNCATE triggers blocking even the owner), an HMAC-SHA256 hash-chained append service (keyed by AUDIT_LOG_HMAC_KEY, genesis-anchored, write-atomic, concurrency-serialized), a chain-integrity verifier, and `GET /compliance/audit-log/verify` (RBAC compliance/admin). The `/compliance/audit-log` page renders the INTEGRITY VIEW (chain status + entries count + verify-now) per design/audit-log-export.html §Integrity Validation (compliance persona). LIVE-verified: chain verifies (ok:true), immutability holds (U/D/T rejected), tamper-detection works (flip→ok:false at break). Recordkeeping EXPORT + real audited-action call-sites deferred to M6+; the rules engine (`/compliance/settings`, row 17) deferred to a later M2 bundle.
 | 17 | Compliance settings (rules/suppression/disclaimers) | `/compliance/settings` | Comp | F12 | Compliance rules engine |
 | 18 | Admin · data sources / integrations | `/admin/integrations` | Adm | F13 | Data ingestion, secrets mgmt |
 | 19 | Admin · users | `/admin/users` | Adm | F14 | Auth & RBAC |
