@@ -15,7 +15,15 @@
 
 'use client';
 
-import { Briefcase, Database, LayoutDashboard, Settings, ShieldCheck, Users } from 'lucide-react';
+import {
+  Briefcase,
+  Database,
+  LayoutDashboard,
+  Scroll,
+  Settings,
+  ShieldCheck,
+  Users,
+} from 'lucide-react';
 import type { ComponentType, SVGProps } from 'react';
 
 // ---------------------------------------------------------------------------
@@ -33,6 +41,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   'shield-check': ShieldCheck as unknown as LucideIcon,
   users: Users as unknown as LucideIcon,
   settings: Settings as unknown as LucideIcon,
+  scroll: Scroll as unknown as LucideIcon,
 };
 
 // ---------------------------------------------------------------------------
