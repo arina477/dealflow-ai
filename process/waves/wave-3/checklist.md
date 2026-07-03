@@ -26,8 +26,8 @@ BUILD:
 - [x] B-2 Backend — RBAC enforcement + /compliance/summary exemplar (@Roles from rbac.ts); per-role 403/200 tested (1cf4fba)
 - [x] B-3 Frontend — AppShell(§10) once + dashboard at / + role-aware nav (navItemsForRole); 62 tests (144642f)
 - [x] B-4 Wiring — repo typecheck+build PASS; no drift (rbac.ts biome→B-5)
-- [ ] B-5 Verify
-- [ ] B-6 Review
+- [x] B-5 Verify — lint 0-err (2 warn), 197 tests pass, build pass; auth/RBAC dev-smoke→C-2
+- [x] B-6 Review — head-builder APPROVED; /review 2 CRIT RBAC fixed (5635c35); commit-discipline PASS
 
 CI/CD:
 - [ ] C-1 PR, CI & merge

@@ -1,0 +1,19 @@
+# Wave 3 — B-6 Verdict
+
+**Reviewer:** head-builder (fresh spawn, agentId head-builder-w3-b6-p1)
+**Reviewed against:** process/waves/wave-3/blocks/B/review-artifacts.md
+**Attempt:** 1  (1 = first gate, 2+ = post-rework)
+
+## Verdict
+APPROVED
+
+## Rationale
+The wave delivers all three spec blocks and — critically — the load-bearing invariants are verified in the code, not merely claimed. `packages/shared/src/rbac.ts` is the genuine single source of truth: the API (`compliance.controller.ts` → `rolesForRoute('/compliance/summary')`) and the web tier (`Sidebar`/`AppShell` → `navItemsForRole`, `assertRole` → `canAccess`) both import from it, and a grep of the enforcement/nav paths finds NO hardcoded role sets (the only role literals outside rbac.ts are cosmetic content-selection in `page.tsx`, which shapes which landing card renders — not an authz decision, acceptable). The nav⊆RBAC contract holds by construction (every nav item's `allowedRoles` references the same array literal as its route entry) AND is asserted by a bidirectional inverse-drift test plus an 18-row exact-equality pin of the P-4 matrix in `rbac.test.ts`. The allowlist is correct and load-bearing-safe: `isPublicRoute` = `/auth` + `/health` only, RolesGuard is opt-in (pass-through with no `@Roles()` metadata, tested for both anon and every role), and `/` is authed via the `(app)/layout.tsx` redirect-to-`/login` guard — the live wave-2 login is not re-broken (regression asserted in `layout.test.tsx`). AppShell is built ONCE via the `(app)` route-group layout, the dashboard is the canonical `/`, and login/accept-invite redirect to `/`. The `/compliance/summary` per-role matrix is a REAL enforced test exercising the actual RolesGuard against the real `@Roles()` metadata: compliance/admin → allow (200), advisor/analyst → 403 ForbiddenException, unauth → 401 UnauthorizedException, with an explicit no-leak deny-envelope assertion. Test discipline is sound — 197 tests are substantive (rbac.test.ts alone: 72 cases / 135 concrete allow-deny assertions), not hollow coverage; the Hollow-AI-Test-Suite heuristic does not fire. The two biome findings in rbac.ts are info-level `useTemplate` (string-concat vs template literal in the route matcher) — non-blocking, CI `pnpm lint` exits 0, correctly carried to cleanup. The deferred runtime auth/RBAC dev-smoke (C-2, requires SuperTokens Core) is a legitimate, honestly-declared gap, not false-green: the guard/nav LOGIC is fully proven at the unit/contract layer this block; only live-session wiring waits on Core. Commit citations are present and coherent — every claimed task_id (1931b452, 2ecc4a7b, 2dc00409) has ≥1 commit; the B-1 commit legitimately cites all three because the shared matrix is the contract all three blocks consume.
+
+## Advisory (non-blocking, carry forward — does NOT gate this verdict)
+- **RolesGuard reads the session role claim, documented as a "fast-path cache" of app-DB `users.role`; DB re-verification is deferred to a later slice.** Spec block-2 AC ("role from the server-verified session claim … never a client header/body; app-DB users.role authoritative") is satisfied as written — the claim is written server-side by SuperTokens from the DB row at login and read via `getSession` (never client-supplied). The DB round-trip-on-every-authorization hardening is an honest, documented deferral. **Flag to T-8 Security** to confirm the claim-vs-DB staleness window is acceptable for the M6 SoD wedge before compliance-mutating routes are enforced; not a defect for this shell+enforcement slice.
+- **`page.tsx` inlines `me.role === 'compliance' || 'admin'` for cosmetic card selection.** Content-shaping only, not access control; no drift risk. Optional: derive from a shared helper if this pattern recurs (Rule-of-Three — do not abstract yet).
+
+## Footer
+- verdict_complete: true
+- rework_attempt_cap_remaining: 3

@@ -1,6 +1,6 @@
 # Wave 3 — B-block review artifacts
 
-**Block:** B (Build) · **Wave topic:** AppShell + role-aware dashboard shell + per-route RBAC + role-aware nav · **Block exit gate:** B-6 · **Status:** in-progress
+**Block:** B (Build) · **Wave topic:** AppShell + role-aware dashboard shell + per-route RBAC + role-aware nav · **Block exit gate:** B-6 · **Status:** gate-passed
 
 ## Stage deliverables
 | Stage | Deliverable | Status | Notes |
@@ -10,8 +10,8 @@
 | B-2 | stages/B-2-backend.md | done | RBAC enforcement + compliance exemplar; per-role 403/200 tested (1cf4fba); rbac.ts biome→B-5 |
 | B-3 | stages/B-3-frontend.md | done | AppShell once + dashboard at / + role-aware nav (144642f) |
 | B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS; no drift |
-| B-5 | stages/B-5-verify.md | pending | lint+unit+build+smoke |
-| B-6 | stages/B-6-review.md | pending | head-builder gate + /review |
+| B-5 | stages/B-5-verify.md | done | lint 0-err(2 warn), 197 tests, build pass; smoke→C-2 |
+| B-6 | stages/B-6-review.md | gate-passed | head-builder APPROVED; /review 2 CRIT fixed (5635c35); commit-discipline PASS |
 
 ## Block-specific context
 - **Spec:** tasks row 1931b452 (multi-spec, 3 blocks + P-4 remediation addendum with the pinned role→route matrix). Branch wave-3-appshell-rbac.
@@ -26,3 +26,12 @@
 
 ## Gate verdict log
 <appended by head-builder at B-6>
+
+```yaml
+build_block_status: complete
+branch: wave-3-appshell-rbac
+stages_run: [B-0,B-1,B-2,B-3,B-4,B-5,B-6]
+review_verdict: APPROVE
+last_commit_sha: 5635c35
+ready_for_ci: true
+```
