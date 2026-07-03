@@ -21,12 +21,12 @@ DESIGN (skip block if non-UI wave):
 - [ ] D-3 Review & adopt
 
 BUILD:
-- [ ] B-0 Branch & schema
-- [ ] B-1 Contracts
-- [ ] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
-- [ ] B-5 Verify
+- [x] B-0 Branch & schema — branch wave-5-compliance-gate; no new deps; schema=YES(0003@B-2); 4 tasks claimed
+- [x] B-1 Contracts — GateVerdict/BlockReason + rules Zod + roleRoutes CRUD/nav (f998822); 275 tests; SoD-distinction documented
+- [x] B-2 Backend — migration 0003 + non-bypassable gate (SoD=compliance-only PROVEN) + audited CRUD (64f0b60,26f13a7,c390359); 158 tests
+- [x] B-3 Frontend — compliance-settings CRUD UI at /compliance/settings (3 sections); 134 tests (c7924bc)
+- [x] B-4 Wiring — repo typecheck+build PASS; /compliance/settings compiles
+- [x] B-5 Verify — lint 0-err, 567 tests pass, build pass; SoD-compliance-only test present; runtime→C-2
 - [ ] B-6 Review
 
 CI/CD:

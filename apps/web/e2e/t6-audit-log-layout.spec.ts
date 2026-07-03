@@ -78,14 +78,19 @@ async function assertSidebar(
   await expect(nav, 'Sidebar nav[aria-label="Main navigation"] must be present').toBeVisible();
 
   const bbox = await nav.boundingBox();
-  expect(bbox?.width, `Sidebar width must be ~256px (w-64); got ${bbox?.width}`).toBeGreaterThanOrEqual(240);
-  expect(bbox?.width, `Sidebar width must be ~256px (w-64); got ${bbox?.width}`).toBeLessThanOrEqual(280);
+  expect(
+    bbox?.width,
+    `Sidebar width must be ~256px (w-64); got ${bbox?.width}`
+  ).toBeGreaterThanOrEqual(240);
+  expect(
+    bbox?.width,
+    `Sidebar width must be ~256px (w-64); got ${bbox?.width}`
+  ).toBeLessThanOrEqual(280);
 
   const bgColor = await nav.evaluate((el) => window.getComputedStyle(el).backgroundColor);
-  expect(
-    bgColor,
-    `Sidebar bg must be zinc-900 (rgb(17, 24, 39) / #111827); got "${bgColor}"`
-  ).toBe('rgb(17, 24, 39)');
+  expect(bgColor, `Sidebar bg must be zinc-900 (rgb(17, 24, 39) / #111827); got "${bgColor}"`).toBe(
+    'rgb(17, 24, 39)'
+  );
 
   return nav;
 }
@@ -95,8 +100,14 @@ async function assertTopBar(page: import('@playwright/test').Page): Promise<void
   await expect(header, 'TopBar <header> must be present').toBeVisible();
 
   const bbox = await header.boundingBox();
-  expect(bbox?.height, `TopBar height must be 64px (h-16); got ${bbox?.height}`).toBeGreaterThanOrEqual(60);
-  expect(bbox?.height, `TopBar height must be 64px (h-16); got ${bbox?.height}`).toBeLessThanOrEqual(72);
+  expect(
+    bbox?.height,
+    `TopBar height must be 64px (h-16); got ${bbox?.height}`
+  ).toBeGreaterThanOrEqual(60);
+  expect(
+    bbox?.height,
+    `TopBar height must be 64px (h-16); got ${bbox?.height}`
+  ).toBeLessThanOrEqual(72);
 
   const bgColor = await header.evaluate((el) => window.getComputedStyle(el).backgroundColor);
   expect(bgColor, `TopBar bg must be white (rgb(255, 255, 255)); got "${bgColor}"`).toBe(
@@ -195,7 +206,10 @@ test.describe('T-6 audit-log — compliance user integrity view visual baseline'
     // ── Verified state: emerald status pill ───────────────────────────────
     // "All entries verified" pill (bg #ECFDF5, text #047857, role="status").
     const verifiedPill = integritySection.getByRole('status', { name: /all entries verified/i });
-    await expect(verifiedPill, '"All entries verified" emerald status pill must be visible').toBeVisible();
+    await expect(
+      verifiedPill,
+      '"All entries verified" emerald status pill must be visible'
+    ).toBeVisible();
 
     // Verify pill's computed background color matches emerald-50 (#ECFDF5 = rgb(236, 253, 245)).
     const pillBg = await verifiedPill.evaluate((el) => window.getComputedStyle(el).backgroundColor);
@@ -224,11 +238,12 @@ test.describe('T-6 audit-log — compliance user integrity view visual baseline'
     ).toBeVisible();
 
     // ── Panel surface: white bg, border #e5e7eb ───────────────────────────
-    const panelBg = await integritySection.evaluate((el) => window.getComputedStyle(el).backgroundColor);
-    expect(
-      panelBg,
-      `IntegrityPanel bg must be white (rgb(255, 255, 255)); got "${panelBg}"`
-    ).toBe('rgb(255, 255, 255)');
+    const panelBg = await integritySection.evaluate(
+      (el) => window.getComputedStyle(el).backgroundColor
+    );
+    expect(panelBg, `IntegrityPanel bg must be white (rgb(255, 255, 255)); got "${panelBg}"`).toBe(
+      'rgb(255, 255, 255)'
+    );
 
     // ── Palette: no Phosphor icons ────────────────────────────────────────
     const phosphorIcons = await page.locator('[class*="ph-"]').count();

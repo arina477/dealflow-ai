@@ -253,7 +253,8 @@ test.describe('S3: verify-now action — same-origin proxy works; stays verified
     // the same-origin proxy is called correctly and returns ok:true.
     const verifyResponsePromise = page.waitForResponse(
       (response) =>
-        response.url().includes('/compliance/audit-log/verify') && response.request().method() === 'GET',
+        response.url().includes('/compliance/audit-log/verify') &&
+        response.request().method() === 'GET',
       { timeout: 15_000 }
     );
 
@@ -268,10 +269,9 @@ test.describe('S3: verify-now action — same-origin proxy works; stays verified
     // issues, causing "unavailable" state. The afterFiles proxy now serves it
     // same-origin, so the first-party cookie is sent and the response is ok.
     const verifyResponse = await verifyResponsePromise;
-    expect(
-      verifyResponse.status(),
-      'Verify endpoint must return 200 via same-origin proxy'
-    ).toBe(200);
+    expect(verifyResponse.status(), 'Verify endpoint must return 200 via same-origin proxy').toBe(
+      200
+    );
 
     // Parse the response body to confirm ok:true.
     const verifyBody = (await verifyResponse.json()) as { ok: boolean; entriesChecked?: number };
