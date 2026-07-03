@@ -5,8 +5,9 @@ import type { NextConfig } from 'next';
  *
  * The browser must reach the NestJS API through the WEB origin so that
  * SuperTokens sets a first-party session cookie on the web origin (which the
- * dashboard server component's cookies() can then read). We rewrite the
- * same-origin path `/auth/*` to the api's `/auth/*`.
+ * dashboard server component's cookies() can then read). We rewrite
+ * same-origin paths to the API so the browser sends first-party cookies
+ * automatically.
  *
  *   browser → GET/POST https://<web-origin>/auth/signin
  *           → (Next.js rewrite, server-side reverse proxy)
@@ -21,6 +22,13 @@ import type { NextConfig } from 'next';
  *
  * NOTE: this env var is read by the Next.js Node server at request time, so
  * INTERNAL_API_BASE_URL MUST be set on the WEB service (not just the api).
+ *
+ * Rewrite phases:
+ *   `afterFiles` — rewrites run AFTER Next.js resolves page routes. This
+ *   means a page at /compliance/audit-log is served as the React page, while
+ *   /compliance/audit-log/verify (which has no matching page) falls through
+ *   to this rewrite and is proxied to the API. Using afterFiles prevents any
+ *   proxy rule from hijacking an existing web page route.
  */
 const apiProxyTarget =
   process.env.INTERNAL_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -30,12 +38,25 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@dealflow/shared'],
 
   async rewrites() {
-    return [
-      {
-        source: '/auth/:path*',
-        destination: `${apiProxyTarget}/auth/:path*`,
-      },
-    ];
+    return {
+      // afterFiles: page routes win; only unmatched paths fall through here.
+      // /auth/:path*  → API (wave-2/3 SuperTokens same-origin cookie fix)
+      // /compliance/audit-log/verify → API (wave-4 audit-log verify endpoint)
+      //   The page /compliance/audit-log is matched by Next.js BEFORE this
+      //   rewrite runs, so the React page is never shadowed.
+      afterFiles: [
+        {
+          source: '/auth/:path*',
+          destination: `${apiProxyTarget}/auth/:path*`,
+        },
+        {
+          source: '/compliance/audit-log/verify',
+          destination: `${apiProxyTarget}/compliance/audit-log/verify`,
+        },
+      ],
+      beforeFiles: [],
+      fallback: [],
+    };
   },
 };
 

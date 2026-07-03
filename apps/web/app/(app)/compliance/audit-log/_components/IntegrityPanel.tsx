@@ -2,9 +2,11 @@
  * IntegrityPanel — client component for the audit-log integrity view.
  *
  * Renders chain verification status and provides a "Verify now" action
- * that re-calls GET /compliance/audit-log/verify (cookie-forwarded via the
- * Next.js /auth proxy pattern — the browser's session cookie is first-party
- * on the web origin and is automatically sent on same-origin fetch).
+ * that re-calls GET /compliance/audit-log/verify via a same-origin relative
+ * path. The Next.js afterFiles rewrite in next.config.ts proxies
+ * /compliance/audit-log/verify → <INTERNAL_API_BASE_URL>/compliance/audit-log/verify
+ * so the browser sends its first-party session cookie automatically (no
+ * explicit credentials option needed — same-origin fetch default).
  *
  * States:
  *   verified (ok:true)  — emerald "All entries verified" status pill + count.
@@ -37,10 +39,6 @@ import { useCallback, useState } from 'react';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function apiBase(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-}
 
 /** Human-readable break reason label. */
 function reasonLabel(reason: string | undefined): string {
@@ -431,10 +429,11 @@ export function IntegrityPanel({ initialResult }: IntegrityPanelProps) {
   const handleVerifyNow = useCallback(async () => {
     setLoading(true);
     try {
-      // Same-origin fetch — the browser's session cookie is first-party and
-      // is automatically included. No explicit cookie forwarding needed from
-      // a client component (browser handles it).
-      const res = await fetch(`${apiBase()}/compliance/audit-log/verify`, { cache: 'no-store' });
+      // Relative same-origin path — Next.js afterFiles rewrite proxies this
+      // to the API. The browser sends the session cookie automatically because
+      // the request stays on the web origin (no cross-origin, no credentials
+      // option needed).
+      const res = await fetch('/compliance/audit-log/verify', { cache: 'no-store' });
       if (!res.ok) {
         setResult(null);
         return;
