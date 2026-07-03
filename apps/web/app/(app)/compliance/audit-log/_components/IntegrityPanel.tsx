@@ -36,6 +36,8 @@ import type { AuditVerifyResponse } from '@dealflow/shared';
 import { auditVerifyResponseSchema } from '@dealflow/shared';
 import { useCallback, useState } from 'react';
 
+import { apiFetch } from '../../../_lib/apiFetch';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -433,7 +435,9 @@ export function IntegrityPanel({ initialResult }: IntegrityPanelProps) {
       // to the API. The browser sends the session cookie automatically because
       // the request stays on the web origin (no cross-origin, no credentials
       // option needed).
-      const res = await fetch('/compliance/audit-log/verify', { cache: 'no-store' });
+      // GET does not require the anti-csrf header, but apiFetch adds it
+      // harmlessly + keeps every authed browser call uniform (T-5).
+      const res = await apiFetch('/compliance/audit-log/verify', { cache: 'no-store' });
       if (!res.ok) {
         setResult(null);
         return;

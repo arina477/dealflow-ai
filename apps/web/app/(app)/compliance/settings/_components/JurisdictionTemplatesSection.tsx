@@ -23,6 +23,8 @@ import type { DisclaimerCreate, DisclaimerTemplate } from '@dealflow/shared';
 import { disclaimerCreateSchema, disclaimerUpdateSchema } from '@dealflow/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { apiFetch } from '../../../_lib/apiFetch';
+
 // ---------------------------------------------------------------------------
 // Style primitives (§10)
 // ---------------------------------------------------------------------------
@@ -256,7 +258,7 @@ export function JurisdictionTemplatesSection({
     if (!activeTemplate) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`/compliance/disclaimers/${activeTemplate.id}`, {
+      const res = await apiFetch(`/compliance/disclaimers/${activeTemplate.id}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ body }),
@@ -298,7 +300,7 @@ export function JurisdictionTemplatesSection({
 
     setSubmitting(true);
     try {
-      const res = await fetch('/compliance/disclaimers', {
+      const res = await apiFetch('/compliance/disclaimers', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body2),

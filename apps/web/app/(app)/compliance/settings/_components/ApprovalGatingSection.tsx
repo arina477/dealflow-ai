@@ -23,6 +23,8 @@ import type { ComplianceRule, RuleCreate } from '@dealflow/shared';
 import { complianceRuleTypeEnum, ruleCreateSchema } from '@dealflow/shared';
 import { useCallback, useState } from 'react';
 
+import { apiFetch } from '../../../_lib/apiFetch';
+
 // ---------------------------------------------------------------------------
 // Shared style primitives (§10 tokens)
 // ---------------------------------------------------------------------------
@@ -229,7 +231,7 @@ function AddRuleForm({ onAdd, onCancel }: AddRuleFormProps) {
 
       setSubmitting(true);
       try {
-        const res = await fetch('/compliance/rules', {
+        const res = await apiFetch('/compliance/rules', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
@@ -459,7 +461,7 @@ export function ApprovalGatingSection({ initialRules }: ApprovalGatingSectionPro
       // Optimistic update
       setRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, enabled: next } : r)));
       try {
-        const res = await fetch(`/compliance/rules/${rule.id}`, {
+        const res = await apiFetch(`/compliance/rules/${rule.id}`, {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ enabled: next }),
@@ -497,7 +499,7 @@ export function ApprovalGatingSection({ initialRules }: ApprovalGatingSectionPro
 
       setRules((prev) => prev.filter((r) => r.id !== rule.id));
       try {
-        const res = await fetch(`/compliance/rules/${rule.id}`, {
+        const res = await apiFetch(`/compliance/rules/${rule.id}`, {
           method: 'DELETE',
           cache: 'no-store',
         });

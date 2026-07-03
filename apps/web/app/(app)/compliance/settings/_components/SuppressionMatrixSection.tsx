@@ -21,6 +21,8 @@ import type { SuppressionCreate, SuppressionEntry } from '@dealflow/shared';
 import { suppressionCreateSchema, suppressionMatchTypeEnum } from '@dealflow/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { apiFetch } from '../../../_lib/apiFetch';
+
 // ---------------------------------------------------------------------------
 // Style primitives (§10)
 // ---------------------------------------------------------------------------
@@ -190,7 +192,7 @@ function AddSuppressionModal({ onAdd, onClose }: AddSuppressionModalProps) {
 
       setSubmitting(true);
       try {
-        const res = await fetch('/compliance/suppression', {
+        const res = await apiFetch('/compliance/suppression', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
@@ -579,7 +581,7 @@ export function SuppressionMatrixSection({ initialEntries }: SuppressionMatrixSe
 
       setEntries((prev) => prev.filter((e) => e.id !== entry.id));
       try {
-        const res = await fetch(`/compliance/suppression/${entry.id}`, {
+        const res = await apiFetch(`/compliance/suppression/${entry.id}`, {
           method: 'DELETE',
           cache: 'no-store',
         });

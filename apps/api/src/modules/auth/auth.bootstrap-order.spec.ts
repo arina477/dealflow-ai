@@ -88,7 +88,7 @@ describe('Bootstrap ordering — SuperTokens.init before getAllCORSHeaders', () 
         apiBasePath: '/auth',
         websiteBasePath: '/auth',
       },
-      recipeList: [EmailPassword.init(), Session.init({ antiCsrf: 'VIA_TOKEN' })],
+      recipeList: [EmailPassword.init(), Session.init({ antiCsrf: 'VIA_CUSTOM_HEADER' })],
     });
 
     // getAllCORSHeaders() MUST NOT throw after init().

@@ -117,7 +117,32 @@ export function initSupertokens({ env, resolveRole }: SupertokensInitDeps): void
         cookieSameSite: 'lax',
         // Anti-CSRF for cookie sessions; refresh-token rotation with reuse
         // detection is on by default in the Session recipe.
-        antiCsrf: 'VIA_TOKEN',
+        //
+        // VIA_CUSTOM_HEADER (T-5 fix): this deployment is SAME-ORIGIN — the
+        // browser only ever talks to the web origin, which proxies /auth/* and
+        // /compliance/* to the api (next.config.ts rewrites). Combined with
+        // cookieSameSite:'lax', the session cookie is never attached to a
+        // genuine cross-SITE request, and any state-changing api call must
+        // additionally carry a custom header (`rid`) that a cross-site
+        // <form>/simple-request CANNOT set without a CORS preflight the api
+        // does not grant. That is exactly SuperTokens' recommended CSRF posture
+        // for same-origin cookie sessions, and it is STRICTER-in-practice than
+        // VIA_TOKEN here, not weaker (SameSite=Lax + custom-header double
+        // barrier). We do NOT use antiCsrf:'NONE' — this is a compliance tool.
+        //
+        // Why VIA_TOKEN broke: it required an anti-csrf TOKEN (minted into the
+        // session, echoed back per mutation) on every non-GET verified request.
+        // The web client's plain fetch() never carried that token, so the FIRST
+        // authenticated mutating app POST (compliance CRUD) 401'd at
+        // Session.getSession. VIA_CUSTOM_HEADER checks for the presence of a
+        // custom header instead, which the client CAN set on same-origin fetch.
+        //
+        // Anti-csrf is NOT enforced on GET under either mode, so the existing
+        // GET flows (/auth/me, /compliance/audit-log/verify) are unaffected.
+        // Session-CREATION routes (SuperTokens /auth/signin, our invite-bound
+        // /auth/signup) verify no PRIOR session, so they are unaffected too;
+        // the SuperTokens frontend flow sets its own custom header automatically.
+        antiCsrf: 'VIA_CUSTOM_HEADER',
         override: {
           functions: (originalImplementation) => ({
             ...originalImplementation,
