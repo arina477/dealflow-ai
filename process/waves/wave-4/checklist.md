@@ -13,7 +13,7 @@ PRODUCT:
 - [ ] P-1 Decompose
 - [ ] P-2 Spec
 - [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-4 Gate — PASSED (head-product APPROVED; karen+jenny APPROVE after 4b route/design remediation; Gemini 429; security-scope 3-iter)
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
