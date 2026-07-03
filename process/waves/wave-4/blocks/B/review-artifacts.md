@@ -1,5 +1,5 @@
 # Wave 4 — B-block review artifacts
-**Block:** B (Build) · **Wave topic:** tamper-evident HMAC hash-chain audit log (M2 backbone) · **Gate:** B-6 · **Status:** in-progress
+**Block:** B (Build) · **Wave topic:** tamper-evident HMAC hash-chain audit log (M2 backbone) · **Gate:** B-6 · **Status:** gate-passed
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
 | B-0 | stages/B-0-branch-and-schema.md | done | branch wave-4-audit-log; no new deps (node:crypto); schema=YES(migration@B-2); 4 tasks claimed |
@@ -8,7 +8,7 @@
 | B-3 | stages/B-3-frontend.md | done | integrity view at /compliance/audit-log (2d6bfda); 95 tests; broken=persistent |
 | B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS; AUDIT_LOG_HMAC_KEY→C-2 |
 | B-5 | stages/B-5-verify.md | done | lint 0-err, 347 tests, build pass; golden-vector present; runtime→C-2 |
-| B-6 | stages/B-6-review.md | pending | head-builder gate + /review (compliance-critical) |
+| B-6 | stages/B-6-review.md | gate-passed | head-builder APPROVED; /review 2 CRIT fixed (f1ec575,19a298b); commit-discipline PASS |
 
 ## Block context
 - **Spec:** seed ec1f279d (multi-spec 4 blocks + P-4 remediation addendum). Branch wave-4-audit-log.
@@ -18,3 +18,13 @@
 - **Scope:** service+verifier+integrity-view standalone this wave; real audited-action call-sites = M6+.
 ## Gate verdict log
 <appended by head-builder at B-6>
+
+```yaml
+build_block_status: complete
+branch: wave-4-audit-log
+stages_run: [B-0,B-1,B-2,B-3,B-4,B-5,B-6]
+review_verdict: APPROVE
+last_commit_sha: 19a298b
+ready_for_ci: true
+critical_fixes: [created_at-chain-verifies-live, verify-now-proxy, truncate-hardening]
+```

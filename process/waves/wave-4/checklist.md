@@ -27,7 +27,7 @@ BUILD:
 - [x] B-3 Frontend — audit-log integrity view at /compliance/audit-log (broken=persistent non-dismissible); 95 tests (2d6bfda)
 - [x] B-4 Wiring — repo typecheck+build PASS; /compliance/audit-log compiles; AUDIT_LOG_HMAC_KEY→C-2
 - [x] B-5 Verify — lint 0-err, 347 tests pass, build pass; golden-vector present; audit runtime→C-2
-- [ ] B-6 Review
+- [x] B-6 Review — head-builder APPROVED; /review 2 CRIT fixed (chain-verifies-live + verify-now-proxy); commit-discipline PASS
 
 CI/CD:
 - [ ] C-1 PR, CI & merge
