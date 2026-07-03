@@ -1,5 +1,5 @@
 # Wave 5 — B-block review artifacts
-**Block:** B (Build) · **Wave topic:** compliance rules engine + non-bypassable pre-send gate (M2 enforcement) · **Gate:** B-6 · **Status:** in-progress
+**Block:** B (Build) · **Wave topic:** compliance rules engine + non-bypassable pre-send gate (M2 enforcement) · **Gate:** B-6 · **Status:** gate-passed
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
 | B-0 | stages/B-0-branch-and-schema.md | done | branch wave-5-compliance-gate; no new deps; schema=YES(0003@B-2); 4 tasks claimed |
@@ -8,7 +8,7 @@
 | B-3 | stages/B-3-frontend.md | done | compliance-settings CRUD UI at /compliance/settings (c7924bc); 134 tests |
 | B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS |
 | B-5 | stages/B-5-verify.md | done | lint 0-err, 567 tests, build pass; SoD-compliance-only test; runtime→C-2 |
-| B-6 | stages/B-6-review.md | pending | head-builder gate + /review (compliance/SoD-critical) |
+| B-6 | stages/B-6-review.md | gate-passed | head-builder APPROVED; /review 3 CRIT fixed (6300c4e,c5d4f29); commit-discipline PASS |
 
 ## Block context
 - **Spec:** seed 0595a835 (multi-spec 4 blocks + P-4 remediation addendum: SoD approver=compliance ONLY). Branch wave-5-compliance-gate.
@@ -18,3 +18,11 @@
 - **M6 dependency:** send-path must call evaluate() (do NOT claim live non-bypass this wave).
 ## Gate verdict log
 <appended by head-builder at B-6>
+
+```yaml
+build_block_status: complete
+branch: wave-5-compliance-gate
+review_verdict: APPROVE
+critical_fixes: [sod-null-approver-fail-closed, disclaimer-versioning-race, gate-ctx-validation]
+ready_for_ci: true
+```

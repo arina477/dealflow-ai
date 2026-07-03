@@ -27,7 +27,7 @@ BUILD:
 - [x] B-3 Frontend — compliance-settings CRUD UI at /compliance/settings (3 sections); 134 tests (c7924bc)
 - [x] B-4 Wiring — repo typecheck+build PASS; /compliance/settings compiles
 - [x] B-5 Verify — lint 0-err, 567 tests pass, build pass; SoD-compliance-only test present; runtime→C-2
-- [ ] B-6 Review
+- [x] B-6 Review — head-builder APPROVED; /review 3 CRIT fixed (SoD-null-approver + disclaimer-race + ctx-validation); commit-discipline PASS
 
 CI/CD:
 - [ ] C-1 PR, CI & merge
