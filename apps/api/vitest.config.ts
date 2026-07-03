@@ -47,6 +47,13 @@ export default defineConfig({
       SUPERTOKENS_DATABASE_URL: 'postgres://test:test@localhost:5432/test_supertokens_unit',
       INTERNAL_API_BASE_URL: 'http://localhost:4000',
       WEB_ORIGIN: 'http://localhost:3000',
+      // Dummy HMAC key so AuditModule's AuditKeyring (boot fail-fast on missing
+      // AUDIT_LOG_HMAC_KEY) can instantiate in DI-boot tests. Obviously-fake; the
+      // boot-fail-fast test constructs AuditKeyring with an EXPLICIT {} source to
+      // prove the throw, independent of this default. Golden-vector tests inject
+      // their own known key directly.
+      AUDIT_LOG_HMAC_KEY: 'test-audit-hmac-key-dummy-do-not-use-in-prod',
+      AUDIT_LOG_HMAC_KEY_VERSION: '1',
     },
   },
 });

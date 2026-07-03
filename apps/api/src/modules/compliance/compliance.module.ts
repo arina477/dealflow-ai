@@ -9,13 +9,21 @@
 
 import { Module } from '@nestjs/common';
 
+import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
+import { AuditLogController } from './audit-log.controller';
 import { ComplianceController } from './compliance.controller';
 import { ComplianceService } from './compliance.service';
 
+/**
+ * Wave-4: registers AuditLogController (GET /compliance/audit-log/verify) and
+ * imports AuditModule so its exported AuditVerifier resolves in this module's
+ * DI context. AuthModule (unchanged) provides the SessionGuard/RolesGuard/
+ * AuthRepository the controller's @UseGuards depends on.
+ */
 @Module({
-  imports: [AuthModule],
-  controllers: [ComplianceController],
+  imports: [AuthModule, AuditModule],
+  controllers: [ComplianceController, AuditLogController],
   providers: [ComplianceService],
 })
 export class ComplianceModule {}
