@@ -25,6 +25,8 @@ Canonical inventory of every screen / route + the flows that connect them. Sourc
 
 > **Wave 2 (auth) — LIVE (deployed + real-browser E2E 6/6):** `/login`, `/accept-invite?token=`, `/reset-password` are implemented and verified end-to-end (invite-only signup → session + role claim → role-aware landing). A placeholder authed landing `/dashboard` exists (reads the session, shows the role); the full AppShell/dashboard is a later M1 bundle. Route reconciled: journey `/invite/:token` → implemented as `/accept-invite?token=`.
 | 4 | Dashboard | `/` | All (role-aware) | F1,F2,F4,F10 | most modules |
+
+> **Wave 3 (AppShell + RBAC) — LIVE (deployed 935b847 + real-browser E2E 7/7):** the shared AppShell chrome (Sidebar+TopBar per §10, built once via the `(app)` route-group layout) + role-aware dashboard shell are live at `/` (authed; unauth→/login). Per-route RBAC is ENFORCED (opt-in `@Roles()`, DB-authoritative role, fail-closed on empty roles) via the single `roleRoutes` source of truth in @dealflow/shared, which also drives the role-aware Sidebar nav (nav⊆RBAC by construction). Enforced-RBAC exemplar endpoint `GET /compliance/summary` (roles: compliance, admin) added. Allowlist: /auth/*, /health ungated. Live matrix verified: compliance→200, advisor→403, unauth→401. Route rows 5-20 below have their role→route access pinned in `roleRoutes` (the enforcement contract) though their pages land in M3+.
 | 5 | Mandates list | `/mandates` | Adv, An | F1 | Mandate service |
 | 6 | Mandate detail | `/mandates/:id` | Adv, An | F1,F2,F4 | Mandate, matching, pipeline |
 | 7 | New / edit mandate | `/mandates/new` | Adv | F1 | Mandate service |
