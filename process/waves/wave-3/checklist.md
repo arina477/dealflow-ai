@@ -21,11 +21,11 @@ DESIGN (skip block if non-UI wave):
 - [ ] D-3 Review & adopt
 
 BUILD:
-- [ ] B-0 Branch & schema
-- [ ] B-1 Contracts
-- [ ] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
+- [x] B-0 Branch & schema — branch wave-3-appshell-rbac; lucide-react; NO schema; 3 tasks claimed
+- [x] B-1 Contracts — shared rbac.ts single source of truth (75711f8); nav⊆RBAC by construction; 92 tests
+- [x] B-2 Backend — RBAC enforcement + /compliance/summary exemplar (@Roles from rbac.ts); per-role 403/200 tested (1cf4fba)
+- [x] B-3 Frontend — AppShell(§10) once + dashboard at / + role-aware nav (navItemsForRole); 62 tests (144642f)
+- [x] B-4 Wiring — repo typecheck+build PASS; no drift (rbac.ts biome→B-5)
 - [ ] B-5 Verify
 - [ ] B-6 Review
 

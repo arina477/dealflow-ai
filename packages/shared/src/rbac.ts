@@ -215,7 +215,7 @@ const PUBLIC_PREFIXES: ReadonlyArray<string> = ['/auth', '/health'];
  */
 export function isPublicRoute(route: string): boolean {
   return PUBLIC_PREFIXES.some(
-    (prefix) => route === prefix || route.startsWith(prefix + '/') || route.startsWith(prefix + '?'),
+    (prefix) => route === prefix || route.startsWith(prefix + '/') || route.startsWith(prefix + '?')
   );
 }
 

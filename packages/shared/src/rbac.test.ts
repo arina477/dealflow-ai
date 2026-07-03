@@ -55,7 +55,9 @@ describe('isPublicRoute', () => {
 
 describe('rolesForRoute — exact routes', () => {
   it('/ → all 4 roles', () => {
-    expect(rolesForRoute('/')).toEqual(expect.arrayContaining(['advisor', 'analyst', 'compliance', 'admin']));
+    expect(rolesForRoute('/')).toEqual(
+      expect.arrayContaining(['advisor', 'analyst', 'compliance', 'admin'])
+    );
     expect(rolesForRoute('/')).toHaveLength(4);
   });
 
@@ -207,41 +209,62 @@ describe('canAccess', () => {
   // advisor
   it('advisor: allows /mandates', () => expect(canAccess('advisor', '/mandates')).toBe(true));
   it('advisor: allows /pipeline', () => expect(canAccess('advisor', '/pipeline')).toBe(true));
-  it('advisor: allows /compliance/queue', () => expect(canAccess('advisor', '/compliance/queue')).toBe(true));
+  it('advisor: allows /compliance/queue', () =>
+    expect(canAccess('advisor', '/compliance/queue')).toBe(true));
   it('advisor: denies /sourcing', () => expect(canAccess('advisor', '/sourcing')).toBe(false));
-  it('advisor: denies /admin/users', () => expect(canAccess('advisor', '/admin/users')).toBe(false));
-  it('advisor: denies /compliance/summary', () => expect(canAccess('advisor', '/compliance/summary')).toBe(false));
-  it('advisor: denies /compliance/audit-log', () => expect(canAccess('advisor', '/compliance/audit-log')).toBe(false));
+  it('advisor: denies /admin/users', () =>
+    expect(canAccess('advisor', '/admin/users')).toBe(false));
+  it('advisor: denies /compliance/summary', () =>
+    expect(canAccess('advisor', '/compliance/summary')).toBe(false));
+  it('advisor: denies /compliance/audit-log', () =>
+    expect(canAccess('advisor', '/compliance/audit-log')).toBe(false));
   it('advisor: denies /templates', () => expect(canAccess('advisor', '/templates')).toBe(false));
 
   // analyst
   it('analyst: allows /mandates', () => expect(canAccess('analyst', '/mandates')).toBe(true));
   it('analyst: allows /sourcing', () => expect(canAccess('analyst', '/sourcing')).toBe(true));
   it('analyst: allows /templates', () => expect(canAccess('analyst', '/templates')).toBe(true));
-  it('analyst: denies /mandates/new', () => expect(canAccess('analyst', '/mandates/new')).toBe(false));
-  it('analyst: denies /compliance/queue', () => expect(canAccess('analyst', '/compliance/queue')).toBe(false));
-  it('analyst: denies /admin/users', () => expect(canAccess('analyst', '/admin/users')).toBe(false));
-  it('analyst: denies /compliance/summary', () => expect(canAccess('analyst', '/compliance/summary')).toBe(false));
+  it('analyst: denies /mandates/new', () =>
+    expect(canAccess('analyst', '/mandates/new')).toBe(false));
+  it('analyst: denies /compliance/queue', () =>
+    expect(canAccess('analyst', '/compliance/queue')).toBe(false));
+  it('analyst: denies /admin/users', () =>
+    expect(canAccess('analyst', '/admin/users')).toBe(false));
+  it('analyst: denies /compliance/summary', () =>
+    expect(canAccess('analyst', '/compliance/summary')).toBe(false));
 
   // compliance
-  it('compliance: allows /compliance/queue', () => expect(canAccess('compliance', '/compliance/queue')).toBe(true));
-  it('compliance: allows /compliance/audit-log', () => expect(canAccess('compliance', '/compliance/audit-log')).toBe(true));
-  it('compliance: allows /compliance/settings', () => expect(canAccess('compliance', '/compliance/settings')).toBe(true));
-  it('compliance: allows /compliance/summary', () => expect(canAccess('compliance', '/compliance/summary')).toBe(true));
-  it('compliance: allows /templates', () => expect(canAccess('compliance', '/templates')).toBe(true));
-  it('compliance: denies /mandates', () => expect(canAccess('compliance', '/mandates')).toBe(false));
-  it('compliance: denies /admin/users', () => expect(canAccess('compliance', '/admin/users')).toBe(false));
-  it('compliance: denies /sourcing', () => expect(canAccess('compliance', '/sourcing')).toBe(false));
+  it('compliance: allows /compliance/queue', () =>
+    expect(canAccess('compliance', '/compliance/queue')).toBe(true));
+  it('compliance: allows /compliance/audit-log', () =>
+    expect(canAccess('compliance', '/compliance/audit-log')).toBe(true));
+  it('compliance: allows /compliance/settings', () =>
+    expect(canAccess('compliance', '/compliance/settings')).toBe(true));
+  it('compliance: allows /compliance/summary', () =>
+    expect(canAccess('compliance', '/compliance/summary')).toBe(true));
+  it('compliance: allows /templates', () =>
+    expect(canAccess('compliance', '/templates')).toBe(true));
+  it('compliance: denies /mandates', () =>
+    expect(canAccess('compliance', '/mandates')).toBe(false));
+  it('compliance: denies /admin/users', () =>
+    expect(canAccess('compliance', '/admin/users')).toBe(false));
+  it('compliance: denies /sourcing', () =>
+    expect(canAccess('compliance', '/sourcing')).toBe(false));
 
   // admin
   it('admin: allows /admin/users', () => expect(canAccess('admin', '/admin/users')).toBe(true));
-  it('admin: allows /admin/settings', () => expect(canAccess('admin', '/admin/settings')).toBe(true));
-  it('admin: allows /admin/integrations', () => expect(canAccess('admin', '/admin/integrations')).toBe(true));
-  it('admin: allows /compliance/summary', () => expect(canAccess('admin', '/compliance/summary')).toBe(true));
+  it('admin: allows /admin/settings', () =>
+    expect(canAccess('admin', '/admin/settings')).toBe(true));
+  it('admin: allows /admin/integrations', () =>
+    expect(canAccess('admin', '/admin/integrations')).toBe(true));
+  it('admin: allows /compliance/summary', () =>
+    expect(canAccess('admin', '/compliance/summary')).toBe(true));
   it('admin: denies /mandates', () => expect(canAccess('admin', '/mandates')).toBe(false));
   it('admin: denies /sourcing', () => expect(canAccess('admin', '/sourcing')).toBe(false));
-  it('admin: denies /compliance/queue', () => expect(canAccess('admin', '/compliance/queue')).toBe(false));
-  it('admin: denies /compliance/audit-log', () => expect(canAccess('admin', '/compliance/audit-log')).toBe(false));
+  it('admin: denies /compliance/queue', () =>
+    expect(canAccess('admin', '/compliance/queue')).toBe(false));
+  it('admin: denies /compliance/audit-log', () =>
+    expect(canAccess('admin', '/compliance/audit-log')).toBe(false));
 
   // public routes bypass RBAC for every role and even for invalid input
   it('canAccess returns true for /auth/* regardless of role', () => {
@@ -386,7 +409,7 @@ describe('nav ⊆ RBAC invariant', () => {
       for (const item of items) {
         expect(canAccess(role, item.route)).toBe(
           true,
-          `nav item "${item.label}" (${item.route}) is shown for role "${role}" but canAccess returned false`,
+          `nav item "${item.label}" (${item.route}) is shown for role "${role}" but canAccess returned false`
         );
       }
     });
@@ -396,15 +419,13 @@ describe('nav ⊆ RBAC invariant', () => {
     // Inverse check: for every nav item, every role NOT in allowedRoles
     // must NOT appear in navItemsForRole for that role
     for (const navItem of ALL_NAV_ITEMS) {
-      const deniedRoles = ALL_ROLES.filter(
-        (r) => !(navItem.allowedRoles as Role[]).includes(r),
-      );
+      const deniedRoles = ALL_ROLES.filter((r) => !(navItem.allowedRoles as Role[]).includes(r));
       for (const deniedRole of deniedRoles) {
         const items = navItemsForRole(deniedRole);
         const isShown = items.some((i) => i.route === navItem.route);
         expect(isShown).toBe(
           false,
-          `nav item "${navItem.label}" (${navItem.route}) must NOT appear for role "${deniedRole}" (denied in allowedRoles)`,
+          `nav item "${navItem.label}" (${navItem.route}) must NOT appear for role "${deniedRole}" (denied in allowedRoles)`
         );
       }
     }
