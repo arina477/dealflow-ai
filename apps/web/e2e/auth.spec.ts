@@ -123,7 +123,8 @@ test.describe('login success', () => {
     // the NestJS router ahead of them). Browser fetch() throws (CORS policy on
     // OPTIONS preflight 404). Error shown is "Unable to reach the server", no
     // redirect. When FINDING-1 is fixed, this assertion should pass.
-    await expect(page).toHaveURL(/\//, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
+    await expect(page).not.toHaveURL(/\/login/);
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
     // Verify identity chip shows the correct email and role.
     await expect(page.getByText(testEmail)).toBeVisible();
@@ -193,7 +194,8 @@ test.describe('accept-invite happy path', () => {
     // /auth/me returns 401 and the dashboard redirects to /login.
     // When FINDING-2 is resolved (cookie-based sessions or cookie-forwarding
     // fix), this assertion should pass.
-    await expect(page).toHaveURL(/\//, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
+    await expect(page).not.toHaveURL(/\/login/);
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
   });
 });
