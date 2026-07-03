@@ -34,6 +34,7 @@
 
 import { createHash } from 'node:crypto';
 import type { AuditEntryInput, BlockReason, GateContext, GateVerdict } from '@dealflow/shared';
+import { gateContextSchema } from '@dealflow/shared';
 import { Injectable } from '@nestjs/common';
 import type { Tx } from '../audit/audit.repository';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
@@ -77,12 +78,22 @@ export class ComplianceGateService {
    * so send and verdict commit atomically.
    */
   async evaluate(ctx: GateContext, tx: Tx): Promise<GateVerdict> {
+    // FAIL-CLOSED INPUT VALIDATION (non-bypassability). Parse+normalize the ctx
+    // against the canonical schema BEFORE any evaluator runs. This is the FIRST
+    // statement: a malformed/un-normalized ctx (whitespace recipient, empty
+    // content, non-email address, wrong-length contentHash) must NEVER reach the
+    // evaluators where it could silently bypass suppression/disclaimer/hash logic.
+    // On invalid input .parse() THROWS — the caller's tx rolls back and no verdict
+    // is produced (the gate refuses to decide over untrusted input). All downstream
+    // reads use the parsed value, not the raw ctx.
+    const parsed = gateContextSchema.parse(ctx);
+
     const blocks: BlockReason[] = [];
     const requiredDisclaimers: string[] = [];
 
     // Run ALL evaluators unconditionally, in fixed order. No skip, no subset.
     for (const evaluator of this.evaluators) {
-      const result = await evaluator(ctx, this.repo, tx);
+      const result = await evaluator(parsed, this.repo, tx);
       blocks.push(...result.blocks);
       for (const id of result.requiredDisclaimers) {
         if (!requiredDisclaimers.includes(id)) {
@@ -100,15 +111,19 @@ export class ComplianceGateService {
     // MANDATORY: audit the verdict in the SAME tx BEFORE returning. If this
     // throws, the whole tx rolls back and evaluate() throws — no verdict without
     // its audit entry. Placed AFTER verdict computation, BEFORE the return.
-    await this.audit.append(this.verdictAuditEntry(ctx, verdict), tx);
+    // Uses the parsed/normalized ctx so the audited hash + identity match what the
+    // evaluators actually decided over.
+    await this.audit.append(this.verdictAuditEntry(parsed, verdict), tx);
 
     return verdict;
   }
 
   /**
    * Standalone entry for callers WITHOUT a surrounding tx (and for standalone
-   * tests). Opens its own tx and delegates to evaluate(). The M6 send path should
-   * prefer evaluate(ctx, tx) to compose atomically with its send write.
+   * tests). Opens its own tx and delegates to evaluate(), which performs the
+   * fail-closed gateContextSchema.parse(ctx) — so an invalid ctx throws here too
+   * and rolls back the standalone tx. The M6 send path should prefer
+   * evaluate(ctx, tx) to compose atomically with its send write.
    */
   evaluateStandalone(ctx: GateContext): Promise<GateVerdict> {
     return this.repo.runInTransaction((tx) => this.evaluate(ctx, tx));

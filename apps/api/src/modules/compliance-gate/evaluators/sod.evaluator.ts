@@ -24,6 +24,11 @@
  * No approval row → 'no-approval' BlockReason (the send is unapproved).
  * A row that fails any of (1)-(3) → 'sod' BlockReason with a machine-stable
  * sub-reason. Both make the send ineligible.
+ *
+ * FAIL CLOSED on a NULL approver_user_id (approver account deleted, FK SET-NULL):
+ * such a row can no longer prove sender ≠ approver, so it is BLOCKED with sod
+ * sub-reason 'approver-unknown' — it never satisfies SoD, even if the stored
+ * approver_role snapshot is 'compliance'.
  */
 
 import type { BlockReason, GateContext } from '@dealflow/shared';
@@ -55,13 +60,29 @@ export async function sodEvaluator(
     };
   }
 
+  // FAIL CLOSED on an unknown approver. approverUserId is NULL when the approver
+  // account was deleted (FK onDelete: SET NULL). A null approver can no longer
+  // PROVE sender ≠ approver — the ORIGINAL approver may well be the sender now
+  // sending their OWN approved content, which is the exact self-approval SoD
+  // bypass this evaluator exists to prevent. We therefore CANNOT trust a null
+  // approver to satisfy SoD regardless of the stored approver_role snapshot, and
+  // BLOCK it explicitly instead of letting the old `!== null` guard short-circuit
+  // past the self-approval check.
+  if (approval.approverUserId === null) {
+    return {
+      blocks: [
+        sodBlock(
+          'approver-unknown',
+          'The approver account for this approval no longer exists, so separation of ' +
+            'duties cannot be verified (the original approver may be the sender). Blocked.'
+        ),
+      ],
+      requiredDisclaimers: [],
+    };
+  }
+
   // Self-approval — sender is the approver. Classic SoD violation.
-  // (approverUserId may be null if the approver account was deleted; a null
-  // approver can never equal a concrete senderUserId, so it is not self-approval,
-  // but it also cannot satisfy the role check below unless the snapshot role is
-  // compliance — which it may still be. We only fail self-approval on an ACTUAL
-  // id match.)
-  if (approval.approverUserId !== null && approval.approverUserId === ctx.senderUserId) {
+  if (approval.approverUserId === ctx.senderUserId) {
     return {
       blocks: [
         sodBlock('sender-is-approver', 'The sender cannot be the approver (separation of duties).'),
@@ -96,7 +117,7 @@ function noApprovalBlock(): BlockReason {
 }
 
 function sodBlock(
-  reason: 'no-approval-row' | 'sender-is-approver' | 'invalid-approver-role' | 'approval-revoked',
+  reason: 'sender-is-approver' | 'invalid-approver-role' | 'approval-revoked' | 'approver-unknown',
   message: string
 ): BlockReason {
   return { code: 'sod', reason, message };

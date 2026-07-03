@@ -36,16 +36,20 @@ export const sodBlockSchema = z
     code: z.literal('sod'),
     /**
      * Machine-stable sub-reason for the SoD failure:
-     *   - 'no-approval-row'  — no compliance_approvals row found for (resourceType, resourceId)
      *   - 'sender-is-approver' — approver_user_id === senderUserId (self-approval)
      *   - 'invalid-approver-role' — approver_role !== 'compliance'
      *   - 'approval-revoked'  — status === 'revoked'
+     *   - 'approver-unknown'  — approver_user_id is NULL (approver account deleted,
+     *     FK SET-NULL). We can no longer PROVE sender ≠ approver, so the approval
+     *     cannot satisfy SoD → fail closed and BLOCK.
+     * (The no-approval-ROW case is emitted under the distinct 'no-approval' code,
+     * not a sod sub-reason.)
      */
     reason: z.enum([
-      'no-approval-row',
       'sender-is-approver',
       'invalid-approver-role',
       'approval-revoked',
+      'approver-unknown',
     ]),
     message: z.string().min(1),
   })

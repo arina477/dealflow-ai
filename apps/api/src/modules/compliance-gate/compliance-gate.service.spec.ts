@@ -35,6 +35,7 @@ import type {
 } from './compliance-gate.repository';
 import { ComplianceGateService } from './compliance-gate.service';
 import { computeContentHash } from './content-hash';
+import { suppressionEvaluator } from './evaluators/suppression.evaluator';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -282,6 +283,28 @@ describe('(c) SoD compliance-only matrix', () => {
     const sod = verdict.blocks.find((b) => b.code === 'sod');
     expect(sod && sod.code === 'sod' && sod.reason).toBe('approval-revoked');
   });
+
+  // CRITICAL-1: fail-closed on a NULL approver (approver account deleted, FK
+  // SET-NULL). Such a row can no longer prove sender ≠ approver, so it must NOT
+  // satisfy SoD — even when the snapshot role is compliance and the (null)
+  // approver is not literally equal to the sender.
+  it('approved compliance approval with approverUserId=null → BLOCKED (sod / approver-unknown)', async () => {
+    const { verdict } = await verdictFor(
+      validApproval({ approverUserId: null, approverRole: 'compliance', status: 'approved' })
+    );
+    expect(verdict.allowed).toBe(false);
+    const sod = verdict.blocks.find((b) => b.code === 'sod');
+    expect(sod).toBeDefined();
+    expect(sod && sod.code === 'sod' && sod.reason).toBe('approver-unknown');
+  });
+
+  it('a CONCRETE compliance approver ≠ sender is still ALLOWED (regression)', async () => {
+    const { verdict } = await verdictFor(
+      validApproval({ approverUserId: APPROVER, approverRole: 'compliance' })
+    );
+    expect(verdict.allowed).toBe(true);
+    expect(verdict.blocks).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -322,6 +345,102 @@ describe('(d) suppression hard-block', () => {
     const verdict = await svc.evaluate(baseCtx({ recipients: ['someone@xexample.com'] }), TX);
     expect(verdict.blocks.some((b) => b.code === 'suppression')).toBe(false);
     expect(verdict.allowed).toBe(true);
+  });
+
+  // INFO: recipient normalization — a suppressed address with mixed-case still
+  // hits exact suppression through the full service path (schema-valid input).
+  it('normalized match: mixed-case recipient still hits exact suppression', async () => {
+    const repo = new FakeRepo();
+    repo.approval = validApproval();
+    repo.suppression = [{ matchType: 'email', value: 'prospect@example.com' }];
+    const svc = makeService(repo, new FakeAudit());
+
+    const verdict = await svc.evaluate(baseCtx({ recipients: ['Prospect@Example.com'] }), TX);
+    expect(verdict.allowed).toBe(false);
+    const hit = verdict.blocks.find((b) => b.code === 'suppression');
+    expect(hit && hit.code === 'suppression' && hit.matchType).toBe('email');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (d2) suppression recipient NORMALIZATION — matcher self-defense, tested at the
+// evaluator level (the trailing-dot / whitespace forms don't survive the
+// service-level gateContextSchema.parse, but the matcher must still normalize so
+// it is safe regardless of entry point).
+// ---------------------------------------------------------------------------
+
+describe('(d2) suppression evaluator normalizes recipients', () => {
+  function fakeRepoWith(suppression: SuppressionRow[]): ComplianceGateRepository {
+    return {
+      loadSuppressionEntries: async (_tx: Tx) => suppression,
+    } as unknown as ComplianceGateRepository;
+  }
+
+  it('trailing-dot (FQDN root) recipient still hits exact suppression', async () => {
+    const repo = fakeRepoWith([{ matchType: 'email', value: 'prospect@example.com' }]);
+    const result = await suppressionEvaluator(
+      { recipients: ['prospect@example.com.'] } as unknown as GateContext,
+      repo,
+      TX
+    );
+    expect(result.blocks.some((b) => b.code === 'suppression')).toBe(true);
+  });
+
+  it('surrounding whitespace + mixed case still hits exact suppression', async () => {
+    const repo = fakeRepoWith([{ matchType: 'email', value: 'prospect@example.com' }]);
+    const result = await suppressionEvaluator(
+      { recipients: ['  Prospect@Example.COM  '] } as unknown as GateContext,
+      repo,
+      TX
+    );
+    expect(result.blocks.some((b) => b.code === 'suppression')).toBe(true);
+  });
+
+  it('trailing-dot recipient still hits domain-suffix suppression', async () => {
+    const repo = fakeRepoWith([{ matchType: 'domain', value: 'example.com' }]);
+    const result = await suppressionEvaluator(
+      { recipients: ['someone@mail.example.com.'] } as unknown as GateContext,
+      repo,
+      TX
+    );
+    const hit = result.blocks.find((b) => b.code === 'suppression');
+    expect(hit && hit.code === 'suppression' && hit.matchType).toBe('domain');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (g) CRITICAL-3 — fail-closed ctx validation (gateContextSchema.parse first)
+// ---------------------------------------------------------------------------
+
+describe('(g) fail-closed input validation: evaluate() parses ctx', () => {
+  it('non-email recipient → evaluate() THROWS (does not silently allow)', async () => {
+    const repo = new FakeRepo();
+    repo.approval = validApproval();
+    const svc = makeService(repo, new FakeAudit());
+
+    // 'not-an-email' fails gateContextSchema (recipients must be emails).
+    const badCtx = { ...baseCtx(), recipients: ['not-an-email'] } as GateContext;
+    await expect(svc.evaluate(badCtx, TX)).rejects.toThrow();
+    // Evaluators never ran (parse throws first) → no suppression read.
+    expect(repo.calls.suppression).toBe(0);
+  });
+
+  it('empty content → evaluate() THROWS', async () => {
+    const repo = new FakeRepo();
+    repo.approval = validApproval();
+    const svc = makeService(repo, new FakeAudit());
+
+    const badCtx = { ...baseCtx(), content: '' } as GateContext;
+    await expect(svc.evaluate(badCtx, TX)).rejects.toThrow();
+  });
+
+  it('evaluateStandalone also fails closed on invalid ctx', async () => {
+    const repo = new FakeRepo();
+    repo.approval = validApproval();
+    const svc = makeService(repo, new FakeAudit());
+
+    const badCtx = { ...baseCtx(), recipients: ['nope'] } as GateContext;
+    await expect(svc.evaluateStandalone(badCtx)).rejects.toThrow();
   });
 });
 

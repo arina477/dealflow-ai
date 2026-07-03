@@ -21,6 +21,19 @@ import type { Tx } from '../../audit/audit.repository';
 import type { ComplianceGateRepository } from '../compliance-gate.repository';
 import type { EvaluatorResult } from './evaluator.types';
 
+/**
+ * Normalize a recipient address before matching: trim surrounding whitespace,
+ * lowercase, and strip a SINGLE trailing dot (the FQDN root form
+ * 'foo@bar.com.' is equivalent to 'foo@bar.com'). This ensures a suppressed
+ * address can't slip past exact- or domain-match on incidental
+ * whitespace/trailing-dot. gateContextSchema.parse upstream already validates the
+ * shape; this makes the matcher self-defensive regardless of entry point.
+ */
+function normalizeRecipient(recipient: string): string {
+  const trimmed = recipient.trim().toLowerCase();
+  return trimmed.endsWith('.') ? trimmed.slice(0, -1) : trimmed;
+}
+
 /** Extract the lower-cased domain part of an email ('a@B.com' → 'b.com'). */
 function domainOf(email: string): string {
   const at = email.lastIndexOf('@');
@@ -52,7 +65,7 @@ export async function suppressionEvaluator(
   const blocks: BlockReason[] = [];
 
   for (const recipient of ctx.recipients) {
-    const normalized = recipient.toLowerCase();
+    const normalized = normalizeRecipient(recipient);
 
     if (emailBlocklist.has(normalized)) {
       blocks.push(makeBlock(recipient, 'email', normalized));

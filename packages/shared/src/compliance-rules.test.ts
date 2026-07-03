@@ -126,8 +126,8 @@ describe('gateVerdictSchema — parse + reject', () => {
         },
         {
           code: 'sod',
-          reason: 'no-approval-row',
-          message: 'No approval row found',
+          reason: 'approver-unknown',
+          message: 'Approver account deleted — SoD cannot be verified',
         },
       ],
       requiredDisclaimers: [],
@@ -197,10 +197,10 @@ describe('blockReasonSchema — discriminated union', () => {
 
   it('parses all four sod sub-reasons', () => {
     const reasons = [
-      'no-approval-row',
       'sender-is-approver',
       'invalid-approver-role',
       'approval-revoked',
+      'approver-unknown',
     ] as const;
     for (const reason of reasons) {
       const result = blockReasonSchema.parse({
