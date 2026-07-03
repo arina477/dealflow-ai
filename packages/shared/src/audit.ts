@@ -44,6 +44,15 @@ export const auditActionEnum = z.enum([
   'suppression-change',
   /** A disclaimer_templates row was versioned (edit = insert new version). */
   'disclaimer-change',
+  // --- Wave-6 sourcing actions (additive) ---
+  /**
+   * A dedupe_candidates row was resolved by a human (merge or reject).
+   * This is a material human-attributable mutation that changes the canonical
+   * company universe, so it is audited via AuditService.append in the same
+   * transaction as the resolve write (wave-5 rules.service pattern).
+   * Appended AFTER all prior values — serialization order preserved.
+   */
+  'sourcing-dedupe-resolve',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;

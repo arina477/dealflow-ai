@@ -119,8 +119,16 @@ describe('rolesForRoute — exact routes', () => {
     expect(roles).toHaveLength(1);
   });
 
-  it('/companies → analyst only', () => {
-    expect(rolesForRoute('/companies')).toContain('analyst');
+  // Wave-6: /companies was repointed to /sourcing/companies (P-3 Delta 5 namespace consolidation).
+  // The bare /companies pattern is no longer in the table (no page consumed it — verified).
+  it('/companies → no longer in the table (returns empty — was repointed to /sourcing/companies)', () => {
+    expect(rolesForRoute('/companies')).toHaveLength(0);
+  });
+
+  it('/sourcing/companies → analyst only (wave-6 repoint)', () => {
+    const roles = rolesForRoute('/sourcing/companies');
+    expect(roles).toContain('analyst');
+    expect(roles).toHaveLength(1);
   });
 
   it('/templates → analyst + compliance', () => {
@@ -510,7 +518,11 @@ describe('roleRoutes — completeness against pinned matrix', () => {
     ['/mandates/:id/matches', ['advisor']],
     ['/pipeline', ['advisor']],
     ['/sourcing', ['analyst']],
-    ['/companies', ['analyst']],
+    // Wave-6: /companies repointed to /sourcing/companies; new sourcing API routes added.
+    ['/sourcing/companies', ['analyst']],
+    ['/sourcing/companies/:id', ['analyst']],
+    ['/sourcing/connections/:id/sync', ['analyst', 'admin']],
+    ['/sourcing/dedupe-candidates/:id/resolve', ['analyst', 'admin']],
     ['/templates', ['analyst', 'compliance']],
     ['/compliance/queue', ['compliance', 'advisor']],
     ['/compliance/audit-log', ['compliance']],
@@ -795,5 +807,185 @@ describe('wave-4 — nav ⊆ RBAC invariant preserved after additions', () => {
     const adminItems = navItemsForRole('admin');
     expect(adminItems.some((i) => i.route === '/compliance/audit-log')).toBe(false);
     expect(adminItems.some((i) => i.route === '/compliance/audit-log/verify')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave-6 additions — /sourcing/companies + API route entries + nav⊆RBAC
+// ---------------------------------------------------------------------------
+
+describe('wave-6 — /sourcing/companies routes RBAC', () => {
+  it('/sourcing/companies → analyst only', () => {
+    const roles = rolesForRoute('/sourcing/companies');
+    expect(roles).toContain('analyst');
+    expect(roles).toHaveLength(1);
+    expect(roles).not.toContain('admin');
+    expect(roles).not.toContain('compliance');
+    expect(roles).not.toContain('advisor');
+  });
+
+  it('/sourcing/companies/:id → analyst only (concrete UUID)', () => {
+    const roles = rolesForRoute('/sourcing/companies/1931b452-c7d5-43a0-9657-7e7cd1728203');
+    expect(roles).toContain('analyst');
+    expect(roles).toHaveLength(1);
+  });
+
+  it('analyst can access /sourcing/companies', () => {
+    expect(canAccess('analyst', '/sourcing/companies')).toBe(true);
+  });
+
+  it('analyst can access /sourcing/companies/:id', () => {
+    expect(canAccess('analyst', '/sourcing/companies/abc-123')).toBe(true);
+  });
+
+  it('admin cannot access /sourcing/companies (screen is analyst-only)', () => {
+    expect(canAccess('admin', '/sourcing/companies')).toBe(false);
+  });
+
+  it('advisor cannot access /sourcing/companies', () => {
+    expect(canAccess('advisor', '/sourcing/companies')).toBe(false);
+  });
+
+  it('compliance cannot access /sourcing/companies', () => {
+    expect(canAccess('compliance', '/sourcing/companies')).toBe(false);
+  });
+});
+
+describe('wave-6 — /sourcing/connections/:id/sync RBAC (analyst + admin)', () => {
+  it('rolesForRoute → analyst + admin', () => {
+    const roles = rolesForRoute('/sourcing/connections/abc-123/sync');
+    expect([...roles].sort()).toEqual(['admin', 'analyst']);
+  });
+
+  it('analyst can trigger a sync', () => {
+    expect(canAccess('analyst', '/sourcing/connections/abc-123/sync')).toBe(true);
+  });
+
+  it('admin can trigger a sync', () => {
+    expect(canAccess('admin', '/sourcing/connections/abc-123/sync')).toBe(true);
+  });
+
+  it('advisor cannot trigger a sync', () => {
+    expect(canAccess('advisor', '/sourcing/connections/abc-123/sync')).toBe(false);
+  });
+
+  it('compliance cannot trigger a sync', () => {
+    expect(canAccess('compliance', '/sourcing/connections/abc-123/sync')).toBe(false);
+  });
+
+  it('the route entry has no navItem (API-only endpoint)', () => {
+    const entry = roleRoutes.find((e) => e.pattern === '/sourcing/connections/:id/sync');
+    expect(entry).toBeDefined();
+    expect(entry?.navItem).toBeUndefined();
+  });
+});
+
+describe('wave-6 — /sourcing/dedupe-candidates/:id/resolve RBAC (analyst + admin)', () => {
+  it('rolesForRoute → analyst + admin', () => {
+    const roles = rolesForRoute('/sourcing/dedupe-candidates/abc-123/resolve');
+    expect([...roles].sort()).toEqual(['admin', 'analyst']);
+  });
+
+  it('analyst can resolve a dedupe candidate', () => {
+    expect(canAccess('analyst', '/sourcing/dedupe-candidates/abc-123/resolve')).toBe(true);
+  });
+
+  it('admin can resolve a dedupe candidate', () => {
+    expect(canAccess('admin', '/sourcing/dedupe-candidates/abc-123/resolve')).toBe(true);
+  });
+
+  it('advisor cannot resolve a dedupe candidate', () => {
+    expect(canAccess('advisor', '/sourcing/dedupe-candidates/abc-123/resolve')).toBe(false);
+  });
+
+  it('compliance cannot resolve a dedupe candidate', () => {
+    expect(canAccess('compliance', '/sourcing/dedupe-candidates/abc-123/resolve')).toBe(false);
+  });
+
+  it('the route entry has no navItem (API-only endpoint, no sidebar link)', () => {
+    const entry = roleRoutes.find((e) => e.pattern === '/sourcing/dedupe-candidates/:id/resolve');
+    expect(entry).toBeDefined();
+    expect(entry?.navItem).toBeUndefined();
+  });
+});
+
+describe('wave-6 — /companies repoint (was analyst-only, now /sourcing/companies)', () => {
+  it('/companies is no longer in the route table (returns empty — default-deny)', () => {
+    expect(rolesForRoute('/companies')).toHaveLength(0);
+  });
+
+  it('analyst is denied /companies (old path is gone)', () => {
+    // After repoint the bare /companies has no entry: fail-closed to 403.
+    expect(canAccess('analyst', '/companies')).toBe(false);
+  });
+
+  it('/sourcing/companies is the canonical replacement (analyst can access)', () => {
+    expect(canAccess('analyst', '/sourcing/companies')).toBe(true);
+  });
+});
+
+describe('wave-6 — /compliance/* routes UNTOUCHED', () => {
+  it('/compliance/queue remains compliance + advisor', () => {
+    const roles = rolesForRoute('/compliance/queue');
+    expect([...roles].sort()).toEqual(['advisor', 'compliance']);
+  });
+
+  it('/compliance/audit-log remains compliance only', () => {
+    expect([...rolesForRoute('/compliance/audit-log')].sort()).toEqual(['compliance']);
+  });
+
+  it('/compliance/rules remains compliance + admin', () => {
+    expect([...rolesForRoute('/compliance/rules')].sort()).toEqual(['admin', 'compliance']);
+  });
+
+  it('/compliance/settings remains compliance only', () => {
+    expect([...rolesForRoute('/compliance/settings')].sort()).toEqual(['compliance']);
+  });
+});
+
+describe('wave-6 — nav⊆RBAC preserved after /sourcing/companies + API routes added', () => {
+  for (const role of ALL_ROLES) {
+    it(`navItemsForRole('${role}') — every item still passes canAccess after wave-6 additions`, () => {
+      const items = navItemsForRole(role);
+      for (const item of items) {
+        expect(canAccess(role, item.route)).toBe(true);
+      }
+    });
+  }
+
+  it('analyst still sees /sourcing nav item (NAV_SOURCING unchanged)', () => {
+    const items = navItemsForRole('analyst');
+    expect(items.some((i) => i.route === '/sourcing')).toBe(true);
+  });
+
+  it('/sourcing/companies does NOT have a navItem (screen reached via /sourcing nav + router)', () => {
+    const entry = roleRoutes.find((e) => e.pattern === '/sourcing/companies');
+    expect(entry).toBeDefined();
+    expect(entry?.navItem).toBeUndefined();
+  });
+
+  it('the four new wave-6 route entries all have no navItem (API or sub-route)', () => {
+    const wave6Patterns = [
+      '/sourcing/companies',
+      '/sourcing/companies/:id',
+      '/sourcing/connections/:id/sync',
+      '/sourcing/dedupe-candidates/:id/resolve',
+    ];
+    for (const pattern of wave6Patterns) {
+      const entry = roleRoutes.find((e) => e.pattern === pattern);
+      expect(entry).toBeDefined();
+      expect(entry?.navItem).toBeUndefined();
+    }
+  });
+
+  it('no nav item appears for a role denied at the route level (exhaustive ALL_NAV_ITEMS check)', () => {
+    for (const navItem of ALL_NAV_ITEMS) {
+      const deniedRoles = ALL_ROLES.filter((r) => !(navItem.allowedRoles as Role[]).includes(r));
+      for (const deniedRole of deniedRoles) {
+        const items = navItemsForRole(deniedRole);
+        const isShown = items.some((i) => i.route === navItem.route);
+        expect(isShown).toBe(false);
+      }
+    }
   });
 });

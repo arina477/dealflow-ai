@@ -98,3 +98,33 @@ export {
   roleRoutes,
   rolesForRoute,
 } from './rbac';
+export type {
+  CompaniesListFilter,
+  Company,
+  CompanyProvenance,
+  Contact,
+  ContactProvenance,
+  DataSourceAdapter,
+  DataSourceConnection,
+  DataSourceConnectionRecord,
+  DedupeCandidate,
+  DedupeCandidateStatus,
+  DedupeResolveInput,
+  NormalizedContact,
+  NormalizedSourceRecord,
+  SyncSummary,
+} from './sourcing';
+export {
+  companiesListFilterSchema,
+  companyProvenanceSchema,
+  companySchema,
+  contactProvenanceSchema,
+  contactSchema,
+  dataSourceConnectionSchema,
+  dedupeCandidateSchema,
+  dedupeCandidateStatusEnum,
+  dedupeResolveInputSchema,
+  normalizedContactSchema,
+  normalizedSourceRecordSchema,
+  syncSummarySchema,
+} from './sourcing';

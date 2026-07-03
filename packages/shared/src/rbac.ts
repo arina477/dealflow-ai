@@ -178,9 +178,31 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     allowedRoles: ['analyst'],
     navItem: NAV_SOURCING,
   },
+  // Wave-6: /companies repointed to /sourcing/companies (namespace consolidation per P-3 Delta 5).
+  // The bare /companies placeholder (no page existed — verified no (app)/companies route dir) is
+  // superseded by the canonical /sourcing/companies pattern so all sourcing routes share a namespace.
+  // rbac.test.ts updated accordingly (karen LOW — named B-1/B-2 step).
   {
-    pattern: '/companies',
+    pattern: '/sourcing/companies',
     allowedRoles: ['analyst'],
+  },
+  {
+    pattern: '/sourcing/companies/:id',
+    allowedRoles: ['analyst'],
+  },
+  // Wave-6: API route entries for the sourcing data spine (analyst + admin per P-3 Action 3).
+  // No navItem — these are API-only endpoints; the sidebar nav for sourcing is /sourcing (NAV_SOURCING).
+  // Admin allowed on sync + resolve (config/ops surface); analyst is the primary sourcing persona.
+  {
+    // POST /sourcing/connections/:id/sync — on-demand ETL trigger.
+    pattern: '/sourcing/connections/:id/sync',
+    allowedRoles: ['analyst', 'admin'],
+  },
+  {
+    // POST /sourcing/dedupe-candidates/:id/resolve — human merge/reject decision.
+    // Audited via AuditService.append (sourcing-dedupe-resolve) in the same tx.
+    pattern: '/sourcing/dedupe-candidates/:id/resolve',
+    allowedRoles: ['analyst', 'admin'],
   },
   {
     pattern: '/templates',

@@ -39,6 +39,10 @@ describe('auditActionEnum', () => {
     expect(auditActionEnum.parse('disclaimer-change')).toBe('disclaimer-change');
   });
 
+  it('accepts wave-6 sourcing-dedupe-resolve action (additive extension)', () => {
+    expect(auditActionEnum.parse('sourcing-dedupe-resolve')).toBe('sourcing-dedupe-resolve');
+  });
+
   it('rejects unknown action values', () => {
     expect(() => auditActionEnum.parse('unknown-action')).toThrow();
     expect(() => auditActionEnum.parse('')).toThrow();
@@ -55,6 +59,16 @@ describe('auditActionEnum', () => {
     const lastWave4Idx = Math.max(...wave4.map((v) => options.indexOf(v)));
     const firstWave5Idx = Math.min(...wave5.map((v) => options.indexOf(v)));
     expect(lastWave4Idx).toBeLessThan(firstWave5Idx);
+  });
+
+  it('wave-5 actions appear before wave-6 sourcing-dedupe-resolve (serialization order stable)', () => {
+    // Wave-6 value appended after all wave-5 values — existing ordinal positions unchanged.
+    const options = auditActionEnum.options;
+    const wave5 = ['gate-evaluate', 'rule-change', 'suppression-change', 'disclaimer-change'];
+    const lastWave5Idx = Math.max(...wave5.map((v) => options.indexOf(v)));
+    const wave6Idx = options.indexOf('sourcing-dedupe-resolve');
+    expect(wave6Idx).toBeGreaterThan(-1);
+    expect(lastWave5Idx).toBeLessThan(wave6Idx);
   });
 
   it('existing wave-4 action string values are unchanged (no rename)', () => {
@@ -147,6 +161,14 @@ describe('auditEntryInputSchema', () => {
 
   it('rejects empty payloadHash', () => {
     expect(() => auditEntryInputSchema.parse({ ...validEntryInput, payloadHash: '' })).toThrow();
+  });
+
+  it('accepts sourcing-dedupe-resolve as action (wave-6 extension)', () => {
+    const result = auditEntryInputSchema.parse({
+      ...validEntryInput,
+      action: 'sourcing-dedupe-resolve',
+    });
+    expect(result.action).toBe('sourcing-dedupe-resolve');
   });
 
   it('rejects an unknown action', () => {
