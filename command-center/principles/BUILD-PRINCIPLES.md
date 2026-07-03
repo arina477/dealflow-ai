@@ -67,4 +67,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
 
 ## Rules
 
-_(no rules yet — promoted from L-2 distill across waves)_
+1. Resolve transitive high-severity audit advisories via pnpm-workspace.yaml overrides, not package.json.
+   Why: In pnpm 10+ the overrides key lives in pnpm-workspace.yaml, not package.json.
