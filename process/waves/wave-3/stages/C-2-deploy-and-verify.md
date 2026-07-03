@@ -1,159 +1,176 @@
-# C-2 — Deploy & verify (wave 3)
+# C-2 — Deploy & verify (wave 3) — RE-RUN after B-block boot fix
 
 **Wave 3 scope:** AppShell + role-aware dashboard at `/` + per-route RBAC enforcement.
-**Deploy commit:** `8a5854a` (full `8a5854ad04de4d3b888cd778a5351c947a9930b3`), main @ HEAD == origin/main.
+**Deploy commit:** `935b847` (full `935b84725a9b7a13fbeaf680970f45603fdba43e`), main @ HEAD == origin/main.
 **Mode:** automatic. **Gate owner:** head-ci-cd.
+**Supersedes:** the prior C-2 FAIL (api crash-loop on `8a5854a` — RolesGuard could not resolve AuthRepository in ComplianceModule). That B-block DI defect is fixed at `935b847` (AuthModule now EXPORTS AuthRepository) and re-verified live below.
 
 ---
 
 ## Outcome (headline)
 
-**ci_stage_verdict: FAIL.** The `dealflow-api` deployment on `8a5854a` **crash-looped on boot** with a
-NestJS dependency-injection resolution error and never reached "Nest application successfully started."
-`dealflow-web` deployed SUCCESS on `8a5854a`, but the wave's entire point — per-route RBAC enforcement,
-served by the api — is **UNVERIFIABLE** because the api never booted. Per the Iron Law this is a code
-(B-block) defect and is NOT fixed in C. Routed back to B-block.
-
-**Production is SAFE.** Railway's immutable-deploy safety retained the last-good api deployment
-(`ac721862`, version `bc558f7d`) as active; the FAILED `8a5854a` api build never took traffic. No outage.
-No rollback mutation was required (the armed rollback path was not needed).
+**ci_stage_verdict: PASS.** Both `dealflow-api` and `dealflow-web` deployed **SUCCESS** on the exact merge
+commit `935b847`. The api **booted clean** — deploymentLogs show `ComplianceModule dependencies initialized`
+followed by `Nest application successfully started` + `API listening on port 3001`, with **zero**
+`UnknownDependenciesException` (the prior crash cause is gone). `/health` serves `version: 935b847` (matches
+the deployed hash — no health-mirage). The wave's load-bearing deliverable — per-route RBAC enforcement served
+by the api — is **verified live**: compliance→200, advisor→403 (no leak), unauth→401. Login regression passes:
+real login sets a first-party session cookie, authed web `/` renders a role-aware dashboard (not bounced),
+unauth web `/` redirects to /login. Canary skipped (0 DAU < 1000). Production is on aligned `935b847` across
+api + web.
 
 ---
 
 ## Credential + provisioning (Action 0/1)
 
-- Railway credential present and usable (token in `APP_RAILWAY_TOKEN`; `Project-Access-Token` header; deploy-scoped GraphQL probe returned `data.project` with no `errors`).
+- Railway credential present and usable (token from `~/.config/claudomat/runtime.env`, `RAILWAY_TOKEN`/`APP_RAILWAY_TOKEN`; `Project-Access-Token` header; deploy-scoped GraphQL probe returned `data.project` with no `errors`).
 - Project `ce095f75-1f3d-4af9-939e-fe8532541475` (`app-arina-5ywq3s`), environment production `0e84f0b6-1b1d-469f-91b9-caf4e59c9ba8`.
 - Services confirmed (IDs match wave spec): dealflow-api `dcdb4ab4-…`, dealflow-web `06b07f19-…`, postgres `43bbb393-…`, supertokens-core `80790c7f-…`, supertokens-db `acf6eb46-…`.
 - NO new infra, NO schema change, NO new env vars this wave (as scoped).
 
 ## Schema safety check (additive-only Drizzle guard)
 
-- Diff `bc558f7d..8a5854a` contains **zero** application migration / `.sql` / drizzle files. Only `process/` transcript docs match `schema` (B-0-branch-and-schema.md — not code). **PASS — no migration, no destructive DDL.** Consistent with "NO migration this wave."
+- Diff `bc558f7d..935b847` contains **zero** application migration / `.sql` / drizzle files. The only `schema`-matching paths are `process/**/B-0-branch-and-schema.md` transcript docs (not code). Destructive-DDL scan (`DROP TABLE|DROP COLUMN|ALTER COLUMN|TRUNCATE|DELETE FROM`) over the delta returns **NONE**. **PASS — additive-only, no migration, no destructive DDL.** Consistent with "NO migration this wave."
 
 ## Rollback path armed (before any mutation)
 
 Cached last-good SUCCESS deployment IDs prior to triggering:
-- api rollback target: `ac721862-1138-44da-8b24-3c4adbec24bd` (SUCCESS, version `bc558f7d`)
-- web rollback target: `a4c60302-2c08-4abf-b426-1d41fca507d9` (SUCCESS)
+- api rollback target: `ac721862-1138-44da-8b24-3c4adbec24bd` (SUCCESS, version `bc558f7d`) — was active before this deploy.
+- web rollback target: `89704a4a-05e9-4671-ab10-8545eb865648` (SUCCESS, `8a5854a`) — was active before this deploy.
+- Rollback NOT needed — both new deploys reached SUCCESS and booted clean; Railway immutable-deploy would have retained last-good had either failed.
 
 ## Deploy trigger (Action 2) — deploymentId captured
 
-Updated api env `GIT_SHA=8a5854a` (targeted `variableUpsert`; other vars untouched — SUPERTOKENS_*, WEB_ORIGIN, INTERNAL_API_BASE_URL preserved and verified). Then `serviceInstanceDeployV2(commitSha: 8a5854ad…)` for both services — mutation returned deploymentId (guards against Railway "Wait for CI" phantom-skip; deploy was explicitly commanded, not webhook-inferred).
+Updated api env `GIT_SHA=935b847` (targeted `variableUpsert`; verified other 20 vars untouched — SUPERTOKENS_*, WEB_ORIGIN, INTERNAL_API_BASE_URL, DATABASE_URL preserved; var_count stayed 21). Then `serviceInstanceDeployV2(commitSha: 935b847…)` for both services — each mutation returned a deploymentId (guards against Railway "Wait for CI" phantom-skip; deploy was explicitly commanded over GraphQL, not webhook-inferred).
 
-- api new deployment: `fa196291-8dad-4a23-9b4f-4e99b0a9005a`
-- web new deployment: `89704a4a-05e9-4671-ab10-8545eb865648`
+- api new deployment: `9312744d-c0fb-4c32-94d9-325c30fd6d6f`
+- web new deployment: `750184ad-961e-49de-beb3-20a9a96f17bf`
 
 ## Inline poll to terminal (Action 4, ≤10min budget)
 
-| target | terminal status | elapsed |
-|---|---|---|
-| web (`89704a4a`) | **SUCCESS** | ~204s |
-| api (`fa196291`) | **FAILED** | ~366s |
+Polled each deployment by its specific deploymentId (not edges[0]):
 
-## Root cause (api boot failure) — classified, NOT fixed here
+| target | trail | terminal status | elapsed |
+|---|---|---|---|
+| web (`750184ad`) | BUILDING → SUCCESS | **SUCCESS** | ~81s |
+| api (`9312744d`) | BUILDING → DEPLOYING → SUCCESS | **SUCCESS** | ~222s |
 
-`deploymentLogs(fa196291)` — deterministic, repeated on both boot attempts:
+Both confirmed `status: SUCCESS` with `meta.commitHash == 935b84725a9b7a13fbeaf680970f45603fdba43e`.
+
+## Boot-clean verification (api DI fix — the load-bearing re-run reason)
+
+`deploymentLogs(9312744d)` boot trail:
 
 ```
 [NestFactory] Starting Nest application...
 [InstanceLoader] AppModule dependencies initialized
-[ExceptionHandler] UnknownDependenciesException [Error]: Nest can't resolve dependencies of the
-  RolesGuard (Reflector, ?). Please make sure that the argument AuthRepository at index [1] is
-  available in the ComplianceModule module.
-  type: 'RolesGuard', context.dependencies: [ Reflector, AuthRepository ], name: AuthRepository
+[InstanceLoader] HealthModule dependencies initialized
+[InstanceLoader] ComplianceModule dependencies initialized   <-- the module that crashed before, now resolves
+[InstanceLoader] AuthModule dependencies initialized
+[RoutesResolver] HealthController {/health}
+[RoutesResolver] AuthController {/auth}
+[RoutesResolver] ComplianceController {/compliance}
+[RouterExplorer] Mapped {/compliance/summary, GET} route
+[NestApplication] Nest application successfully started
+API listening on port 3001
 ```
 
-**Diagnosis:** the new `RolesGuard` (`apps/api/src/modules/auth/guards/roles.guard.ts`) constructor-injects
-`AuthRepository` at index [1] — this is the "guard now does a DB read" wiring the wave introduced. But
-`ComplianceModule` (`apps/api/src/modules/compliance/compliance.module.ts`) registers `RolesGuard`
-(as `APP_GUARD` or a controller-scoped guard) **without importing the module that provides/exports
-`AuthRepository`**. Nest cannot construct the guard → boot crash → crash-loop → FAILED. This is precisely
-the DI-wiring boot risk the wave flagged. It is a **B-block code defect**, not infra/env.
+- POSITIVE: `Nest application successfully started` present. ✓
+- NEGATIVE: `UnknownDependenciesException` / "can't resolve dependencies" / `[ExceptionHandler]` — **NONE**. ✓
+- The `/compliance/summary` route is mapped and the compliance-controller boot-assert (fail-closed non-empty @Roles) did not throw. **BOOT CLEAN — DI fix confirmed live.**
 
-**Classification tag:** `debugging` / NestJS runtime DI resolution (application source). Route per Iron Law
-back to B-block — fix `ComplianceModule` to import/provide `AuthRepository` (or the module that exports it),
-commit + push, re-run C-1 CI, then re-enter C-2. Also note: `auth.di-boot.spec.ts` / `compliance.service.spec.ts`
-exist in the diff but did not catch this — the DI graph is only fully resolved at real app bootstrap; a
-B-5-level `app.init()` boot smoke or a compile-time DI test would have caught it pre-C.
+## Health probe (Action 3) — version-grounded, not a bare 200
 
-## Live verification matrix — BLOCKED (api never booted)
+- `curl https://dealflow-api-production-66d4.up.railway.app/health` → HTTP 200, body `{"status":"ok","db":"ok","version":"935b847"}`. **version == deployed hash** — new code IS live (health-mirage explicitly avoided by asserting the version field, not the 200).
+- web `https://dealflow-web-production-a4f7.up.railway.app/` reachable.
 
-The wave's load-bearing checks CANNOT be evaluated; api is not serving `8a5854a`:
+## Live RBAC verification matrix (cookie jar, fresh unique test emails, minted via POST /auth/invite)
 
-| Check | Target | Result |
+Minted two fresh users via `POST /auth/invite {email, role}` → `POST /auth/signup {inviteToken, password}` (Set-Cookie session, role claim). `/auth/me` confirmed server-verified role claims (compliance / advisor). RolesGuard reads the role from the SuperTokens session claim, not client input.
+
+| Check | Actor | Expected | Result |
+|---|---|---|---|
+| GET /compliance/summary | compliance-role (session cookie) | 200 `{pendingCount,items}` | **200** — `{"pendingCount":0,"items":[]}` (correct shape) ✓ |
+| GET /compliance/summary | advisor-role (session cookie) | 403 deny, no leak | **403** — `{"message":"Forbidden","statusCode":403}` — no resource data, no role info ✓ |
+| GET /compliance/summary | unauthenticated (no cookie) | 401 | **401** ✓ |
+
+Enforcement is correct in both directions: compliance→200 and advisor→403 (not the inverse), unauth→401. This is exactly the enforcement the prior C-2 could not verify (api never booted).
+
+## Login regression (load-bearing)
+
+Login flows through `POST /auth/signin` (SuperTokens EmailPassword auto-route) via the web-origin same-origin rewrite (`next.config.ts` `/auth/signin` → api), so the session cookie is **first-party on the web domain**.
+
+| Check | Expected | Result |
 |---|---|---|
-| /health version == 8a5854a | api | **FAIL** — serves `bc558f7d` (old good code; new build never took traffic) |
-| boot clean ("Nest application successfully started", DB-read guard, compliance boot-assert non-empty roles) | api | **FAIL** — crash-loop on DI resolution before boot completes |
-| compliance-role user → GET /compliance/summary → 200 | RBAC | **UNVERIFIABLE** — endpoint's api not booted on new code |
-| advisor-role user → GET /compliance/summary → 403 | RBAC | **UNVERIFIABLE** |
-| unauthenticated → GET /compliance/summary → 401 | RBAC | **UNVERIFIABLE** |
-| login regression: sign in → session cookie → web `/` → 200 authed | login | **UNVERIFIABLE** — new web ↔ old api version mismatch; not a fair test |
-| unauth → web `/` → redirect to /login | login | **UNVERIFIABLE** |
-| /auth/*, /health ungated | api | **UNVERIFIABLE** on new code |
-
-Health-check-mirage note: api `/health` returns HTTP 200 right now, but the body version is `bc558f7d`
-(old), NOT `8a5854a`. Probing the global domain for a bare 200 would have fabricated a green — verdict is
-grounded on the version field + the FAILED deploymentId, not on the 200.
+| login (correct password) | success + session cookie set | **`{status:"OK"}`** + first-party `sAccessToken`/`sRefreshToken` on web domain ✓ |
+| login (wrong password) | rejected (not a rubber-stamp) | **`{status:"WRONG_CREDENTIALS_ERROR"}`** — success/failure distinguishable ✓ |
+| authed web `/` (with session cookie) | 200 role-aware dashboard, NOT bounced | **200**, no redirect; compliance user sees Compliance nav (×9), advisor user sees Mandates nav — **role-aware, genuinely gated (not a static shell)** ✓ |
+| unauth web `/` (no cookie) | redirect to /login | **307 → /login** ✓ |
+| web /login page | renders | **200** ✓ |
+| /auth/*, /health ungated | reachable on new code | AuthController {/auth} + HealthController {/health} mapped at boot; /health 200; unauth /compliance/summary 401 (allowlist RBAC only gates decorated routes) ✓ |
 
 ## Canary (Action 5) — skipped
 
 ```yaml
 canary_status: skipped
-canary_skip_reason: "DAU below threshold (0 real users < 1000); moot — api deploy FAILED, nothing new to canary."
+canary_skip_reason: "DAU below threshold (0 real users < 1000)."
 ```
 
 ## Production state after C-2
 
-- api: serving last-good `bc558f7d` (`ac721862` SUCCESS active); the two `8a5854a` attempts (`fa196291`, `ffa7c317`) are FAILED and inactive. No traffic degradation.
-- web: `8a5854a` SUCCESS live (`89704a4a`) — but now version-mismatched against the old api. Web should be reverted to its last-good (`a4c60302`) OR held until the api boot fix lands, at the founder/B-block's discretion during the fix cycle. Not reverted automatically to avoid a second unverified mutation; flagged for the fix wave.
+- api: serving `935b847` (`9312744d` SUCCESS active). Prior FAILED `8a5854a` attempts inactive; prior good `bc558f7d` (`ac721862`) superseded.
+- web: serving `935b847` (`750184ad` SUCCESS active). **api + web now aligned on the same commit** — the version-mismatch flagged in the prior C-2 is resolved.
 
 ---
 
 ## Verdict
 
 ```yaml
-ci_stage_verdict: FAIL
+ci_stage_verdict: PASS
 armed_verification_failed: false
 verdict_source: railway
 verdict_evidence:
-  - "railway api fa196291-8dad-4a23-9b4f-4e99b0a9005a: status FAILED on 8a5854a (NestJS DI UnknownDependenciesException: RolesGuard cannot resolve AuthRepository in ComplianceModule)"
-  - "railway web 89704a4a-05e9-4671-ab10-8545eb865648: status SUCCESS on 8a5854a"
-  - "api /health: 200 but version=bc558f7d (OLD) — new code NOT live; health-mirage avoided via version field"
-  - "schema safety: diff bc558f7d..8a5854a has zero migration/.sql files — additive-only PASS"
-  - "rollback armed pre-mutation: api ac721862 / web a4c60302 (SUCCESS) — not needed, immutable-deploy retained last-good"
+  - "railway api 9312744d-c0fb-4c32-94d9-325c30fd6d6f: status SUCCESS, meta.commitHash 935b84725a9b7a13fbeaf680970f45603fdba43e"
+  - "railway web 750184ad-961e-49de-beb3-20a9a96f17bf: status SUCCESS, meta.commitHash 935b84725a9b7a13fbeaf680970f45603fdba43e"
+  - "api deploymentLogs: 'ComplianceModule dependencies initialized' + 'Nest application successfully started' + 'API listening on port 3001'; ZERO UnknownDependenciesException (DI boot fix confirmed live)"
+  - "api /health: 200 {\"status\":\"ok\",\"db\":\"ok\",\"version\":\"935b847\"} — version matches deployed hash (no health-mirage)"
+  - "RBAC live: compliance-role GET /compliance/summary -> 200 {pendingCount:0,items:[]}; advisor-role -> 403 {message:Forbidden,statusCode:403} (no leak); unauth -> 401"
+  - "login regression: POST /auth/signin correct-pw -> {status:OK} + first-party session cookie; wrong-pw -> {status:WRONG_CREDENTIALS_ERROR}; authed web / -> 200 role-aware dashboard (compliance nav vs advisor Mandates nav differ); unauth web / -> 307 /login; /login -> 200"
+  - "schema safety: diff bc558f7d..935b847 has zero migration/.sql/drizzle files, zero destructive DDL -> additive-only PASS"
+  - "rollback armed pre-mutation: api ac721862 / web 89704a4a (SUCCESS) — not needed (both new deploys SUCCESS + clean boot)"
 deploy_targets:
-  - {platform: railway, service: dealflow-api, state: FAILED, commit: 8a5854a, deploymentId: fa196291-8dad-4a23-9b4f-4e99b0a9005a, active_version: bc558f7d, health_url: "https://dealflow-api-production-66d4.up.railway.app/health"}
-  - {platform: railway, service: dealflow-web, state: SUCCESS, commit: 8a5854a, deploymentId: 89704a4a-05e9-4671-ab10-8545eb865648, health_url: "https://dealflow-web-production-a4f7.up.railway.app/"}
+  - {platform: railway, service: dealflow-api, state: SUCCESS, commit: 935b847, deploymentId: 9312744d-c0fb-4c32-94d9-325c30fd6d6f, health_url: "https://dealflow-api-production-66d4.up.railway.app/health", version_served: 935b847}
+  - {platform: railway, service: dealflow-web, state: SUCCESS, commit: 935b847, deploymentId: 750184ad-961e-49de-beb3-20a9a96f17bf, health_url: "https://dealflow-web-production-a4f7.up.railway.app/"}
 async_monitor_id: ""
 canary_status: skipped
-canary_skip_reason: "0 DAU < 1000 threshold; also moot — api deploy FAILED"
+canary_skip_reason: "0 DAU < 1000 threshold"
 canary_window: {}
 canary_monitor_id: ""
 canary_alerts: []
-note: "api boot FAIL on 8a5854a = NestJS DI wiring defect (RolesGuard needs AuthRepository, ComplianceModule does not provide/import it). B-block code defect; Iron Law -> route back to B, do NOT fix in C. Production safe (old good code still serving). last-completed-action=Action 4 (inline-poll returned FAILED for api after 366s). Web SUCCESS but version-mismatched; hold/revert web during the api fix cycle."
+note: "C-2 re-run PASS on 935b847 (boot fix merged). api + web both SUCCESS + aligned on same commit. api boots clean (ComplianceModule resolves, Nest started, no UnknownDependenciesException). RBAC verified live (compliance 200 / advisor 403 / unauth 401). Login regression PASS (login works, authed / role-aware & not bounced, unauth->login). /health version==935b847. Schema additive-only. Rollback was armed (api ac721862 / web 89704a4a), not needed. Canary skipped (0 DAU)."
 
 head_signoff:
-  verdict: REJECTED
+  verdict: APPROVED
   stage: C-2
   reviewers: {}
-  failed_checks:
-    - "api deployment reached SUCCESS on the exact merge commit (api FAILED — crash-loop on boot)"
-    - "api boots clean: 'Nest application successfully started', guard DB-read wiring, compliance non-empty-roles boot-assert (crash before boot completes)"
-    - "/health version == deployed hash (serves old bc558f7d, not 8a5854a)"
-    - "RBAC live matrix compliance->200 / advisor->403 / unauth->401 (unverifiable; api not booted)"
-    - "login regression: login works + web / renders authed (unverifiable; web<->api version mismatch)"
+  failed_checks: []
   rationale: >
-    The dealflow-api deployment on 8a5854a crash-loops on boot with a deterministic NestJS
-    UnknownDependenciesException — RolesGuard constructor-injects AuthRepository at index [1], but
-    ComplianceModule (which registers the guard) does not import/provide the module that exports
-    AuthRepository. The app never reaches "Nest application successfully started," so the entire wave
-    deliverable (per-route RBAC enforcement served by the api) is unverifiable. This is a B-block code
-    defect (module DI graph), not infra/env, so per the C-block Iron Law it is NOT fixed in C — it returns
-    to the Build block. Schema safety passed (no migrations). Rollback was armed before mutating; it was
-    not needed because Railway's immutable-deploy retained the last-good api (bc558f7d) as active, so
-    production never degraded. Web deployed SUCCESS but is now version-mismatched against the old api and
-    should be held/reverted during the fix cycle. No green may be fabricated from the api's stale-200
-    /health — the version field proves the new code is not live.
-  next_action: REWORK_B-block
+    Both dealflow-api and dealflow-web deployed SUCCESS on the exact merge commit 935b847 (deploymentIds
+    9312744d / 750184ad, meta.commitHash matches, and 935b847 is main HEAD — provenance verified). The api
+    booted clean: deploymentLogs show ComplianceModule dependencies initialized and Nest application
+    successfully started with zero UnknownDependenciesException, proving the B-block DI export fix
+    (AuthModule now exports AuthRepository) resolved the prior crash-loop. Health is version-grounded, not a
+    bare 200 — /health returns version 935b847, matching the deployed hash, so the health-mirage failure mode
+    is excluded. The wave's load-bearing per-route RBAC enforcement is verified LIVE against the deployed
+    hash with fresh unique cookie-jar users minted via POST /auth/invite: compliance-role -> 200
+    {pendingCount,items}, advisor-role -> 403 with no data/role leak, unauthenticated -> 401 — correct in
+    both directions. Login regression passes: correct password yields {status:OK} + a first-party session
+    cookie, wrong password yields {status:WRONG_CREDENTIALS_ERROR} (so success is genuinely distinguished),
+    the authed web / renders a role-aware dashboard (compliance nav differs from advisor Mandates nav —
+    proving real role-gating, not a static shell) and is NOT bounced, and unauth / redirects to /login.
+    Schema safety passed (additive-only, zero migration/destructive DDL). Rollback was armed before mutating
+    (api ac721862 / web 89704a4a) but was not needed. Canary skips per the 0-DAU < 1000 threshold. No green
+    was fabricated: every check is grounded in the deployed 935b847 artifact (deploymentId + meta.commitHash
+    + boot logs + version field + live authenticated probes), not in green CI or a stale-cache signal.
+  next_action: PROCEED_TO_T
 ```

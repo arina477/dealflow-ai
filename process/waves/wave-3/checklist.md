@@ -31,7 +31,7 @@ BUILD:
 
 CI/CD:
 - [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify — **FAIL** (head-ci-cd REJECTED): api crash-loops on boot on 8a5854a (NestJS DI: RolesGuard cannot resolve AuthRepository in ComplianceModule). web SUCCESS. RBAC + login UNVERIFIABLE. Iron Law → route to B-block; prod safe (old api bc558f7d still serving). canary skipped (0 DAU). Rollback armed (api ac721862 / web a4c60302), not needed.
+- [x] C-2 Deploy & verify — **PASS** (head-ci-cd APPROVED, re-run on 935b847 after boot fix): api + web both SUCCESS on 935b847 (aligned). api boots clean (ComplianceModule resolves, "Nest application successfully started", zero UnknownDependenciesException — DI fix live). /health version==935b847. RBAC live: compliance 200 / advisor 403 / unauth 401. Login regression PASS (login works, authed / role-aware & not bounced, unauth→/login). Schema additive-only. Rollback armed (api ac721862 / web 89704a4a), not needed. Canary skipped (0 DAU). → PROCEED_TO_T.
 
 TEST:
 - [ ] T-1 Static
