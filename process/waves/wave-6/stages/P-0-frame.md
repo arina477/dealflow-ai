@@ -1,0 +1,17 @@
+# Wave 6 — P-0 Frame
+
+## Discover section
+- **wave_db_id:** ab074500-9825-46e8-a3f3-569e94eb5350 (wave_number 6, milestone_id backfilled M3)
+- **Prior-work:** M1 (foundation) + M2 (compliance backbone: audit log + pre-send gate) DONE + live. No prior sourcing work. M3 = first visible deal-flow product (data spine). databases.md has the companies/contacts/raw_companies schema sketch (reconciled to as-built for compliance tables at wave-5 L-1).
+- **Roadmap milestone:** M3 (Deal sourcing & company/contact data, in_progress, **product-feature** → mvp-thinner ran). First bundle = ingest→stage→dedupe→canonical + companies/contacts screen.
+- **Spec-contract short-circuit:** no-prior-spec → full P-1..P-3.
+- **External-SDK check (P-3):** adapter uses FIXTURE/CSV/mock adapters this wave (real provider SDKs deferred — no new external SDK now; confirm at P-3). If a real provider is added later → external-sdk-integration-rules + possibly a MONITOR.
+- **Security-scope:** companies/contacts = external-party data (not user auth/PII-of-users) → T-8 Security NOT force-triggered by this wave (no auth/payments/sessions surface); provenance + data-handling matter but no security-scope-tightened gate. (P-4 confirms.)
+
+## Reframe section
+- **Original framing:** data_source_connections + pluggable DataSourceAdapter (fixture adapter now) + ingestion/ETL + on-demand SourceSyncJob → raw_companies staging + dedupe engine (raw→canonical companies+contacts + provenance + dedupe_candidates review queue) + companies-contacts screen (view/filter/clean).
+- **problem-framer:** PROCEED. Cause-level sound: no symptom-masking; dedupe antipatterns pre-empted (not exact-only, not destructive-merge, idempotent, has review-path); adapter de-risked with fixture adapters (not premature abstraction); staging→canonical + non-null provenance correct; thin vertical slice. **Watch-item (→ P-2/T):** sandbox fixtures MUST contain cross-source DUPLICATES so the merge path is actually exercised (not happy-path green).
+- **ceo-reviewer:** PROCEED (HOLD-SCOPE). Deduped provenance-tracked canonical company universe is the correct, appropriately-ambitious foundation the rest of the loop (M4 mandates → M5 matching → M6 outreach) depends on; traces to bet #1 (integrated platform); correctly sequenced (data before consumers); a thinner CSV slice would be rebuilt when matching/compliance touches it (not gold-plating).
+- **mvp-thinner:** PROCEED (no thinning). Bundle arrives PRE-THINNED (fixture adapters, no-ML dedupe, on-demand sync; scheduled/incremental-sync + contact-enrichment + sourcing-workspace-page already deferred by the authors). The 2 probed split candidates — fuzzy-match/dedupe_candidates review queue + the screen's clean/merge actions — are mvp-CRITICAL (the metric's "deduped...with provenance" + "clean" language); splitting would drop a layer, not shed gold-plating.
+- **Disposition:** PROCEED (all three).
+- **Final framing:** Build the deal-sourcing data spine — data_source_connections + DataSourceAdapter (fixture adapter) + ingestion/ETL + on-demand SourceSyncJob → raw_companies staging + deterministic dedupe engine (raw→canonical companies+contacts + provenance + review queue for uncertain merges) + companies-contacts screen (view/filter/clean). Carry: fixtures MUST have cross-source dups (P-2 AC + T-block). D-block runs if no companies/contacts mockup. No new external SDK (fixture adapter). No security-scope gate (external-party data, not user-auth/PII).

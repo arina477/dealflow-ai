@@ -9,11 +9,11 @@ Active milestone: b372bbf7-09f3-4eb0-87df-28b5ec52bfc2 — M3 — Deal sourcing 
 Pending ritual outcomes affecting P-0: M3 is `## Class product-feature` → P-0 runs mvp-thinner. UI wave → D-block runs. Deal-source provider SDKs → P-3 SDK-research likely (external-sdk-integration-rules.md). Backlog under M3: 3 re-parented M1 follow-ups (bfadcec1, 6fe232e3, d7f716b4) available for P-0 unassigned/queue triage, NOT part of this bundle.
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe) — PROCEED (problem-framer + ceo-reviewer + mvp-thinner all PROCEED; carry: fixtures need cross-source dups; fixture adapter=no new SDK)
+- [x] P-1 Decompose — PROCEED, multi-spec (4 tasks, ~4500 LOC), design_gap false (companies-contacts.html → D skips)
+- [x] P-2 Spec — multi-spec data-spine contract in seed ff378a95 (4 blocks); cross-source-dedup + provenance + env-secrets carried
+- [x] P-3 Plan — approach (6 arch deltas w/ alternatives) + file-level plan (24 steps, B-1..B-5); NO new external SDK (fixture adapter, JSON fixture zero-dep); schema additive+down; self-consistency CLEAN; gate flag: data-engineer catalog gap (→ backend-developer+postgres-pro)
+- [x] P-4 Gate — PASSED (head-product APPROVED; karen+jenny APPROVE after databases.md-reconcile + contact_provenance remediation; Gemini 429)
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
