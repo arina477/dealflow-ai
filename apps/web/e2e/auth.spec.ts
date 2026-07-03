@@ -127,8 +127,8 @@ test.describe('login success', () => {
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
     // Verify identity chip shows the correct email and role.
-    await expect(page.getByText(testEmail)).toBeVisible();
-    await expect(page.getByText('advisor')).toBeVisible();
+    await expect(page.getByText(testEmail).first()).toBeVisible();
+    await expect(page.getByText('advisor').first()).toBeVisible();
   });
 });
 
