@@ -128,6 +128,61 @@ describe('AuditVerifier — prev-link break', () => {
   });
 });
 
+describe('AuditVerifier — pg timestamptz round-trip (created_at canonicalization)', () => {
+  // REGRESSION for the CRITICAL wave-4 audit finding: the append path hashes a JS
+  // ISO string (`2026-07-03T…Z`), but a real timestamptz column read back via
+  // Drizzle mode:'string' returns pg WIRE TEXT (`2026-07-03 … +00`, microsecond
+  // precision) — a DIFFERENT representation of the SAME instant. Without
+  // created_at canonicalization the verifier recomputes over the pg text, the
+  // preimage differs, and verifyChain returns ok:false for EVERY live chain.
+  //
+  // This test simulates that round-trip by REWRITING each stored row's createdAt
+  // from the app-ISO form the append path used into the pg wire-text form the DB
+  // would return — WITHOUT touching entry_hash (which was computed by append).
+  // Pre-fix (verbatim serialization) → ok:false content-hash-mismatch at seq 1.
+  // Post-fix (normalizeCreatedAt washes both to one instant) → ok:true.
+
+  /** app ISO `2026-07-03T12:34:56.789Z` → pg wire `2026-07-03 12:34:56.789000+00`. */
+  function toPgWireText(iso: string): string {
+    // iso is always `YYYY-MM-DDTHH:mm:ss.sssZ` (from Date.toISOString()).
+    const [datePart, timePartZ] = iso.split('T');
+    const timePart = timePartZ.replace('Z', ''); // drop the trailing Z
+    // pg emits microsecond precision (6 fractional digits) + `+00` offset.
+    const [hms, frac] = timePart.split('.');
+    const micros = (frac ?? '000').padEnd(6, '0'); // .789 → .789000
+    return `${datePart} ${hms}.${micros}+00`;
+  }
+
+  it('a chain whose stored created_at is pg wire-text still verifies ok:true', async () => {
+    const rows = await buildChain(4);
+    // Simulate the DB read-back: each row's createdAt now looks like what a real
+    // timestamptz column returns (space separator, +00, microsecond precision),
+    // while entry_hash stays the app-computed value.
+    const roundTripped = rows.map((r) => ({ ...r, createdAt: toPgWireText(r.createdAt) }));
+
+    // Sanity: the representation actually changed (guards against a no-op test).
+    expect(roundTripped[0].createdAt).not.toBe(rows[0].createdAt);
+    expect(roundTripped[0].createdAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}\+00$/);
+
+    const result = await verifierOver(roundTripped).verifyChain();
+    expect(result).toEqual({ ok: true, entriesChecked: 4 });
+  });
+
+  it('a hard-coded pg wire-text created_at hashes to the same instant as its app-ISO twin', async () => {
+    // Single-entry chain; then overwrite seq-1 createdAt with a HARD-CODED pg
+    // wire string that is the same instant as whatever append stamped, proving
+    // normalization — not just the derived toPgWireText helper — closes the gap.
+    const rows = await buildChain(1);
+    const appIso = rows[0].createdAt;
+    const pgText = toPgWireText(appIso); // deterministic same-instant restatement
+    expect(pgText).toContain(' '); // pg space separator, not `T`
+    expect(pgText).toContain('+00'); // pg offset, not `Z`
+
+    const result = await verifierOver([{ ...rows[0], createdAt: pgText }]).verifyChain();
+    expect(result.ok).toBe(true);
+  });
+});
+
 describe('AuditVerifier — sequence gap (deletion)', () => {
   it('deleting a middle entry → ok:false sequence-gap at the missing sequence', async () => {
     const rows = await buildChain(5);

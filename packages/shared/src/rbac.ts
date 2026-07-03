@@ -181,11 +181,18 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     navItem: NAV_COMPLIANCE,
   },
   {
+    // The human integrity PAGE is compliance-only (journey row 16, persona=Comp):
+    // the audit-log UI is compliance's surface. NAV is compliance-only by design —
+    // do NOT add admin here (keep the nav journey-faithful).
     pattern: '/compliance/audit-log',
     allowedRoles: ['compliance'],
     navItem: NAV_AUDIT_LOG,
   },
   {
+    // INTENTIONAL split from the page above: the verify ENDPOINT additionally
+    // allows admin for API/automation-driven ops verification (no nav item — it
+    // is API-only, not a page in admin's navigation). The page stays compliance's
+    // human surface; the endpoint is the machine/ops surface. Not a bug.
     pattern: '/compliance/audit-log/verify',
     allowedRoles: ['compliance', 'admin'],
   },

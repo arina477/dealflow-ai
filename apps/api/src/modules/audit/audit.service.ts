@@ -81,11 +81,13 @@ export class AuditService {
     const prevHash = tail === null ? GENESIS_PREV_HASH : tail.entryHash;
     const nextSeq = tail === null ? 1 : tail.sequenceNumber + 1;
 
-    // The DB clock stamps created_at, but the hash must cover the SAME value
-    // that is stored. We generate it here and pass it to the INSERT verbatim so
-    // the hashed created_at == the stored created_at. (An ISO string with tz;
-    // Postgres timestamptz round-trips it, and the verifier reads it back
-    // byte-for-byte via mode:'string'.)
+    // The DB clock's stored created_at and the app's hashed created_at are the
+    // SAME instant but pg's timestamptz read-back is a DIFFERENT string form
+    // (space/`+00`/microsecond) than this app-ISO. canonicalSerialization()
+    // normalizes BOTH forms to one canonical millisecond ISO string before
+    // hashing, so append-bytes == verify-bytes regardless of pg round-trip.
+    // We stamp millisecond-precision ISO here (toISOString() is always ms) so
+    // pg never stores sub-millisecond precision that could shift the rounding.
     const createdAt = new Date().toISOString();
 
     const chainVersion = this.keyring.currentVersion;
@@ -113,6 +115,36 @@ export class AuditService {
       prevHash,
       entryHash,
     });
+
+    // (5) Self-check tripwire: recompute the hash over the STORED row (whose
+    // created_at has now round-tripped through the timestamptz column) and
+    // assert it reproduces the entry_hash we just wrote. This catches any
+    // created_at (or other field) representation drift AT WRITE TIME, inside the
+    // caller's tx, so a chain that would not verify live never commits. Cheap
+    // (one HMAC) and self-heals the class of bug this defends against.
+    const selfHash = computeEntryHash(
+      {
+        sequenceNumber: stored.sequenceNumber,
+        actorUserId: stored.actorUserId,
+        actorRole: stored.actorRole,
+        action: stored.action,
+        resourceType: stored.resourceType,
+        resourceId: stored.resourceId,
+        contentHash: stored.contentHash,
+        payloadHash: stored.payloadHash,
+        chainVersion: stored.chainVersion,
+        createdAt: stored.createdAt,
+      },
+      stored.prevHash,
+      key
+    );
+    if (selfHash !== stored.entryHash) {
+      throw new Error(
+        `AuditService.append self-check failed at sequence_number=${stored.sequenceNumber}: ` +
+          'the stored row does not reproduce its entry_hash. Rolling back (chain would not ' +
+          'verify live). This indicates a created_at/field serialization drift.'
+      );
+    }
 
     return toAuditLogEntry(stored);
   }

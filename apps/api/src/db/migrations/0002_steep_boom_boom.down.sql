@@ -4,13 +4,18 @@
 -- this migration is fully additive-reversible.
 --
 -- Drop order:
---   1. Trigger first (depends on the function and the table)
---   2. Trigger function
+--   1. Triggers first (depend on the functions and the table)
+--   2. Trigger functions
 --   3. Table (drops the FK constraint and identity sequence automatically)
 -- No REVOKE/GRANT rollback needed — dropping the table removes the object
--- the grant targeted; the grant ceases to exist with the table.
+-- the grant/revoke targeted; the grants (incl. the PUBLIC revoke) cease to
+-- exist with the table.
 
+DROP TRIGGER IF EXISTS audit_log_no_truncate ON audit_log_entries;
+--> statement-breakpoint
 DROP TRIGGER IF EXISTS audit_log_no_mutate ON audit_log_entries;
+--> statement-breakpoint
+DROP FUNCTION IF EXISTS audit_log_block_truncate();
 --> statement-breakpoint
 DROP FUNCTION IF EXISTS audit_log_block_mutation();
 --> statement-breakpoint

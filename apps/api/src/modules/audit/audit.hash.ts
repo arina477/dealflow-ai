@@ -31,9 +31,20 @@
  *     legitimate hex/uuid/text field can produce), so null and the literal
  *     string "null" are distinguishable — explicit null handling.
  *   - sequence_number and chain_version are emitted as base-10 integer strings.
- *   - created_at is the DB-produced timestamptz string, serialized verbatim (the
- *     server clock value that was stored; the verifier reads the SAME stored
- *     string, so the byte layout round-trips exactly).
+ *   - created_at is NORMALIZED to a canonical millisecond ISO-8601 UTC string
+ *     (`YYYY-MM-DDTHH:mm:ss.sssZ`) via `normalizeCreatedAt()` BEFORE hashing.
+ *     This is load-bearing: the append path hashes a JS `new Date().toISOString()`
+ *     value, but Postgres stores it in `timestamptz` and Drizzle `mode:'string'`
+ *     reads it back as pg WIRE TEXT — a DIFFERENT representation of the SAME
+ *     instant (space separator, `+00` offset instead of `Z`, and MICROSECOND
+ *     precision, e.g. `2026-07-03 12:34:56.789000+00`). Serializing verbatim would
+ *     make the verifier's recompute preimage differ byte-for-byte from the append
+ *     preimage → HMAC mismatch on EVERY live chain. Normalizing both sides through
+ *     the same `new Date(...).toISOString()` funnel collapses every equivalent
+ *     representation to one canonical instant string, so append-bytes == verify-bytes
+ *     regardless of pg's storage/read-back format. Millisecond truncation is the
+ *     canonical precision (the append value is already ms-precision, and pg's
+ *     trailing `000` sub-ms washes out under Date parsing).
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -63,6 +74,31 @@ function enc(value: string | null): string {
 }
 
 /**
+ * Normalize a created_at value to the canonical millisecond ISO-8601 UTC string.
+ *
+ * The INVARIANT this guarantees: the append path (which hands us a JS
+ * `new Date().toISOString()`, e.g. `2026-07-03T12:34:56.789Z`) and the verify
+ * path (which hands us the pg `timestamptz` wire-text read-back via Drizzle
+ * `mode:'string'`, e.g. `2026-07-03 12:34:56.789000+00`) BOTH funnel through
+ * `new Date(input).toISOString()` here — so both emit the IDENTICAL canonical
+ * string for the same stored instant, and thus the identical hash preimage.
+ *
+ * `new Date(...)` parses both the ISO `T…Z` form and the pg space/`+00` form to
+ * the same epoch-ms instant (Node's Date parser accepts both), and
+ * `.toISOString()` always emits exactly millisecond precision with a `Z` suffix,
+ * truncating pg's microsecond `.789000` to `.789`. Verified deterministic in Node.
+ *
+ * Throws on an unparseable value (NaN) rather than silently hashing `Invalid Date`.
+ */
+function normalizeCreatedAt(createdAt: string): string {
+  const ms = Date.parse(createdAt);
+  if (Number.isNaN(ms)) {
+    throw new Error(`canonicalSerialization: unparseable created_at value: "${createdAt}"`);
+  }
+  return new Date(ms).toISOString();
+}
+
+/**
  * Build the canonical, versioned byte string for an entry.
  *
  * The field ORDER below is the load-bearing v1 contract. See the file header.
@@ -89,7 +125,9 @@ export function canonicalSerialization(fields: HashableEntryFields, prevHash: st
     `content_hash=${fields.contentHash}\n` +
     `payload_hash=${fields.payloadHash}\n` +
     `chain_version=${fields.chainVersion.toString(10)}\n` +
-    `created_at=${fields.createdAt}\n` +
+    // NORMALIZED — collapses pg wire-text and app-ISO to one canonical instant
+    // string so append-bytes == verify-bytes. See normalizeCreatedAt() + header.
+    `created_at=${normalizeCreatedAt(fields.createdAt)}\n` +
     `prev_hash=${prevHash}\n`
   );
 }
