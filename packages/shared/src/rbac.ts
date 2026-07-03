@@ -118,6 +118,19 @@ const NAV_AUDIT_LOG: NavItem = {
   allowedRoles: ['compliance'],
 };
 
+// Wave-5: Compliance Settings nav item (rules-engine config surface).
+// Route /compliance/settings is compliance-only (RBAC unchanged from wave-4);
+// we attach a navItem so it appears in the sidebar for compliance users.
+// nav⊆RBAC holds by construction: navItem.allowedRoles references the same
+// literal as the route entry's allowedRoles below.
+const NAV_COMPLIANCE_SETTINGS: NavItem = {
+  label: 'Rules',
+  route: '/compliance/settings',
+  icon: 'sliders',
+  group: 'workspace',
+  allowedRoles: ['compliance'],
+};
+
 // ---------- Route entries (the canonical role → route matrix) ----------
 
 export const roleRoutes: ReadonlyArray<RouteEntry> = [
@@ -197,8 +210,30 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     allowedRoles: ['compliance', 'admin'],
   },
   {
+    // Wave-5: navItem attached so compliance sees 'Rules' in sidebar.
+    // allowedRoles remains compliance-only (unchanged from wave-4).
+    // The SoD APPROVER role restriction ('compliance' only, admin excluded)
+    // is enforced in the gate service (B-2), NOT here — these CRUD routes
+    // allow admin for config management, per the plan's SoD distinction.
     pattern: '/compliance/settings',
     allowedRoles: ['compliance'],
+    navItem: NAV_COMPLIANCE_SETTINGS,
+  },
+  // Wave-5: CRUD API route entries — compliance/admin (config management).
+  // SoD distinction: these are config-management routes (compliance/admin);
+  // the SoD APPROVER check (compliance-only) is enforced server-side in the
+  // gate service's sod evaluator, not via route RBAC.
+  {
+    pattern: '/compliance/rules',
+    allowedRoles: ['compliance', 'admin'],
+  },
+  {
+    pattern: '/compliance/suppression',
+    allowedRoles: ['compliance', 'admin'],
+  },
+  {
+    pattern: '/compliance/disclaimers',
+    allowedRoles: ['compliance', 'admin'],
   },
   {
     pattern: '/compliance/summary',
@@ -359,6 +394,7 @@ export const ALL_NAV_ITEMS: ReadonlyArray<NavItem> = [
   NAV_SOURCING,
   NAV_COMPLIANCE,
   NAV_AUDIT_LOG,
+  NAV_COMPLIANCE_SETTINGS,
   NAV_TEAM,
   NAV_SETTINGS,
 ];

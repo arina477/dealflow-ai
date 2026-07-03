@@ -28,7 +28,23 @@ export type AuditBreakReason = z.infer<typeof auditBreakReasonEnum>;
 // Zod enum gives shared type safety for the known set now.
 // ---------------------------------------------------------------------------
 
-export const auditActionEnum = z.enum(['verify-chain', 'compose', 'approve', 'send', 'suppress']);
+export const auditActionEnum = z.enum([
+  // --- Wave-4 actions (stable; serialization order must not change) ---
+  'verify-chain',
+  'compose',
+  'approve',
+  'send',
+  'suppress',
+  // --- Wave-5 compliance-gate + config-mutation actions (additive) ---
+  /** Gate evaluation: a GateVerdict was computed and recorded. */
+  'gate-evaluate',
+  /** A compliance_rules row was created, updated, or toggled. */
+  'rule-change',
+  /** A suppression_list row was created or deleted. */
+  'suppression-change',
+  /** A disclaimer_templates row was versioned (edit = insert new version). */
+  'disclaimer-change',
+]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;
 

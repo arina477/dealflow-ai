@@ -517,6 +517,10 @@ describe('roleRoutes — completeness against pinned matrix', () => {
     ['/compliance/audit-log/verify', ['compliance', 'admin']],
     ['/compliance/settings', ['compliance']],
     ['/compliance/summary', ['compliance', 'admin']],
+    // Wave-5 CRUD routes (compliance + admin for config management)
+    ['/compliance/rules', ['compliance', 'admin']],
+    ['/compliance/suppression', ['compliance', 'admin']],
+    ['/compliance/disclaimers', ['compliance', 'admin']],
     ['/admin/users', ['admin']],
     ['/admin/settings', ['admin']],
     ['/admin/integrations', ['admin']],
@@ -607,7 +611,7 @@ describe('wave-4 — Audit Log nav item (compliance role only)', () => {
   });
 });
 
-describe('wave-4 — /compliance/settings untouched', () => {
+describe('wave-4 — /compliance/settings (prior state, superseded by wave-5)', () => {
   it('/compliance/settings remains compliance-only (unchanged from pre-wave-4)', () => {
     const roles = rolesForRoute('/compliance/settings');
     expect([...roles].sort()).toEqual(['compliance']);
@@ -620,11 +624,147 @@ describe('wave-4 — /compliance/settings untouched', () => {
   it('admin is denied /compliance/settings', () => {
     expect(canAccess('admin', '/compliance/settings')).toBe(false);
   });
+});
 
-  it('/compliance/settings has NO nav item (Rules Engine deferred)', () => {
+// ---------------------------------------------------------------------------
+// Wave-5 additions — compliance CRUD routes + /compliance/settings navItem
+// ---------------------------------------------------------------------------
+
+describe('wave-5 — CRUD routes RBAC (compliance + admin)', () => {
+  it('/compliance/rules → compliance + admin', () => {
+    const roles = rolesForRoute('/compliance/rules');
+    expect([...roles].sort()).toEqual(['admin', 'compliance']);
+  });
+
+  it('/compliance/suppression → compliance + admin', () => {
+    const roles = rolesForRoute('/compliance/suppression');
+    expect([...roles].sort()).toEqual(['admin', 'compliance']);
+  });
+
+  it('/compliance/disclaimers → compliance + admin', () => {
+    const roles = rolesForRoute('/compliance/disclaimers');
+    expect([...roles].sort()).toEqual(['admin', 'compliance']);
+  });
+
+  it('compliance can access all three CRUD routes', () => {
+    expect(canAccess('compliance', '/compliance/rules')).toBe(true);
+    expect(canAccess('compliance', '/compliance/suppression')).toBe(true);
+    expect(canAccess('compliance', '/compliance/disclaimers')).toBe(true);
+  });
+
+  it('admin can access all three CRUD routes', () => {
+    expect(canAccess('admin', '/compliance/rules')).toBe(true);
+    expect(canAccess('admin', '/compliance/suppression')).toBe(true);
+    expect(canAccess('admin', '/compliance/disclaimers')).toBe(true);
+  });
+
+  it('advisor is denied all three CRUD routes', () => {
+    expect(canAccess('advisor', '/compliance/rules')).toBe(false);
+    expect(canAccess('advisor', '/compliance/suppression')).toBe(false);
+    expect(canAccess('advisor', '/compliance/disclaimers')).toBe(false);
+  });
+
+  it('analyst is denied all three CRUD routes', () => {
+    expect(canAccess('analyst', '/compliance/rules')).toBe(false);
+    expect(canAccess('analyst', '/compliance/suppression')).toBe(false);
+    expect(canAccess('analyst', '/compliance/disclaimers')).toBe(false);
+  });
+});
+
+describe('wave-5 — /compliance/settings navItem (Rules sidebar item for compliance)', () => {
+  it('/compliance/settings has a navItem after wave-5 addition', () => {
     const entry = roleRoutes.find((e) => e.pattern === '/compliance/settings');
     expect(entry).toBeDefined();
-    expect(entry?.navItem).toBeUndefined();
+    expect(entry?.navItem).toBeDefined();
+  });
+
+  it('/compliance/settings navItem appears for compliance in navItemsForRole', () => {
+    const items = navItemsForRole('compliance');
+    const routes = items.map((i) => i.route);
+    expect(routes).toContain('/compliance/settings');
+  });
+
+  it('/compliance/settings navItem does NOT appear for admin (admin denied at route level)', () => {
+    const items = navItemsForRole('admin');
+    const routes = items.map((i) => i.route);
+    expect(routes).not.toContain('/compliance/settings');
+  });
+
+  it('/compliance/settings navItem does NOT appear for advisor', () => {
+    expect(navItemsForRole('advisor').some((i) => i.route === '/compliance/settings')).toBe(false);
+  });
+
+  it('/compliance/settings navItem does NOT appear for analyst', () => {
+    expect(navItemsForRole('analyst').some((i) => i.route === '/compliance/settings')).toBe(false);
+  });
+
+  it('/compliance/settings navItem has correct icon and group', () => {
+    const items = navItemsForRole('compliance');
+    const settingsItem = items.find((i) => i.route === '/compliance/settings');
+    expect(settingsItem).toBeDefined();
+    expect(settingsItem?.icon).toBe('sliders');
+    expect(settingsItem?.group).toBe('workspace');
+  });
+
+  it('/compliance/settings navItem is in ALL_NAV_ITEMS', () => {
+    expect(ALL_NAV_ITEMS.some((i) => i.route === '/compliance/settings')).toBe(true);
+  });
+});
+
+describe('wave-5 — /compliance/audit-log + /compliance/audit-log/verify UNTOUCHED', () => {
+  it('/compliance/audit-log remains compliance-only', () => {
+    expect([...rolesForRoute('/compliance/audit-log')].sort()).toEqual(['compliance']);
+  });
+
+  it('/compliance/audit-log/verify remains compliance + admin', () => {
+    expect([...rolesForRoute('/compliance/audit-log/verify')].sort()).toEqual([
+      'admin',
+      'compliance',
+    ]);
+  });
+
+  it('/compliance/audit-log navItem still appears for compliance', () => {
+    const items = navItemsForRole('compliance');
+    expect(items.some((i) => i.route === '/compliance/audit-log')).toBe(true);
+  });
+
+  it('/compliance/audit-log navItem still does NOT appear for admin', () => {
+    expect(navItemsForRole('admin').some((i) => i.route === '/compliance/audit-log')).toBe(false);
+  });
+});
+
+describe('wave-5 — nav ⊆ RBAC invariant preserved after wave-5 additions', () => {
+  for (const role of ALL_ROLES) {
+    it(`navItemsForRole('${role}') — every item still passes canAccess after wave-5 additions`, () => {
+      const items = navItemsForRole(role);
+      for (const item of items) {
+        expect(canAccess(role, item.route)).toBe(true);
+      }
+    });
+  }
+
+  it('no nav item appears for a role denied at the route level (ALL_NAV_ITEMS exhaustive check)', () => {
+    for (const navItem of ALL_NAV_ITEMS) {
+      const deniedRoles = ALL_ROLES.filter((r) => !(navItem.allowedRoles as Role[]).includes(r));
+      for (const deniedRole of deniedRoles) {
+        const items = navItemsForRole(deniedRole);
+        const isShown = items.some((i) => i.route === navItem.route);
+        expect(isShown).toBe(false);
+      }
+    }
+  });
+
+  it('the three new CRUD routes have no navItem (API-only, not sidebar pages)', () => {
+    const crudPatterns = [
+      '/compliance/rules',
+      '/compliance/suppression',
+      '/compliance/disclaimers',
+    ];
+    for (const pattern of crudPatterns) {
+      const entry = roleRoutes.find((e) => e.pattern === pattern);
+      expect(entry).toBeDefined();
+      expect(entry?.navItem).toBeUndefined();
+    }
   });
 });
 

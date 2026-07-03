@@ -39,6 +39,53 @@ export {
 } from './auth';
 export type { ComplianceSummaryResponse } from './compliance';
 export { complianceSummaryResponseSchema } from './compliance';
+export type {
+  BlockReason,
+  BlockReasonCode,
+  GateContext,
+  GateVerdict,
+} from './compliance-gate';
+export {
+  blockReasonEnum,
+  blockReasonSchema,
+  contentHashMismatchBlockSchema,
+  gateContextSchema,
+  gateVerdictSchema,
+  missingDisclaimerBlockSchema,
+  noApprovalBlockSchema,
+  sodBlockSchema,
+  suppressionBlockSchema,
+} from './compliance-gate';
+export type {
+  ApprovalCreate,
+  ApprovalStatus,
+  ComplianceApproval,
+  ComplianceRule,
+  ComplianceRuleType,
+  DisclaimerCreate,
+  DisclaimerTemplate,
+  DisclaimerUpdate,
+  RuleCreate,
+  RuleUpdate,
+  SuppressionCreate,
+  SuppressionEntry,
+  SuppressionMatchType,
+} from './compliance-rules';
+export {
+  approvalCreateSchema,
+  approvalStatusEnum,
+  complianceApprovalSchema,
+  complianceRuleSchema,
+  complianceRuleTypeEnum,
+  disclaimerCreateSchema,
+  disclaimerTemplateSchema,
+  disclaimerUpdateSchema,
+  ruleCreateSchema,
+  ruleUpdateSchema,
+  suppressionCreateSchema,
+  suppressionEntrySchema,
+  suppressionMatchTypeEnum,
+} from './compliance-rules';
 export { parseEnv } from './env';
 export type { HealthResponse } from './health';
 export { healthResponseSchema } from './health';

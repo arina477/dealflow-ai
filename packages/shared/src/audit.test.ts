@@ -24,7 +24,7 @@ describe('GENESIS_PREV_HASH', () => {
 // ---------------------------------------------------------------------------
 
 describe('auditActionEnum', () => {
-  it('accepts all known action values', () => {
+  it('accepts all wave-4 action values (existing — must remain stable)', () => {
     expect(auditActionEnum.parse('verify-chain')).toBe('verify-chain');
     expect(auditActionEnum.parse('compose')).toBe('compose');
     expect(auditActionEnum.parse('approve')).toBe('approve');
@@ -32,10 +32,44 @@ describe('auditActionEnum', () => {
     expect(auditActionEnum.parse('suppress')).toBe('suppress');
   });
 
+  it('accepts all wave-5 compliance action values (additive extension)', () => {
+    expect(auditActionEnum.parse('gate-evaluate')).toBe('gate-evaluate');
+    expect(auditActionEnum.parse('rule-change')).toBe('rule-change');
+    expect(auditActionEnum.parse('suppression-change')).toBe('suppression-change');
+    expect(auditActionEnum.parse('disclaimer-change')).toBe('disclaimer-change');
+  });
+
   it('rejects unknown action values', () => {
     expect(() => auditActionEnum.parse('unknown-action')).toThrow();
     expect(() => auditActionEnum.parse('')).toThrow();
     expect(() => auditActionEnum.parse(42)).toThrow();
+  });
+
+  it('wave-4 actions appear before wave-5 actions in the enum options (serialization order stable)', () => {
+    // The enum options array reflects the declaration order.
+    // wave-4 values must precede wave-5 values so existing chain_version
+    // serialization that depends on ordinal position is not disturbed.
+    const options = auditActionEnum.options;
+    const wave4 = ['verify-chain', 'compose', 'approve', 'send', 'suppress'];
+    const wave5 = ['gate-evaluate', 'rule-change', 'suppression-change', 'disclaimer-change'];
+    const lastWave4Idx = Math.max(...wave4.map((v) => options.indexOf(v)));
+    const firstWave5Idx = Math.min(...wave5.map((v) => options.indexOf(v)));
+    expect(lastWave4Idx).toBeLessThan(firstWave5Idx);
+  });
+
+  it('existing wave-4 action string values are unchanged (no rename)', () => {
+    // Exhaustive check: each wave-4 action must parse to the SAME string.
+    // A rename would change the serialized value in the audit log — forbidden.
+    const wave4Actions = [
+      ['verify-chain', 'verify-chain'],
+      ['compose', 'compose'],
+      ['approve', 'approve'],
+      ['send', 'send'],
+      ['suppress', 'suppress'],
+    ] as const;
+    for (const [input, expected] of wave4Actions) {
+      expect(auditActionEnum.parse(input)).toBe(expected);
+    }
   });
 });
 
