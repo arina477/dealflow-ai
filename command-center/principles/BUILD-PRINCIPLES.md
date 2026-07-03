@@ -69,3 +69,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
 
 1. Resolve transitive high-severity audit advisories via pnpm-workspace.yaml overrides, not package.json.
    Why: In pnpm 10+ the overrides key lives in pnpm-workspace.yaml, not package.json.
+2. When a NestJS guard injects a repository, that repository must be exported by every module that imports the guard.
+   Why: NestJS DI resolves constructor tokens at the consuming module boundary, not where defined.
