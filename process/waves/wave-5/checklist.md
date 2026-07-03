@@ -34,14 +34,14 @@ CI/CD:
 - [x] C-2 Deploy & verify — **PASS (re-run @ ce97423) → PROCEED_TO_T** (head-ci-cd APPROVED). ce97423 (actor-id-space FK fix) deployed both services SUCCESS, boots clean (ComplianceModule injects AuthRepository, no UnknownDependenciesException), /health version==ce97423 on deployment's own URL. LIVE verified via web-origin proxy + anti-csrf + one-off evaluateStandalone: (A) CRUD writes 201 not 500 (compliance+admin), 403 advisor/analyst, 401 unauth, createdBy=FK-safe users.id; (B) config mutation AUDITED in-tx (audit-log verify entriesChecked 9→11, chain ok:true); (C) disclaimer versioning 2-rows-1-active (v1→inactive, v2 active); (D) SoD wedge invariant LIVE — compliance-approver ALLOWED, **ADMIN-approver BLOCKED (invalid-approver-role)**, self-approval blocked, edited-content blocked (content-hash), suppressed blocked, each verdict audited (gate-evaluate 0→5); (E) settings UI create 201; (F) regression clean, wave-4 audit hash-chain intact (verify ok:true entriesChecked 19). Canary skipped (0 DAU). Rollback armed (a58b699) not triggered. Temp DB proxy deleted, 0 remain, no secrets logged. Prior a58b699 C-2 FAIL correctly caught the FK defect → B-2 fix → this re-run PASS. Early direct-to-api 401-on-POST was a CSRF harness gap (SuperTokens antiCsrf VIA_TOKEN), root-caused, not a defect.
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
 - [ ] T-5 E2E
 - [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
+- [x] T-7 Perf
+- [x] T-8 Security
 - [ ] T-9 Journey
 
 VERIFY:
