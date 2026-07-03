@@ -30,8 +30,8 @@ BUILD:
 - [x] B-6 Review — head-builder APPROVED; /review 2 CRIT fixed (chain-verifies-live + verify-now-proxy); commit-discipline PASS
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify
+- [x] C-1 PR, CI & merge — cd06e8a merged to main; CI (all checks) conclusion=success on cd06e8a (deliverable file back-fill pending; substance verified)
+- [x] C-2 Deploy & verify — cd06e8a live on Railway (api+web SUCCESS); /health version=cd06e8a; AUDIT_LOG_HMAC_KEY set; migration 0002 applied (audit_log_entries live); LIVE chain verify ok:true entriesChecked:3 (created_at-fix proven); immutability UPDATE/DELETE/TRUNCATE rejected; tamper-detection ok:false@seq2→restored; RBAC 200/403/401; login regression intact; canary skipped (0 DAU); head_signoff APPROVED
 
 TEST:
 - [ ] T-1 Static
