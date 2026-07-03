@@ -30,8 +30,8 @@ BUILD:
 - [x] B-6 Review — head-builder APPROVED; /review 3 CRIT fixed (SoD-null-approver + disclaimer-race + ctx-validation); commit-discipline PASS
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify
+- [x] C-1 PR, CI & merge — a58b699 merged to main; CI run 28683534918 5/5 green (audit,lint,typecheck,build,test); SHA provenance CI==deployed==HEAD, no SKIPPED (C-1 deliverable file back-fill pending; merge+green-CI independently confirmed)
+- [~] C-2 Deploy & verify — **FAIL → REWORK_B-2**. Deploy infra-green (a58b699 live, boots clean, migration 0003 applied additive: 4 tables + 3 partial-unique indexes verified live). DEFECT: compliance CRUD write path passes session.getUserId() (SuperTokens id) as created_by + audit actorUserId, both FK'd to users(id) while app keys SuperTokens id on users.supertokens_user_id (separate column) → every authorized POST 500s (FK violation, tx rollback) → CRUD RBAC broken on writes + config mutation NOT audited. Iron Law tripped. Route to B-2.
 
 TEST:
 - [ ] T-1 Static
