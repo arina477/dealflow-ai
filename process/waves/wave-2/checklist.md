@@ -50,8 +50,8 @@ VERIFY:
 - [x] V-3 Fast-fix loop (or close) — head-verifier APPROVED; fast-fix skipped (0 blocking)
 
 LEARN:
-- [ ] L-1 Docs
-- [ ] L-2 Distill
+- [x] L-1 Docs — CHANGELOG 0.2.0 + README auth note (1bc8af9); M1 stays in_progress (open_count=2), backlog-stockout flagged for N-1
+- [x] L-2 Distill — 3 tasks confirmed done; 5 observations synthesized; 1 promotion (T-5 rule 1, real-browser E2E for auth/session waves; karen APPROVE + linter OK; 5c0eb6b); OBS-1/BUILD deferred (confirmed-ready)
 
 NEXT:
 - [ ] N-1 Survey & triggers

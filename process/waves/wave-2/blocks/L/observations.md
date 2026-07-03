@@ -122,3 +122,13 @@ Both OBS-1 and OBS-2 have appeared across 2+ waves and are eligible for promotio
 | OBS-5 | gh run watch --exit-status is not a reliable merge signal | CI | warning |
 
 All three are new this wave. Retained here for cross-wave synthesis. OBS-3 and OBS-4 both target BUILD-PRINCIPLES; note the one-rule-per-file-per-wave cap means only one can be promoted per future wave. OBS-3 has higher severity and broader applicability (any NestJS + external SDK with a process-global init singleton) and should be prioritized. OBS-4 has a concrete automated safeguard (DI-boot integration test) that reduces the priority of a written rule once the test is in place.
+
+---
+
+## Head-learn L-2 promotion disposition (gate)
+
+**Promotions this wave: 1.**
+
+- **PROMOTED — OBS-2 → `command-center/principles/test-layer-principles/T-5.md` rule 1** (severity strong, CONFIRMS-PRIOR wave-1 OBS-5). karen APPROVE (format + evidence-vs-claim + falsifiable/generalizable); deterministic linter OK (rule 93 chars, Why 98 chars, exactly 2 lines, no forbidden tokens). Committed `5c0eb6b`. Rule: "Run real-browser E2E on every wave touching auth, sessions, CORS, or cross-origin cookies."
+- **DEFERRED — OBS-1 → BUILD (not promoted this wave).** OBS-1 independently clears the 2-wave-confirmation gate (recurs wave-1 OBS-1/OBS-4) and would be format-legal, but head-learn holds to **at most ONE principle promoted per wave**, prioritizing the existential reliability lesson (OBS-2, strong) over build-config hygiene (OBS-1, warning). OBS-1 is **confirmed-and-ready**: promote to BUILD-PRINCIPLES at the next BUILD-touching wave with no further confirmation required. Proposed 2-line form (pre-vetted for format): `Resolve transitive high-severity audit advisories via pnpm-workspace.yaml overrides, not package.json. / Why: In pnpm 10+ the overrides key lives in pnpm-workspace.yaml, not package.json.`
+- OBS-3 / OBS-4 / OBS-5 remain FIRST-OBSERVATION; deferred per the 2-wave rule. If a future BUILD wave must choose among OBS-1 (confirmed), OBS-3, OBS-4, stack-rank OBS-1 first (already confirmed) unless OBS-3 recurs (strong + broader).
