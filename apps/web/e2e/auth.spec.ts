@@ -25,10 +25,10 @@
  *   [FINDING-2] POST /auth/signup (custom route, works) responds 201 and
  *               creates the session as HTTP response headers (st-access-token /
  *               st-refresh-token / front-token) NOT as Set-Cookie.  The
- *               /dashboard server component calls next/headers cookies() which
+ *               / server component calls next/headers cookies() which
  *               finds no session cookie, so /auth/me returns 401 and the
  *               dashboard redirects to /login.  Accept-invite happy path ends
- *               on /login not /dashboard.
+ *               on /login not /.
  */
 
 import { expect, test } from '@playwright/test';
@@ -107,7 +107,7 @@ test.describe('login success', () => {
     await acceptInviteViaApi(request, token, TEST_PASSWORD);
   });
 
-  test('fills login form and redirects to /dashboard', async ({ page }) => {
+  test('fills login form and redirects to /', async ({ page }) => {
     // Arrange
     await page.goto('/login');
     await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
@@ -117,13 +117,13 @@ test.describe('login success', () => {
     await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    // Assert — wait for navigation; expect to land on /dashboard.
+    // Assert — wait for navigation; expect to land on /.
     // [FINDING-1] POST /auth/signin returns 404 (NestJS middleware ordering
     // bug: SuperTokens middleware() and CORS registered after app.init() routes
     // the NestJS router ahead of them). Browser fetch() throws (CORS policy on
     // OPTIONS preflight 404). Error shown is "Unable to reach the server", no
     // redirect. When FINDING-1 is fixed, this assertion should pass.
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\//, { timeout: 15_000 });
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
     // Verify identity chip shows the correct email and role.
     await expect(page.getByText(testEmail)).toBeVisible();
@@ -186,14 +186,14 @@ test.describe('accept-invite happy path', () => {
     await page.getByLabel('Confirm password').fill(TEST_PASSWORD);
     await page.getByRole('button', { name: 'Accept & create account' }).click();
 
-    // Assert — expect redirect to /dashboard after account creation.
+    // Assert — expect redirect to / after account creation.
     // [FINDING-2] POST /auth/signup responds 201 and sets session as HTTP
-    // response headers (st-access-token) NOT as Set-Cookie.  The /dashboard
+    // response headers (st-access-token) NOT as Set-Cookie.  The /
     // server component calls next/headers cookies(); none are set, so
     // /auth/me returns 401 and the dashboard redirects to /login.
     // When FINDING-2 is resolved (cookie-based sessions or cookie-forwarding
     // fix), this assertion should pass.
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\//, { timeout: 15_000 });
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
   });
 });
