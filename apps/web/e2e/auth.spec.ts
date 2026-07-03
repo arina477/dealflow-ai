@@ -64,9 +64,7 @@ async function mintInvite(
     data: { email, role: 'advisor' },
   });
   if (!res.ok()) {
-    throw new Error(
-      `mintInvite failed: ${res.status()} ${await res.text()} for email=${email}`
-    );
+    throw new Error(`mintInvite failed: ${res.status()} ${await res.text()} for email=${email}`);
   }
   const body = (await res.json()) as { token: string; expiry: string };
   return body.token;
@@ -91,9 +89,7 @@ async function acceptInviteViaApi(
     data: { inviteToken, password },
   });
   if (res.status() !== 201) {
-    throw new Error(
-      `acceptInviteViaApi failed: ${res.status()} ${await res.text()}`
-    );
+    throw new Error(`acceptInviteViaApi failed: ${res.status()} ${await res.text()}`);
   }
   return res.json() as Promise<{ userId: string; email: string; role: string }>;
 }
@@ -103,7 +99,6 @@ async function acceptInviteViaApi(
 test.describe('login success', () => {
   let testEmail: string;
 
-  // biome-ignore lint/correctness/noEmptyPattern: playwright fixture requires {}
   test.beforeAll(async ({ request }) => {
     const ts = Date.now();
     testEmail = makeEmail('login-success', ts);
@@ -170,7 +165,6 @@ test.describe('login failure', () => {
 test.describe('accept-invite happy path', () => {
   let inviteToken: string;
 
-  // biome-ignore lint/correctness/noEmptyPattern: playwright fixture requires {}
   test.beforeAll(async ({ request }) => {
     const ts = Date.now();
     const email = makeEmail('accept-invite', ts);
@@ -182,12 +176,8 @@ test.describe('accept-invite happy path', () => {
     await page.goto(`/accept-invite?token=${encodeURIComponent(inviteToken)}`);
 
     // Assert form present (invite token is non-empty → form branch renders).
-    await expect(
-      page.getByRole('heading', { name: 'Set up your account' })
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Accept & create account' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Set up your account' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Accept & create account' })).toBeVisible();
 
     // Act — fill and submit the set-password form.
     // Use exact: true on 'Password' to avoid strict-mode violation: the page
@@ -219,9 +209,7 @@ test.describe('accept-invite invalid token', () => {
     await page.goto('/accept-invite?token=bogus');
 
     // The set-password form must render (client defers validation to server).
-    await expect(
-      page.getByRole('heading', { name: 'Set up your account' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Set up your account' })).toBeVisible();
 
     // Act — fill and submit; server should reject the bogus token.
     // Use exact: true on 'Password' to avoid strict-mode violation.
@@ -243,13 +231,9 @@ test.describe('accept-invite invalid token', () => {
     // without a network call (empty string evaluates falsy).
     await page.goto('/accept-invite');
 
-    await expect(
-      page.getByRole('heading', { name: 'Invite Link Invalid' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Invite Link Invalid' })).toBeVisible();
     // Set-password form must NOT be present.
-    await expect(
-      page.getByRole('button', { name: 'Accept & create account' })
-    ).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Accept & create account' })).not.toBeVisible();
   });
 });
 
@@ -261,9 +245,7 @@ test.describe('reset password — request step', () => {
   }) => {
     // Arrange
     await page.goto('/reset-password');
-    await expect(
-      page.getByRole('heading', { name: 'Reset your password' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeVisible();
 
     // Act — enter an address (no real account needed; no-enumeration means same
     // 202 ack for existing and non-existing emails).
@@ -271,9 +253,9 @@ test.describe('reset password — request step', () => {
     await page.getByRole('button', { name: 'Send reset link' }).click();
 
     // Assert — "Check your email" ack rendered; no redirect to /login.
-    await expect(
-      page.getByRole('heading', { name: 'Check your email' })
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible({
+      timeout: 10_000,
+    });
     // Must still be on /reset-password (ack is inline, not a new route).
     await expect(page).toHaveURL(/\/reset-password/);
     // "Back to sign in" link present.

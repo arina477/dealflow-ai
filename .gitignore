@@ -17,3 +17,8 @@ dist/
 .turbo/
 # onboarding helper session state
 process/session/onboarding/.research-jobs.tsv
+
+# Playwright run artifacts
+apps/web/e2e/results.json
+apps/web/test-results/
+apps/web/playwright-report/
