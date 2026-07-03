@@ -21,12 +21,12 @@ DESIGN (skip block if non-UI wave):
 - [ ] D-3 Review & adopt
 
 BUILD:
-- [ ] B-0 Branch & schema
-- [ ] B-1 Contracts
-- [ ] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
-- [ ] B-5 Verify
+- [x] B-0 Branch & schema — branch wave-4-audit-log; no new deps (node:crypto); schema=YES(0002@B-2); 4 tasks claimed
+- [x] B-1 Contracts — shared audit types + AuditVerifyResponse + roleRoutes audit-log nav/endpoint (b0eed89); 164 tests
+- [x] B-2 Backend — migration 0002 (immutability PROVEN) + HMAC service+verifier+endpoint (3602994,54ff1b8); 88 tests
+- [x] B-3 Frontend — audit-log integrity view at /compliance/audit-log (broken=persistent non-dismissible); 95 tests (2d6bfda)
+- [x] B-4 Wiring — repo typecheck+build PASS; /compliance/audit-log compiles; AUDIT_LOG_HMAC_KEY→C-2
+- [x] B-5 Verify — lint 0-err, 347 tests pass, build pass; golden-vector present; audit runtime→C-2
 - [ ] B-6 Review
 
 CI/CD:

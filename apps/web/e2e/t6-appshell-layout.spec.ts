@@ -64,9 +64,9 @@ async function acceptInviteInBrowser(
   token: string
 ): Promise<void> {
   await page.goto(`/accept-invite?token=${encodeURIComponent(token)}`);
-  await expect(
-    page.getByRole('heading', { name: 'Set up your account' })
-  ).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Set up your account' })).toBeVisible({
+    timeout: 15_000,
+  });
   await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
   await page.getByLabel('Confirm password').fill(TEST_PASSWORD);
   await page.getByRole('button', { name: 'Accept & create account' }).click();
@@ -97,10 +97,9 @@ async function assertSidebar(
   // Background color: zinc-900 = #111827 = rgb(17, 24, 39).
   const bgColor = await nav.evaluate((el) => window.getComputedStyle(el).backgroundColor);
   // Accept the canonical zinc-900 value.
-  expect(
-    bgColor,
-    `Sidebar bg must be zinc-900 (rgb(17, 24, 39) / #111827); got "${bgColor}"`
-  ).toBe('rgb(17, 24, 39)');
+  expect(bgColor, `Sidebar bg must be zinc-900 (rgb(17, 24, 39) / #111827); got "${bgColor}"`).toBe(
+    'rgb(17, 24, 39)'
+  );
 
   return nav;
 }
@@ -125,10 +124,9 @@ async function assertTopBar(page: import('@playwright/test').Page): Promise<void
 
   // Background color: white = rgb(255, 255, 255).
   const bgColor = await header.evaluate((el) => window.getComputedStyle(el).backgroundColor);
-  expect(
-    bgColor,
-    `TopBar bg must be white (rgb(255, 255, 255)); got "${bgColor}"`
-  ).toBe('rgb(255, 255, 255)');
+  expect(bgColor, `TopBar bg must be white (rgb(255, 255, 255)); got "${bgColor}"`).toBe(
+    'rgb(255, 255, 255)'
+  );
 }
 
 /**
@@ -214,8 +212,8 @@ test.describe('T-6 AppShell — compliance user visual baseline', () => {
     // ── Arrange: establish session ────────────────────────────────────────
     await acceptInviteInBrowser(page, complianceToken);
     // toHaveURL matches full URL string; root is trailing slash, not /login.
-  await expect(page).toHaveURL(/\/$/, { timeout: 5_000 });
-  expect(page.url(), 'Must NOT be on /login').not.toMatch(/\/login/);
+    await expect(page).toHaveURL(/\/$/, { timeout: 5_000 });
+    expect(page.url(), 'Must NOT be on /login').not.toMatch(/\/login/);
 
     // ── Wait for page to be stable (no network activity) ─────────────────
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
@@ -251,7 +249,8 @@ test.describe('T-6 AppShell — compliance user visual baseline', () => {
     const rootBg = await appRoot.evaluate((el) => window.getComputedStyle(el).backgroundColor);
     // Accept either zinc-25 or white (Next.js may wrap with a white body).
     const validBgs = ['rgb(252, 252, 253)', 'rgb(255, 255, 255)', 'rgba(0, 0, 0, 0)'];
-    const isValidBg = validBgs.some((v) => rootBg.includes(v.replace(/\s/g, ''))) ||
+    const isValidBg =
+      validBgs.some((v) => rootBg.includes(v.replace(/\s/g, ''))) ||
       rootBg === 'rgb(252, 252, 253)' ||
       rootBg === 'rgb(255, 255, 255)';
     // Non-fatal: log if unexpected but do not block screenshot capture.
@@ -263,10 +262,7 @@ test.describe('T-6 AppShell — compliance user visual baseline', () => {
     // Phosphor icons use aria-label with specific patterns or class "ph-*".
     // We check that no phosphor-specific SVG structure is present.
     const phosphorIcons = await page.locator('[class*="ph-"]').count();
-    expect(
-      phosphorIcons,
-      'No Phosphor icons should be present (§10: lucide ONLY)'
-    ).toBe(0);
+    expect(phosphorIcons, 'No Phosphor icons should be present (§10: lucide ONLY)').toBe(0);
 
     // ── Capture full-page baseline screenshot ─────────────────────────────
     await page.screenshot({
@@ -296,8 +292,8 @@ test.describe('T-6 AppShell — advisor user visual baseline', () => {
     // ── Arrange: establish session ────────────────────────────────────────
     await acceptInviteInBrowser(page, advisorToken);
     // toHaveURL matches full URL string; root is trailing slash, not /login.
-  await expect(page).toHaveURL(/\/$/, { timeout: 5_000 });
-  expect(page.url(), 'Must NOT be on /login').not.toMatch(/\/login/);
+    await expect(page).toHaveURL(/\/$/, { timeout: 5_000 });
+    expect(page.url(), 'Must NOT be on /login').not.toMatch(/\/login/);
 
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
