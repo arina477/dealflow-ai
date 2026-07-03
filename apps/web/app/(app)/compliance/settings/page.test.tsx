@@ -21,7 +21,7 @@
  */
 
 import type { ComplianceRule, DisclaimerTemplate, SuppressionEntry } from '@dealflow/shared';
-import { navItemsForRole } from '@dealflow/shared';
+import { navItemsForRole, ruleCreateSchema, suppressionCreateSchema } from '@dealflow/shared';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -606,7 +606,6 @@ describe('nav — NAV_COMPLIANCE_SETTINGS renders for compliance role', () => {
 
 describe('client-side validation', () => {
   it('suppressionCreateSchema rejects empty value', () => {
-    const { suppressionCreateSchema } = require('@dealflow/shared');
     const result = suppressionCreateSchema.safeParse({
       matchType: 'email',
       value: '',
@@ -616,7 +615,6 @@ describe('client-side validation', () => {
   });
 
   it('ruleCreateSchema rejects missing ruleType', () => {
-    const { ruleCreateSchema } = require('@dealflow/shared');
     const result = ruleCreateSchema.safeParse({
       config: {},
       enabled: true,
