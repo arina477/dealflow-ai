@@ -9,11 +9,11 @@
 **Note (from N-1/N-3):** SECURITY-SCOPE — compliance-critical + non-bypassable gate (auth/RBAC/SoD + audit-log write path) → mandatory T-8 Security + **P-4 security-scope-tightened + SoD/RBAC gate**. The gate service is the choke point re-run at send time; acceptance criteria demand non-bypassability. Depends on the audit-log append service shipped LIVE wave 4 (cd06e8a) — no ghost dependency. 3 M1 non-core follow-ups remain claimable backlog under M2 (do NOT block this bundle): bfadcec1 (test-fixture typing, low), 6fe232e3 (auth-hardening, medium), d7f716b4 (AppShell placeholder pages, low). P-0 must walk the unassigned queue (depth 1). Wave-5 waves row is opened by P-0 Action 0a (INSERT).
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe) — PROCEED (problem-framer + ceo-reviewer PROCEED; carry: no-skippable-fast-path + M6 non-bypass dependency; mvp-thinner n/a)
+- [x] P-1 Decompose — PROCEED, multi-spec (4 tasks, ~3500 LOC), design_gap false (compliance-settings.html → D skips)
+- [x] P-2 Spec — multi-spec enforcement contract in seed 0595a835 (4 blocks); non-bypass+SoD+content-hash+audit invariants; security-scope flagged
+- [x] P-3 Plan — 5 deltas, ~24 steps, no new SDK, additive 0003 (architect-reviewer)
+- [x] P-4 Gate — PASSED (head-product APPROVED; karen+jenny APPROVE after SoD-approver=compliance-only remediation; Gemini 429; security-scope 2-iter)
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
