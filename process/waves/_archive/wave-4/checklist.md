@@ -54,6 +54,6 @@ LEARN:
 - [x] L-2 Distill — 5 observations; 1 promotion (VERIFY rule 1: real-boundary serialization test); 4 tasks done
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M2 stays in_progress (rules-engine + pre-send-gate half unshipped); decomposition fired → milestone-decomposer authored M2 next bundle (seed 0595a835 + 3 siblings); head-next APPROVED
+- [x] N-2 Seed — bundle = compliance rules engine + non-bypassable pre-send gate (vertical DB→service→UI); claimed_task_ids [0595a835, 95adac6c, 034463b1, 34cb1d18]; validation PASS; head-next APPROVED
+- [x] N-3 Handoff — next_wave=5; wave-4 closed (waves.status=ok); archived → _archive/wave-4; .last-wave-completed.yaml written; loop_state ready

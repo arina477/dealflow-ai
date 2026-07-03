@@ -1,0 +1,59 @@
+## Wave 5 stage completion
+
+**Wave:** 5
+**Active milestone:** M2 — Compliance backbone: tamper-evident audit log + rules engine (`2f116b9b-0338-421d-a9ad-899a11403aff`, in_progress)
+**Seed task:** 0595a835-db62-4685-b451-1cd6c06416bf — Build compliance rules engine schema + non-bypassable pre-send compliance gate service
+**Bundled siblings:** 95adac6c-25cb-4c67-bd78-a401477143ad (suppression-list + approval-SoD checks inside the pre-send gate), 034463b1-7abb-4417-8e34-7f6184a0c8db (jurisdiction disclaimers + approval-version binding in the gate), 34cb1d18-9bff-4302-8f7e-c508ac5fef99 (wire compliance-settings screen to manage rules/suppression/disclaimers)
+**claimed_task_ids (B-0 claims this list):** [0595a835-db62-4685-b451-1cd6c06416bf, 95adac6c-25cb-4c67-bd78-a401477143ad, 034463b1-7abb-4417-8e34-7f6184a0c8db, 34cb1d18-9bff-4302-8f7e-c508ac5fef99]
+**Slice:** M2 second vertical slice — the compliance rules engine + the single non-bypassable callable pre-send compliance gate. DB: 4 rules-engine tables (`compliance_rules`, `suppression_list`, `disclaimer_templates` jurisdiction-keyed, `compliance_approvals`). Service: `ComplianceGateService.evaluate()` as the SOLE send-eligibility authority — it MUST write every pass/block verdict to the audit log via the shipped `AuditService.append` (a8b2b5a2) in-transaction; non-bypassability is an acceptance criterion (no send path may skip gate + log). Suppression re-check + SoD (sender≠approver, approver-is-compliance via M1 RolesGuard) + per-jurisdiction disclaimer enforcement + approval-version content-hash binding (post-approval edits re-block). Config UI: wire the existing compliance-settings screen shell (031d79fc) to CRUD rules/suppression/disclaimers, every change audited. Closes M2 success metric: "suppression/disclaimer/approval rules are configurable and enforced by a callable pre-send check used by outreach (M6)." Vertical slice (DB + service + UI). UI wave (compliance-settings CRUD) → D-block runs unless P-1 finds mockups exist. Anchored to architecture/security.md §"Outreach compliance controls" + §"Audit-log security" + §RBAC-SoD.
+**Note (from N-1/N-3):** SECURITY-SCOPE — compliance-critical + non-bypassable gate (auth/RBAC/SoD + audit-log write path) → mandatory T-8 Security + **P-4 security-scope-tightened + SoD/RBAC gate**. The gate service is the choke point re-run at send time; acceptance criteria demand non-bypassability. Depends on the audit-log append service shipped LIVE wave 4 (cd06e8a) — no ghost dependency. 3 M1 non-core follow-ups remain claimable backlog under M2 (do NOT block this bundle): bfadcec1 (test-fixture typing, low), 6fe232e3 (auth-hardening, medium), d7f716b4 (AppShell placeholder pages, low). P-0 must walk the unassigned queue (depth 1). Wave-5 waves row is opened by P-0 Action 0a (INSERT).
+
+PRODUCT:
+- [ ] P-0 Frame (discover + reframe)
+- [ ] P-1 Decompose
+- [ ] P-2 Spec
+- [ ] P-3 Plan
+- [ ] P-4 Gate
+
+DESIGN (skip block if non-UI wave):
+- [ ] D-1 Brief
+- [ ] D-2 Variants (with bounded iteration)
+- [ ] D-3 Review & adopt
+
+BUILD:
+- [ ] B-0 Branch & schema
+- [ ] B-1 Contracts
+- [ ] B-2 Backend
+- [ ] B-3 Frontend
+- [ ] B-4 Wiring
+- [ ] B-5 Verify
+- [ ] B-6 Review
+
+CI/CD:
+- [ ] C-1 PR, CI & merge
+- [ ] C-2 Deploy & verify
+
+TEST:
+- [ ] T-1 Static
+- [ ] T-2 Unit
+- [ ] T-3 Contract
+- [ ] T-4 Integration
+- [ ] T-5 E2E
+- [ ] T-6 Layout
+- [ ] T-7 Perf
+- [ ] T-8 Security
+- [ ] T-9 Journey
+
+VERIFY:
+- [ ] V-1 Independent reviews (Karen + jenny, parallel)
+- [ ] V-2 Triage
+- [ ] V-3 Fast-fix loop (or close)
+
+LEARN:
+- [ ] L-1 Docs
+- [ ] L-2 Distill
+
+NEXT:
+- [ ] N-1 Survey & triggers
+- [ ] N-2 Seed
+- [ ] N-3 Handoff
