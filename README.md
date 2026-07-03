@@ -37,6 +37,10 @@ curl -s https://dealflow-api-production-66d4.up.railway.app/health
 # → 200 {"status":"ok","db":"ok","version":"..."}
 ```
 
+**Authentication is live and invite-only.** There is no open sign-up: an existing
+member issues an invite, and the recipient sets a password via the accept-invite
+screen before they can sign in. Screens: `/login`, `/accept-invite`, `/reset-password`.
+
 ---
 
 ## Quick start
