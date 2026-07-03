@@ -9,11 +9,11 @@
 **Note (from N-1):** authored by milestone-decomposer as the M1 main-thrust slice. Two open M1 follow-ups remain in queue for later waves: bfadcec1 (test-fixture typing, low), 6fe232e3 (auth-hardening: rate-limit/input-validation/anti-CSRF, medium). Wave-2 C-2 deploy note: verify AppShell/dashboard routes render on the redeployed web (login/dashboard/accept-invite/reset were 404 on stale build pre-wave-2-final-deploy).
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe) — PROCEED (problem-framer + ceo-reviewer PROCEED; mvp-thinner n/a)
+- [x] P-1 Decompose — PROCEED, multi-spec (3 tasks), design_gap_flag false (AppShell §10 + dashboard.html exist → D skips)
+- [x] P-2 Spec — multi-spec contract in seed 1931b452 (3 blocks); allowlist-RBAC + security-scope flagged
+- [x] P-3 Plan
+- [x] P-4 Gate — PASSED (head-product APPROVED; karen+jenny APPROVE after route/matrix remediation; Gemini 429; security-scope 2-iter)
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
