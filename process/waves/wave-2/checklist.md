@@ -34,15 +34,15 @@ CI/CD:
 - [~] C-2 Deploy & verify — FAIL / ESCALATE (re-run #2, in-progress). DI fix (4e09807, PR #3) CONFIRMED working (AuthModule DI now resolves), but redeploy (deployment 9772b283 on 4e09807) crash-looped on a NEW NestJS lifecycle-ordering bug: main.ts calls supertokens.getAllCORSHeaders() before onModuleInit fires SuperTokens.init() (NestFactory.create doesn't run lifecycle hooks). "Initialisation not done" fatal. Auth smoke NOT RUN (api never booted). No outage — healthcheck kept old deploy 077009a2/4cad0179 live. Routed to B-block (tag: debugging, domain: backend, file: apps/api/src/main.ts) → re-run C-1 on fix → re-run C-2 (#3: deploy api + deploy web). SECONDARY: web live on stale 4cad0179; /login /dashboard /accept-invite /reset-password all 404 (predates B-3 auth screens) — must redeploy web too. Canary skipped (0 DAU). Rollback target cached: 077009a2.
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
-- [ ] T-9 Journey
+- [x] T-1 Static — CI-verified (typecheck+lint green); 1 low test-fixture bypass
+- [x] T-2 Unit — CI-verified; auth service/di-boot/bootstrap/env + web RTL green
+- [x] T-3 Contract — CI-verified; @dealflow/shared auth Zod + live /auth/me shape
+- [x] T-4 Integration — CI-verified; real-Postgres CI + live DB round-trip
+- [x] T-5 E2E — real-browser 6/6 PASS (caught+fixed 2 CRITICAL browser bugs: CORS/middleware + cross-origin session)
+- [x] T-6 Layout — real visual baseline 4/4 per DESIGN-SYSTEM, 0 defects, SSO/SOC2 absent
+- [x] T-7 Perf — skipped (not heavy)
+- [x] T-8 Security — auth smoke+cookies(HttpOnly/Secure/SameSite=Lax)+CSRF+secret-grep PASS; rate-limit gap (medium->V-2)
+- [x] T-9 Journey — head-tester APPROVED (attempt 2); journey regen (auth routes live, /accept-invite reconciled)
 
 VERIFY:
 - [ ] V-1 Independent reviews (Karen + jenny, parallel)
