@@ -90,9 +90,8 @@ export default function LoginPage() {
       const status = (body as Record<string, unknown>)?.status;
 
       if (status === 'OK') {
-        // Fetch role from /auth/me so the redirect can be role-aware in future.
-        // This wave: redirect to /dashboard (placeholder authed landing).
-        router.replace('/dashboard');
+        // Redirect to canonical authed dashboard (/ per P-4 remediation).
+        router.replace('/');
       } else if (status === 'WRONG_CREDENTIALS_ERROR') {
         // No user-enumeration: same generic message regardless of root cause.
         setServerError(GENERIC_AUTH_ERROR);

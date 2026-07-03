@@ -153,7 +153,7 @@ describe('LoginPage', () => {
   });
 
   describe('success flow', () => {
-    it('redirects to /dashboard on successful sign-in', async () => {
+    it('redirects to / (canonical authed dashboard, P-4 remediation) on successful sign-in', async () => {
       vi.stubGlobal('fetch', makeFetch(200, { status: 'OK', user: { id: '1' } }));
       render(<LoginPage />);
 
@@ -162,7 +162,7 @@ describe('LoginPage', () => {
       fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
       await waitFor(() => {
-        expect(mockReplace).toHaveBeenCalledWith('/dashboard');
+        expect(mockReplace).toHaveBeenCalledWith('/');
       });
     });
   });

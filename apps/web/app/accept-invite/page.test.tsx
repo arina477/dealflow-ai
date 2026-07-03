@@ -118,7 +118,7 @@ describe('AcceptInvitePage', () => {
       mockGet.mockReturnValue('valid-token');
     });
 
-    it('redirects to /dashboard on 201', async () => {
+    it('redirects to / (canonical authed dashboard, P-4 remediation) on 201', async () => {
       vi.stubGlobal('fetch', makeFetch(201));
       render(<AcceptInvitePage />);
 
@@ -127,7 +127,7 @@ describe('AcceptInvitePage', () => {
       fireEvent.click(screen.getByRole('button', { name: /accept/i }));
 
       await waitFor(() => {
-        expect(mockReplace).toHaveBeenCalledWith('/dashboard');
+        expect(mockReplace).toHaveBeenCalledWith('/');
       });
     });
 

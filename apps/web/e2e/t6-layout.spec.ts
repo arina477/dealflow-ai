@@ -26,7 +26,7 @@
  *   api: https://dealflow-api-production-66d4.up.railway.app
  */
 
-import path from 'path';
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
 // ── Configuration ────────────────────────────────────────────────────────────
@@ -50,9 +50,7 @@ async function mintInvite(
     data: { email, role: 'advisor' },
   });
   if (!res.ok()) {
-    throw new Error(
-      `mintInvite failed: ${res.status()} ${await res.text()} for email=${email}`
-    );
+    throw new Error(`mintInvite failed: ${res.status()} ${await res.text()} for email=${email}`);
   }
   const body = (await res.json()) as { token: string; expiry: string };
   return body.token;
@@ -80,9 +78,7 @@ async function assertEmeraldCTA(
     cls?.includes('primary');
 
   // Computed background — emerald-600 = rgb(16, 185, 129)
-  const bgColor = await btn.evaluate(
-    (el) => window.getComputedStyle(el).backgroundColor
-  );
+  const bgColor = await btn.evaluate((el) => window.getComputedStyle(el).backgroundColor);
 
   // Accept either Tailwind class presence OR computed emerald colour.
   // rgb(16, 185, 129) is emerald-600; slight rounding ok so we check substring.
@@ -152,10 +148,9 @@ async function assertNoAppChrome(page: import('@playwright/test').Page): Promise
     // The sidebar renders these as nav links; auth pages should have none of them.
     const sidebarLink = page.getByRole('link', { name: item });
     const count = await sidebarLink.count();
-    expect(
-      count,
-      `Sidebar nav link "${item}" must be absent on auth pages (found ${count})`
-    ).toBe(0);
+    expect(count, `Sidebar nav link "${item}" must be absent on auth pages (found ${count})`).toBe(
+      0
+    );
   }
 
   // Top bar <nav> element (role="navigation") must NOT be present.
@@ -170,7 +165,10 @@ async function assertNoAppChrome(page: import('@playwright/test').Page): Promise
 // ── T-6 Spec 1: /login ───────────────────────────────────────────────────────
 
 test.describe('T-6 login page — visual baseline', () => {
-  test('captures baseline screenshot and validates layout conformance', async ({ page, request }) => {
+  test('captures baseline screenshot and validates layout conformance', async ({
+    page,
+    request,
+  }) => {
     // Navigate
     await page.goto('/login');
 
@@ -179,9 +177,7 @@ test.describe('T-6 login page — visual baseline', () => {
 
     // ── Structural assertions ────────────────────────────────────────────
     // Heading
-    await expect(
-      page.getByRole('heading', { name: 'Welcome back' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 
     // Form fields present
     await expect(page.getByLabel('Email address')).toBeVisible();
@@ -213,9 +209,7 @@ test.describe('T-6 login page — visual baseline', () => {
     // Outline should be non-zero (focus ring present)
     // Note: Tailwind ring utilities use box-shadow not outline on some versions,
     // so we also check box-shadow.
-    const boxShadow = await emailInput.evaluate(
-      (el) => window.getComputedStyle(el).boxShadow
-    );
+    const boxShadow = await emailInput.evaluate((el) => window.getComputedStyle(el).boxShadow);
     const hasFocusRing =
       (outlineWidth !== '0px' && outlineWidth !== '') ||
       (boxShadow && boxShadow !== 'none' && boxShadow !== '');
@@ -254,9 +248,7 @@ test.describe('T-6 accept-invite page — valid token — visual baseline', () =
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
     // ── Structural assertions ────────────────────────────────────────────
-    await expect(
-      page.getByRole('heading', { name: 'Set up your account' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Set up your account' })).toBeVisible();
 
     // Password + confirm password fields
     await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
@@ -289,14 +281,10 @@ test.describe('T-6 accept-invite page — invalid/missing token — visual basel
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
     // ── Structural assertions ────────────────────────────────────────────
-    await expect(
-      page.getByRole('heading', { name: 'Invite Link Invalid' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Invite Link Invalid' })).toBeVisible();
 
     // Set-password form must NOT be present in error state
-    await expect(
-      page.getByRole('button', { name: /accept & create account/i })
-    ).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /accept & create account/i })).not.toBeVisible();
 
     // ── Scope-decision assertions ─────────────────────────────────────────
     await assertNoSSO(page);
@@ -319,9 +307,7 @@ test.describe('T-6 reset-password page — visual baseline', () => {
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
     // ── Structural assertions ────────────────────────────────────────────
-    await expect(
-      page.getByRole('heading', { name: 'Reset your password' })
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeVisible();
 
     // Email field
     await expect(page.getByLabel('Email address')).toBeVisible();
@@ -332,9 +318,7 @@ test.describe('T-6 reset-password page — visual baseline', () => {
     // "Sign in" link present (part of "Remember your password? Sign in" text).
     // Note: "Back to sign in" only appears in the post-submit ack state;
     // initial page render has a "Sign in" link to /login.
-    await expect(
-      page.getByRole('link', { name: /^sign in$/i })
-    ).toBeVisible();
+    await expect(page.getByRole('link', { name: /^sign in$/i })).toBeVisible();
 
     // ── Scope-decision assertions ─────────────────────────────────────────
     await assertNoSSO(page);
@@ -344,9 +328,7 @@ test.describe('T-6 reset-password page — visual baseline', () => {
     // ── Accessibility spot-check ─────────────────────────────────────────
     const emailInput = page.getByLabel('Email address');
     await emailInput.focus();
-    const boxShadow = await emailInput.evaluate(
-      (el) => window.getComputedStyle(el).boxShadow
-    );
+    const boxShadow = await emailInput.evaluate((el) => window.getComputedStyle(el).boxShadow);
     const outlineWidth = await emailInput.evaluate(
       (el) => window.getComputedStyle(el).outlineWidth
     );

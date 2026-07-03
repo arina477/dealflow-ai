@@ -134,7 +134,8 @@ function AcceptInviteForm() {
       });
 
       if (res.status === 201) {
-        router.replace('/dashboard');
+        // Redirect to canonical authed dashboard (/ per P-4 remediation).
+        router.replace('/');
       } else {
         // 4xx: expired / consumed / invalid — generic message, no specifics.
         setServerError(GENERIC_INVITE_ERROR);
