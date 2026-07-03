@@ -22,6 +22,8 @@ export {
   signupRequestSchema,
   signupResponseSchema,
 } from './auth';
+export type { ComplianceSummaryResponse } from './compliance';
+export { complianceSummaryResponseSchema } from './compliance';
 export { parseEnv } from './env';
 export type { HealthResponse } from './health';
 export { healthResponseSchema } from './health';

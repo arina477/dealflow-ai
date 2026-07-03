@@ -1,17 +1,26 @@
 /**
- * RolesGuard PRIMITIVE + @Roles() decorator (wave-2, task e1c0e81e).
+ * RolesGuard + @Roles() decorator (wave-2 primitive, ENFORCED in wave-3).
  *
- * ⚠️ BUILT-BUT-UNAPPLIED (arch delta 3 / spec block-2 guardrail).
+ * ✅ APPLIED (wave-3, task 2ecc4a7b — per-route RBAC enforcement).
  *
- * This wave lands the role CLAIM and a reusable guard that CAN read it, but
- * per-route RBAC ENFORCEMENT is a deferred M1 slice. This guard is registered
- * in the module's provider list so it is DI-resolvable, but it is applied to
- * NO route (no @UseGuards(RolesGuard) + @Roles(...) pair exists on any handler
- * this wave). Do not add one here — RBAC enforcement lands in a later slice.
+ * The guard + role CLAIM landed in wave-2 as a built-but-unapplied primitive.
+ * Wave-3 turns it into LIVE enforcement by decorating a real protected route
+ * (GET /compliance/summary → @UseGuards(SessionGuard, RolesGuard) +
+ * @Roles('compliance','admin'), roles sourced from the shared roleRoutes map).
  *
- * Security note: even once applied, the claim is a MIRROR. security.md requires
- * the app-DB users.role to be re-verified server-side on authorization
- * decisions; the claim is a fast-path cache, not the source of truth.
+ * ── Allowlist safety (load-bearing) ────────────────────────────────────────
+ * Enforcement is OPT-IN BY DECORATION. This guard is a pass-through on any
+ * route WITHOUT @Roles() metadata (the no-op branch below). There is NO global
+ * RBAC guard: /auth/* (SuperTokens auto-routes + custom), /health, GET /auth/me
+ * (SessionGuard only), and every other undecorated route stay ungated — the
+ * live wave-2 login is NOT affected. Behaviour changes ONLY on @Roles()-
+ * decorated handlers. Do not register this globally.
+ *
+ * Security note: the claim is a MIRROR of the app-DB users.role. security.md
+ * requires the app-DB row to be re-verified server-side on authorization
+ * decisions; the claim is a documented fast-path cache, not the source of
+ * truth. The re-verification hardening is tracked for a later slice — the
+ * claim read below is the current, allowlist-safe fast path.
  */
 
 import type { Role } from '@dealflow/shared';
