@@ -20,8 +20,10 @@ Canonical inventory of every screen / route + the flows that connect them. Sourc
 | # | Page | Route | Persona(s) | Related flows | Tools/modules |
 |---|---|---|---|---|---|
 | 1 | Login | `/login` | All | auth | Auth & RBAC |
-| 2 | Accept invite & set password | `/invite/:token` | Invited user | F14 | Auth & RBAC |
+| 2 | Accept invite & set password | `/accept-invite?token=` | Invited user | F14 | Auth & RBAC |
 | 3 | Reset password | `/reset-password` | All | auth | Auth & RBAC |
+
+> **Wave 2 (auth) — LIVE (deployed + real-browser E2E 6/6):** `/login`, `/accept-invite?token=`, `/reset-password` are implemented and verified end-to-end (invite-only signup → session + role claim → role-aware landing). A placeholder authed landing `/dashboard` exists (reads the session, shows the role); the full AppShell/dashboard is a later M1 bundle. Route reconciled: journey `/invite/:token` → implemented as `/accept-invite?token=`.
 | 4 | Dashboard | `/` | All (role-aware) | F1,F2,F4,F10 | most modules |
 | 5 | Mandates list | `/mandates` | Adv, An | F1 | Mandate service |
 | 6 | Mandate detail | `/mandates/:id` | Adv, An | F1,F2,F4 | Mandate, matching, pipeline |
