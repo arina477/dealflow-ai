@@ -29,7 +29,15 @@ import { redirect } from 'next/navigation';
 export const dynamic = 'force-dynamic';
 
 async function fetchMe(): Promise<MeResponse | null> {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+  // Server-to-server call (runs on the Next.js Node server, not the browser):
+  // use the internal/private API base directly. No same-origin proxy needed
+  // here — the session cookie is forwarded explicitly as a request header
+  // (below), and SuperTokens reads the token value from it regardless of
+  // request host. The browser's login now leaves a first-party session cookie
+  // on the web origin (via the same-origin /auth proxy), which cookies() below
+  // reads and forwards.
+  const apiBase =
+    process.env.INTERNAL_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
   try {
     // Forward the incoming request's cookies so the SuperTokens httpOnly
     // session cookie reaches the API. `credentials: 'include'` is a browser

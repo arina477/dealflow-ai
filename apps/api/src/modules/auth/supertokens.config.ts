@@ -61,7 +61,23 @@ export function initSupertokens({ env, resolveRole }: SupertokensInitDeps): void
     },
     appInfo: {
       appName: 'DealFlow AI',
-      apiDomain: env.INTERNAL_API_BASE_URL,
+      // Same-origin proxy model (cross-origin session fix): the browser NEVER
+      // talks to the api origin directly. apps/web proxies a same-origin path
+      // (`/auth/*` — see apps/web/next.config.ts rewrites) to this api's
+      // `/auth/*`. From the SDK's perspective the API is therefore reached at
+      // the WEBSITE origin, so apiDomain === websiteDomain === WEB_ORIGIN. This
+      // is what makes SuperTokens set a FIRST-PARTY cookie on the web origin
+      // (host-only, no Domain attr) that the Next.js server component's
+      // cookies() can read. If apiDomain were the api's own *.up.railway.app
+      // subdomain, the cookie would be scoped to the api origin (cross-site;
+      // up.railway.app is on the Public Suffix List) and the web server could
+      // never read it — that was the bug.
+      //
+      // apiBasePath stays `/auth` so it matches BOTH the rewrite destination
+      // and the custom @Controller('auth') Nest routes. websiteBasePath is
+      // cosmetic here (the web app uses custom pages, not the SuperTokens
+      // frontend SDK), so a shared `/auth` value is harmless.
+      apiDomain: env.WEB_ORIGIN,
       websiteDomain: env.WEB_ORIGIN,
       apiBasePath: '/auth',
       websiteBasePath: '/auth',
@@ -79,6 +95,26 @@ export function initSupertokens({ env, resolveRole }: SupertokensInitDeps): void
         },
       }),
       Session.init({
+        // Force COOKIE-based token transfer (cross-origin session fix).
+        //
+        // Root cause of the login-bounce bug: SuperTokens' default
+        // getTokenTransferMethod returns "any", and on session CREATION with no
+        // `st-auth-mode: cookie` request header it falls back to "header"
+        // transfer (supertokens-node sessionRequestFunctions.createNewSession
+        // → outputTransferMethod default). The tokens then came back as
+        // st-access-token / st-refresh-token / front-token RESPONSE HEADERS —
+        // never a Set-Cookie the browser stores. Forcing "cookie" here makes
+        // the SDK emit Set-Cookie on every session mint/refresh, independent of
+        // any client header, so a first-party session cookie always lands on
+        // the web origin. Same-origin proxying alone is NOT sufficient without
+        // this — it fixes WHERE the cookie is scoped, this fixes WHETHER a
+        // cookie is issued at all.
+        getTokenTransferMethod: () => 'cookie',
+        // Same-origin (web ↔ web via the proxy) → SameSite=Lax is correct and
+        // sufficient. cookieSecure is intentionally left to auto-derive from
+        // apiDomain's protocol (WEB_ORIGIN): https in prod → Secure; http on
+        // localhost in dev → not Secure, so the dev cookie is still sent.
+        cookieSameSite: 'lax',
         // Anti-CSRF for cookie sessions; refresh-token rotation with reuse
         // detection is on by default in the Session recipe.
         antiCsrf: 'VIA_TOKEN',

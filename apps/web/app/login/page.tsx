@@ -62,10 +62,13 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-
-      // SuperTokens EmailPassword sign-in SDK auto-route.
-      const res = await fetch(`${apiBase}/auth/signin`, {
+      // SAME-ORIGIN path (cross-origin session fix): hit the web origin's
+      // `/auth/signin`, which apps/web/next.config.ts rewrites to the api. This
+      // is what makes SuperTokens' Set-Cookie land first-party on the web
+      // origin so the dashboard server component can read it. Calling the api
+      // origin directly (NEXT_PUBLIC_API_URL) would scope the cookie to the
+      // cross-site api subdomain and the login would bounce back to /login.
+      const res = await fetch('/auth/signin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', rid: 'emailpassword' },
         credentials: 'include',

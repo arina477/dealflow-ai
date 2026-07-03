@@ -47,10 +47,10 @@ function RequestStep() {
     setEmailError(undefined);
 
     setIsLoading(true);
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
     try {
+      // Same-origin path (rewritten to the api by next.config.ts).
       // Fire-and-forget: always show the same ack regardless of server response.
-      await fetch(`${apiBase}/auth/reset/request`, {
+      await fetch('/auth/reset/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -248,8 +248,8 @@ function ConfirmStep({ token }: { token: string }) {
 
     setIsLoading(true);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-      const res = await fetch(`${apiBase}/auth/reset/confirm`, {
+      // Same-origin path (rewritten to the api by next.config.ts).
+      const res = await fetch('/auth/reset/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password }),

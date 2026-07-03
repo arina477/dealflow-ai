@@ -122,8 +122,11 @@ function AcceptInviteForm() {
 
     setIsLoading(true);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-      const res = await fetch(`${apiBase}/auth/signup`, {
+      // SAME-ORIGIN path (cross-origin session fix): rewritten to the api by
+      // next.config.ts so the invite-bound signup's Set-Cookie session lands
+      // first-party on the web origin (readable by the dashboard server
+      // component). See apps/web/app/login/page.tsx for the full rationale.
+      const res = await fetch('/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
