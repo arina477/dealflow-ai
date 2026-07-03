@@ -132,9 +132,15 @@ export type GateVerdict = z.infer<typeof gateVerdictSchema>;
 
 export const gateContextSchema = z
   .object({
-    /** Verified session userId of the outreach sender. */
+    /**
+     * App-DB `users.id` (UUID) of the outreach sender — NOT the SuperTokens
+     * user id. The M6 send endpoint MUST resolve the SuperTokens session id to
+     * the app users row (e.g. via AuthRepository.getUserWithRole) and pass the
+     * resulting `users.id` here. Passing a raw SuperTokens id will FK-violate
+     * the audit `actor_user_id` column (which references `users(id)`).
+     */
     senderUserId: z.string().uuid(),
-    /** Role snapshot from the verified session (not a client claim). */
+    /** DB-authoritative role of the sender (not a stale JWT claim). */
     senderRole: roleEnum,
     /** Resolved recipient email addresses for this outreach batch. */
     recipients: z.array(z.string().email()).min(1),

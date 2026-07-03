@@ -140,6 +140,30 @@ export class AuthRepository {
   }
 
   /**
+   * Translate a SuperTokens user id to the app-DB users row needed for FK-safe
+   * writes (CRUD actor identity + DB-authoritative role).
+   *
+   * Returns `{ id, roleName }` where `id` is `users.id` (the UUID FK-safe for
+   * `compliance_rules.created_by`, audit `actor_user_id`, etc.) and `roleName`
+   * is the DB-authoritative role (replaces the stale JWT claim previously used
+   * as audit `actorRole`).
+   *
+   * Returns `null` when no `users` row exists for the given SuperTokens id.
+   * Callers MUST fail closed (throw / 401) on null — never INSERT a null actor.
+   */
+  async getUserWithRole(
+    supertokensUserId: string
+  ): Promise<{ id: string; roleName: string } | null> {
+    const rows = await this.db
+      .select({ id: users.id, roleName: roles.name })
+      .from(users)
+      .innerJoin(roles, eq(users.roleId, roles.id))
+      .where(eq(users.supertokensUserId, supertokensUserId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
    * Atomically consume a valid invite and create the mapped app-DB users row.
    *
    * Concurrency guard (security invariant: exactly one concurrent signup wins):

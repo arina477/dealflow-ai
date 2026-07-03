@@ -7,6 +7,8 @@
  *   - Audit-append failure rolls back the mutation
  *   - RBAC: compliance→201/200/204, admin→201/200/204, advisor/analyst→403, anon→401
  *   - Validation: invalid body → ZodError (400 in controller)
+ *   - Id-translation: controller calls getUserWithRole and passes the returned
+ *     app users.id (NOT the raw SuperTokens id) to the service (wave-5 C-2 fix)
  */
 
 import type { Role } from '@dealflow/shared';
@@ -31,7 +33,11 @@ import { RulesService } from './rules.service';
 
 const RULES_HANDLER_LIST = RulesController.prototype.listRules;
 
-const TEST_USER_ID = 'st-user-rules-123';
+/** SuperTokens id — what session.getUserId() returns (NOT FK-safe). */
+const ST_USER_ID = 'st-user-rules-123';
+/** App users.id — what getUserWithRole returns; FK-safe for compliance_rules. */
+const APP_USER_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
+const APP_USER_ROLE = 'compliance' as Role;
 
 function contextFor(handler: unknown, claimRole: Role | undefined): ExecutionContext {
   const req =
@@ -39,7 +45,7 @@ function contextFor(handler: unknown, claimRole: Role | undefined): ExecutionCon
       ? {}
       : {
           session: {
-            getUserId: () => TEST_USER_ID,
+            getUserId: () => ST_USER_ID,
             getAccessTokenPayload: () => ({ role: claimRole }),
           },
         };
@@ -89,6 +95,96 @@ describe('GET /compliance/rules — RBAC', () => {
     await expect(
       guard.canActivate(contextFor(RULES_HANDLER_LIST, undefined))
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+});
+
+// ── Id-translation assertion (wave-5 C-2 fix) ────────────────────────────────
+//
+// This test catches the id-space mismatch at the unit level even without a
+// live DB: it asserts that the controller calls AuthRepository.getUserWithRole
+// with the SuperTokens id AND passes the RETURNED app users.id (not the raw
+// SuperTokens id) to the service. Without this test, mocked services never see
+// an FK violation — the defect is invisible until hitting a real DB.
+//
+// FAIL-ON-PRE-FIX: before the C-2 fix, the controller called session.getUserId()
+// directly and passed the SuperTokens id to the service. That id is not in
+// users(id), so every write FK-violates → transaction rollback → HTTP 500.
+// This test would FAIL in that state because:
+//   - getUserWithRole would never be called, and
+//   - rulesService.createRule would be called with ST_USER_ID, not APP_USER_ID.
+
+describe('RulesController — id-translation (SuperTokens id → app users.id)', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('createRule: calls getUserWithRole with the ST id and passes app users.id to RulesService', async () => {
+    const getUserWithRole = vi.fn().mockResolvedValue({ id: APP_USER_ID, roleName: APP_USER_ROLE });
+    const mockAuthRepo = { getUserWithRole } as unknown as AuthRepository;
+
+    const mockService: Partial<RulesService> = {
+      createRule: vi.fn().mockResolvedValue({
+        id: 'rule-id',
+        ruleType: 'blocklist_check',
+        jurisdiction: null,
+        config: {},
+        enabled: true,
+        createdBy: APP_USER_ID,
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+      }),
+    };
+
+    const controller = new RulesController(mockService as RulesService, mockAuthRepo);
+
+    const req = {
+      session: {
+        getUserId: () => ST_USER_ID,
+        getAccessTokenPayload: () => ({ role: APP_USER_ROLE }),
+      },
+    };
+
+    await controller.createRule({ ruleType: 'blocklist_check', config: {} }, req as never);
+
+    // 1. The lookup MUST have been called with the SuperTokens id.
+    expect(getUserWithRole).toHaveBeenCalledOnce();
+    expect(getUserWithRole).toHaveBeenCalledWith(ST_USER_ID);
+
+    // 2. The service MUST receive the app users.id, NOT the raw ST id.
+    expect(mockService.createRule).toHaveBeenCalledWith(
+      expect.anything(),
+      APP_USER_ID, // ← app users.id (FK-safe)
+      APP_USER_ROLE // ← DB-authoritative role
+    );
+
+    // Defensive: the raw SuperTokens id must NOT have leaked to the service.
+    const [, passedUserId] =
+      (mockService.createRule as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    expect(passedUserId).not.toBe(ST_USER_ID);
+  });
+
+  it('createRule: throws UnauthorizedException when getUserWithRole returns null (user row missing — fail closed)', async () => {
+    const mockAuthRepo = {
+      getUserWithRole: vi.fn().mockResolvedValue(null),
+    } as unknown as AuthRepository;
+
+    const mockService: Partial<RulesService> = {
+      createRule: vi.fn(),
+    };
+
+    const controller = new RulesController(mockService as RulesService, mockAuthRepo);
+
+    const req = {
+      session: {
+        getUserId: () => ST_USER_ID,
+        getAccessTokenPayload: () => ({ role: 'compliance' }),
+      },
+    };
+
+    await expect(
+      controller.createRule({ ruleType: 'blocklist_check', config: {} }, req as never)
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    // Service must NOT be called — fail closed.
+    expect(mockService.createRule).not.toHaveBeenCalled();
   });
 });
 

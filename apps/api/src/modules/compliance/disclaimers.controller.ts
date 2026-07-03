@@ -7,6 +7,11 @@
  * (append-style versioning — prior row is deactivated, new row inserted in-tx).
  * Bodies validated inline against shared Zod schemas (400 on ZodError).
  *
+ * Actor id translation (wave-5 C-2 fix): session.getUserId() returns the
+ * SuperTokens user id, NOT the FK-safe `users.id`. AuthRepository.getUserWithRole()
+ * translates to the app users row (id + DB-authoritative role). Fail closed on
+ * null (user row missing → 401).
+ *
  * FAIL-CLOSED at boot: rolesForRoute assert same as other CRUD controllers.
  */
 
@@ -23,12 +28,15 @@ import {
   Patch,
   Post,
   Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import type { SessionContainer } from 'supertokens-node/recipe/session';
 import { ZodError } from 'zod';
 
+// biome-ignore lint/style/useImportType: value import required for emitDecoratorMetadata DI resolution
+import { AuthRepository } from '../auth/auth.repository';
 import { Roles, RolesGuard } from '../auth/guards/roles.guard';
 import { SessionGuard } from '../auth/guards/session.guard';
 import type { DisclaimerCreateDto, DisclaimerUpdateDto } from './compliance-crud.dto';
@@ -49,17 +57,27 @@ interface RequestWithSession extends Request {
   session?: SessionContainer;
 }
 
-function actorFromRequest(req: RequestWithSession): { userId: string; role: string } {
-  const session = req.session;
-  if (!session) throw new Error('Session not found on request (SessionGuard must run first)');
-  const userId = session.getUserId();
-  const role = (session.getAccessTokenPayload() as { role?: string }).role ?? 'unknown';
-  return { userId, role };
-}
-
 @Controller('compliance')
 export class DisclaimersController {
-  constructor(private readonly disclaimersService: DisclaimersService) {}
+  constructor(
+    private readonly disclaimersService: DisclaimersService,
+    private readonly authRepository: AuthRepository
+  ) {}
+
+  /**
+   * Translate the SuperTokens session user id to the FK-safe app `users.id`
+   * and DB-authoritative role. Fails closed (UnauthorizedException) if the
+   * users row is missing — never passes a null/bogus actor to the service.
+   */
+  private async resolveActor(req: RequestWithSession): Promise<{ userId: string; role: string }> {
+    const session = req.session;
+    if (!session) throw new UnauthorizedException('Session not found on request');
+    const appUser = await this.authRepository.getUserWithRole(session.getUserId());
+    if (!appUser) {
+      throw new UnauthorizedException('Authenticated user not found in app users table');
+    }
+    return { userId: appUser.id, role: appUser.roleName };
+  }
 
   @Get('disclaimers')
   @UseGuards(SessionGuard, RolesGuard)
@@ -72,7 +90,7 @@ export class DisclaimersController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(SessionGuard, RolesGuard)
   @Roles(...DISCLAIMERS_ROLES)
-  createDisclaimer(
+  async createDisclaimer(
     @Body() body: DisclaimerCreateDto,
     @Req() req: RequestWithSession
   ): Promise<DisclaimerTemplate> {
@@ -85,14 +103,14 @@ export class DisclaimersController {
       }
       throw err;
     }
-    const { userId, role } = actorFromRequest(req);
+    const { userId, role } = await this.resolveActor(req);
     return this.disclaimersService.createDisclaimer(input, userId, role);
   }
 
   @Patch('disclaimers/:id')
   @UseGuards(SessionGuard, RolesGuard)
   @Roles(...DISCLAIMERS_ROLES)
-  updateDisclaimer(
+  async updateDisclaimer(
     @Param('id') id: string,
     @Body() body: DisclaimerUpdateDto,
     @Req() req: RequestWithSession
@@ -106,7 +124,7 @@ export class DisclaimersController {
       }
       throw err;
     }
-    const { userId, role } = actorFromRequest(req);
+    const { userId, role } = await this.resolveActor(req);
     return this.disclaimersService.updateDisclaimer(id, input, userId, role);
   }
 }

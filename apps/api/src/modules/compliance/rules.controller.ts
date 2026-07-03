@@ -9,6 +9,12 @@
  * schemas inline (BadRequestException 400 on ZodError). Actor identity is
  * extracted from the server-verified session — never from the client body.
  *
+ * Actor id translation (wave-5 C-2 fix): session.getUserId() returns the
+ * SuperTokens user id, which is NOT the FK-safe `users.id`. We call
+ * AuthRepository.getUserWithRole() to translate to the app users row and also
+ * obtain the DB-authoritative role (fixes both the FK violation and the
+ * INFO audit-role finding). Fail closed on null (user row missing → 401).
+ *
  * FAIL-CLOSED at boot: if rolesForRoute('/compliance/rules') returns [], the
  * module-eval assertion throws so config drift crashes at boot (loud) rather
  * than silently opening the route. The guard also denies empty @Roles() at
@@ -30,12 +36,15 @@ import {
   Patch,
   Post,
   Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import type { SessionContainer } from 'supertokens-node/recipe/session';
 import { ZodError } from 'zod';
 
+// biome-ignore lint/style/useImportType: value import required for emitDecoratorMetadata DI resolution
+import { AuthRepository } from '../auth/auth.repository';
 import { Roles, RolesGuard } from '../auth/guards/roles.guard';
 import { SessionGuard } from '../auth/guards/session.guard';
 import type { RuleCreateDto, RuleUpdateDto } from './compliance-crud.dto';
@@ -56,18 +65,27 @@ interface RequestWithSession extends Request {
   session?: SessionContainer;
 }
 
-/** Extract the server-verified actor id + role from the session request. */
-function actorFromRequest(req: RequestWithSession): { userId: string; role: string } {
-  const session = req.session;
-  if (!session) throw new Error('Session not found on request (SessionGuard must run first)');
-  const userId = session.getUserId();
-  const role = (session.getAccessTokenPayload() as { role?: string }).role ?? 'unknown';
-  return { userId, role };
-}
-
 @Controller('compliance')
 export class RulesController {
-  constructor(private readonly rulesService: RulesService) {}
+  constructor(
+    private readonly rulesService: RulesService,
+    private readonly authRepository: AuthRepository
+  ) {}
+
+  /**
+   * Translate the SuperTokens session user id to the FK-safe app `users.id`
+   * and DB-authoritative role. Fails closed (UnauthorizedException) if the
+   * users row is missing — never passes a null/bogus actor to the service.
+   */
+  private async resolveActor(req: RequestWithSession): Promise<{ userId: string; role: string }> {
+    const session = req.session;
+    if (!session) throw new UnauthorizedException('Session not found on request');
+    const appUser = await this.authRepository.getUserWithRole(session.getUserId());
+    if (!appUser) {
+      throw new UnauthorizedException('Authenticated user not found in app users table');
+    }
+    return { userId: appUser.id, role: appUser.roleName };
+  }
 
   @Get('rules')
   @UseGuards(SessionGuard, RolesGuard)
@@ -80,7 +98,10 @@ export class RulesController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(SessionGuard, RolesGuard)
   @Roles(...RULES_ROLES)
-  createRule(@Body() body: RuleCreateDto, @Req() req: RequestWithSession): Promise<ComplianceRule> {
+  async createRule(
+    @Body() body: RuleCreateDto,
+    @Req() req: RequestWithSession
+  ): Promise<ComplianceRule> {
     let input: ReturnType<typeof ruleCreateSchema.parse>;
     try {
       input = ruleCreateSchema.parse(body);
@@ -90,14 +111,14 @@ export class RulesController {
       }
       throw err;
     }
-    const { userId, role } = actorFromRequest(req);
+    const { userId, role } = await this.resolveActor(req);
     return this.rulesService.createRule(input, userId, role);
   }
 
   @Patch('rules/:id')
   @UseGuards(SessionGuard, RolesGuard)
   @Roles(...RULES_ROLES)
-  updateRule(
+  async updateRule(
     @Param('id') id: string,
     @Body() body: RuleUpdateDto,
     @Req() req: RequestWithSession
@@ -111,7 +132,7 @@ export class RulesController {
       }
       throw err;
     }
-    const { userId, role } = actorFromRequest(req);
+    const { userId, role } = await this.resolveActor(req);
     return this.rulesService.updateRule(id, input, userId, role);
   }
 
@@ -119,8 +140,8 @@ export class RulesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(SessionGuard, RolesGuard)
   @Roles(...RULES_ROLES)
-  deleteRule(@Param('id') id: string, @Req() req: RequestWithSession): Promise<void> {
-    const { userId, role } = actorFromRequest(req);
+  async deleteRule(@Param('id') id: string, @Req() req: RequestWithSession): Promise<void> {
+    const { userId, role } = await this.resolveActor(req);
     return this.rulesService.deleteRule(id, userId, role);
   }
 }
