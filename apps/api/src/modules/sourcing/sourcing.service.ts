@@ -40,11 +40,14 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { AuditService } from '../audit/audit.service';
-import type { AuthRepository } from '../auth/auth.repository';
-import type { IngestionService } from './ingestion.service';
+// biome-ignore lint/style/useImportType: NestJS DI needs the runtime value
+import { AuditService } from '../audit/audit.service';
+// biome-ignore lint/style/useImportType: NestJS DI needs the runtime value
+import { AuthRepository } from '../auth/auth.repository';
+// biome-ignore lint/style/useImportType: NestJS DI needs the runtime value
+import { IngestionService } from './ingestion.service';
 import type { Tx } from './sourcing.repository';
-// biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata
+// biome-ignore lint/style/useImportType: NestJS DI needs the runtime value
 import { SourcingRepository } from './sourcing.repository';
 
 @Injectable()
