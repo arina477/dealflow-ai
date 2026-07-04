@@ -30,8 +30,8 @@ BUILD:
 - [x] B-6 Review — head-builder APPROVED (attempt-2, candidate-idempotency); /review 4 dedupe CRIT fixed (dbee1d0); commit-discipline mapped
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [x] C-1 PR, CI & merge — CI green on exact HEAD 5f33c7c (typecheck/lint/build/audit/test all success, head_sha matches); pnpm audit gate passed; landed on main == origin/wave-6-deal-sourcing tip (squash). No formal C-1 deliverable file (bookkeeping gap → L-block), but substantive exit criteria independently verified.
+- [ ] C-2 Deploy & verify — **FAIL (code defect, routed to B-block)**. Prior "no RAILWAY_TOKEN" BLOCK was a FALSE-NEGATIVE — token present (APP_RAILWAY_TOKEN, 36 chars) + deploy-scoped-verified. Real blocker: dealflow-api crash-loops on boot @ 5f33c7c — NestJS `UnknownDependenciesException` in `SourcingService` (root cause: `import type` on IngestionService/AuditService/AuthRepository in `apps/api/src/modules/sourcing/sourcing.service.ts` strips runtime DI metadata). web deployed SUCCESS. Migration 0004 static additive-only PASS but NOT applied live (api never booted). Live api still serves OLD good build 13e55ef (no outage; wave-6 code NOT live). LIVE dedupe payoff NOT run. head-ci-cd verdict REJECTED; STATUS: BLOCKED (trigger d hard-stop). Fix = `import type`→`import` for the 3 DI deps, commit+push, re-run C-2.
 
 TEST:
 - [ ] T-1 Static
