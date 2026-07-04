@@ -28,8 +28,8 @@ BUILD:
 - [x] B-6 Review — head-builder APPROVED; /review 2 CRIT fixed (badges+providerKey-400+dup-409, 57d79bc)
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [x] C-1 PR, CI & merge — main @ 23e5372, CI green (all 5); merged
+- [ ] C-2 Deploy & verify — FAIL (head-ci-cd REJECTED): deploy 23e5372 SUCCESS both services, /health==23e5372, but migration 0005 did NOT apply (drizzle journal `when` defect → UNIQUE(display_name) absent → dup-create 201 not 409). Root-caused (sre-engineer). Returns to Build for 0005 journal `when` fix + preDeploy migrate-count guard, then re-run C-2. All other ACs GREEN live (workspace, create-201, bad-key-400, ≥2-source real badges, search, RBAC, audit, regression). Canary skipped (0 DAU).
 
 TEST:
 - [ ] T-1 Static
