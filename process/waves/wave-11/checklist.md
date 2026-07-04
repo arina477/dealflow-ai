@@ -27,8 +27,8 @@ DESIGN (skip block if non-UI wave):
 
 BUILD:
 - [x] B-0 Branch & schema — branch wave-11-outreach-foundation; 3 tasks claimed; schema 0010 (backend-developer)
-- [ ] B-1 Contracts
-- [ ] B-2 Backend
+- [x] B-1 Contracts
+- [x] B-2 Backend
 - [ ] B-3 Frontend
 - [ ] B-4 Wiring
 - [ ] B-5 Verify

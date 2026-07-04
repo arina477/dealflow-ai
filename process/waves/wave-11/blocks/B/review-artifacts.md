@@ -2,9 +2,9 @@
 **Block:** B (Build) · **Wave topic:** Compliant-outreach foundation: versioned templates + non-bypassable pre-send gate + SoD (M6 first) · **Gate:** B-6 · **Status:** in-progress
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
-| B-0 | stages/B-0-branch-and-schema.md | in-progress | branch wave-11-outreach-foundation; schema 0010 (3 tables); 3 tasks claimed |
-| B-1 | stages/B-1-contracts.md | pending | shared outreach Zod + rbac + NAV + audit actions |
-| B-2 | stages/B-2-backend.md | pending | TemplateService (version-binding) + OutreachService (compose ALWAYS calls M2 gate) + SoD (backend-developer) |
+| B-0 | stages/B-0-branch-and-schema.md | done | branch + 3 tasks + migration 0010 (journal when>0009; distinct enum + down.sql) |
+| B-1 | stages/B-1-contracts.md | done | shared outreach Zod + rbac + NAV + audit actions |
+| B-2 | stages/B-2-backend.md | done | TemplateService version-binding + OutreachService non-bypassable-gate-reuses-M2 + SoD; full-repo-test green |
 | B-3 | stages/B-3-frontend.md | pending | templates-library + outreach-composer + compliance-queue pages; STRIP send/AI-draft affordances (nextjs-developer) |
 | B-4 | stages/B-4-wiring.md | pending | repo typecheck + build |
 | B-5 | stages/B-5-verify.md | pending | lint+unit+build (gate-called structural test) |
