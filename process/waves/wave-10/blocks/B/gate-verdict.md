@@ -19,3 +19,15 @@ Both load-bearing boundaries hold in CODE, not just prose. **Boundary 1 (determi
 ## Footer
 - verdict_complete: true
 - rework_attempt_cap_remaining: 3
+
+---
+## Phase 2 — /review (adversarial)
+Found 2 CRITICAL + 4 info (BOTH boundaries clean [no LLM/AI-framing — byte+grep]; scorer discriminates; audit/actor-id/idempotency verified):
+- **CRIT re-run WIPES dispositions** (compliance-first data-loss — advisor accept/reject lost on re-score) → FIXED (8b88519): snapshot non-pending dispositions + reconcile (carry forward for still-included candidates) + audit dispositionsPreserved; test asserts accepted survives re-score.
+- **CRIT handoff guard escaping-read** (countAccepted via this.db not tx — wave-9 CRIT-5 class re-firing) → FIXED: countAcceptedCandidatesByRunIdInTx (tx snapshot).
+- INFO isNew-audit-accuracy (updatedAt never fires on onConflict → always-new) → FIXED: xmax=0 detection. INFO re-handoff-idempotency → FIXED: early-return if readyForOutreach (no dup audit). INFO web optimistic-revert-no-op → FIXED: capture+restore prev disposition (13a0cfb). INFO web createRun-blind-cast (wave-9 CRIT-1/2 class) → FIXED: error state, no unvalidated commit.
+Fix commits 8b88519 (backend) + 13a0cfb (web). Re-verify: typecheck clean, lint 0, tests pass (+ all regressions), build pass. 2 CRIT regression-tested.
+
+## Action 6 — commit-discipline (multi-spec): commits cite 47ed7ddd/fb82d339/f74dce45. PASS.
+## Phase 2 Verdict: PASS. **B-block gate: PASSED** (head-builder APPROVED [both boundaries + AI-framing grep] + /review 2 CRIT fixed). → next block C.
+### C-2 carry: verify create-run(deterministic-score)→disposition→re-run-preserves→handoff-guard live; scorer discriminates on real data; NO AI-framing on the deployed page.

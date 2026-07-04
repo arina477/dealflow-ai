@@ -43,7 +43,7 @@ BUILD:
 - [x] B-3 Frontend — /matches-shortlist page (SSR-hydrate, /matches-data proxy, AI-framing STRIPPED→rule-based, D6 link); 371 web tests (9eaaa71)
 - [x] B-4 Wiring — repo typecheck+build PASS; /matches-shortlist compiles; AI-framing clean
 - [x] B-5 Verify — lint 0-err, tests pass, build pass; scorer-discrimination + no-AI-framing tested; runtime→C-2
-- [ ] B-6 Review
+- [x] B-6 Review — head-builder APPROVED (boundaries+AI-grep); /review 2 CRIT fixed (8b88519+13a0cfb)
 
 CI/CD:
 - [ ] C-1 PR, CI & merge
