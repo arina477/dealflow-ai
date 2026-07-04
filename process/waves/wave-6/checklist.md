@@ -38,16 +38,16 @@ TEST:
 - [x] T-2 Unit
 - [x] T-3 Contract
 - [x] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
+- [x] T-5 E2E — 8/8 real-browser PASS (analyst sees screen, RBAC deny; empty-state — pipeline live-proved C-2); Chrome
+- [x] T-6 Layout — companies screen §10-conformant (TopBar-title→polish task, recurring)
 - [x] T-7 Perf
 - [x] T-8 Security
-- [ ] T-9 Journey
+- [x] T-9 Journey — head-tester APPROVED; journey regen (data spine + companies LIVE)
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-1 Independent reviews (Karen + jenny, parallel) — Karen + jenny both APPROVE (data spine LIVE, 0 drift/gap)
+- [x] V-2 Triage — 0 blocking; 3 non-blocking (TopBar-polish, dead-code, resolve-unit-covered)
+- [x] V-3 Fast-fix loop (or close) — head-verifier APPROVED; fast-fix skipped (0 blocking)
 
 LEARN:
 - [ ] L-1 Docs

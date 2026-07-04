@@ -1,0 +1,15 @@
+# Wave 6 — V-3 Verdict
+
+**Reviewer:** head-verifier (fresh spawn, V-block gate)
+**Reviewed against:** process/waves/wave-6/blocks/V/review-artifacts.md
+**Attempt:** 1  (1 = first gate)
+
+## Verdict
+APPROVED
+
+## Rationale
+Both V-1 reviewers APPROVE and — unusually for a data-pipeline wave — every load-bearing "PASS" traces to a concrete artifact observed in the deployed state at `918dbf0`, not inferred from a green suite. Karen (source-claim, APPROVE, 7 claim-groups TRUE) pins the live `/health` hash to `918dbf0` and proves `git diff 918dbf0..63b9473` over the sourcing/schema/migration/web tree is EMPTY with `918dbf0` an ancestor of main HEAD — so her static audit of the dedupe engine IS an audit of deployed behavior, defeating the Local-Build-Illusion and spec-vs-deployed-drift failure modes at the root. jenny (spec-semantic, APPROVE, 0 drift / 0 gap) ran her own independent live probes on `918dbf0` (unauth 401 on all three API routes, web 307→/login, old `/companies` 404) and mapped all four spec blocks to MATCHES. The end-to-end M3 payoff is proof-carrying via C-2's live evidence against the same `918dbf0` hash (minted analyst + temp Postgres proxy, head-ci-cd APPROVED, proxy torn down): the deduped, provenance-tracked canonical company universe is genuinely LIVE — cross-SOURCE dedup (acme.com 2 records → ONE canonical + 2 company_provenance; a 2nd distinct connection kept companies at 4 with distinct_conns=2), contact-level provenance / P-4 principle-3 (Alice case-normalized → 1 contact + 2 contact_provenance), and idempotent re-sync (201 {ingested:0,updated:5}, all counts identical). The worst-case invariant — NO false-positive merge — is live-proven: 4 companies = 4 distinct normalized_domains, `co` deliberately absent from CORP_SUFFIX_RE (dedupe.engine.ts:210, CRITICAL-1), name-only and name+domain-conflict route to the review queue rather than auto-merging. Both data-integrity CRITICALs (false-positive-merge, lost-contact-provenance) are thus confirmed in deployed data, not just on disk. The two green-CI/broken-runtime fix-cycles (DI-boot crash, fixture-absent-from-dist) now carry live guards: the `sourcing.di-boot.spec.ts` compile assertion plus the live C-2 sync flipping 500→201 with the fixture loading from `dist/`. V-2 triage is sound: 0 blocking, and all three non-blocking items are genuinely cosmetic or honest — the "audited-resolve not live-exercised" is not a hidden gap but a correct outcome of a deterministic fixture that legitimately yields zero pending candidates (head-ci-cd explicitly refused to fabricate one via raw DB writes), with the path unit-covered and endpoint-wired (404/400/403/401 live). Thin-slice honesty holds: only the FIXTURE adapter ships, no faked provider integration is claimed, deferrals are named. No invisible-trust risk remains — audit hash-chain intact live (verify ok:true, 33 entries), RBAC fail-closed across all four sourcing endpoints, no secret column on data_source_connections. Fast-fix queue is EMPTY (Phase 2 skipped); every V-3 stage-exit check ticks from a deployed-state artifact.
+
+## Footer
+- verdict_complete: true
+- rework_attempt_cap_remaining: 3
