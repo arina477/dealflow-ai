@@ -25,11 +25,11 @@ Backlog re-homed at wave-9 close (clean future seeds, not this wave): 6fe232e3 a
 Deferred (founder-blocked): 345dfbc6 — first real DataSourceAdapter vendor selection + spend gate → M9 (surfaced, non-blocking).
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe) — PROCEED (all 3 aligned; deterministic-vs-LLM + M5/M6 boundaries held); no-prior-spec; wave 10 opened
+- [x] P-1 Decompose — PROCEED, multi-spec (3 tasks: spine+page+accept/reject); ~2.8-4.2k LOC; design_gap_flag FALSE (design exists → D skips)
+- [x] P-2 Spec — multi-spec (3 blocks: spine+page+accept/reject) in seed 47ed7ddd
+- [x] P-3 Plan — new matching module (2 tables 0009 + deterministic MatchingService + page); reuse M4/M3/M1/M2; no new dep/SDK/secret; deterministic-vs-LLM + M5/M6 boundaries
+- [x] P-4 Gate — PASSED (head-product APPROVED; karen+jenny APPROVE; B-3 strip-AI-framing mandatory; Gemini 429)
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
