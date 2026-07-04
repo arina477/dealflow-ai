@@ -30,6 +30,7 @@ import { createHash } from 'node:crypto';
 import type {
   AuditEntryInput,
   CompaniesListFilter,
+  ConnectionCreateInput,
   DedupeResolveInput,
   SyncSummary,
 } from '@dealflow/shared';
@@ -58,6 +59,106 @@ export class SourcingService {
     private readonly auditService: AuditService,
     private readonly authRepository: AuthRepository
   ) {}
+
+  // ---------------------------------------------------------------------------
+  // Connection create + list (wave-7 AC-SEED)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * createConnectionAsActor — creates a data_source_connections row AUDITED in-tx.
+   *
+   * Translates the SuperTokens id to app users.id via getUserWithRole (the wave-5
+   * actor-id-FK lesson). The raw SuperTokens id MUST NOT touch the created_by FK.
+   *
+   * AUDIT in-tx: sourcing-connection-create.
+   *   actor = app users.id; rollback on audit fail (same tx as INSERT).
+   *
+   * @param input              — validated ConnectionCreateInput (body)
+   * @param supertokensUserId  — raw SuperTokens user id from the session
+   */
+  async createConnectionAsActor(
+    input: ConnectionCreateInput,
+    supertokensUserId: string
+  ): Promise<{
+    id: string;
+    providerKey: string;
+    displayName: string;
+    enabled: boolean;
+    config: Record<string, unknown>;
+    createdBy: string | null;
+    createdAt: string;
+  }> {
+    // Translate SuperTokens id → app users.id.
+    const actor = await this.authRepository.getUserWithRole(supertokensUserId);
+    if (!actor) {
+      throw new ForbiddenException('Actor identity could not be resolved from app-DB users row');
+    }
+
+    const appUserId = actor.id;
+    const actorRole = actor.roleName;
+
+    return this.repository.runInTransaction(async (tx: Tx) => {
+      // Insert the connection row.
+      const conn = await this.repository.createConnection(tx, {
+        providerKey: input.providerKey,
+        displayName: input.displayName,
+        config: input.config,
+        createdBy: appUserId,
+      });
+
+      // AUDIT in-tx: sourcing-connection-create.
+      const eventPayload = {
+        connectionId: conn.id,
+        providerKey: conn.providerKey,
+        displayName: conn.displayName,
+      };
+      const payloadStr = JSON.stringify(eventPayload);
+      const payloadHash = createHash('sha256').update(payloadStr).digest('hex');
+      const contentHash = payloadHash;
+
+      const auditInput: AuditEntryInput = {
+        actorUserId: appUserId,
+        actorRole,
+        action: 'sourcing-connection-create',
+        resourceType: 'data_source_connection',
+        resourceId: conn.id,
+        contentHash,
+        payloadHash,
+      };
+
+      await this.auditService.append(auditInput, tx);
+
+      return {
+        id: conn.id,
+        providerKey: conn.providerKey,
+        displayName: conn.displayName,
+        enabled: conn.enabled,
+        config: conn.config as Record<string, unknown>,
+        createdBy: conn.createdBy,
+        createdAt: conn.createdAt,
+      };
+    });
+  }
+
+  /**
+   * listConnections — returns all data_source_connections with per-connection
+   * company count (for the ≥2-source facet on the workspace page).
+   */
+  async listConnections() {
+    const rows = await this.repository.listConnections();
+    return {
+      connections: rows.map((row) => ({
+        id: row.id,
+        providerKey: row.providerKey,
+        displayName: row.displayName,
+        enabled: row.enabled,
+        config: row.config,
+        createdBy: row.createdBy,
+        createdAt: row.createdAt,
+        companyCount: row.companyCount,
+      })),
+    };
+  }
 
   // ---------------------------------------------------------------------------
   // Sync endpoint orchestration

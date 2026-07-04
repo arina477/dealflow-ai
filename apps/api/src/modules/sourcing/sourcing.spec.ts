@@ -244,6 +244,8 @@ describe('IngestionService — idempotent ETL upsert', () => {
 // ---------------------------------------------------------------------------
 
 // The real handlers whose @Roles() metadata the RolesGuard reads.
+const createConnectionHandler = SourcingController.prototype.createConnection;
+const listConnectionsHandler = SourcingController.prototype.listConnections;
 const syncHandler = SourcingController.prototype.syncConnection;
 const listHandler = SourcingController.prototype.listCompanies;
 const _detailHandler = SourcingController.prototype.getCompanyDetail;
@@ -281,6 +283,96 @@ function mockAuthRepo(dbRole: Role | null): AuthRepository {
 function guardFor(dbRole: Role | null): RolesGuard {
   return new RolesGuard(new Reflector(), mockAuthRepo(dbRole));
 }
+
+// ---------------------------------------------------------------------------
+// Wave-7: RBAC matrix for POST/GET /sourcing/connections
+// ---------------------------------------------------------------------------
+
+describe('RBAC matrix — POST /sourcing/connections (analyst + admin, AC-SEED)', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('sources @Roles() from shared roleRoutes map (analyst + admin)', () => {
+    const fromMap = [...rolesForRoute('/sourcing/connections')].sort();
+    const fromMeta = [
+      ...new Reflector().get<Role[]>('dealflow:required-roles', createConnectionHandler),
+    ].sort();
+    expect(fromMeta).toEqual(fromMap);
+    expect(fromMeta).toEqual(['admin', 'analyst']);
+  });
+
+  it('analyst → ALLOW (201 create)', async () => {
+    await expect(
+      guardFor('analyst').canActivate(contextFor(createConnectionHandler, 'analyst'))
+    ).resolves.toBe(true);
+  });
+
+  it('admin → ALLOW (201 create)', async () => {
+    await expect(
+      guardFor('admin').canActivate(contextFor(createConnectionHandler, 'admin'))
+    ).resolves.toBe(true);
+  });
+
+  it('advisor → DENY (403)', async () => {
+    await expect(
+      guardFor('advisor').canActivate(contextFor(createConnectionHandler, 'advisor'))
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('compliance → DENY (403)', async () => {
+    await expect(
+      guardFor('compliance').canActivate(contextFor(createConnectionHandler, 'compliance'))
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('anon (no session) → 401', async () => {
+    await expect(
+      guardFor(null).canActivate(contextFor(createConnectionHandler, undefined))
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+});
+
+describe('RBAC matrix — GET /sourcing/connections (analyst + admin, AC-SEED)', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('sources @Roles() from shared roleRoutes map (analyst + admin)', () => {
+    const fromMap = [...rolesForRoute('/sourcing/connections')].sort();
+    const fromMeta = [
+      ...new Reflector().get<Role[]>('dealflow:required-roles', listConnectionsHandler),
+    ].sort();
+    expect(fromMeta).toEqual(fromMap);
+    expect(fromMeta).toEqual(['admin', 'analyst']);
+  });
+
+  it('analyst → ALLOW (list)', async () => {
+    await expect(
+      guardFor('analyst').canActivate(contextFor(listConnectionsHandler, 'analyst'))
+    ).resolves.toBe(true);
+  });
+
+  it('admin → ALLOW (list)', async () => {
+    await expect(
+      guardFor('admin').canActivate(contextFor(listConnectionsHandler, 'admin'))
+    ).resolves.toBe(true);
+  });
+
+  it('advisor → DENY (403)', async () => {
+    await expect(
+      guardFor('advisor').canActivate(contextFor(listConnectionsHandler, 'advisor'))
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('compliance → DENY (403)', async () => {
+    await expect(
+      guardFor('compliance').canActivate(contextFor(listConnectionsHandler, 'compliance'))
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('anon (no session) → 401', async () => {
+    await expect(
+      guardFor(null).canActivate(contextFor(listConnectionsHandler, undefined))
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+});
 
 describe('RBAC matrix — /sourcing/connections/:id/sync (analyst, admin)', () => {
   afterEach(() => vi.clearAllMocks());
@@ -823,10 +915,293 @@ describe('CRITICAL-3 regression: double-resolve blocked (concurrent resolve on a
 });
 
 // ---------------------------------------------------------------------------
+// Wave-7: SourcingService.createConnectionAsActor — create + audit + actor id
+// ---------------------------------------------------------------------------
+
+describe('SourcingService.createConnectionAsActor — create + audit + actor translation', () => {
+  const MOCK_ST_USER_ID = 'st-user-conn-create';
+  const MOCK_APP_USER_ID = 'app-uuid-conn-create';
+  const MOCK_ROLE = 'analyst';
+  const CREATED_CONN_ID = 'conn-uuid-created-1';
+
+  const validInput = {
+    providerKey: 'fixture',
+    displayName: 'Test Fixture',
+    config: {},
+  };
+
+  const createdConnRow = {
+    id: CREATED_CONN_ID,
+    providerKey: 'fixture',
+    displayName: 'Test Fixture',
+    enabled: true,
+    config: {},
+    createdBy: MOCK_APP_USER_ID,
+    createdAt: new Date().toISOString(),
+  };
+
+  let mockAuditAppend: ReturnType<typeof vi.fn>;
+  let mockGetUserWithRole: ReturnType<typeof vi.fn>;
+  let mockCreateConnection: ReturnType<typeof vi.fn>;
+  let mockRunInTransaction: ReturnType<typeof vi.fn>;
+  let service: SourcingService;
+
+  beforeEach(() => {
+    mockAuditAppend = vi.fn().mockResolvedValue({});
+    mockGetUserWithRole = vi.fn().mockResolvedValue({ id: MOCK_APP_USER_ID, roleName: MOCK_ROLE });
+    mockCreateConnection = vi.fn().mockResolvedValue(createdConnRow);
+    mockRunInTransaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work({}));
+
+    const mockRepo = {
+      createConnection: mockCreateConnection,
+      runInTransaction: mockRunInTransaction,
+    } as unknown as SourcingRepository;
+
+    service = new SourcingService(
+      mockRepo,
+      {} as never,
+      { append: mockAuditAppend } as unknown as AuditService,
+      { getUserWithRole: mockGetUserWithRole } as unknown as AuthRepository
+    );
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it('calls getUserWithRole with the SuperTokens user id', async () => {
+    await service.createConnectionAsActor(validInput, MOCK_ST_USER_ID);
+    expect(mockGetUserWithRole).toHaveBeenCalledWith(MOCK_ST_USER_ID);
+    expect(mockGetUserWithRole).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes app users.id (NOT raw ST id) as createdBy to createConnection', async () => {
+    await service.createConnectionAsActor(validInput, MOCK_ST_USER_ID);
+    expect(mockCreateConnection).toHaveBeenCalledTimes(1);
+    const callArgs = mockCreateConnection.mock.calls[0][1];
+    expect(callArgs.createdBy).toBe(MOCK_APP_USER_ID);
+    expect(callArgs.createdBy).not.toBe(MOCK_ST_USER_ID);
+  });
+
+  it('audits with action=sourcing-connection-create', async () => {
+    await service.createConnectionAsActor(validInput, MOCK_ST_USER_ID);
+    expect(mockAuditAppend).toHaveBeenCalledTimes(1);
+    const auditInput = mockAuditAppend.mock.calls[0][0];
+    expect(auditInput.action).toBe('sourcing-connection-create');
+  });
+
+  it('passes app users.id (NOT raw ST id) to AuditService.append actorUserId', async () => {
+    await service.createConnectionAsActor(validInput, MOCK_ST_USER_ID);
+    const auditInput = mockAuditAppend.mock.calls[0][0];
+    expect(auditInput.actorUserId).toBe(MOCK_APP_USER_ID);
+    expect(auditInput.actorUserId).not.toBe(MOCK_ST_USER_ID);
+  });
+
+  it('audits with resourceType=data_source_connection and resourceId=connectionId', async () => {
+    await service.createConnectionAsActor(validInput, MOCK_ST_USER_ID);
+    const auditInput = mockAuditAppend.mock.calls[0][0];
+    expect(auditInput.resourceType).toBe('data_source_connection');
+    expect(auditInput.resourceId).toBe(CREATED_CONN_ID);
+  });
+
+  it('runs the whole create in a transaction (runInTransaction called)', async () => {
+    await service.createConnectionAsActor(validInput, MOCK_ST_USER_ID);
+    expect(mockRunInTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the created connection with correct shape', async () => {
+    const result = await service.createConnectionAsActor(validInput, MOCK_ST_USER_ID);
+    expect(result.id).toBe(CREATED_CONN_ID);
+    expect(result.providerKey).toBe('fixture');
+    expect(result.displayName).toBe('Test Fixture');
+    expect(result.enabled).toBe(true);
+    expect(result.createdBy).toBe(MOCK_APP_USER_ID);
+  });
+
+  it('throws ForbiddenException when getUserWithRole returns null (no app user row)', async () => {
+    mockGetUserWithRole.mockResolvedValue(null);
+    await expect(
+      service.createConnectionAsActor(validInput, MOCK_ST_USER_ID)
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('does NOT call createConnection when actor lookup fails', async () => {
+    mockGetUserWithRole.mockResolvedValue(null);
+    await expect(
+      service.createConnectionAsActor(validInput, MOCK_ST_USER_ID)
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(mockCreateConnection).not.toHaveBeenCalled();
+  });
+
+  it('created row has app users.id as createdBy (NOT raw ST id) — regression', async () => {
+    const result = await service.createConnectionAsActor(validInput, MOCK_ST_USER_ID);
+    // Regression: the createdBy on the returned row must be the app users.id
+    expect(result.createdBy).toBe(MOCK_APP_USER_ID);
+    expect(result.createdBy).not.toBe(MOCK_ST_USER_ID);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave-7: SourcingService.listConnections
+// ---------------------------------------------------------------------------
+
+describe('SourcingService.listConnections', () => {
+  it('returns the connections list with companyCount from repository', async () => {
+    const rows = [
+      {
+        id: 'conn-1',
+        providerKey: 'fixture',
+        displayName: 'Fixture',
+        enabled: true,
+        config: {},
+        createdBy: 'user-1',
+        createdAt: new Date().toISOString(),
+        companyCount: 10,
+      },
+      {
+        id: 'conn-2',
+        providerKey: 'grata',
+        displayName: 'Grata',
+        enabled: true,
+        config: {},
+        createdBy: 'user-1',
+        createdAt: new Date().toISOString(),
+        companyCount: 5,
+      },
+    ];
+
+    const mockRepo = {
+      listConnections: vi.fn().mockResolvedValue(rows),
+    } as unknown as SourcingRepository;
+
+    const service = new SourcingService(
+      mockRepo,
+      {} as never,
+      {} as AuditService,
+      {} as AuthRepository
+    );
+
+    const result = await service.listConnections();
+    expect(result.connections).toHaveLength(2);
+    expect(result.connections[0]?.id).toBe('conn-1');
+    expect(result.connections[0]?.companyCount).toBe(10);
+    expect(result.connections[1]?.id).toBe('conn-2');
+    expect(result.connections[1]?.companyCount).toBe(5);
+  });
+
+  it('returns an empty list when no connections exist', async () => {
+    const mockRepo = {
+      listConnections: vi.fn().mockResolvedValue([]),
+    } as unknown as SourcingRepository;
+
+    const service = new SourcingService(
+      mockRepo,
+      {} as never,
+      {} as AuditService,
+      {} as AuthRepository
+    );
+
+    const result = await service.listConnections();
+    expect(result.connections).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave-7: create then list shows ≥2 connections
+// ---------------------------------------------------------------------------
+
+describe('Wave-7: create then list — ≥2 connections visible', () => {
+  it('after creating two connections, list returns both', async () => {
+    // Simulate two in-memory connections created sequentially.
+    const store: Array<{
+      id: string;
+      providerKey: string;
+      displayName: string;
+      enabled: boolean;
+      config: Record<string, unknown>;
+      createdBy: string;
+      createdAt: string;
+      companyCount: number;
+    }> = [];
+
+    let idCounter = 0;
+
+    const mockCreateConnection = vi.fn().mockImplementation(
+      (
+        _tx: unknown,
+        input: {
+          providerKey: string;
+          displayName: string;
+          config: Record<string, unknown>;
+          createdBy: string;
+        }
+      ) => {
+        const row = {
+          id: `conn-${++idCounter}`,
+          providerKey: input.providerKey,
+          displayName: input.displayName,
+          enabled: true,
+          config: input.config,
+          createdBy: input.createdBy,
+          createdAt: new Date().toISOString(),
+          companyCount: 0,
+        };
+        store.push(row);
+        return Promise.resolve(row);
+      }
+    );
+
+    const mockListConnections = vi.fn().mockImplementation(() => Promise.resolve([...store]));
+    const mockRunInTransaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work({}));
+
+    const mockRepo = {
+      createConnection: mockCreateConnection,
+      listConnections: mockListConnections,
+      runInTransaction: mockRunInTransaction,
+    } as unknown as SourcingRepository;
+
+    const mockAudit = { append: vi.fn().mockResolvedValue({}) } as unknown as AuditService;
+    const mockAuth = {
+      getUserWithRole: vi.fn().mockResolvedValue({ id: 'app-user-multi', roleName: 'analyst' }),
+    } as unknown as AuthRepository;
+
+    const service = new SourcingService(mockRepo, {} as never, mockAudit, mockAuth);
+
+    // Create first connection
+    await service.createConnectionAsActor(
+      { providerKey: 'fixture', displayName: 'Fixture', config: {} },
+      'st-user-multi'
+    );
+
+    // Create second connection
+    await service.createConnectionAsActor(
+      { providerKey: 'grata', displayName: 'Grata', config: {} },
+      'st-user-multi'
+    );
+
+    // List must show ≥2 connections
+    const listResult = await service.listConnections();
+    expect(listResult.connections.length).toBeGreaterThanOrEqual(2);
+    const providerKeys = listResult.connections.map((c) => c.providerKey);
+    expect(providerKeys).toContain('fixture');
+    expect(providerKeys).toContain('grata');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 6. Boot assertions — rolesForRoute non-empty for all sourcing routes
 // ---------------------------------------------------------------------------
 
 describe('Boot assertions — sourcing routes resolve non-empty roles', () => {
+  it('/sourcing/connections resolves to analyst + admin (wave-7 AC-SEED)', () => {
+    const roles = [...rolesForRoute('/sourcing/connections')];
+    expect(roles).toContain('analyst');
+    expect(roles).toContain('admin');
+    expect(roles.length).toBeGreaterThan(0);
+  });
+
   it('/sourcing/connections/:id/sync resolves to analyst + admin', () => {
     const roles = [...rolesForRoute('/sourcing/connections/:id/sync')];
     expect(roles).toContain('analyst');

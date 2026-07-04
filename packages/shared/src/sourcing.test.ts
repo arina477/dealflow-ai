@@ -4,6 +4,7 @@ import {
   companiesListFilterSchema,
   companyProvenanceSchema,
   companySchema,
+  connectionCreateSchema,
   contactProvenanceSchema,
   contactSchema,
   dataSourceConnectionSchema,
@@ -596,6 +597,88 @@ describe('dedupeResolveInputSchema', () => {
 
   it('rejects extra unknown fields (strict mode)', () => {
     expect(() => dedupeResolveInputSchema.parse({ action: 'merge', extra: true })).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// connectionCreateSchema (wave-7 AC-SEED)
+// ---------------------------------------------------------------------------
+
+describe('connectionCreateSchema', () => {
+  it('parses a full input with all fields', () => {
+    const result = connectionCreateSchema.parse({
+      providerKey: 'fixture',
+      displayName: 'Internal Fixture',
+      config: { field_map: {} },
+    });
+    expect(result.providerKey).toBe('fixture');
+    expect(result.displayName).toBe('Internal Fixture');
+    expect(result.config).toEqual({ field_map: {} });
+  });
+
+  it('defaults config to {} when absent (field is optional)', () => {
+    const result = connectionCreateSchema.parse({
+      providerKey: 'grata',
+      displayName: 'Grata',
+    });
+    expect(result.config).toEqual({});
+  });
+
+  it('parses config as an arbitrary record', () => {
+    const result = connectionCreateSchema.parse({
+      providerKey: 'custom',
+      displayName: 'Custom',
+      config: { nested: { key: 'value' }, count: 5 },
+    });
+    expect(result.config).toMatchObject({ nested: { key: 'value' }, count: 5 });
+  });
+
+  it('rejects empty providerKey (credential name must be non-empty)', () => {
+    expect(() => connectionCreateSchema.parse({ providerKey: '', displayName: 'Test' })).toThrow();
+  });
+
+  it('rejects missing providerKey', () => {
+    expect(() => connectionCreateSchema.parse({ displayName: 'Test' })).toThrow();
+  });
+
+  it('rejects empty displayName', () => {
+    expect(() =>
+      connectionCreateSchema.parse({ providerKey: 'fixture', displayName: '' })
+    ).toThrow();
+  });
+
+  it('rejects missing displayName', () => {
+    expect(() => connectionCreateSchema.parse({ providerKey: 'fixture' })).toThrow();
+  });
+
+  it('rejects extra unknown fields (strict mode)', () => {
+    expect(() =>
+      connectionCreateSchema.parse({
+        providerKey: 'fixture',
+        displayName: 'Test',
+        secretValue: 'oops',
+      })
+    ).toThrow();
+  });
+
+  it('rejects config that is not a record (array)', () => {
+    expect(() =>
+      connectionCreateSchema.parse({
+        providerKey: 'fixture',
+        displayName: 'Test',
+        config: [1, 2, 3],
+      })
+    ).toThrow();
+  });
+
+  it('rejects config that is not a record (string)', () => {
+    expect(() =>
+      connectionCreateSchema.parse({
+        providerKey: 'fixture',
+        displayName: 'Test',
+        config: 'not-an-object',
+      })
+    ).toThrow();
   });
 });
 

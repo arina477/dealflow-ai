@@ -193,6 +193,13 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
   // Wave-6: API route entries for the sourcing data spine (analyst + admin per P-3 Action 3).
   // No navItem — these are API-only endpoints; the sidebar nav for sourcing is /sourcing (NAV_SOURCING).
   // Admin allowed on sync + resolve (config/ops surface); analyst is the primary sourcing persona.
+  // Wave-7: POST /sourcing/connections + GET /sourcing/connections (AC-SEED create/list).
+  // No navItem — API-only endpoints; the sourcing workspace nav is NAV_SOURCING (/sourcing).
+  // analyst + admin: analyst is the primary sourcing persona; admin for config/ops management.
+  {
+    pattern: '/sourcing/connections',
+    allowedRoles: ['analyst', 'admin'],
+  },
   {
     // POST /sourcing/connections/:id/sync — on-demand ETL trigger.
     pattern: '/sourcing/connections/:id/sync',

@@ -2,7 +2,7 @@
  * SourcingRepository — Drizzle queries for the sourcing read surface.
  *
  * Covers:
- *   - Connection lookup (by id)
+ *   - Connection lookup (by id), create, list (wave-7 AC-SEED)
  *   - Companies list with filters (name/domain/source/status)
  *   - Company detail (with contacts, provenance, pending candidates)
  *   - Dedupe candidate lookup (by id, with pending status check)
@@ -54,6 +54,66 @@ export class SourcingRepository {
       .where(eq(dataSourceConnections.id, id))
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  /**
+   * createConnection — inserts a new data_source_connections row.
+   * created_by is set to the app users.id (never the raw SuperTokens id).
+   * Must be called within the caller's transaction (tx) for atomicity with audit.
+   */
+  async createConnection(
+    tx: Tx,
+    input: {
+      providerKey: string;
+      displayName: string;
+      config: Record<string, unknown>;
+      createdBy: string;
+    }
+  ): Promise<ConnectionRow> {
+    const rows = await tx
+      .insert(dataSourceConnections)
+      .values({
+        providerKey: input.providerKey,
+        displayName: input.displayName,
+        config: input.config,
+        createdBy: input.createdBy,
+      })
+      .returning();
+    const row = rows[0];
+    if (!row) {
+      throw new Error('SourcingRepository: INSERT data_source_connections returned no row');
+    }
+    return row;
+  }
+
+  /**
+   * listConnections — returns all data_source_connections rows, ordered by
+   * created_at ascending (oldest first — stable list order for the workspace).
+   * Optionally augmented with a per-connection company count for the ≥2-source
+   * facet; count derived from company_provenance.
+   */
+  async listConnections(): Promise<Array<ConnectionRow & { companyCount: number }>> {
+    const rows = await this.db
+      .select()
+      .from(dataSourceConnections)
+      .orderBy(dataSourceConnections.createdAt);
+
+    const result = await Promise.all(
+      rows.map(async (conn) => {
+        const countRows = await this.db
+          .select({
+            count: sql<number>`cast(count(distinct ${companyProvenance.companyId}) as int)`,
+          })
+          .from(companyProvenance)
+          .where(eq(companyProvenance.connectionId, conn.id));
+        return {
+          ...conn,
+          companyCount: countRows[0]?.count ?? 0,
+        };
+      })
+    );
+
+    return result;
   }
 
   // ---------------------------------------------------------------------------

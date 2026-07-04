@@ -523,6 +523,8 @@ describe('roleRoutes — completeness against pinned matrix', () => {
     ['/sourcing/companies/:id', ['analyst']],
     ['/sourcing/connections/:id/sync', ['analyst', 'admin']],
     ['/sourcing/dedupe-candidates/:id/resolve', ['analyst', 'admin']],
+    // Wave-7: /sourcing/connections (AC-SEED create/list — analyst + admin).
+    ['/sourcing/connections', ['analyst', 'admin']],
     ['/templates', ['analyst', 'compliance']],
     ['/compliance/queue', ['compliance', 'advisor']],
     ['/compliance/audit-log', ['compliance']],
@@ -940,6 +942,81 @@ describe('wave-6 — /compliance/* routes UNTOUCHED', () => {
 
   it('/compliance/settings remains compliance only', () => {
     expect([...rolesForRoute('/compliance/settings')].sort()).toEqual(['compliance']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave-7 additions — /sourcing/connections (create/list — AC-SEED)
+// ---------------------------------------------------------------------------
+
+describe('wave-7 — /sourcing/connections RBAC (analyst + admin, no navItem)', () => {
+  it('rolesForRoute → analyst + admin', () => {
+    const roles = rolesForRoute('/sourcing/connections');
+    expect([...roles].sort()).toEqual(['admin', 'analyst']);
+  });
+
+  it('analyst can create/list connections', () => {
+    expect(canAccess('analyst', '/sourcing/connections')).toBe(true);
+  });
+
+  it('admin can create/list connections', () => {
+    expect(canAccess('admin', '/sourcing/connections')).toBe(true);
+  });
+
+  it('advisor is denied /sourcing/connections', () => {
+    expect(canAccess('advisor', '/sourcing/connections')).toBe(false);
+  });
+
+  it('compliance is denied /sourcing/connections', () => {
+    expect(canAccess('compliance', '/sourcing/connections')).toBe(false);
+  });
+
+  it('the route entry has no navItem (API-only; workspace nav is /sourcing)', () => {
+    const entry = roleRoutes.find((e) => e.pattern === '/sourcing/connections');
+    expect(entry).toBeDefined();
+    expect(entry?.navItem).toBeUndefined();
+  });
+
+  it('/sourcing/connections does NOT appear in navItemsForRole for any role', () => {
+    for (const role of ALL_ROLES) {
+      const items = navItemsForRole(role);
+      expect(items.some((i) => i.route === '/sourcing/connections')).toBe(false);
+    }
+  });
+
+  it('wave-7 does NOT change analyst nav (still /sourcing only)', () => {
+    const items = navItemsForRole('analyst');
+    const routes = items.map((i) => i.route);
+    expect(routes).toContain('/sourcing');
+    expect(routes).not.toContain('/sourcing/connections');
+  });
+});
+
+describe('wave-7 — nav⊆RBAC preserved after /sourcing/connections added', () => {
+  for (const role of ALL_ROLES) {
+    it(`navItemsForRole('${role}') — every item still passes canAccess after wave-7 addition`, () => {
+      const items = navItemsForRole(role);
+      for (const item of items) {
+        expect(canAccess(role, item.route)).toBe(true);
+      }
+    });
+  }
+
+  it('no nav item appears for a role denied at the route level (ALL_NAV_ITEMS exhaustive)', () => {
+    for (const navItem of ALL_NAV_ITEMS) {
+      const deniedRoles = ALL_ROLES.filter((r) => !(navItem.allowedRoles as Role[]).includes(r));
+      for (const deniedRole of deniedRoles) {
+        const items = navItemsForRole(deniedRole);
+        const isShown = items.some((i) => i.route === navItem.route);
+        expect(isShown).toBe(false);
+      }
+    }
+  });
+
+  it('/sourcing/connections does NOT have a navItem', () => {
+    const entry = roleRoutes.find((e) => e.pattern === '/sourcing/connections');
+    expect(entry).toBeDefined();
+    expect(entry?.navItem).toBeUndefined();
   });
 });
 

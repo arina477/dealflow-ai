@@ -53,6 +53,13 @@ export const auditActionEnum = z.enum([
    * Appended AFTER all prior values — serialization order preserved.
    */
   'sourcing-dedupe-resolve',
+  // --- Wave-7 sourcing actions (additive) ---
+  /**
+   * A data_source_connections row was created by a human.
+   * Enables the AC-SEED ≥2-source view on the sourcing workspace page.
+   * Audited in-tx (rollback on audit fail) — actor = app users.id.
+   */
+  'sourcing-connection-create',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;

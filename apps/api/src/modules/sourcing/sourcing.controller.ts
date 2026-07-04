@@ -2,6 +2,8 @@
  * SourcingController — HTTP surface for the deal-sourcing data spine.
  *
  * Endpoints:
+ *   POST /sourcing/connections                    analyst, admin  (wave-7 AC-SEED)
+ *   GET  /sourcing/connections                    analyst, admin  (wave-7 AC-SEED)
  *   POST /sourcing/connections/:id/sync           analyst, admin
  *   GET  /sourcing/companies                      analyst
  *   GET  /sourcing/companies/:id                  analyst
@@ -19,8 +21,8 @@
  * (two independent fail-closed layers; the wave-5 compliance.controller exemplar).
  *
  * ── Actor identity ──────────────────────────────────────────────────────────
- * For the resolve endpoint, the actor's SuperTokens user id is extracted from
- * the server-verified session and passed to SourcingService, which translates
+ * For the create + resolve endpoints, the actor's SuperTokens user id is extracted
+ * from the server-verified session and passed to SourcingService, which translates
  * it to app users.id via AuthRepository.getUserWithRole (wave-5 actor-id-FK lesson).
  * The raw SuperTokens id NEVER touches a users.id FK column.
  *
@@ -29,9 +31,15 @@
  * ZodError → 400 BadRequestException.
  */
 
-import type { CompaniesListFilter, DedupeResolveInput, Role } from '@dealflow/shared';
+import type {
+  CompaniesListFilter,
+  ConnectionCreateInput,
+  DedupeResolveInput,
+  Role,
+} from '@dealflow/shared';
 import {
   companiesListFilterSchema,
+  connectionCreateSchema,
   dedupeResolveInputSchema,
   rolesForRoute,
 } from '@dealflow/shared';
@@ -40,6 +48,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Query,
@@ -57,6 +67,15 @@ import { SourcingService } from './sourcing.service';
 // Fail-closed boot assertions — resolved from the single source of truth.
 // If any pattern is renamed/removed in rbac.ts, the app crashes at boot.
 // ---------------------------------------------------------------------------
+
+// Wave-7 AC-SEED: POST/GET /sourcing/connections (create + list).
+const CONNECTIONS_ROLES: Role[] = [...rolesForRoute('/sourcing/connections')];
+if (CONNECTIONS_ROLES.length === 0) {
+  throw new Error(
+    "RBAC config drift: rolesForRoute('/sourcing/connections') resolved to [] — " +
+      'the route pattern is missing from the shared roleRoutes matrix. Refusing to boot.'
+  );
+}
 
 const SYNC_ROLES: Role[] = [...rolesForRoute('/sourcing/connections/:id/sync')];
 if (SYNC_ROLES.length === 0) {
@@ -93,6 +112,66 @@ if (RESOLVE_ROLES.length === 0) {
 @Controller('sourcing')
 export class SourcingController {
   constructor(private readonly sourcingService: SourcingService) {}
+
+  // ---------------------------------------------------------------------------
+  // POST /sourcing/connections  (wave-7 AC-SEED: create a connection)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * createConnection — creates a new data_source_connections row.
+   *
+   * Body: { providerKey, displayName, config? }
+   *   providerKey: Railway-env credential NAME — NEVER a secret value.
+   *   displayName: human-readable label for the workspace UI.
+   *   config:      non-secret per-connection config (optional; defaults to {}).
+   *
+   * AUDITED via AuditService.append(action='sourcing-connection-create', tx) in
+   * the same transaction as the INSERT. Audit failure rolls back the INSERT.
+   *
+   * Actor: SuperTokens session userId → app users.id via getUserWithRole.
+   * NEVER passes raw SuperTokens id to a users.id FK (wave-5 actor-id-FK lesson).
+   *
+   * Returns 201 Created with the created DataSourceConnection row.
+   * Auth: analyst, admin.
+   */
+  @Post('connections')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(SessionGuard, RolesGuard)
+  @Roles(...CONNECTIONS_ROLES)
+  async createConnection(@Body() body: unknown, @Req() req: RequestWithSession) {
+    const bodyResult = connectionCreateSchema.safeParse(body);
+    if (!bodyResult.success) {
+      throw new BadRequestException(
+        (bodyResult.error as ZodError).issues.map((i) => i.message).join('; ')
+      );
+    }
+    const input: ConnectionCreateInput = bodyResult.data;
+
+    const session = req.session;
+    if (!session) {
+      throw new Error('SourcingController: session not present after SessionGuard');
+    }
+    const supertokensUserId = session.getUserId();
+
+    return this.sourcingService.createConnectionAsActor(input, supertokensUserId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /sourcing/connections  (wave-7 AC-SEED: list connections)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * listConnections — returns all data_source_connections with per-connection
+   * company count for the ≥2-source facet on the sourcing workspace page.
+   *
+   * Auth: analyst, admin.
+   */
+  @Get('connections')
+  @UseGuards(SessionGuard, RolesGuard)
+  @Roles(...CONNECTIONS_ROLES)
+  async listConnections() {
+    return this.sourcingService.listConnections();
+  }
 
   // ---------------------------------------------------------------------------
   // POST /sourcing/connections/:id/sync

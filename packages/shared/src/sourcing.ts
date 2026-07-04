@@ -217,6 +217,33 @@ export const dedupeResolveInputSchema = z
 export type DedupeResolveInput = z.infer<typeof dedupeResolveInputSchema>;
 
 // ---------------------------------------------------------------------------
+// Connection create input (AC-SEED enabler — wave-7 sourcing workspace)
+// ---------------------------------------------------------------------------
+
+/**
+ * connectionCreateSchema — request body for POST /sourcing/connections.
+ * Creates a new data_source_connections row (AC-SEED for ≥2-source view).
+ *
+ * providerKey: the Railway-env credential NAME (e.g. 'fixture', 'grata').
+ *   NEVER a secret value — adapters resolve process.env[providerKey] at runtime.
+ * displayName: human-readable label shown in the sourcing workspace UI.
+ * config: non-secret per-connection config (field mappings, filters).
+ *   Optional; defaults to {} when absent.
+ */
+export const connectionCreateSchema = z
+  .object({
+    /** Railway-env credential name — NOT the secret value. */
+    providerKey: z.string().min(1),
+    /** Human-readable label (e.g. 'Grata', 'Internal Fixture'). */
+    displayName: z.string().min(1),
+    /** Non-secret per-connection config. Optional; defaults to {}. */
+    config: z.record(z.unknown()).optional().default({}),
+  })
+  .strict();
+
+export type ConnectionCreateInput = z.infer<typeof connectionCreateSchema>;
+
+// ---------------------------------------------------------------------------
 // Filter / query types for the companies list screen
 // ---------------------------------------------------------------------------
 
