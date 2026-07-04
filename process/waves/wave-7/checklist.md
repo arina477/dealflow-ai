@@ -19,12 +19,12 @@ DESIGN (skip block if non-UI wave):
 - [ ] D-3 Review & adopt
 
 BUILD:
-- [ ] B-0 Branch & schema
-- [ ] B-1 Contracts
-- [ ] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
-- [ ] B-5 Verify
+- [x] B-0 Branch & schema — branch wave-7-sourcing-workspace; no new deps/schema/secret; 1 task claimed
+- [x] B-1 Contracts — connection create/list (audited, actor-id) + shared contract (f4098f1)
+- [x] B-2 Backend — connection create/list (audited, actor-id) + shared contract (f4098f1)
+- [x] B-3 Frontend — sourcing-workspace page at /sourcing (search+≥2-source facet+trigger-sync+connection-create); 214 tests (f8073e1)
+- [x] B-4 Wiring — repo typecheck+build PASS; /sourcing workspace compiles
+- [x] B-5 Verify — lint 0-err, 920 tests pass, build pass; ≥2-source facet test; runtime→C-2
 - [ ] B-6 Review
 
 CI/CD:

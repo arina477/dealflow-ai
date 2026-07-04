@@ -201,12 +201,27 @@ test.describe('T-6 companies-contacts screen — analyst visual baseline', () =>
     ).toBeVisible();
 
     // Analyst nav set: Sourcing present (and active), Mandates present, Dashboard present
-    await expect(nav.getByRole('link', { name: 'Sourcing' }), 'Sourcing nav must be visible for analyst').toBeVisible();
-    await expect(nav.getByRole('link', { name: 'Dashboard' }), 'Dashboard nav must be visible for analyst').toBeVisible();
+    await expect(
+      nav.getByRole('link', { name: 'Sourcing' }),
+      'Sourcing nav must be visible for analyst'
+    ).toBeVisible();
+    await expect(
+      nav.getByRole('link', { name: 'Dashboard' }),
+      'Dashboard nav must be visible for analyst'
+    ).toBeVisible();
     // Compliance, Team, Settings must NOT be present for analyst
-    await expect(nav.getByRole('link', { name: 'Compliance' }), 'Compliance nav must NOT be visible for analyst').not.toBeVisible();
-    await expect(nav.getByRole('link', { name: 'Team' }), 'Team nav must NOT be visible for analyst').not.toBeVisible();
-    await expect(nav.getByRole('link', { name: 'Settings' }), 'Settings nav must NOT be visible for analyst').not.toBeVisible();
+    await expect(
+      nav.getByRole('link', { name: 'Compliance' }),
+      'Compliance nav must NOT be visible for analyst'
+    ).not.toBeVisible();
+    await expect(
+      nav.getByRole('link', { name: 'Team' }),
+      'Team nav must NOT be visible for analyst'
+    ).not.toBeVisible();
+    await expect(
+      nav.getByRole('link', { name: 'Settings' }),
+      'Settings nav must NOT be visible for analyst'
+    ).not.toBeVisible();
 
     // Sidebar footer: user email + user-menu button
     await expect(
@@ -272,7 +287,9 @@ test.describe('T-6 companies-contacts screen — analyst visual baseline', () =>
     // ── Palette check: no Phosphor icons ────────────────────────────────────
     // Phosphor icons use class="ph ph-*" — must be absent per §10 (lucide only)
     const phosphorCount = await page.locator('[class*="ph-"]').count();
-    expect(phosphorCount, 'No Phosphor icons must be present (§10: lucide/inline SVG only)').toBe(0);
+    expect(phosphorCount, 'No Phosphor icons must be present (§10: lucide/inline SVG only)').toBe(
+      0
+    );
 
     // ── List panel size token check ──────────────────────────────────────────
     // The companies list aside has aria-label="Companies list"
@@ -293,14 +310,12 @@ test.describe('T-6 companies-contacts screen — analyst visual baseline', () =>
     // ── Search input emerald focus ring ─────────────────────────────────────
     const searchInput = page.getByLabel('Search companies by name or domain');
     await searchInput.focus();
-    const focusBorder = await searchInput.evaluate(
-      (el) => window.getComputedStyle(el).borderColor
-    );
+    const focusBorder = await searchInput.evaluate((el) => window.getComputedStyle(el).borderColor);
     const focusShadow = await searchInput.evaluate((el) => window.getComputedStyle(el).boxShadow);
     const hasEmeraldFocus =
-      focusBorder.includes('16, 185, 129') ||  // emerald-600 rgb
-      focusShadow.includes('16, 185, 129') ||   // emerald in box-shadow
-      focusBorder.includes('10b981') ||          // hex variant
+      focusBorder.includes('16, 185, 129') || // emerald-600 rgb
+      focusShadow.includes('16, 185, 129') || // emerald in box-shadow
+      focusBorder.includes('10b981') || // hex variant
       focusShadow.includes('10b981');
     // Non-fatal: inline style transitions are JS-driven; note if absent
     if (!hasEmeraldFocus) {

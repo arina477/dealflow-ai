@@ -155,9 +155,10 @@ test.describe('S1: analyst — Sourcing nav visible + /sourcing/companies render
     // Assert: URL is /sourcing/companies — not redirected to /login or /
     await expect(page).toHaveURL(/\/sourcing\/companies/, { timeout: 10_000 });
     expect(page.url(), 'Must NOT be on /login').not.toMatch(/\/login/);
-    expect(page.url(), 'Must NOT be on / (RBAC deny redirect for analyst on companies)').not.toMatch(
-      /^https:\/\/dealflow-web-production-a4f7\.up\.railway\.app\/$/
-    );
+    expect(
+      page.url(),
+      'Must NOT be on / (RBAC deny redirect for analyst on companies)'
+    ).not.toMatch(/^https:\/\/dealflow-web-production-a4f7\.up\.railway\.app\/$/);
 
     // Assert: the companies list panel renders — "Companies" heading in the list header
     await expect(
@@ -214,10 +215,9 @@ test.describe('S1: analyst — Sourcing nav visible + /sourcing/companies render
       const firstRow = companyRows.first();
       await expect(firstRow, 'First company row button must be visible').toBeVisible();
       const label = await firstRow.getAttribute('aria-label');
-      expect(
-        label,
-        'Company row button must have aria-label starting with "View"'
-      ).toMatch(/^View .+/);
+      expect(label, 'Company row button must have aria-label starting with "View"').toMatch(
+        /^View .+/
+      );
     }
 
     // Note: This run used the empty-state path — seeding is not available from
@@ -378,7 +378,9 @@ test.describe('Wave-2..5 regression: login + unauth redirect still green', () =>
 
   test('/login renders correctly (wave-2 regression smoke)', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible({
+      timeout: 10_000,
+    });
     await expect(page.getByLabel('Email address')).toBeVisible();
     await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
