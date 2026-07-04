@@ -637,3 +637,92 @@ head_signoff:
     rollback needed.
   next_action: REWORK_B-block  # reconcile shared companySchema with API `connectionIds` (add field OR tolerant deep-screen parse); add deep-screen contract test feeding the real API shape incl. connectionIds + PG-wire timestamps; then re-run C-2
 ```
+
+---
+
+## V-3 companySchema-connectionIds re-verify (2ae3e06)
+
+**verdict: FAIL (REJECTED)** — head-ci-cd. The targeted `connectionIds` fix is **CORRECT and PROVEN**: all three fix-proof surfaces now render data in the live headless-chromium DOM, so the wave's primary Iron Law ("any of /sourcing, /sourcing/companies, /compliance/settings STILL renders empty with data → FAIL") is **NOT tripped** and the api does **NOT crash**. **BUT** the task's explicit regression #3 — "`/sourcing/companies` detail (`/sourcing/companies/:id`) renders a company" — **FAILS live with a deterministic HTTP 500**, a masked sibling defect of exactly the class this re-verify was told to hunt. Returned to Build/fast-fix.
+
+### Deploy — 2ae3e06 live on both services (NOT stale, NOT SKIPPED)
+
+- Token: `RAILWAY_TOKEN` sourced from `APP_RAILWAY_TOKEN` (present, 36 chars, project-scoped). `projectToken` query → project `ce095f75-1f3d-4af9-939e-fe8532541475`, env `0e84f0b6-1b1d-469f-91b9-caf4e59c9ba8`. Deploy-scoped probe returned `data.project` with no `errors` → credential usable.
+- `variableUpsert GIT_SHA=2ae3e06` on **dealflow-api** (`dcdb4ab4…`) + **dealflow-web** (`06b07f19…`) → `variableUpsert:true` each → auto-redeploy triggered (deterministic; not reliant on Railway "Wait for CI").
+- New deployments captured from the mutation response:
+  - api deployment `d0bec3d9-e3c8-4066-8c71-b12389fae16c` — meta.commitHash `2ae3e06…` — polled BUILDING → **SUCCESS**.
+  - web deployment `2298ce0a-f993-429e-86ca-2a9b1d1ae1d1` — meta.commitHash `2ae3e06…` — polled BUILDING → DEPLOYING → **SUCCESS**.
+  - Bounded MONITOR: success=both `SUCCESS`; failure=`FAILED|CRASHED|REMOVED|SKIPPED`; `timeout_budget=900s`; poll=45s. Reached BOTH_SUCCESS in ~2 min. Neither SKIPPED.
+- **Armed rollback (captured before mutation, unused):** api `83012c67-…` (e3dd9b7) / web `13a28a77-…` (e3dd9b7) — the prior known-good SUCCESS deployments.
+
+### /health — own-domain, exact deployed hash
+
+- `GET https://dealflow-api-production-66d4.up.railway.app/health` → **200** `{"status":"ok","db":"ok","version":"2ae3e06"}`. Version matches the deployed hash exactly (no stale-routing mirage); db connected; no crash-loop. Probed the api service's own domain, not a global alias.
+- Fix present in shipped code: `packages/shared/src/sourcing.ts` companySchema (`.strict()`) now declares `connectionIds: z.array(z.string()).optional().default([])` + `sourceCount: z.number().int().optional()`; compiled into `packages/shared/dist/sourcing.js` (confirmed). `apps/web/.../sourcing/_lib/workspace-types.ts` mirrors it. HEAD == `2ae3e06`.
+
+### The fix proof — all 3 render surfaces show data (real headless chromium, Playwright chromium-1208, live DOM)
+
+Seed: analyst minted via web-origin invite→signup (`/auth/invite {role:analyst}` → 201 token; `/auth/signup {inviteToken,password}` → 201; `/auth/me` → 200 role:analyst). Anti-CSRF = SuperTokens VIA_CUSTOM_HEADER; mutations carry `Origin: <web-origin>` + `rid: anti-csrf`. Fixture connection `Vfin-1783145763` → **201**; sync → **201 `{"ingested":5}`** → 4 canonical companies. Session cookies (`sAccessToken`/`sRefreshToken`, HttpOnly) injected into a real chromium-1208 context; live-DOM `document.body.innerText` asserted.
+
+| Surface | Live-DOM result | Verdict |
+|---|---|---|
+| `/sourcing` (workspace) | NAV **200**; `emptyStatePresent:false`; rendered rows: Acme, Delta Systems, Bright Horizon, Epsilon (rowCount 4) | **PASS** |
+| `/sourcing/companies` (deep screen — THE fix proof) | NAV **200**; `emptyStatePresent:false`; all 4 full names present in live DOM — "Acme Technologies", "Delta Systems", "Bright Horizon", "Epsilon Analytics"; 7 list items; **zero** "No companies yet"/"No companies found" markers. Directly reverses the prior REJECTED round (`e3dd9b7` rendered "No companies yet"). `connectionIds` now accepted by the strict companySchema → list survives parse. | **PASS** |
+| `/compliance/settings` | compliance user minted (invite→signup role:compliance → 201); page **200**, no `__next_error__`, full Rules/Disclaimer/Suppression UI; `GET /compliance/rules` → **200** with a seeded `blocklist_check` rule. Analyst correctly gated (307→`/`, RBAC working). | **PASS** |
+
+**connectionIds fix conclusion:** the empty-despite-data defect the fix targeted is **dead** on all three surfaces. The commit does what it claims.
+
+### Regression
+
+| Check | Result | Verdict |
+|---|---|---|
+| connection create | **201** | PASS |
+| connection create dup | **409** ("A connection with the display name … already exists") | PASS |
+| connection bad providerKey | **400** ("Unknown provider_key … Registered providers: FIXTURE") | PASS |
+| login (`auth/me`) | **200** role:analyst | PASS |
+| `/health` | **200** version `2ae3e06`, db ok, no crash | PASS |
+| **`/sourcing/companies/:id` detail renders a company** | **500** `__next_error__` — deterministic, reproduced 3× (chromium row-click captured a 500 to `/sourcing/companies/0095627e-…`; direct SSR GET → 500; JSON-accept GET → 500) | **FAIL** |
+
+### Detail-page 500 — root-caused with certainty (new masked sibling defect, NOT the connectionIds fix, NOT the api)
+
+- **Web runtime log (authoritative stack trace, web deployment `2298ce0a`):** `⨯ Error: Event handlers cannot be passed to Client Component props. at stringify (<anonymous>) { digest: '3186490548' }` — repeated on every `/sourcing/companies/:id` request.
+- **Mechanism:** `apps/web/app/(app)/sourcing/companies/[id]/page.tsx` is a **Server Component** (async, `cookies()`, no `'use client'`). At line 94 it passes `onCandidateResolved={(_companyId, _hasPending) => undefined}` — a function/event-handler prop — to `<CompanyDetail>`, which is a **Client Component** (`'use client'` at line 21, prop typed `(companyId, hasPending) => void`). Next.js App Router forbids passing function props across the Server→Client boundary; the RSC serializer throws at render → HTTP 500. The list route works because it renders `CompanyDetail` from `CompaniesClient` (client→client, legal); only the standalone `[id]` route crosses the illegal boundary.
+- **Isolation proving it is web-only, not api and not RBAC:** api `GET /sourcing/companies/:id` without a session → **401** (route healthy, not 500). `rolesForRoute('/sourcing/companies/:id')` → `["analyst"]`; `canAccess('analyst', <concrete id path>)` → `true` (no throw). `fetchMe`/`fetchCompanyBasic` both catch and redirect on failure — the only uncaught crash is the function-prop serialization in the JSX return.
+- **Triage tag:** `nextjs` (App Router Server/Client Component boundary violation). Fix: in `[id]/page.tsx`, drop the inline function prop — either make `onCandidateResolved` optional in `CompanyDetail` and omit it here, or wrap the detail in a thin client component that supplies the no-op handler. Add a route-level test (SSR render of `/sourcing/companies/:id`) so a Server→Client function-prop regression can't ship green again.
+
+### No fabricated green
+
+Every verdict is traced to a live deployed-state artifact: HTTP status codes, Railway GraphQL deployment `status` + `meta.commitHash`, `/health` body, real headless-chromium `innerText` DOM assertions, live API JSON, and the web deployment's own runtime stack trace with digest. The connectionIds fix is genuinely proven; the detail 500 is genuinely reproduced. Deploy `2ae3e06` left in place (boots clean, `/health` green, all three fix-proof surfaces render); DB left clean; rollback armed but unused (no api crash, no data-loss regression — the defect is an isolated web SSR route crash, not an infra failure warranting rollback).
+
+### Cleanup
+
+- Temp fixture connection(s) created for the proof; test analyst + compliance users left in place (append-only `audit_log_entries` immutability trigger blocks deleting an actor referenced by the hash chain — compliance control working as designed, per prior C-2 rounds).
+- Local credential + cookie-jar + proof-script temp files `shred`-scrubbed / removed.
+
+```yaml
+head_signoff:
+  verdict: REJECTED
+  stage: C-2
+  reviewers: {}
+  failed_checks:
+    - "regression#3: /sourcing/companies/:id detail renders a company — FAILS with deterministic HTTP 500 (__next_error__, digest 3186490548): Server Component [id]/page.tsx passes a function prop (onCandidateResolved) to Client Component CompanyDetail — illegal Next.js App Router Server→Client boundary crossing"
+  rationale: >
+    The V-3 connectionIds fix is CORRECT and PROVEN: 2ae3e06 is live on both services
+    (api + web, meta.commitHash 2ae3e06, neither SKIPPED), /health == 2ae3e06 own-domain,
+    and all THREE fix-proof surfaces render data in the live headless-chromium DOM —
+    workspace /sourcing (4 rows, emptyState false), deep-screen /sourcing/companies (all
+    4 company names in live DOM, zero empty-state markers — directly reversing the prior
+    "No companies yet" REJECT), and /compliance/settings (renders + rules API 200). The
+    wave's primary Iron Law (empty-despite-data on the 3 surfaces) is NOT tripped and the
+    api does NOT crash. HOWEVER the task's explicit regression #3 — the /sourcing/companies/:id
+    detail page must render a company — FAILS live with a deterministic HTTP 500, reproduced
+    three ways. Root-caused with certainty from the web deployment's own runtime stack trace:
+    the Server Component [id]/page.tsx passes an inline event-handler function prop
+    (onCandidateResolved) to the Client Component CompanyDetail, which Next.js App Router
+    forbids across the Server→Client boundary. This is NOT the connectionIds fix and NOT the
+    api (api /sourcing/companies/:id → 401 without a session, healthy; RBAC resolves analyst
+    with no throw) — it is an isolated, pre-existing web SSR-route crash of exactly the
+    "masked sibling defect" class this re-verify was warned to catch. Approving on a green
+    fix-proof while an explicit required surface 500s would be a fabricated green; per the
+    Iron Law this hard-stops the C-2 exit and returns to Build/fast-fix.
+  next_action: REWORK_B-block  # fix [id]/page.tsx Server→Client function-prop violation (make onCandidateResolved optional + omit, or wrap in a client shell); add an SSR route-render test for /sourcing/companies/:id so a Server→Client function-prop regression can't ship green; then re-run C-2. connectionIds fix itself is proven — do not touch companySchema.
+```
