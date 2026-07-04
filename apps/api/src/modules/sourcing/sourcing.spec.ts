@@ -51,7 +51,7 @@ import type { AuthRepository } from '../auth/auth.repository';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { FIXTURE_PROVIDER_KEY, FixtureDataSourceAdapter } from './adapters/fixture.adapter';
 import { SourcingController } from './sourcing.controller';
-import type { SourcingRepository } from './sourcing.repository';
+import { SourcingRepository } from './sourcing.repository';
 import { SourcingService } from './sourcing.service';
 
 // ---------------------------------------------------------------------------
@@ -1552,6 +1552,156 @@ describe('INFO: duplicate display_name on createConnectionAsActor → 409 Confli
         MOCK_ST_USER_ID
       )
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C-2 fix: SourcingRepository.createConnection — DrizzleQueryError cause.code unwrap
+// ---------------------------------------------------------------------------
+
+describe('C-2 fix: SourcingRepository.createConnection — DrizzleQueryError-shaped dup error → 409', () => {
+  /**
+   * Load-bearing regression test for the C-2 bug.
+   *
+   * Bug: the pre-fix catch checked (err as {code}).code === '23505'. drizzle-orm
+   * wraps the pg driver error in a DrizzleQueryError whose own .code is undefined;
+   * the real code:'23505' lives on err.cause.code. The pre-fix check was therefore
+   * always false against a real driver error, the ConflictException branch was dead,
+   * and NestJS emitted a 500.
+   *
+   * Fix: check err?.cause?.code === '23505' || err?.code === '23505'.
+   *
+   * This test throws a DrizzleQueryError-shaped error (an Error whose own .code is
+   * undefined and whose .cause carries {code:'23505', constraint:'...'}) — mirroring
+   * the real drizzle-orm error shape — and asserts ConflictException (409) is thrown.
+   *
+   * Fail-on-pre-fix confirmation: the pre-fix check (err.code only, no cause unwrap)
+   * would evaluate to false for this error shape, causing the catch to re-throw the
+   * raw DrizzleQueryError instead of a ConflictException.
+   */
+
+  /**
+   * Build a DrizzleQueryError-shaped error: an Error with .cause carrying pg codes.
+   * The wrapper Error itself has no .code property — exactly what drizzle-orm emits.
+   */
+  function makeDrizzleQueryError(pgCode: string, constraint: string): Error {
+    const pgError = Object.assign(new Error('duplicate key value violates unique constraint'), {
+      code: pgCode,
+      constraint,
+    });
+    const wrapper = new Error(`Failed query: INSERT INTO ...\nparams: [...]`);
+    // Deliberately do NOT set wrapper.code — drizzle-orm's DrizzleQueryError has no .code
+    wrapper.cause = pgError;
+    return wrapper;
+  }
+
+  /**
+   * Build a mock DB (tx) whose .insert().values().returning() rejects with the given error.
+   * This matches the call shape in createConnection: tx.insert(...).values(...).returning().
+   */
+  function makeMockTxThatThrows(err: Error) {
+    return {
+      insert: () => ({
+        values: () => ({
+          returning: () => Promise.reject(err),
+        }),
+      }),
+    };
+  }
+
+  it('DrizzleQueryError-shaped error (cause.code=23505) → ConflictException (409) — FAILS on pre-fix catch', async () => {
+    // This is the error shape drizzle-orm actually throws on a unique-violation.
+    // The pre-fix catch checked err.code === '23505' which is undefined on this wrapper,
+    // so it fell through and re-threw the raw DrizzleQueryError → NestJS 500.
+    const drizzleError = makeDrizzleQueryError(
+      '23505',
+      'data_source_connections_display_name_unique'
+    );
+
+    const mockDb = {} as never; // db not used directly; tx is passed in
+    const repo = new SourcingRepository(mockDb);
+    const mockTx = makeMockTxThatThrows(drizzleError) as never;
+
+    // Post-fix: must surface as ConflictException (409).
+    await expect(
+      repo.createConnection(mockTx, {
+        providerKey: 'fixture',
+        displayName: 'Duplicate Name',
+        config: {},
+        createdBy: 'user-1',
+      })
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('pre-fix check (err.code only, no cause unwrap) would FAIL for this error shape — confirming the bug', () => {
+    // Inline verification that the pre-fix guard logic is false for a DrizzleQueryError.
+    const drizzleError = makeDrizzleQueryError(
+      '23505',
+      'data_source_connections_display_name_unique'
+    );
+    const err: unknown = drizzleError;
+
+    // Pre-fix guard: typeof err === 'object' && err !== null && 'code' in err && err.code === '23505'
+    // DrizzleQueryError has no own .code property — 'code' in err is false.
+    const preFix =
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code: unknown }).code === '23505';
+
+    // This MUST be false — proving the pre-fix catch was dead for real drizzle errors.
+    expect(preFix).toBe(false);
+
+    // Post-fix guard also checks cause.code — this MUST be true.
+    const postFix =
+      typeof err === 'object' &&
+      err !== null &&
+      'cause' in err &&
+      typeof (err as { cause: unknown }).cause === 'object' &&
+      (err as { cause: unknown }).cause !== null &&
+      'code' in (err as { cause: Record<string, unknown> }).cause &&
+      (err as { cause: Record<string, unknown> }).cause.code === '23505';
+
+    expect(postFix).toBe(true);
+  });
+
+  it('bare pg error (err.code=23505, no cause wrapping) → ConflictException (409) — defense case', async () => {
+    // Some connection-level errors surface without drizzle wrapping (direct pg driver throw).
+    const barePgError = Object.assign(new Error('duplicate key'), {
+      code: '23505',
+      constraint: 'data_source_connections_display_name_unique',
+    });
+
+    const mockDb = {} as never;
+    const repo = new SourcingRepository(mockDb);
+    const mockTx = makeMockTxThatThrows(barePgError) as never;
+
+    await expect(
+      repo.createConnection(mockTx, {
+        providerKey: 'fixture',
+        displayName: 'Duplicate Name',
+        config: {},
+        createdBy: 'user-1',
+      })
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('non-23505 drizzle error (e.g. 23502 not-null violation) → re-throws, not ConflictException', async () => {
+    const otherDrizzleError = makeDrizzleQueryError('23502', 'some_column_not_null');
+
+    const mockDb = {} as never;
+    const repo = new SourcingRepository(mockDb);
+    const mockTx = makeMockTxThatThrows(otherDrizzleError) as never;
+
+    // Must re-throw (not swallow as ConflictException).
+    await expect(
+      repo.createConnection(mockTx, {
+        providerKey: 'fixture',
+        displayName: 'Any Name',
+        config: {},
+        createdBy: 'user-1',
+      })
+    ).rejects.not.toBeInstanceOf(ConflictException);
   });
 });
 

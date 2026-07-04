@@ -88,12 +88,24 @@ export class SourcingRepository {
         .returning();
     } catch (err: unknown) {
       // SQLSTATE 23505 = unique_violation — display_name UNIQUE constraint (migration 0005).
-      if (
-        typeof err === 'object' &&
-        err !== null &&
-        'code' in err &&
-        (err as { code: unknown }).code === '23505'
-      ) {
+      //
+      // C-2 fix: drizzle-orm wraps the raw pg driver error in a DrizzleQueryError
+      // whose own .code is undefined; the real code:'23505' lives on err.cause.code.
+      // We must check both levels so the ConflictException branch fires against both
+      // the real drizzle-wrapped error (err.cause.code) and any bare pg error that
+      // surfaces without wrapping (err.code) — e.g. from connection-level throws.
+      const pgCode =
+        (typeof err === 'object' &&
+          err !== null &&
+          'cause' in err &&
+          typeof (err as { cause: unknown }).cause === 'object' &&
+          (err as { cause: unknown }).cause !== null &&
+          'code' in (err as { cause: Record<string, unknown> }).cause &&
+          (err as { cause: Record<string, unknown> }).cause.code) ||
+        (typeof err === 'object' && err !== null && 'code' in err
+          ? (err as { code: unknown }).code
+          : undefined);
+      if (pgCode === '23505') {
         throw new ConflictException(
           `A connection with the display name "${input.displayName}" already exists`
         );
