@@ -22,3 +22,4 @@ process/session/onboarding/.research-jobs.tsv
 apps/web/e2e/results.json
 apps/web/test-results/
 apps/web/playwright-report/
+.gstack/

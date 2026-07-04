@@ -242,3 +242,71 @@ head_signoff:
 1. `react` / data-contract — `apps/web/app/(app)/mandates/_components/MandateForm.tsx` lines 435-436: parse the flat 201 create response (`created.id`), not the non-existent `{ mandate: {id} }` wrapper. No API change. (DEFECT-1, DEFECT-2, DEFECT-3 all already resolved on 7b33598 and need no further work.)
 
 After the fix lands + CI green → re-enter C-2 for a thin re-verify: create-via-UI → 201 → redirect → detail renders (+ re-confirm the dashboard/sourcing/compliance-settings render pass). The rest of the vertical is already verified green on 7b33598.
+
+---
+
+## C-2 create-via-UI re-verify (46642e7) — FINAL
+
+**Verdict: PASS.** The create-via-UI payoff — a real advisor creates a mandate through the shipped UI and lands on its detail page — is proven live in a real headless chromium (post-hydration DOM + URL bar). The MandateForm flat-Mandate parse fix (`mandateSchema.safeParse(json)` → read `.data.id` → `router.push('/mandates/'+id)`) closes the last CRITICAL. All prior-verified surfaces re-confirmed green. head_signoff APPROVED → PROCEED_TO_T.
+
+### Deploy — 46642e7
+- **Commit provenance (STABLE):** `46642e7` = HEAD of `main` (full SHA `46642e76450932e6a99ec12f979af3c968e29595`), the exact fix commit ("fix(web): C-2 mandate create reads flat Mandate response id"). Railway `latestDeployment.meta.commitHash` on both services == `46642e76…`, branch `main`, reason `deploy`.
+- **GIT_SHA bumped 7b33598 → 46642e7** on both dealflow-api (`dcdb4ab4…`) and dealflow-web (`06b07f19…`) via non-destructive `variableUpsert` (single-var; existing env untouched). The upsert triggered fresh immutable container builds (no in-place mutation).
+- **Fresh deploys polled to terminal SUCCESS** (monitor contract: success=SUCCESS, failure∈{FAILED,CRASHED,REMOVED,SKIPPED}, timeout_budget 900s, poll_delay 45s):
+  - api deploy `7f9b9582-054b-4c0d-9577-9445c585c41f`: BUILDING→DEPLOYING→**SUCCESS** (not SKIPPED — code shipped)
+  - web deploy `6c2c01c1-e6bd-4023-b694-fb5c47a89ec8`: BUILDING→DEPLOYING→**SUCCESS**
+- **Migration-before-traffic (STABLE):** api serviceManifest `preDeployCommand` = `drizzle-kit migrate` runs as a one-shot BEFORE the new image routes traffic; api reached DEPLOYING→SUCCESS, so migrations 0006/0007 applied cleanly ahead of boot. No new destructive DDL this deploy (fix is web-only).
+- **Rollback armed pre-mutation (STABLE):** known-good SUCCESS deploy IDs cached before the GIT_SHA bump — api `276945ff-27c7-47fe-8aab-7528707128f9` / web `288949b8-493f-4f2f-be11-a8356099e54f` (both @ 7b33598). New known-good after this deploy: api `7f9b9582`, web `6c2c01c1`.
+- **Env vars present pre-boot:** no new env var introduced by a flat-parse fix; AUDIT_LOG_HMAC_KEY / DATABASE_URL / SUPERTOKENS_* / WEB_ORIGIN / INTERNAL_API_BASE_URL all bound. No missing-env-var crash.
+- **Environment ID validated:** deploy targeted env `0e84f0b6-1b1d-469f-91b9-caf4e59c9ba8` (production) — no cross-environment pollution.
+
+### /health — deployed-hash provenance (STABLE, not stale)
+- api `GET /health` → `{"status":"ok","db":"ok","version":"46642e7"}` — the running container reports the EXACT deployed hash (was `7b33598` pre-deploy; flipped only after SUCCESS). Re-probed post-test: still `46642e7`, no crash-loop. Health probe targets the deployed instance, not a stale global-domain false-200.
+
+### The create-via-UI proof (real headless chromium — advisor, post-hydration DOM + URL bar)
+Advisor provisioned via the live invite→signup flow (`POST /auth/invite` role=advisor → `POST /auth/signup` → **201 + Set-Cookie sAccessToken HttpOnly; Secure; SameSite=Lax** — cookie-based session confirmed). Logged in via the browser `/login`, landed on `/` Dashboard.
+
+- **Jurisdiction dropdown populated:** `#jurisdiction` contains `US` (+ leftover `US-*` test-fixture templates from prior verify runs — cosmetic residue; load-bearing `US` present).
+- **Full form filled** (seller name + industry + geo chip + size band + deal-type + description; buyer core-4; jurisdiction=US; suppression chip; **all 3 acknowledgments**) → single **Create Mandate** submit.
+- **THE FIX PROOF:**
+  - **(a) Redirect fired on 201:** network `POST /mandates-data → 201`, then URL changed to `https://…/mandates/e3dbadef-1ba2-4e4d-bcdb-5275b67b7de7` (`GET /mandates/<id> → 200`). URL bar is `/mandates/<id>`, NOT the form.
+  - **(b) NO false-failure:** `role=alert` count = 0; the string "Failed to create mandate" is ABSENT from the DOM; no console errors.
+  - **(c) Detail renders the created mandate:** seller "Cverify Advisory Holdings", jurisdiction **US**, derived **disclaimer template `fe1c504d-3353-461d-9470-63b29d3c7985`** (derive-disclaimer output), status **draft**, and the **3 deferred placeholders** (Buyer Engine / Ranked Candidates / Pipeline).
+  - **(d) NO duplicate:** `/mandates` list shows EXACTLY ONE "Cverify Advisory Holdings" row (single submit → single mandate). The retry-duplication path is closed by the redirect firing on 201.
+
+### Regression (re-confirmed green @ 46642e7)
+- `/mandates` list renders (advisor); created mandate visible.
+- Detail page is **Next SSR HTML** (`content-type: text/html`, `<!DOCTYPE html>` + `_next` scripts) — NOT raw JSON.
+- **Active-lock:** PATCH draft→active → **200**; edit-active → **409** ("Active mandate is locked… cannot be modified after activation").
+- **RBAC / auth:** anon (no cookie) `GET /mandates` + `GET /mandates/:id` → **401**. `/sourcing` + `/compliance/settings` → documented RBAC redirect to `/` for the advisor role (analyst/compliance/admin-scoped). Login page renders.
+- `/health` ok @ 46642e7.
+
+### Canary
+- **Skipped** — 0 DAU MVP; no live user traffic to split. Blast-radius rationale: with no real users, an immediate full cutover has zero user-facing blast radius, and a canary window would gate on synthetic traffic only. Rollback path armed (above) covers regression recovery.
+
+### Cleanup
+- Created mandate `e3dbadef-1ba2-4e4d-bcdb-5275b67b7de7` **retained** (now `active` after the active-lock test; rows are audit-FK'd, no DELETE endpoint) — per prior-C2 precedent. Advisor account retained (audit-immutability); test users retained. No temp Postgres TCP proxy created this run (browser used the API via cookie). Local cred/header temp files scrubbed. Browser context left open (no browser_close).
+
+```yaml
+head_signoff:
+  verdict: APPROVED
+  stage: C-2-deploy-and-verify
+  reviewers:
+    deploy_provenance: head-ci-cd (GIT_SHA bump + fresh SUCCESS both services; /health == 46642e7)
+    ui_dom_verification: ui-comprehensive-tester (real headless chromium — advisor, post-hydration DOM + URL bar)
+  failed_checks: []
+  rationale: >
+    Thin C-2 re-verify of the flat-Mandate parse fix (46642e7), deployed live to both Railway
+    services (fresh immutable builds, both terminal SUCCESS, not SKIPPED; rollback armed; env
+    bound; migration one-shot ran before traffic; /health reports the exact deployed hash
+    46642e7 — not stale). The last CRITICAL is proven closed in a real headless browser: an
+    advisor fills the full create form and on the 201 the URL REDIRECTS to /mandates/<id>
+    (e3dbadef-…), NO "Failed to create mandate." alert is shown (role=alert count 0), the detail
+    page renders the created mandate (seller name, US jurisdiction, derived disclaimer
+    fe1c504d-…, status draft, 3 deferred placeholders), and the list shows EXACTLY ONE new
+    mandate — the retry-duplication path is closed by the redirect firing. All prior-verified
+    surfaces re-confirmed green (list, SSR-HTML detail, active-lock 200/409, RBAC/anon 401,
+    login/sourcing/compliance-settings render). Canary skipped (0 DAU). Verified against the
+    actual DOM/URL, not just HTTP status. No fabricated green.
+  next_action: PROCEED_TO_T
+```

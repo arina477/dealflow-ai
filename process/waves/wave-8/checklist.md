@@ -43,8 +43,8 @@ BUILD:
 - [x] B-6 Review — head-builder APPROVED; /review 3 CRIT fixed (PATCH-crash+draft-lock+ambiguous-disclaimer+0007, 37998bb)
 
 CI/CD:
-- [x] C-1 PR, CI & merge — merged @ c278f7d (main), CI green 5/5
-- [ ] C-2 Deploy & verify — **re-verify @ 7b33598: head-ci-cd verdict REJECTED → REWORK B-block.** Deploy+/health PASS @ 7b33598 (both services SUCCESS, rollback armed, no SKIPPED). All 3 prior UI defects FIXED+verified live (detail SSR text/html not Express JSON w/ deferred placeholders; jurisdiction dropdown populated w/ US; advisor GET /mandates/jurisdictions 200+US, analyst 403). BUT NEW CRITICAL client defect: MandateForm.tsx parses the 201 create response as {mandate:{id}} but API returns flat Mandate → create-via-UI 201 succeeds but shows false "Failed to create mandate." + no redirect (Iron Law: create fails from UI). Active-lock 409 + full RBAC matrix PASS. Canary skipped (0 DAU). Fix: MandateForm.tsx L435-436 read created.id (one file, no API change) → thin C-2 re-verify.
+- [x] C-1 PR, CI & merge — **PASS** — flat-parse fix merged @ 46642e7 (main), CI green; commit SHA == deployed hash (provenance verified).
+- [x] C-2 Deploy & verify — **PASS @ 46642e7: head-ci-cd verdict APPROVED → PROCEED_TO_T.** Both services redeployed @ 46642e7 (GIT_SHA bump → fresh immutable builds, both terminal SUCCESS not SKIPPED, rollback armed api `7f9b9582`/web `6c2c01c1`, migration one-shot before traffic). /health == 46642e7 (exact deployed hash, not stale). **create-via-UI FINAL proof (real headless chromium, post-hydration DOM+URL):** advisor fills full form → 201 → **URL REDIRECTS to /mandates/e3dbadef-…** (the fix), **NO "Failed to create mandate." alert** (role=alert count 0), detail renders (seller name, US, derived disclaimer fe1c504d-…, status draft, 3 deferred placeholders), **exactly ONE mandate (no duplicate)**. Regression re-green: SSR-HTML detail, active-lock 200/409, RBAC/anon 401, login/sourcing/compliance-settings render. Canary skipped (0 DAU). Verified DOM/URL not just HTTP status.
 
 TEST:
 - [ ] T-1 Static
