@@ -29,7 +29,7 @@ BUILD:
 
 CI/CD:
 - [x] C-1 PR, CI & merge — main @ 23e5372, CI green (all 5); merged
-- [ ] C-2 Deploy & verify — FAIL (head-ci-cd REJECTED): deploy 23e5372 SUCCESS both services, /health==23e5372, but migration 0005 did NOT apply (drizzle journal `when` defect → UNIQUE(display_name) absent → dup-create 201 not 409). Root-caused (sre-engineer). Returns to Build for 0005 journal `when` fix + preDeploy migrate-count guard, then re-run C-2. All other ACs GREEN live (workspace, create-201, bad-key-400, ≥2-source real badges, search, RBAC, audit, regression). Canary skipped (0 DAU).
+- [ ] C-2 Deploy & verify — FAIL (head-ci-cd REJECTED, re-verify @ 2384c54): 0005-fix VERIFIED APPLIED (6 migration rows + UNIQUE(display_name) constraint present via DB probe — Ghost Green RESOLVED). Deploy 2384c54 SUCCESS both services (api 399792d5 / web f5bb7781, neither SKIPPED), /health==2384c54 on own domain, boots clean, bad-key→400 intact. BUT dup-displayName → **500 not 409**: distinct newly-surfaced defect — DrizzleQueryError wraps the 23505, repository catch checks err.code (undefined) not err.cause.code, so ConflictException(409) branch never fires (data integrity still OK — DB blocked the 2nd row). Returns to Build/fast-fix for err.cause unwrap in sourcing.repository.ts + audit sibling conflict catches + harden unit-test mock (it stubbed a bare {code:'23505'} → masked the prod 500). Canary skipped (0 DAU). Prior FAIL (23e5372, migration 0005 journal `when` defect) is now fixed.
 
 TEST:
 - [ ] T-1 Static
