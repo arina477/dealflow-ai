@@ -21,8 +21,8 @@ DESIGN (skip block if non-UI wave):
 - [ ] D-3 Review & adopt
 
 BUILD:
-- [ ] B-0 Branch & schema
-- [ ] B-1 Contracts
+- [x] B-0 Branch & schema — branch wave-6-deal-sourcing; no new deps (fixture JSON); schema=YES(0004,7 tables@B-2); 4 tasks claimed
+- [x] B-1 Contracts — sourcing types + DataSourceAdapter + roleRoutes /sourcing (e44a5fd); 390 tests; rbac.test updated
 - [ ] B-2 Backend
 - [ ] B-3 Frontend
 - [ ] B-4 Wiring
