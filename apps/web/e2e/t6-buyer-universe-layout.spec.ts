@@ -76,10 +76,7 @@ async function acceptInviteInBrowser(
   await page.waitForURL(/\/(login)?$/, { timeout: 20_000 });
 }
 
-async function ensureLoggedIn(
-  page: import('@playwright/test').Page,
-  email: string
-): Promise<void> {
+async function ensureLoggedIn(page: import('@playwright/test').Page, email: string): Promise<void> {
   if (page.url().includes('/login')) {
     await page.getByLabel('Email address').fill(email);
     await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
@@ -97,10 +94,9 @@ async function assertAppShellChrome(
   await expect(nav, `[${pageName}] Sidebar nav must be present`).toBeVisible({ timeout: 10_000 });
 
   const navBg = await nav.evaluate((el) => window.getComputedStyle(el).backgroundColor);
-  expect(
-    navBg,
-    `[${pageName}] Sidebar bg must be zinc-900 (rgb(17, 24, 39)); got "${navBg}"`
-  ).toBe('rgb(17, 24, 39)');
+  expect(navBg, `[${pageName}] Sidebar bg must be zinc-900 (rgb(17, 24, 39)); got "${navBg}"`).toBe(
+    'rgb(17, 24, 39)'
+  );
 
   const navBox = await nav.boundingBox();
   expect(
@@ -258,7 +254,9 @@ test.describe('T-6 buyer-universe — analyst visual baseline (wave-9)', () => {
       // Breadcrumb may be rendered as a <nav> without the aria-label — check for "Build Universe" text
       const buildUniverseText = await page.getByText('Build Universe', { exact: true }).count();
       if (buildUniverseText === 0) {
-        console.warn('[T-6-BU] Breadcrumb "Build Universe" text not found — possible design delta.');
+        console.warn(
+          '[T-6-BU] Breadcrumb "Build Universe" text not found — possible design delta.'
+        );
       }
     }
 
@@ -283,7 +281,9 @@ test.describe('T-6 buyer-universe — analyst visual baseline (wave-9)', () => {
       ).toBeLessThanOrEqual(290);
 
       // Sidebar bg: zinc-50 (#F9FAFB)
-      const sidebarBg = await filterSidebar.evaluate((el) => window.getComputedStyle(el).backgroundColor);
+      const sidebarBg = await filterSidebar.evaluate(
+        (el) => window.getComputedStyle(el).backgroundColor
+      );
       const isZincMuted = sidebarBg === 'rgb(249, 250, 251)';
       if (!isZincMuted) {
         console.warn(
@@ -303,9 +303,13 @@ test.describe('T-6 buyer-universe — analyst visual baseline (wave-9)', () => {
         '[T-6-BU] Filter sidebar must show "Membership Status" section'
       ).toBeVisible();
     } else if (!universeAssembled) {
-      console.info('[T-6-BU] Universe not assembled — filter sidebar not expected. Assemble empty-state visible instead.');
+      console.info(
+        '[T-6-BU] Universe not assembled — filter sidebar not expected. Assemble empty-state visible instead.'
+      );
     } else {
-      console.warn('[T-6-BU] aside[aria-label="Criteria Filters"] not found — filter sidebar may use different selector.');
+      console.warn(
+        '[T-6-BU] aside[aria-label="Criteria Filters"] not found — filter sidebar may use different selector.'
+      );
     }
 
     // ── Assert: candidate data table ─────────────────────────────────────────
@@ -330,7 +334,9 @@ test.describe('T-6 buyer-universe — analyst visual baseline (wave-9)', () => {
       for (const col of expectedColumns) {
         const found = flatHeaders.some((h) => h.includes(col));
         if (!found) {
-          console.warn(`[T-6-BU] Expected column "${col}" not found in headers: [${flatHeaders.join(', ')}]`);
+          console.warn(
+            `[T-6-BU] Expected column "${col}" not found in headers: [${flatHeaders.join(', ')}]`
+          );
         }
       }
 
@@ -349,7 +355,9 @@ test.describe('T-6 buyer-universe — analyst visual baseline (wave-9)', () => {
       const toggles = page.locator('table[aria-label="Buyer universe candidates"] [role="switch"]');
       const toggleCount = await toggles.count();
       // Toggles present only if there are candidate rows
-      const rows = await page.locator('table[aria-label="Buyer universe candidates"] tbody tr').count();
+      const rows = await page
+        .locator('table[aria-label="Buyer universe candidates"] tbody tr')
+        .count();
       if (rows > 0) {
         expect(
           toggleCount,
@@ -367,7 +375,9 @@ test.describe('T-6 buyer-universe — analyst visual baseline (wave-9)', () => {
         ).toBeVisible({ timeout: 5_000 });
 
         // CTA button bg: emerald (#10B981)
-        const ctaBg = await assembleBtn.evaluate((el) => window.getComputedStyle(el).backgroundColor);
+        const ctaBg = await assembleBtn.evaluate(
+          (el) => window.getComputedStyle(el).backgroundColor
+        );
         const isEmerald = ctaBg === 'rgb(16, 185, 129)' || ctaBg.startsWith('rgb(16, 185');
         if (!isEmerald) {
           console.warn(
@@ -377,7 +387,9 @@ test.describe('T-6 buyer-universe — analyst visual baseline (wave-9)', () => {
         console.info('[T-6-BU] Rendering AssembleEmptyState (no universe); CTA bg=' + ctaBg);
       }
     } else {
-      console.warn('[T-6-BU] Universe assembled but candidate table not found — possible render issue.');
+      console.warn(
+        '[T-6-BU] Universe assembled but candidate table not found — possible render issue.'
+      );
     }
 
     // ── Assert: Submit to Match Engine button ────────────────────────────────
@@ -390,13 +402,17 @@ test.describe('T-6 buyer-universe — analyst visual baseline (wave-9)', () => {
           '[T-6-BU] "Submit to Match Engine" CTA must be present when universe is assembled'
         ).toBeVisible({ timeout: 5_000 });
       } else {
-        console.warn('[T-6-BU] "Submit to Match Engine" button not found — may be after submit or no candidates.');
+        console.warn(
+          '[T-6-BU] "Submit to Match Engine" button not found — may be after submit or no candidates.'
+        );
       }
     }
 
     // ── Assert: palette check — no off-palette colors ────────────────────────
     // The design uses only zinc + emerald. Check that the page body background is zinc-25 or white.
-    const bodyBg = await page.evaluate(() => window.getComputedStyle(document.body).backgroundColor);
+    const bodyBg = await page.evaluate(
+      () => window.getComputedStyle(document.body).backgroundColor
+    );
     const validBgs = ['rgb(252, 252, 253)', 'rgb(255, 255, 255)', 'rgba(0, 0, 0, 0)'];
     const isValidBg = validBgs.some((v) => bodyBg === v);
     if (!isValidBg) {
@@ -429,7 +445,9 @@ test.describe('T-6 buyer-universe — analyst visual baseline (wave-9)', () => {
         .first()
         .textContent()
         .catch(() => null);
-      console.info(`[T-6-BU] TopBar text content: "${topbarContent?.trim().slice(0, 80) ?? 'n/a'}"`);
+      console.info(
+        `[T-6-BU] TopBar text content: "${topbarContent?.trim().slice(0, 80) ?? 'n/a'}"`
+      );
     }
 
     // ── Capture baseline screenshot ───────────────────────────────────────────

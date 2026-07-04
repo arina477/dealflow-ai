@@ -40,9 +40,9 @@ BUILD:
 - [x] B-0 Branch & schema — branch wave-10-match-spine; 3 tasks claimed; schema 0009 (backend-developer)
 - [x] B-1 Contracts
 - [x] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
-- [ ] B-5 Verify
+- [x] B-3 Frontend — /matches-shortlist page (SSR-hydrate, /matches-data proxy, AI-framing STRIPPED→rule-based, D6 link); 371 web tests (9eaaa71)
+- [x] B-4 Wiring — repo typecheck+build PASS; /matches-shortlist compiles; AI-framing clean
+- [x] B-5 Verify — lint 0-err, tests pass, build pass; scorer-discrimination + no-AI-framing tested; runtime→C-2
 - [ ] B-6 Review
 
 CI/CD:

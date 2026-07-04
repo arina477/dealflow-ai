@@ -121,10 +121,7 @@ async function acceptInviteInBrowser(
 /**
  * If post-invite we landed on /login (FINDING-2 from wave-2), log in via form.
  */
-async function ensureLoggedIn(
-  page: import('@playwright/test').Page,
-  email: string
-): Promise<void> {
+async function ensureLoggedIn(page: import('@playwright/test').Page, email: string): Promise<void> {
   if (page.url().includes('/login')) {
     await page.getByLabel('Email address').fill(email);
     await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
@@ -172,7 +169,9 @@ async function createMandateViaForm(
   await page.locator('#ack-conflict').check();
   // Buyer criteria industry (if the field exists in wave-9)
   // The mandate form §2 "Buyer Universe Criteria" — select an industry if the field is present.
-  const industriesInput = page.locator('#buyer-criteria-industries, [name="buyer_criteria.industries"], [aria-label*="industries" i]');
+  const industriesInput = page.locator(
+    '#buyer-criteria-industries, [name="buyer_criteria.industries"], [aria-label*="industries" i]'
+  );
   const industriesCount = await industriesInput.count();
   if (industriesCount > 0) {
     // Try to enter a value; skip gracefully if the field is not interactive
@@ -196,9 +195,7 @@ async function createMandateViaForm(
  * Returns the connection ID or null if the fixture connection API is unavailable.
  * Uses the page's browser context (session cookie) to authenticate.
  */
-async function seedM3Companies(
-  page: import('@playwright/test').Page
-): Promise<string | null> {
+async function seedM3Companies(page: import('@playwright/test').Page): Promise<string | null> {
   try {
     // POST /sourcing/connections {providerKey:'fixture'}
     const connRes = await page.context().request.post(`${API_BASE}/sourcing/connections`, {
@@ -216,13 +213,12 @@ async function seedM3Companies(
     const connectionId = connBody.id;
 
     // POST /sourcing/connections/:id/sync
-    const syncRes = await page.context().request.post(
-      `${API_BASE}/sourcing/connections/${connectionId}/sync`,
-      {
+    const syncRes = await page
+      .context()
+      .request.post(`${API_BASE}/sourcing/connections/${connectionId}/sync`, {
         headers: { 'Content-Type': 'application/json', Origin: WEB_ORIGIN },
         data: {},
-      }
-    );
+      });
     if (!syncRes.ok()) {
       console.warn(
         `[seedM3Companies] POST /sourcing/connections/${connectionId}/sync → ${syncRes.status()} — ` +
@@ -294,10 +290,9 @@ test.describe('S1: analyst assembles + filters + submits buyer universe', () => 
     ).toBeVisible({ timeout: 10_000 });
 
     const href = await buyerEngineLink.getAttribute('href');
-    expect(
-      href,
-      '[S1-a] Buyer Engine link must href to /buyer-universe?mandateId=<id>'
-    ).toMatch(/\/buyer-universe\?mandateId=/);
+    expect(href, '[S1-a] Buyer Engine link must href to /buyer-universe?mandateId=<id>').toMatch(
+      /\/buyer-universe\?mandateId=/
+    );
 
     // Extract mandateId from href for downstream scenarios
     const midMatch = href?.match(/mandateId=([^&]+)/);
@@ -358,7 +353,9 @@ test.describe('S1: analyst assembles + filters + submits buyer universe', () => 
     if (!mid) {
       console.warn('[S1-b] mandateId not captured from S1-a — using direct nav without mandate');
     }
-    const buyerUrl = mid ? `/buyer-universe?mandateId=${mid}` : '/buyer-universe?mandateId=invalid-test-id';
+    const buyerUrl = mid
+      ? `/buyer-universe?mandateId=${mid}`
+      : '/buyer-universe?mandateId=invalid-test-id';
     await page.goto(buyerUrl);
     await page.waitForLoadState('networkidle', { timeout: 15_000 });
 
@@ -390,7 +387,9 @@ test.describe('S1: analyst assembles + filters + submits buyer universe', () => 
       const table = page.locator('table[aria-label="Buyer universe candidates"]');
       const tableCount = await table.count();
       if (tableCount > 0) {
-        console.info('[S1-b] Universe already assembled — skipping assemble CTA, using existing table');
+        console.info(
+          '[S1-b] Universe already assembled — skipping assemble CTA, using existing table'
+        );
       } else {
         // Neither CTA nor table — check for error state
         const errorAlert = page.locator('[role="alert"]');
@@ -450,9 +449,13 @@ test.describe('S1: analyst assembles + filters + submits buyer universe', () => 
 
       // ── Assert: NO fit-score or rank column in the candidate table (M4/M5 boundary) ──
       // Column headers: Company, Status, Contact Readiness, Completeness, Included, Provenance.
-      const tableHeaders = await page.locator('table[aria-label="Buyer universe candidates"] th').allTextContents();
+      const tableHeaders = await page
+        .locator('table[aria-label="Buyer universe candidates"] th')
+        .allTextContents();
       const flatHeaders = tableHeaders.map((h) => h.trim().toLowerCase());
-      const hasFitScore = flatHeaders.some((h) => h.includes('score') || h.includes('fit') || h.includes('rank'));
+      const hasFitScore = flatHeaders.some(
+        (h) => h.includes('score') || h.includes('fit') || h.includes('rank')
+      );
       expect(
         hasFitScore,
         `[S1-b] Candidate table must NOT have a fit-score/rank column at M4 boundary. ` +
@@ -507,10 +510,9 @@ test.describe('S1: analyst assembles + filters + submits buyer universe', () => 
 
       // ── Assert: Submit to Match Engine button is enabled (≥1 included) ────────
       const submitBtn = page.getByRole('button', { name: /Submit to Match Engine/i });
-      await expect(
-        submitBtn,
-        '[S1-b] "Submit to Match Engine" button must be present'
-      ).toBeVisible({ timeout: 5_000 });
+      await expect(submitBtn, '[S1-b] "Submit to Match Engine" button must be present').toBeVisible(
+        { timeout: 5_000 }
+      );
 
       // canSubmit requires includedCount > 0; the button style changes (grey vs emerald)
       const isDisabledAttr = await submitBtn.getAttribute('disabled');
@@ -618,7 +620,9 @@ test.describe('S2: SSR hydration — existing universe renders on re-visit (CRIT
         emptyStateCount,
         '[S2 CRIT-1] "Assemble Buyer Universe" button must NOT appear when universe already exists'
       ).toBe(0);
-      console.info('[S2 CRIT-1 PASS] SSR hydration confirmed: candidate table visible on re-visit.');
+      console.info(
+        '[S2 CRIT-1 PASS] SSR hydration confirmed: candidate table visible on re-visit.'
+      );
     } else if (emptyStateCount > 0) {
       // CRIT-1 bug: universe assembled but SSR returned null → page shows empty-state
       console.error(
@@ -687,16 +691,17 @@ test.describe('S3: submit guard — 0 included (all excluded) → blocked', () =
 
     // ── Assert: Submit to Match Engine button ────────────────────────────────
     const submitBtn = page.getByRole('button', { name: /Submit to Match Engine/i });
-    await expect(
-      submitBtn,
-      '[S3] "Submit to Match Engine" button must be present'
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(submitBtn, '[S3] "Submit to Match Engine" button must be present').toBeVisible({
+      timeout: 10_000,
+    });
 
     // With 0 included candidates, the button must be disabled (canSubmit = false)
     const disabledAttr = await submitBtn.getAttribute('disabled');
     const notClickable = disabledAttr !== null;
     if (notClickable) {
-      console.info('[S3 CLIENT-PASS] Submit button is disabled when 0 candidates included (client guard works).');
+      console.info(
+        '[S3 CLIENT-PASS] Submit button is disabled when 0 candidates included (client guard works).'
+      );
     } else {
       console.warn(
         '[FINDING-W9-4] Submit button is NOT disabled when 0 candidates are included. ' +
@@ -709,13 +714,12 @@ test.describe('S3: submit guard — 0 included (all excluded) → blocked', () =
       console.warn('[S3] No universeId from assemble — skipping API submit guard check');
       return;
     }
-    const directSubmitRes = await page.context().request.post(
-      `${API_BASE}/buyer-universe-data/${universeId}/submit`,
-      {
+    const directSubmitRes = await page
+      .context()
+      .request.post(`${API_BASE}/buyer-universe-data/${universeId}/submit`, {
         headers: { 'Content-Type': 'application/json', Origin: WEB_ORIGIN },
         data: {},
-      }
-    );
+      });
     const submitStatus = directSubmitRes.status();
     if (submitStatus === 400 || submitStatus === 422) {
       console.info(
@@ -821,10 +825,9 @@ test.describe('S4: RBAC — access per role', () => {
     await page.goto('/buyer-universe');
 
     // assertRole('/buyer-universe', 'compliance') → redirect('/') per rbac.ts
-    await page.waitForURL(
-      (url) => !url.pathname.startsWith('/buyer-universe'),
-      { timeout: 15_000 }
-    );
+    await page.waitForURL((url) => !url.pathname.startsWith('/buyer-universe'), {
+      timeout: 15_000,
+    });
     expect(
       page.url(),
       '[S4-c] Compliance role accessing /buyer-universe must be redirected away'
@@ -834,10 +837,10 @@ test.describe('S4: RBAC — access per role', () => {
   test('S4-d: unauthenticated /buyer-universe → /login', async ({ page }) => {
     // Access without a session
     await page.goto('/buyer-universe');
-    await expect(
-      page,
-      '[S4-d] Unauthenticated /buyer-universe must redirect to /login'
-    ).toHaveURL(/\/login/, { timeout: 15_000 });
+    await expect(page, '[S4-d] Unauthenticated /buyer-universe must redirect to /login').toHaveURL(
+      /\/login/,
+      { timeout: 15_000 }
+    );
     await expect(
       page.getByRole('heading', { name: 'Welcome back' }),
       '[S4-d] Login page must render'

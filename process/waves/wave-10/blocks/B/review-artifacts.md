@@ -5,9 +5,9 @@
 | B-0 | stages/B-0-branch-and-schema.md | done | branch + 3 tasks + migration 0009 (journal when>0008 ✓; buyer_universe_id UNIQUE + fit_score CHECK) |
 | B-1 | stages/B-1-contracts.md | done | shared matching Zod + rbac /matches+NAV + audit actions |
 | B-2 | stages/B-2-backend.md | done | MatchingService deterministic-scorer(discriminates)+one-txn+audit+actor-id+idempotent+guards; boundary-clean; 1002 tests |
-| B-3 | stages/B-3-frontend.md | pending | /matches-shortlist page (SSR-hydrate) + STRIP AI-framing (rule-based) (nextjs-developer) |
-| B-4 | stages/B-4-wiring.md | pending | repo typecheck + build |
-| B-5 | stages/B-5-verify.md | pending | lint+unit+build (scorer discrimination unit test) |
+| B-3 | stages/B-3-frontend.md | done | /matches-shortlist (SSR-hydrate, /matches-data, AI-framing STRIPPED, D6 link); 371 web tests (9eaaa71) |
+| B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS; AI-framing clean |
+| B-5 | stages/B-5-verify.md | done | lint 0, tests pass, build pass; scorer-discrimination + no-AI-framing tested; runtime→C-2 |
 | B-6 | stages/B-6-review.md | pending | head-builder gate (polices BOTH boundaries + AI-framing grep) + /review; multi-spec commit-per-spec |
 ## Block-specific context
 - **Spec:** seed 47ed7ddd (multi-spec, 3 blocks + P-4 karen MANDATORY B-3 condition). Branch wave-10-match-spine.

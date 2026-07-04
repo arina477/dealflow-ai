@@ -12,9 +12,8 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
-
-import { mandates } from './mandate';
 import { buyerUniverse, buyerUniverseCandidates } from './buyer-universe';
+import { mandates } from './mandate';
 import { users } from './users-roles';
 
 /**
