@@ -801,10 +801,59 @@ export function MandateDetailClient({
               Open Buyer Universe
             </a>
           </section>
-          <DeferredPlaceholder
-            title="Ranked Candidates"
-            description="Ranked AI-matched buyer candidates will appear here in a later step."
-          />
+          {/* Wave-10 B-3: Ranked Candidates placeholder replaced with a live CTA link.
+              Links to /matches-shortlist?mandateId=<id> — the match run page for this mandate. */}
+          <section
+            aria-label="Ranked Candidates — open matches shortlist"
+            style={{
+              border: '1px solid #DBEAFE',
+              borderRadius: '8px',
+              padding: '20px 24px',
+              backgroundColor: '#EFF6FF',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#1E3A8A',
+                  marginBottom: '4px',
+                }}
+              >
+                Ranked Candidates
+              </div>
+              <div style={{ fontSize: '12px', color: '#1D4ED8' }}>
+                View the rule-based fit scores and accept, reject, or flag buyer candidates.
+              </div>
+            </div>
+            <a
+              href={`/matches-shortlist?mandateId=${mandateId}`}
+              aria-label="Open Matches shortlist for this mandate"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                fontSize: '13px',
+                fontWeight: 500,
+                color: '#FFFFFF',
+                backgroundColor: '#1D4ED8',
+                border: 'none',
+                borderRadius: '6px',
+                textDecoration: 'none',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+            >
+              Open Matches
+            </a>
+          </section>
           <DeferredPlaceholder
             title="Pipeline"
             description="The deal pipeline view will appear here in a later step."

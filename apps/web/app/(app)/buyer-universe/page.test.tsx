@@ -732,7 +732,7 @@ describe('D. MandateDetailClient — D6 Buyer Engine anchor', () => {
     expect(screen.getByRole('link', { name: /open buyer universe/i })).toBeDefined();
   });
 
-  it('Ranked Candidates + Pipeline remain as deferred placeholders (M5/later)', () => {
+  it('Ranked Candidates is a live CTA to /matches-shortlist; Pipeline remains deferred (wave-10 B-3)', () => {
     vi.stubGlobal('fetch', vi.fn());
 
     render(
@@ -743,10 +743,17 @@ describe('D. MandateDetailClient — D6 Buyer Engine anchor', () => {
       />
     );
 
-    // These two remain deferred
+    // Ranked Candidates (D6) is now a live CTA link — NOT a deferred placeholder
+    const openMatchesLink = screen.getByRole('link', { name: /open matches/i });
+    expect((openMatchesLink as HTMLAnchorElement).href).toContain(
+      `/matches-shortlist?mandateId=${MANDATE_ID}`
+    );
+    // Deferred placeholder for Ranked Candidates must NOT appear
     expect(
-      screen.getByRole('region', { name: /ranked candidates.*coming in a later step/i })
-    ).toBeDefined();
+      screen.queryByRole('region', { name: /ranked candidates.*coming in a later step/i })
+    ).toBeNull();
+
+    // Pipeline still remains deferred
     expect(screen.getByRole('region', { name: /pipeline.*coming in a later step/i })).toBeDefined();
   });
 });

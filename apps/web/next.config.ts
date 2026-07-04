@@ -213,6 +213,43 @@ const nextConfig: NextConfig = {
           source: '/buyer-universe-data/:id',
           destination: `${apiProxyTarget}/buyer-universe/:id`,
         },
+        // Wave-10: matches mutation proxy (page-route-collision fix).
+        //
+        // CRITICAL: /matches-shortlist is the Next.js page route. We must NOT
+        // rewrite /matches-shortlist (the React page). Client mutations use the
+        // non-colliding /matches-data prefix — no Next.js page file exists at
+        // that path, so afterFiles always proxies these to the API.
+        //
+        // Route-ordering care: the /matches-data/:id/candidates/:cid path has
+        // TWO sub-segments after /:id; it must be declared BEFORE the one-segment
+        // /:id/:sub rule, and both must precede the bare /:id rule. This mirrors
+        // the wave-9 route-order lesson.
+        //
+        // Client callers (MatchesShortlistClient.tsx):
+        //   POST  /matches-data                          → POST  /matches (create run)
+        //   PATCH /matches-data/:id/candidates/:cid      → PATCH /matches/:id/candidates/:cid
+        //   POST  /matches-data/:id/handoff              → POST  /matches/:id/handoff
+        //
+        // NOTE: /matches-shortlist (the page route) is served by Next.js via
+        //   app/(app)/matches-shortlist/page.tsx — afterFiles never shadows it.
+        //   The GET /matches?mandateId= + GET /matches/:id SSR fetches run server-side
+        //   against apiBase() (internal URL) — no same-origin proxy needed for reads.
+        {
+          source: '/matches-data',
+          destination: `${apiProxyTarget}/matches`,
+        },
+        {
+          source: '/matches-data/:id/candidates/:cid',
+          destination: `${apiProxyTarget}/matches/:id/candidates/:cid`,
+        },
+        {
+          source: '/matches-data/:id/:sub',
+          destination: `${apiProxyTarget}/matches/:id/:sub`,
+        },
+        {
+          source: '/matches-data/:id',
+          destination: `${apiProxyTarget}/matches/:id`,
+        },
       ],
       beforeFiles: [],
       fallback: [],
