@@ -310,3 +310,91 @@ head_signoff:
     actual DOM/URL, not just HTTP status. No fabricated green.
   next_action: PROCEED_TO_T
 ```
+
+---
+
+## V-3 latest-main redeploy (e57be83) — PASS
+
+**Verdict: PASS.** Thin redeploy so the deployed state matches the T-block-verified code at wave close. `main` HEAD `e57be83` (checked live: `git rev-parse --short origin/main` == `e57be83`; the prompt-cited `e57be83` and current HEAD agree — NO drift), CI green. This carries the two T-block fixes — `a061c57` (server 3-acks service-boundary hardening, all bypass shapes → 400) and `1312fb4` (hide "New mandate" button for read-only roles + reliable 3-ack client validation) — into production. Code-only, **no new migration** (the fixes touch `mandate.service.ts` [strict `!== true` ack check] + web `MandateForm`/`MandateListClient`/`page.tsx`; zero schema DDL). Both T-block fixes are now **live and verified** on the deployed hash, the mandate create→detail vertical **still works** (regression), and RBAC/active-lock/anon guards all hold. head_signoff APPROVED.
+
+### Deploy — e57be83 (both services SUCCESS)
+
+| Service | Deploy ID | Status | Commit |
+|---|---|---|---|
+| dealflow-api (`dcdb4ab4…`) | `86381d8e-0fec-45fb-b971-759708f3f99b` | SUCCESS | e57be83 |
+| dealflow-web (`06b07f19…`) | `a1a184c0-8a50-4e1e-870b-75a483935c83` | SUCCESS | e57be83 |
+
+- **Token:** `RAILWAY_TOKEN` = `$APP_RAILWAY_TOKEN` (project-scoped, 36-char), validated via `{ projectToken { projectId environmentId } }` → project `ce095f75-1f3d-4af9-939e-fe8532541475`, env `0e84f0b6-1b1d-469f-91b9-caf4e59c9ba8`. `Project-Access-Token` header only (never `me{}`, never CLI). Token present — not a block.
+- **Commit provenance (STABLE):** `GIT_SHA` bumped `46642e7 → e57be83` on both services via non-destructive `variableUpsert` (single-var, existing env untouched), then an explicit `serviceInstanceDeployV2` on each to guarantee fresh immutable builds. Both deployments' Railway `meta.commitHash` == `e57be8324…` == target `e57be83` == CI-green `main` HEAD. **Deployed hash == verified-code SHA.**
+- **Environment ID validated:** deploy targeted env `0e84f0b6-1b1d-469f-91b9-caf4e59c9ba8` (production) — no cross-environment pollution.
+- **Rollback armed pre-mutation (STABLE):** known-good SUCCESS deploy IDs cached BEFORE the GIT_SHA bump — api `7f9b9582-054b-4c0d-9577-9445c585c41f` / web `6c2c01c1-e6bd-4023-b694-fb5c47a89ec8` (both @ `46642e7`). New known-good after this deploy: api `86381d8e`, web `a1a184c0`.
+- **Monitor (bounded):** `success_condition = edges[0].status=='SUCCESS'` (both), `failure_condition = status IN (FAILED,CRASHED,REMOVED,SKIPPED)` (either), `timeout_budget=900s`, `poll_delay=45s`. Both `BUILDING → SUCCESS` in ~90s. **No SKIPPED** (no Railway "Wait for CI" phantom skip — code shipped). Immutable freshly-built artifact (not in-place mutation).
+- **Migration-before-traffic (STABLE):** api `preDeployCommand: drizzle-kit migrate` runs one-shot before boot; no new migration this deploy (0006/0007 already applied on prior cycles). Env vars all bound pre-boot (no new env var this cycle).
+- **`GIT_SHA` updated on the api service to the deployed SHA** (`e57be83`), matching `/health`.
+
+### /health — deployed-hash provenance (STABLE, not stale)
+- api `GET /health` → `{"status":"ok","db":"ok","version":"e57be83"}` — the running container reports the EXACT deployed hash (was `46642e7` pre-deploy; flipped only after SUCCESS; re-probed post-test, still `e57be83`, no crash-loop). Targets the deployed instance, not a stale global-domain false-200.
+- web root → `x-powered-by: Next.js`, 307→/login (SSR serving; not Express).
+
+### Confirm — mandate flow STILL works + T-block fixes now live
+
+Verified in **real headless chromium (chromium-1208)** post-hydration DOM+URL for the UI, and via cookie-jar API sessions for the guards. Advisor + analyst minted through the live invite→signup flow (`POST /auth/invite` → `POST /auth/signup {inviteToken,password}` → 201 + `sAccessToken`/`sRefreshToken` HttpOnly cookies).
+
+| Check | Result |
+|---|---|
+| **Mandate flow STILL works (regression)** — create via the UI | **PASS.** Advisor fills full form (seller + jurisdiction=`US` + all 3 acks) → **POST 201** → URL REDIRECTS to `/mandates/624e31e1-…` (detail); NO "Failed to create mandate." text; detail renders seller name + jurisdiction `US` + all 3 deferred placeholders (Buyer Engine / Ranked Candidates / Pipeline). `role=alert` region present but **empty** (aria-live placeholder, not an error). |
+| GET /mandates/jurisdictions (advisor) | **200** + list includes `{jurisdiction:'US'}` (leftover `US-*` fixtures are cosmetic test residue; load-bearing `US` present). |
+| Detail SSR (browser + curl) | `x-powered-by: Next.js`, `content-type: text/html` — Next SSR page, NOT Express JSON. Detail-page-shadowing stays fixed. |
+| **T-block W8-3 (1312fb4) — button hidden for read-only** | **LIVE.** Advisor on `/mandates` **SEES** "New mandate" button (`count>0`); **ANALYST does NOT see it** (`count==0`). Server-driven gate (`userRole={me.role}` → `rolesForRoute('/mandates/new')`). |
+| **T-block W8-2 (a061c57) — server acks-harden** | **LIVE.** POST /mandates with `lawful_authorization:false` → **400**; missing ack → **400**; AND the a061c57 service-boundary strictness proven: `"true"` (string) → **400**, `1` (number) → **400** (strict `!== true`, not truthy). |
+| **active-lock 409** | draft→active **200**; edit-while-active **409** ("Active mandate is locked…"); active→draft **409**. |
+| **RBAC** | analyst POST **403**; anon POST **401**; analyst GET list/detail **200**; anon GET **401**. |
+
+### Regression (PASS)
+- `/health` ok (@ e57be83). Login page renders (anon). Detail SSR / list / create-form render for advisor.
+- Advisor `/`, `/sourcing`, `/compliance/settings` → **307→`/` is CORRECT RBAC** (verified in `rbac.ts`: `/sourcing` = `['analyst']`, `/compliance/settings` = `['compliance']`; advisor is not in either allow-list). NOT a deploy regression. Confirmed positive: **analyst renders `/sourcing`** (stays on `/sourcing`, body 948 chars, no error) — the correct-role render path is healthy.
+
+### Canary
+- **Skipped** — 0 DAU MVP, below `canary_threshold_dau: 1000` (`project.yaml`). No live user traffic to split; immediate full cutover has zero user-facing blast radius. Rollback path armed (above) covers regression recovery.
+
+### Cleanup
+- Test mandates (`cae863d6` active after active-lock test, `624e31e1` draft from UI create) **retained** — no DELETE endpoint (rows audit-FK'd; audit-immutability), per prior-C2 precedent. Test users (`adv-v3-…`, `ana-v3-…`) **retained** (FK'd by audit_log; audit-immutability). Local cookie-jars, Playwright scripts, and the token env file scrubbed. Browser context closed cleanly (no `browser_close` mid-swarm — single-context runs).
+
+### Chronological ledger
+- Deploy trigger: 2026-07-04 ~14:14 UTC (`GIT_SHA=e57be83` upsert + explicit `serviceInstanceDeployV2` both services). Both terminal SUCCESS by ~14:16 UTC (~90s). Migration one-shot before boot (no new migration). Canary window: N/A (skipped). Verification window: ~14:16–14:22 UTC.
+
+```yaml
+head_signoff:
+  verdict: APPROVED
+  stage: C-2 (V-3 latest-main redeploy e57be83)
+  reviewers:
+    deploy_provenance: head-ci-cd (GIT_SHA bump + explicit serviceInstanceDeployV2; both SUCCESS; /health == e57be83, not stale)
+    ui_dom_verification: head-ci-cd (real headless chromium-1208 — advisor + analyst, post-hydration DOM + URL bar)
+    api_guards: head-ci-cd (cookie-jar sessions — acks-harden/active-lock/RBAC)
+  failed_checks: []
+  passed_checks:
+    - "deploy e57be83 both services SUCCESS (api 86381d8e / web a1a184c0); meta.commitHash==e57be83==main HEAD==CI-green; env 0e84f0b6 (production, no cross-env); /health version==e57be83 (probed at deployed hash, was 46642e7 pre-deploy, no crash-loop); rollback armed (api 7f9b9582/web 6c2c01c1@46642e7); immutable fresh build; no SKIPPED; GIT_SHA updated to deployed SHA"
+    - "mandate flow STILL works (regression): create-via-UI 201 → redirect /mandates/624e31e1 → detail renders seller+US+3 placeholders, no false-fail; jurisdictions 200+US; detail SSR Next.js text/html (not Express)"
+    - "T-block W8-3 (1312fb4) LIVE: advisor SEES New-mandate button; analyst does NOT (server role-gate)"
+    - "T-block W8-2 (a061c57) LIVE: ack false→400, ack missing→400, ack \"true\"(string)→400, ack 1(number)→400 (service-boundary strict !== true)"
+    - "active-lock draft→active 200 / edit-active 409 / active→draft 409; RBAC analyst POST 403 + anon POST 401 + analyst GET 200 + anon GET 401"
+    - "regression: /health ok; login renders; advisor /sourcing+/compliance/settings 307→/ is CORRECT RBAC (advisor not in allow-list); analyst /sourcing renders (positive control); canary skip justified (0 DAU); cleanup done, test users retained"
+  rationale: >
+    Thin latest-main redeploy (e57be83) to align the deployed state with the T-block-verified
+    code at wave close. Live-confirmed main HEAD == e57be83 (no drift), CI green. Both services
+    redeployed via non-destructive GIT_SHA bump + explicit serviceInstanceDeployV2 → fresh
+    immutable builds, both terminal SUCCESS (not SKIPPED), rollback armed pre-mutation, env
+    bound, migration one-shot before traffic (no new migration — code-only fixes). /health
+    reports the exact deployed hash e57be83 (was 46642e7 pre-deploy — not stale). The two
+    T-block fixes are proven LIVE in a real headless browser + API sessions: W8-3 hides the
+    "New mandate" button for the read-only analyst while the advisor still sees it (server
+    role-gate), and W8-2's server-boundary acks-hardening rejects every bypass shape (false /
+    missing / "true"-string / 1-number → 400). The core mandate create→detail vertical STILL
+    works end-to-end through the shipped UI (201 → redirect → detail with seller/US/derived-
+    disclaimer/3-placeholders, no false-failure, no duplicate), and active-lock (409) + the full
+    RBAC/anon matrix hold. The advisor 307→/ on /sourcing + /compliance/settings is correct RBAC
+    (verified in rbac.ts — advisor is in neither allow-list), positively confirmed by the analyst
+    rendering /sourcing. Canary skipped (0 DAU, zero blast radius). Verified against DOM/URL/HTTP
+    status and provenance-checked deploy metadata — no fabricated green.
+  next_action: WAVE_SHIP_READY   # deployed state now matches wave-close verified code (e57be83)
+```

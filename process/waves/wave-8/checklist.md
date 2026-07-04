@@ -58,9 +58,9 @@ TEST:
 - [x] T-9 Journey — head-tester APPROVED; journey regen (mandate pages LIVE)
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-1 Independent reviews (Karen + jenny, parallel) — Karen APPROVE + jenny APPROVE (0 drift, 0 blocking)
+- [x] V-2 Triage — 0 blocking; V-3 close + redeploy latest main
+- [x] V-3 Fast-fix loop (or close) — CLOSE (0 blocking); redeploy e57be83 (deployed=verified; W8-2/W8-3 live)
 
 LEARN:
 - [ ] L-1 Docs

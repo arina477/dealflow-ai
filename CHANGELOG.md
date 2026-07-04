@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0] — 2026-07-04 — Mandate spine (M4 create/list/detail)
+
+### Added
+- **Mandate management** (M4 first bundle) — an advisor creates a fully-configured sell-side mandate at `/mandates/new`: seller/target profile (name, industry, regions, size band, deal type) + buyer criteria (industry / geo / size-band / deal-type) + compliance guardrails (legal jurisdiction → disclaimer template derived server-side; suppression scope; three required acknowledgments). Persisted in one transaction (mandate + buyer_criteria + compliance_profile), audited (M2 hash-chain), and viewable at `/mandates/:id` (SSR-hydrated detail) and `/mandates` (list + status filter). Migration 0006 (3 mandate tables) + 0007 (one-active-disclaimer-per-jurisdiction unique index).
+- **Compliance capture** at mandate creation — the jurisdiction, disclaimer template, suppression scope, and three attestations are captured and stored for the later pre-send compliance gate (enforcement remains in that gate; captured-not-enforced here). Endpoints: `POST /mandates`, `PATCH /mandates/:id` (advisor/admin, audited), `GET /mandates` + `GET /mandates/:id` + `GET /mandates/jurisdictions` (advisor/admin/analyst read).
+
+### Compliance / safety
+- One-transaction atomic mandate write (no partial mandate); audit-last-in-transaction (a create that can't be audited doesn't commit); all three acknowledgments strictly required; disclaimer template derivation is deterministic and rejects ambiguous compliance config; active mandates are locked against reconfiguration and illegal state reversion.
+
+### Deferred
+- The buyer-universe builder (assemble/filter/enrich candidate buyers → submit to matching) — the next M4 bundle; the mandate-detail page renders labelled placeholders for it.
+
 ## [0.7.0] — 2026-07-04 — Sourcing workspace (M3 search entry)
 
 ### Added
