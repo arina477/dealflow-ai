@@ -71,6 +71,13 @@
       "when": 1783555200000,
       "tag": "0009_omniscient_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783641600000,
+      "tag": "0010_mighty_the_anarchist",
+      "breakpoints": true
     }
   ]
 }

@@ -25,5 +25,6 @@ export * from './buyer-universe';
 export * from './compliance-rules';
 export * from './mandate';
 export * from './matching';
+export * from './outreach';
 export * from './sourcing';
 export * from './users-roles';
