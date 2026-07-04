@@ -47,7 +47,11 @@ import { SearchBar } from './_components/SearchBar';
 import { SourceFacet } from './_components/SourceFacet';
 import { SyncTrigger } from './_components/SyncTrigger';
 import { WorkspaceClient } from './_components/WorkspaceClient';
-import type { ConnectionWithCount, WorkspaceCompany } from './_lib/workspace-types';
+import {
+  type ConnectionWithCount,
+  fetchWorkspaceCompanies,
+  type WorkspaceCompany,
+} from './_lib/workspace-types';
 import SourcingWorkspacePage from './page';
 
 // ── Fixture data ──────────────────────────────────────────────────────────
@@ -100,6 +104,20 @@ const COMPANY_2: WorkspaceCompany = {
   status: 'active',
   connectionIds: [CONN_2.id],
   createdAt: NOW,
+};
+
+// PG-wire timestamp fixture — the real shape the API returns (NOT ISO-8601).
+// Used by CRITICAL-1 regression tests.
+const PG_WIRE_TS = '2026-07-04 04:30:08.014852+00';
+
+const COMPANY_PG_WIRE: WorkspaceCompany = {
+  id: '33333333-0000-0000-0000-000000000003',
+  name: 'PgWire Corp',
+  domain: 'pgwire.io',
+  sector: 'Infrastructure',
+  status: 'active',
+  connectionIds: [CONN_1.id],
+  createdAt: PG_WIRE_TS,
 };
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────
@@ -665,5 +683,245 @@ describe('AddConnectionForm', () => {
 
     await user.click(screen.getByRole('button', { name: /cancel adding connection/i }));
     expect(screen.queryByRole('textbox', { name: /connection display name/i })).toBeNull();
+  });
+});
+
+// ── CRITICAL-1 regression: PG-wire timestamp parse ──────────────────────────
+//
+// The API returns PG timestamptz WIRE format: "2026-07-04 04:30:08.014852+00"
+// (SPACE separator, +00 offset, microseconds) — NOT ISO-8601 ("T" separator,
+// "Z" suffix). Before the fix, z.string().datetime() rejected this string,
+// causing safeParse to fail and the entire company list to be silently dropped
+// (workspace showed "No companies found").
+//
+// This test MUST fail on the pre-fix z.string().datetime() schema and MUST
+// pass after the fix (z.string()).
+
+describe('CRITICAL-1 regression — PG-wire timestamp accepted by workspace schema', () => {
+  beforeEach(() => {
+    mockCookies.mockResolvedValue({ toString: () => 'st-access-token=test-token' });
+    mockRedirect.mockImplementation((path: string): never => {
+      throw new Error(`REDIRECT:${path}`);
+    });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('fetchWorkspaceCompanies returns companies when API returns PG-wire-format createdAt', async () => {
+    // Mock API response with the real PG-wire timestamp (not a mock ISO string).
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            companies: [
+              {
+                id: COMPANY_PG_WIRE.id,
+                name: COMPANY_PG_WIRE.name,
+                domain: COMPANY_PG_WIRE.domain,
+                sector: COMPANY_PG_WIRE.sector,
+                status: COMPANY_PG_WIRE.status,
+                connectionIds: COMPANY_PG_WIRE.connectionIds,
+                // Real PG-wire format — would be rejected by z.string().datetime()
+                createdAt: PG_WIRE_TS,
+              },
+            ],
+          }),
+      } as Response)
+    );
+
+    const result = await fetchWorkspaceCompanies('http://localhost:3001', 'st-access-token=test');
+
+    // Before fix: safeParse fails on PG-wire timestamp → returns [].
+    // After fix: returns the company with PG-wire createdAt preserved.
+    expect(result).toHaveLength(1);
+    expect(result[0]?.name).toBe('PgWire Corp');
+    expect(result[0]?.createdAt).toBe(PG_WIRE_TS);
+  });
+
+  it('workspace renders company name (not "No companies found") when createdAt is PG-wire format', () => {
+    // This is the end-to-end rendering check: WorkspaceClient receives companies
+    // that arrived with PG-wire timestamps and must render them, not the empty state.
+    render(<WorkspaceClient initialConnections={[CONN_1]} initialCompanies={[COMPANY_PG_WIRE]} />);
+
+    // Company must be visible — NOT the empty state.
+    expect(screen.getByText('PgWire Corp')).toBeDefined();
+    expect(screen.queryByText(/no companies found/i)).toBeNull();
+  });
+
+  it('SSR page passes PG-wire timestamp companies to WorkspaceClient (page renders without redirect)', async () => {
+    // Mock the SSR fetch to return a company with a real PG-wire timestamp.
+    vi.stubGlobal(
+      'fetch',
+      makePageFetch(
+        'analyst',
+        [CONN_1, CONN_2],
+        [
+          {
+            id: COMPANY_PG_WIRE.id,
+            name: COMPANY_PG_WIRE.name,
+            domain: COMPANY_PG_WIRE.domain,
+            sector: COMPANY_PG_WIRE.sector,
+            status: COMPANY_PG_WIRE.status,
+            connectionIds: COMPANY_PG_WIRE.connectionIds,
+            createdAt: PG_WIRE_TS, // PG-wire format — the real API shape
+          },
+        ]
+      )
+    );
+
+    const { redirected } = await renderPage();
+
+    // Page must render (not redirect) when companies have PG-wire timestamps.
+    expect(redirected).toBe(false);
+  });
+});
+
+// ── CRITICAL-2 regression: in-memory search/facet — no page-route fetch ────
+//
+// Before the fix, handleSearch / handleSourceChange built a fetch URL pointing
+// to /sourcing/companies — a Next.js PAGE route. A browser fetch to that path
+// returns the HTML page (200 + HTML), not the API JSON, so the client received
+// HTML and showed nothing. The fix replaces all client refetches with
+// synchronous in-memory filtering over the SSR-loaded company list.
+
+describe('CRITICAL-2 regression — search and facet filter in-memory (no client API fetch)', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('search query filters companies by name in-memory without any fetch', async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    render(
+      <WorkspaceClient
+        initialConnections={[CONN_1, CONN_2]}
+        initialCompanies={[COMPANY_1, COMPANY_2]}
+      />
+    );
+
+    const searchBox = screen.getByRole('searchbox');
+    await user.type(searchBox, 'Nexus');
+
+    await waitFor(() => {
+      // Only the matching company should be visible.
+      expect(screen.getByText('Nexus Analytics')).toBeDefined();
+      expect(screen.queryByText('Cipher Systems')).toBeNull();
+    });
+
+    // No fetch should have been made to any URL — filtering is in-memory.
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('search query filters companies by domain in-memory without any fetch', async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    render(
+      <WorkspaceClient
+        initialConnections={[CONN_1, CONN_2]}
+        initialCompanies={[COMPANY_1, COMPANY_2]}
+      />
+    );
+
+    const searchBox = screen.getByRole('searchbox');
+    await user.type(searchBox, 'cipher.com');
+
+    await waitFor(() => {
+      expect(screen.getByText('Cipher Systems')).toBeDefined();
+      expect(screen.queryByText('Nexus Analytics')).toBeNull();
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('clearing search restores the full company list without any fetch', async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    render(
+      <WorkspaceClient
+        initialConnections={[CONN_1, CONN_2]}
+        initialCompanies={[COMPANY_1, COMPANY_2]}
+      />
+    );
+
+    const searchBox = screen.getByRole('searchbox');
+    await user.type(searchBox, 'Nexus');
+
+    await waitFor(() => {
+      expect(screen.queryByText('Cipher Systems')).toBeNull();
+    });
+
+    await user.click(screen.getByRole('button', { name: /clear search/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Nexus Analytics')).toBeDefined();
+      expect(screen.getByText('Cipher Systems')).toBeDefined();
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('source facet filters companies by connectionId in-memory without any fetch', async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    render(
+      <WorkspaceClient
+        initialConnections={[CONN_1, CONN_2]}
+        initialCompanies={[COMPANY_1, COMPANY_2]}
+      />
+    );
+
+    // COMPANY_1 has connectionIds: [CONN_1.id]; COMPANY_2 has [CONN_2.id]
+    await user.click(screen.getByRole('button', { name: /filter by fixture source alpha/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Nexus Analytics')).toBeDefined();
+      expect(screen.queryByText('Cipher Systems')).toBeNull();
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('"All Sources" facet clears the source filter without any fetch', async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    render(
+      <WorkspaceClient
+        initialConnections={[CONN_1, CONN_2]}
+        initialCompanies={[COMPANY_1, COMPANY_2]}
+      />
+    );
+
+    // First apply a source filter
+    await user.click(screen.getByRole('button', { name: /filter by fixture source alpha/i }));
+    await waitFor(() => {
+      expect(screen.queryByText('Cipher Systems')).toBeNull();
+    });
+
+    // Then clear it
+    await user.click(screen.getByRole('button', { name: /all sources/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Nexus Analytics')).toBeDefined();
+      expect(screen.getByText('Cipher Systems')).toBeDefined();
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

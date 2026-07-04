@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ConnectionWithCount, WorkspaceCompany } from '../_lib/workspace-types';
 import { AddConnectionForm } from './AddConnectionForm';
 import { DetailDrawer } from './DetailDrawer';
@@ -36,71 +36,64 @@ interface WorkspaceClientProps {
 
 export function WorkspaceClient({ initialConnections, initialCompanies }: WorkspaceClientProps) {
   const [connections, setConnections] = useState<ConnectionWithCount[]>(initialConnections);
-  const [companies, setCompanies] = useState<WorkspaceCompany[]>(initialCompanies);
+  // allCompanies holds the full SSR-loaded list; never mutated after mount.
+  // search and facet filter this list in-memory — no client-side API refetch.
+  // Rationale: the page route /sourcing/companies is ALSO a Next.js page; a
+  // browser fetch to that path returns HTML, not JSON. In-memory filtering
+  // matches the wave-6 CompaniesClient pattern and is correct at pilot scale.
+  const [allCompanies] = useState<WorkspaceCompany[]>(initialCompanies);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [activeSource, setActiveSource] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // ── Search handler ────────────────────────────────────────────────────────
+  // ── Derived: in-memory filtered list ─────────────────────────────────────
+  // Memoized so the array reference is stable when query/activeSource are
+  // unchanged. This is required: ResultsMatrix has a useEffect([companies])
+  // that resets selection whenever the companies reference changes — an inline
+  // .filter() (new reference on every render) would cause an infinite loop
+  // (companies → selection reset → onSelectionChange → WorkspaceClient
+  // re-render → new companies reference → ...).
 
-  const handleSearch = useCallback(async (q: string, sourceId: string | null) => {
-    setIsSearching(true);
-    try {
-      const url = new URL('/sourcing/companies', window.location.origin);
-      if (q) url.searchParams.set('q', q);
-      if (sourceId) url.searchParams.set('source', sourceId);
-      const res = await fetch(url.toString(), {
-        credentials: 'include',
-        headers: { rid: 'anti-csrf' },
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { companies?: unknown[] };
-        const rows = (data.companies ?? []) as WorkspaceCompany[];
-        setCompanies(rows);
-      }
-    } catch {
-      // Keep current companies on error
-    } finally {
-      setIsSearching(false);
-    }
-  }, []);
+  const companies = useMemo(
+    () =>
+      allCompanies.filter((c) => {
+        if (query) {
+          const q = query.toLowerCase();
+          const matchName = c.name.toLowerCase().includes(q);
+          const matchDomain = c.domain?.toLowerCase().includes(q) ?? false;
+          if (!matchName && !matchDomain) return false;
+        }
+        if (activeSource && !c.connectionIds.includes(activeSource)) return false;
+        return true;
+      }),
+    [allCompanies, query, activeSource]
+  );
 
   // ── Source facet change ───────────────────────────────────────────────────
 
-  const handleSourceChange = useCallback(
-    (sourceId: string | null) => {
-      setActiveSource(sourceId);
-      void handleSearch(query, sourceId);
-    },
-    [query, handleSearch]
-  );
+  const handleSourceChange = useCallback((sourceId: string | null) => {
+    setActiveSource(sourceId);
+  }, []);
 
   // ── Query change ──────────────────────────────────────────────────────────
 
-  const handleQueryChange = useCallback(
-    (q: string) => {
-      setQuery(q);
-      void handleSearch(q, activeSource);
-    },
-    [activeSource, handleSearch]
-  );
+  const handleQueryChange = useCallback((q: string) => {
+    setQuery(q);
+  }, []);
 
   // ── Sync complete ─────────────────────────────────────────────────────────
 
-  const handleSyncComplete = useCallback(
-    (connectionId: string, ingested: number) => {
-      // Refresh company list and update connection company count
-      void handleSearch(query, activeSource);
-      setConnections((prev) =>
-        prev.map((c) =>
-          c.id === connectionId ? { ...c, companyCount: c.companyCount + ingested } : c
-        )
-      );
-    },
-    [query, activeSource, handleSearch]
-  );
+  const handleSyncComplete = useCallback((connectionId: string, ingested: number) => {
+    // Update the connection's company count optimistically.
+    // A full company list refresh would require an SSR re-navigation; at
+    // pilot scale the count badge is the only feedback needed here.
+    setConnections((prev) =>
+      prev.map((c) =>
+        c.id === connectionId ? { ...c, companyCount: c.companyCount + ingested } : c
+      )
+    );
+  }, []);
 
   // ── Connection created ────────────────────────────────────────────────────
 
@@ -205,8 +198,8 @@ export function WorkspaceClient({ initialConnections, initialCompanies }: Worksp
           <AddConnectionForm onCreated={handleConnectionCreated} />
         </div>
 
-        {/* Search bar */}
-        <SearchBar query={query} onQueryChange={handleQueryChange} isSearching={isSearching} />
+        {/* Search bar — isSearching always false; filtering is in-memory / synchronous */}
+        <SearchBar query={query} onQueryChange={handleQueryChange} isSearching={false} />
       </div>
 
       {/* Body: source facet (left) + results matrix (right) */}
@@ -250,7 +243,7 @@ export function WorkspaceClient({ initialConnections, initialCompanies }: Worksp
           <ResultsMatrix
             companies={companies}
             connections={connections}
-            isLoading={isSearching}
+            isLoading={false}
             onOpenDetail={handleOpenDetail}
             onSelectionChange={handleSelectionChange}
           />
