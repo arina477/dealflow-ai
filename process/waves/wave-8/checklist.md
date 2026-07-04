@@ -34,9 +34,9 @@ DESIGN (skip block if non-UI wave):
 - [ ] D-3 Review & adopt
 
 BUILD:
-- [ ] B-0 Branch & schema
-- [ ] B-1 Contracts
-- [ ] B-2 Backend
+- [x] B-0 Branch & schema — branch wave-8-mandate-spine; 3 tasks claimed; schema 0006 (backend-developer)
+- [x] B-1 Contracts
+- [x] B-2 Backend
 - [ ] B-3 Frontend
 - [ ] B-4 Wiring
 - [ ] B-5 Verify
