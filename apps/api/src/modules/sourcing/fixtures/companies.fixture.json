@@ -1,0 +1,44 @@
+[
+  {
+    "sourceRecordId": "grata-001",
+    "name": "Acme Technologies Inc.",
+    "domain": "https://www.acme.com",
+    "contacts": [
+      { "name": "Alice Walker", "email": "alice@acme.com", "title": "CEO" },
+      { "name": "Bob Chen", "email": "bob@acme.com", "title": "CTO" }
+    ]
+  },
+  {
+    "sourceRecordId": "grata-002",
+    "name": "Bright Horizon Ventures LLC",
+    "domain": "www.brighthorizon.vc",
+    "contacts": [
+      { "name": "Carol Davis", "email": "carol@brighthorizon.vc", "title": "Managing Partner" }
+    ]
+  },
+  {
+    "sourceRecordId": "grata-003",
+    "name": "Delta Systems Corp",
+    "domain": "deltasystems.io",
+    "contacts": [
+      { "name": "Dan Evans", "email": "dan@deltasystems.io", "title": "Founder" }
+    ]
+  },
+  {
+    "sourceRecordId": "grata-004",
+    "name": "Epsilon Analytics",
+    "domain": "epsilon.ai",
+    "contacts": [
+      { "name": "Elena Park", "email": "elena@epsilon.ai", "title": "Head of Data" }
+    ]
+  },
+  {
+    "sourceRecordId": "grata-005",
+    "name": "Acme Technologies",
+    "domain": "http://acme.com/about",
+    "contacts": [
+      { "name": "Alice Walker", "email": "ALICE@ACME.COM", "title": "Chief Executive Officer" },
+      { "name": "Frank Li", "email": "frank@acme.com", "title": "VP Engineering" }
+    ]
+  }
+]
