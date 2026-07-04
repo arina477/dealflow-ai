@@ -28,10 +28,7 @@ function headerValue(init: RequestInit, name: string): string | null {
 
 describe('apiFetch', () => {
   beforeEach(() => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: true, status: 200 } as Response)
-    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 } as Response));
   });
 
   afterEach(() => {

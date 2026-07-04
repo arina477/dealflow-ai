@@ -4,10 +4,10 @@
 |---|---|---|---|
 | B-0 | stages/B-0-branch-and-schema.md | done | branch wave-6-deal-sourcing; no new deps (fixture JSON); schema=YES(0004,7 tables@B-2); 4 tasks claimed |
 | B-1 | stages/B-1-contracts.md | done | sourcing types + DataSourceAdapter + roleRoutes /sourcing (e44a5fd); 390 tests |
-| B-2 | stages/B-2-backend.md | pending | migration 0004 (7 tables, postgres-pro) + adapter/ETL/sync (backend-developer) + dedupe engine (postgres-pro primary) |
-| B-3 | stages/B-3-frontend.md | pending | companies-contacts screen (view/filter/clean; nextjs) |
-| B-4 | stages/B-4-wiring.md | pending | repo typecheck + build |
-| B-5 | stages/B-5-verify.md | pending | lint+unit+build; cross-source-dedup test |
+| B-2 | stages/B-2-backend.md | done | schema+dedupe(cross-source PROVEN)+fixture-ETL+audited-resolve (f6071e7,299e7c1,43fe212); 247 tests |
+| B-3 | stages/B-3-frontend.md | done | companies-contacts screen at /sourcing/companies (952207d); 179 tests |
+| B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS; 0004 journal-registered |
+| B-5 | stages/B-5-verify.md | done | lint 0-err, 816 tests, build pass; cross-source-dedup test; runtime→C-2 |
 | B-6 | stages/B-6-review.md | pending | head-builder gate + /review |
 
 ## Block context

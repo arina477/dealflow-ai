@@ -23,10 +23,10 @@ DESIGN (skip block if non-UI wave):
 BUILD:
 - [x] B-0 Branch & schema — branch wave-6-deal-sourcing; no new deps (fixture JSON); schema=YES(0004,7 tables@B-2); 4 tasks claimed
 - [x] B-1 Contracts — sourcing types + DataSourceAdapter + roleRoutes /sourcing (e44a5fd); 390 tests; rbac.test updated
-- [ ] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
-- [ ] B-5 Verify
+- [x] B-2 Backend — 7-table schema + dedupe engine (cross-source+provenance+idempotent PROVEN) + fixture ETL + audited resolve (f6071e7,299e7c1,43fe212); 247 tests
+- [x] B-3 Frontend — companies-contacts screen at /sourcing/companies (view/filter/dedupe-review, no manual-create); 179 tests (952207d)
+- [x] B-4 Wiring — repo typecheck+build PASS; /sourcing routes compile; 0004 journal-registered
+- [x] B-5 Verify — lint 0-err, 816 tests pass, build pass; cross-source-dedup test present; runtime→C-2
 - [ ] B-6 Review
 
 CI/CD:

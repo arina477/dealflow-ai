@@ -7,6 +7,13 @@ import { ComplianceGateModule } from './modules/compliance-gate/compliance-gate.
 import { SourcingModule } from './modules/sourcing/sourcing.module';
 
 @Module({
-  imports: [HealthModule, AuthModule, AuditModule, ComplianceModule, ComplianceGateModule, SourcingModule],
+  imports: [
+    HealthModule,
+    AuthModule,
+    AuditModule,
+    ComplianceModule,
+    ComplianceGateModule,
+    SourcingModule,
+  ],
 })
 export class AppModule {}

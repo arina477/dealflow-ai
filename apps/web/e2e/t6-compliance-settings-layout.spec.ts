@@ -95,10 +95,9 @@ async function assertSidebar(
   ).toBeLessThanOrEqual(280);
 
   const bgColor = await nav.evaluate((el) => window.getComputedStyle(el).backgroundColor);
-  expect(
-    bgColor,
-    `Sidebar bg must be zinc-900 (rgb(17, 24, 39) / #111827); got "${bgColor}"`
-  ).toBe('rgb(17, 24, 39)');
+  expect(bgColor, `Sidebar bg must be zinc-900 (rgb(17, 24, 39) / #111827); got "${bgColor}"`).toBe(
+    'rgb(17, 24, 39)'
+  );
 
   return nav;
 }
@@ -121,10 +120,9 @@ async function assertTopBar(page: import('@playwright/test').Page): Promise<void
   ).toBeLessThanOrEqual(72);
 
   const bgColor = await header.evaluate((el) => window.getComputedStyle(el).backgroundColor);
-  expect(
-    bgColor,
-    `TopBar bg must be white (rgb(255, 255, 255)); got "${bgColor}"`
-  ).toBe('rgb(255, 255, 255)');
+  expect(bgColor, `TopBar bg must be white (rgb(255, 255, 255)); got "${bgColor}"`).toBe(
+    'rgb(255, 255, 255)'
+  );
 }
 
 // ---------------------------------------------------------------------------

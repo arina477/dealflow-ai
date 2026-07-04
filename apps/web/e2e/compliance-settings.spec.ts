@@ -140,10 +140,10 @@ test.describe('S1: compliance user — "Rules" nav item + /compliance/settings r
   }) => {
     // Arrange: establish compliance session via accept-invite browser flow.
     await acceptInviteInBrowser(page, complianceToken);
-    await expect(
-      page,
-      'Post-invite navigation must land on / (session cookie set)'
-    ).toHaveURL(/\/$/, { timeout: 5_000 });
+    await expect(page, 'Post-invite navigation must land on / (session cookie set)').toHaveURL(
+      /\/$/,
+      { timeout: 5_000 }
+    );
     expect(page.url(), 'Must NOT be on /login after invite acceptance').not.toMatch(/\/login/);
 
     // Assert: sidebar nav is present.
@@ -161,10 +161,10 @@ test.describe('S1: compliance user — "Rules" nav item + /compliance/settings r
     await nav.getByRole('link', { name: 'Rules' }).click();
 
     // Assert: landed on /compliance/settings.
-    await expect(
-      page,
-      'Clicking "Rules" nav must navigate to /compliance/settings'
-    ).toHaveURL(/\/compliance\/settings/, { timeout: 15_000 });
+    await expect(page, 'Clicking "Rules" nav must navigate to /compliance/settings').toHaveURL(
+      /\/compliance\/settings/,
+      { timeout: 15_000 }
+    );
 
     // Assert: page heading visible.
     await expect(
@@ -262,10 +262,9 @@ test.describe('S2: suppression entry create in-browser — C-2 FK fix + same-ori
 
     // Assert: modal renders with correct role and heading.
     const modal = page.getByRole('dialog', { name: 'Add Suppression Entry' });
-    await expect(
-      modal,
-      'Add Suppression Entry dialog must open on "Add Entry" click'
-    ).toBeVisible({ timeout: 8_000 });
+    await expect(modal, 'Add Suppression Entry dialog must open on "Add Entry" click').toBeVisible({
+      timeout: 8_000,
+    });
 
     // Act: select match type "email" (default; explicit for test clarity).
     // The select is labeled "Match Type" (id="suppression-match-type").
@@ -310,10 +309,9 @@ test.describe('S2: suppression entry create in-browser — C-2 FK fix + same-ori
     expect(created.id, 'Created entry must have an id').toBeTruthy();
 
     // Assert (UI): modal closes and success toast appears.
-    await expect(
-      modal,
-      'Modal must close after successful submission'
-    ).not.toBeVisible({ timeout: 8_000 });
+    await expect(modal, 'Modal must close after successful submission').not.toBeVisible({
+      timeout: 8_000,
+    });
 
     // Assert (UI): the new entry appears in the suppression list.
     // The table row renders entry.value as the first cell text.
@@ -389,10 +387,10 @@ test.describe('S3b: RBAC — unauthenticated /compliance/settings redirects to /
     await page.goto('/compliance/settings');
 
     // The (app) layout checks /auth/me → 401 → redirect('/login').
-    await expect(
-      page,
-      'Unauthenticated /compliance/settings must redirect to /login'
-    ).toHaveURL(/\/login/, { timeout: 15_000 });
+    await expect(page, 'Unauthenticated /compliance/settings must redirect to /login').toHaveURL(
+      /\/login/,
+      { timeout: 15_000 }
+    );
 
     // Login page must render (not a blank page or error).
     await expect(
