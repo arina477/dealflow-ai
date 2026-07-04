@@ -1,0 +1,2 @@
+# Wave 9 — L-2 Distill
+Promoted EXACTLY ONE: BUILD-PRINCIPLES rule 6 — "Guard a state-advancing compliance write on the semantic predicate it protects, not a structural proxy count. Why: A total-count guard passes with zero included rows, letting an empty record advance state." (2-wave gate MET — confirms wave-8 OBS-W8-3.) 3 first-observations (idempotent-container, honest-partial-capability, tx-scoped-reads) → carry-forward (NOT force-promoted — disciplined). BUILD rule 5 confirmed 3× but NOT re-promoted (confirming). head-learn gate APPROVED.

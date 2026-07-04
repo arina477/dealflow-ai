@@ -64,8 +64,8 @@ VERIFY:
 - [x] V-3 Fast-fix loop (or close) — CLOSE (0 blocking; deployed=verified 937ae18; C-2 first-try)
 
 LEARN:
-- [ ] L-1 Docs
-- [ ] L-2 Distill
+- [x] L-1 Docs — CHANGELOG 0.9.0; 5 observations
+- [x] L-2 Distill — promoted BUILD rule 6 (semantic-predicate-guard; 2-wave gate met)
 
 NEXT:
 - [ ] N-1 Survey & triggers
