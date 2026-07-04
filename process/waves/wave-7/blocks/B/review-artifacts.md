@@ -1,5 +1,5 @@
 # Wave 7 — B-block review artifacts
-**Block:** B (Build) · **Wave topic:** sourcing-workspace page (search canonical universe + trigger-sync + connection-create) · **Gate:** B-6 · **Status:** in-progress
+**Block:** B (Build) · **Wave topic:** sourcing-workspace page (search canonical universe + trigger-sync + connection-create) · **Gate:** B-6 · **Status:** gate-passed
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
 | B-0 | stages/B-0-branch-and-schema.md | done | branch wave-7-sourcing-workspace; no new deps/schema/secret; 1 task claimed |
@@ -8,7 +8,7 @@
 | B-3 | stages/B-3-frontend.md | done | sourcing-workspace page at /sourcing (f8073e1); 214 tests; AC-BADGE/CTA/SEED |
 | B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS |
 | B-5 | stages/B-5-verify.md | done | lint 0-err, 920 tests, build pass; ≥2-source facet test; runtime→C-2 |
-| B-6 | stages/B-6-review.md | pending | head-builder gate + /review |
+| B-6 | stages/B-6-review.md | gate-passed | head-builder APPROVED; /review 2 CRIT fixed (badges+providerKey, 57d79bc) |
 
 ## Block context
 - **Spec:** seed dfa5bd56 (single-spec + P-4 remediation: AC-SEED create endpoint, AC-BADGE, AC-CTA). Branch wave-7-sourcing-workspace.

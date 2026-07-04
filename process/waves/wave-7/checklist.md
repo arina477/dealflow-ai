@@ -25,7 +25,7 @@ BUILD:
 - [x] B-3 Frontend — sourcing-workspace page at /sourcing (search+≥2-source facet+trigger-sync+connection-create); 214 tests (f8073e1)
 - [x] B-4 Wiring — repo typecheck+build PASS; /sourcing workspace compiles
 - [x] B-5 Verify — lint 0-err, 920 tests pass, build pass; ≥2-source facet test; runtime→C-2
-- [ ] B-6 Review
+- [x] B-6 Review — head-builder APPROVED; /review 2 CRIT fixed (badges+providerKey-400+dup-409, 57d79bc)
 
 CI/CD:
 - [ ] C-1 PR, CI & merge
