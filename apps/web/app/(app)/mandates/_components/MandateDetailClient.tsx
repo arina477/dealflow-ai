@@ -160,7 +160,9 @@ function ConfigureForm({ mandateId, detail, onSaved, onCancel }: ConfigureFormPr
 
     setSaving(true);
     try {
-      const res = await apiFetch(`/mandates/${mandateId}`, {
+      // PATCH to /mandates-data/:id — the non-colliding proxy path (CRITICAL-1 fix).
+      // /mandates-data/:id (no page file) → afterFiles rewrite → PATCH /mandates/:id on API.
+      const res = await apiFetch(`/mandates-data/${mandateId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed.data),

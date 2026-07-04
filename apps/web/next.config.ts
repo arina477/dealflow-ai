@@ -148,33 +148,34 @@ const nextConfig: NextConfig = {
           source: '/sourcing/company-detail/:id',
           destination: `${apiProxyTarget}/sourcing/companies/:id`,
         },
-        // Wave-8: /mandates API rewrites (afterFiles — page routes win).
+        // Wave-8 C-2 fix — mandate mutation proxy (page-route-collision fix).
         //
-        // Pages that exist (Next.js serves them for GET browser navigation):
-        //   /mandates          → app/(app)/mandates/page.tsx   (wins via afterFiles)
-        //   /mandates/new      → app/(app)/mandates/new/page.tsx (wins via afterFiles)
-        //   /mandates/:id      → app/(app)/mandates/[id]/page.tsx (wins via afterFiles)
+        // CRITICAL: /mandates and /mandates/:id have Next.js page files:
+        //   /mandates        → app/(app)/mandates/page.tsx
+        //   /mandates/new    → app/(app)/mandates/new/page.tsx
+        //   /mandates/:id    → app/(app)/mandates/[id]/page.tsx
         //
-        // IMPORTANT: Next.js rewrites are NOT method-aware. afterFiles rules
-        // only fire for paths that have NO matching page file. When a page
-        // file exists (e.g. /mandates, /mandates/:id), Next.js serves that
-        // page for ALL methods during static analysis — the rewrite fires only
-        // if the file router does NOT match the path (i.e. no page file exists
-        // at that path). The browser's GET navigation hits the page file; the
-        // client component's POST/PATCH fetches use the same path and fall
-        // through to this rewrite because the page file only serves the RSC
-        // payload for GET, leaving non-GET requests unmatched. This is a
-        // coincidence of how Next.js routes work, not a method filter.
+        // afterFiles rewrites defer ONLY to static/filesystem page routes, NOT
+        // to dynamic routes (e.g. [id]). Keeping a rewrite for /mandates/:id
+        // SHADOWS the dynamic [id] page — the browser receives raw API JSON
+        // instead of the SSR detail page (wave-7 page-route-collision class).
         //
-        // No page-route-collision risk: the detail page is SSR-hydrated (server
-        // fetches via apiBase()) and the client component issues no GET fetch
-        // to /mandates/:id (wave-7 lesson preserved).
+        // Fix: remove the colliding /mandates and /mandates/:id rewrites entirely.
+        //   - List + detail pages SSR-fetch server-side via apiBase() (internal URL) —
+        //     no same-origin proxy needed for reads.
+        //   - Client MUTATIONS (POST create, PATCH configure) use DISTINCT non-colliding
+        //     paths: /mandates-data (POST) and /mandates-data/:id (PATCH). These paths
+        //     have NO Next.js page file, so afterFiles always proxies them to the API.
+        //
+        // Client callers:
+        //   MandateForm.tsx      POST → /mandates-data        (proxied → POST /mandates)
+        //   MandateDetailClient.tsx  PATCH → /mandates-data/:id (proxied → PATCH /mandates/:id)
         {
-          source: '/mandates',
+          source: '/mandates-data',
           destination: `${apiProxyTarget}/mandates`,
         },
         {
-          source: '/mandates/:id',
+          source: '/mandates-data/:id',
           destination: `${apiProxyTarget}/mandates/:id`,
         },
       ],

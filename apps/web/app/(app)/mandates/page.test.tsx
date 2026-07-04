@@ -1,5 +1,5 @@
 /**
- * Mandate pages — B-3 tests (wave-8).
+ * Mandate pages — B-3 tests (wave-8, C-2 defect fixes).
  *
  * Coverage:
  *
@@ -17,12 +17,15 @@
  *    - Renders 3 section headings for advisor/admin.
  *    - Analyst → redirects to '/'.
  *    - 3 required acknowledgment checkboxes present.
- *    - Jurisdiction dropdown present (no separate disclaimer picker element).
- *    - Submit calls POST /mandates with rid:anti-csrf header.
+ *    - Jurisdiction dropdown populated from availableJurisdictions prop (CRITICAL-2 fix).
+ *      No hardcoded list; only prop-driven options rendered.
+ *    - Jurisdiction dropdown NOT present (no separate disclaimer picker element).
+ *    - Client POST targets /mandates-data (not /mandates — CRITICAL-1 fix).
  *    - Form validates: missing seller name → error message, no POST.
  *    - Form validates: un-checked acks → error, no POST.
  *    - On 201 response: router.push called with /mandates/:id.
  *    - On API error: error message shown.
+ *    - Empty jurisdictions → empty-state alert (no dropdown rendered).
  *
  * C. Detail page (/mandates/:id):
  *    - SSR-hydrated: renders seller name from initialDetail (no client fetch to
@@ -33,7 +36,7 @@
  *    - Deferred placeholders: 3 labelled sections render (D6).
  *    - PG-wire timestamp renders (wave-7 regression).
  *    - 404: not-found state rendered (not a throw/crash).
- *    - PATCH configure: fires PATCH with rid header.
+ *    - PATCH configure: fires PATCH to /mandates-data/:id (CRITICAL-1 fix).
  *
  * Strategy:
  *   - Server page components are async; awaited + rendered.
@@ -70,6 +73,7 @@ vi.mock('next/headers', () => ({ cookies: mockCookies }));
 // ── Imports (after mocks) ──────────────────────────────────────────────────
 
 import { MandateDetailClient } from './_components/MandateDetailClient';
+import type { AvailableJurisdiction } from './_components/MandateForm';
 import { MandateForm } from './_components/MandateForm';
 import { MandateListClient } from './_components/MandateListClient';
 import { StatusFilter } from './_components/StatusFilter';
@@ -78,6 +82,9 @@ import NewMandatePage from './new/page';
 import MandatesPage from './page';
 
 // ── Fixture data ───────────────────────────────────────────────────────────
+
+/** Available jurisdictions fixture — matches active disclaimer templates (CRITICAL-2). */
+const AVAILABLE_JURISDICTIONS: AvailableJurisdiction[] = [{ value: 'US', label: 'US' }];
 
 type RoleStr = 'advisor' | 'analyst' | 'compliance' | 'admin';
 
@@ -190,13 +197,56 @@ function makeDetailPageFetch(role: RoleStr, detail: MandateDetail | null = MANDA
   });
 }
 
-function makeNewPageFetch(role: RoleStr) {
+/**
+ * makeNewPageFetch — mocks both /auth/me and /compliance/disclaimers for the
+ * new-mandate server page (CRITICAL-2 fix: page now SSR-fetches disclaimer
+ * jurisdictions to populate the form's jurisdiction dropdown).
+ *
+ * @param role - the authenticated user's role
+ * @param disclaimers - disclaimer templates to return (default: active 'US' seed)
+ */
+function makeNewPageFetch(
+  role: RoleStr,
+  disclaimers: Array<{
+    id: string;
+    jurisdiction: string;
+    body: string;
+    version: number;
+    active: boolean;
+    createdBy: null;
+    createdAt: string;
+  }> = [
+    {
+      id: '33333333-0000-0000-0000-000000000001',
+      jurisdiction: 'US',
+      body: 'Standard US disclaimer.',
+      version: 1,
+      active: true,
+      createdBy: null,
+      createdAt: '2026-07-04T00:00:00.000Z',
+    },
+  ]
+) {
   return vi.fn().mockImplementation((url: string) => {
-    if (String(url).includes('/auth/me')) {
+    const s = String(url);
+    if (s.includes('/auth/me')) {
       return Promise.resolve({
         ok: true,
         status: 200,
         json: () => Promise.resolve(meFor(role)),
+      } as Response);
+    }
+    // CRITICAL-2: page SSR-fetches available disclaimer jurisdictions.
+    // admin can access; advisor gets 403 → page shows empty-state.
+    if (s.includes('/compliance/disclaimers')) {
+      const canAccess = role === 'admin' || role === 'compliance';
+      if (!canAccess) {
+        return Promise.resolve({ ok: false, status: 403 } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(disclaimers),
       } as Response);
     }
     return Promise.reject(new Error(`Unexpected fetch: ${url}`));
@@ -531,6 +581,8 @@ describe('B. NewMandatePage (/mandates/new)', () => {
 });
 
 // ── B2. MandateForm unit tests ─────────────────────────────────────────────
+// All renders pass availableJurisdictions prop (CRITICAL-2 fix).
+// The prop replaces the old hardcoded JURISDICTIONS constant.
 
 describe('B2. MandateForm unit', () => {
   afterEach(() => {
@@ -539,7 +591,7 @@ describe('B2. MandateForm unit', () => {
   });
 
   it('renders 3 required acknowledgment checkboxes', () => {
-    render(<MandateForm />);
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
     const checkboxes = screen.getAllByRole('checkbox');
     // 3 required acks (D5)
     const acks = checkboxes.filter(
@@ -549,15 +601,42 @@ describe('B2. MandateForm unit', () => {
   });
 
   it('renders jurisdiction dropdown (D2 — no separate disclaimer picker)', () => {
-    render(<MandateForm />);
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
     expect(screen.getByLabelText(/legal jurisdiction/i)).toBeDefined();
     // The disclaimer is derived server-side — there must be NO separate "disclaimer" picker
     const disclaimerInput = screen.queryByLabelText(/disclaimer/i);
     expect(disclaimerInput).toBeNull();
   });
 
+  it('renders jurisdiction options from availableJurisdictions prop (not hardcoded)', () => {
+    // CRITICAL-2: the dropdown must be populated from the prop, not a hardcoded list.
+    const jurisdictions: AvailableJurisdiction[] = [
+      { value: 'US', label: 'US' },
+      { value: 'CA', label: 'CA' },
+    ];
+    render(<MandateForm availableJurisdictions={jurisdictions} />);
+    const select = screen.getByLabelText(/legal jurisdiction/i);
+    const options = Array.from((select as HTMLSelectElement).options);
+    const optionValues = options.map((o) => o.value).filter((v) => v !== '');
+    // Only prop-supplied values should appear — no hardcoded extras like 'us_delaware', 'uk', 'eu'
+    expect(optionValues).toContain('US');
+    expect(optionValues).toContain('CA');
+    expect(optionValues).not.toContain('us_delaware');
+    expect(optionValues).not.toContain('uk');
+    expect(optionValues).not.toContain('eu');
+  });
+
+  it('renders empty-state alert when availableJurisdictions is empty', () => {
+    render(<MandateForm availableJurisdictions={[]} />);
+    // No dropdown when no jurisdictions available
+    expect(screen.queryByRole('combobox', { name: /legal jurisdiction/i })).toBeNull();
+    // Empty-state alert is shown
+    const alert = screen.getByRole('alert', { name: /no compliance jurisdictions configured/i });
+    expect(alert).toBeDefined();
+  });
+
   it('renders seller name input as required', () => {
-    render(<MandateForm />);
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
     const nameInput = screen.getByLabelText(/company name/i);
     expect(nameInput).toBeDefined();
     expect(nameInput.getAttribute('required')).not.toBeNull();
@@ -567,11 +646,9 @@ describe('B2. MandateForm unit', () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn());
 
-    render(<MandateForm />);
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
     // Do not fill name; fill required acks + jurisdiction
-    await user.click(screen.getByLabelText(/legal jurisdiction/i));
-    // Select a jurisdiction
-    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'us_delaware');
+    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'US');
 
     // Check all 3 acks
     const checkboxes = screen.getAllByRole('checkbox');
@@ -595,12 +672,12 @@ describe('B2. MandateForm unit', () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', vi.fn());
 
-    render(<MandateForm />);
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
 
     // Fill seller name
     await user.type(screen.getByLabelText(/company name/i), 'Test Corp');
     // Select jurisdiction
-    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'us_delaware');
+    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'US');
     // Leave acks unchecked
 
     await user.click(screen.getByRole('button', { name: /create mandate/i }));
@@ -613,7 +690,8 @@ describe('B2. MandateForm unit', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('calls POST /mandates with rid:anti-csrf header on valid submit', async () => {
+  it('calls POST /mandates-data (not /mandates) with rid:anti-csrf header on valid submit (CRITICAL-1 fix)', async () => {
+    // CRITICAL-1: client create must target /mandates-data, NOT /mandates (page route).
     const user = userEvent.setup();
 
     const mockFetch = vi.fn().mockResolvedValue({
@@ -626,11 +704,11 @@ describe('B2. MandateForm unit', () => {
     } as Response);
     vi.stubGlobal('fetch', mockFetch);
 
-    render(<MandateForm />);
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
 
     // Fill required fields
     await user.type(screen.getByLabelText(/company name/i), 'Apex Analytics Inc.');
-    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'us_delaware');
+    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'US');
 
     // Check all 3 acknowledgments
     const checkboxes = screen.getAllByRole('checkbox');
@@ -642,12 +720,15 @@ describe('B2. MandateForm unit', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/mandates',
+        '/mandates-data',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({ rid: 'anti-csrf' }),
         })
       );
+      // Must NOT call /mandates (the page route)
+      const calledUrls = mockFetch.mock.calls.map((c) => c[0] as string);
+      expect(calledUrls.some((u) => u === '/mandates')).toBe(false);
     });
   });
 
@@ -663,10 +744,10 @@ describe('B2. MandateForm unit', () => {
       } as Response)
     );
 
-    render(<MandateForm />);
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
 
     await user.type(screen.getByLabelText(/company name/i), 'Apex Analytics Inc.');
-    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'us_delaware');
+    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'US');
 
     const checkboxes = screen.getAllByRole('checkbox');
     for (const cb of checkboxes) {
@@ -692,10 +773,10 @@ describe('B2. MandateForm unit', () => {
       } as Response)
     );
 
-    render(<MandateForm />);
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
 
     await user.type(screen.getByLabelText(/company name/i), 'Test Corp');
-    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'us_delaware');
+    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'US');
 
     const checkboxes = screen.getAllByRole('checkbox');
     for (const cb of checkboxes) {
@@ -960,7 +1041,8 @@ describe('C2. MandateDetailClient — unit', () => {
       expect(screen.getByRole('form', { name: /configure mandate/i })).toBeDefined();
     });
 
-    it('fires PATCH /mandates/:id with rid:anti-csrf on save', async () => {
+    it('fires PATCH /mandates-data/:id (not /mandates/:id) with rid:anti-csrf on save (CRITICAL-1 fix)', async () => {
+      // CRITICAL-1: client configure must target /mandates-data/:id, NOT /mandates/:id (page route).
       const user = userEvent.setup();
 
       const mockFetch = vi.fn().mockResolvedValue({
@@ -986,12 +1068,15 @@ describe('C2. MandateDetailClient — unit', () => {
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
-          `/mandates/${MANDATE_ID}`,
+          `/mandates-data/${MANDATE_ID}`,
           expect.objectContaining({
             method: 'PATCH',
             headers: expect.objectContaining({ rid: 'anti-csrf' }),
           })
         );
+        // Must NOT call /mandates/:id (the page route)
+        const calledUrls = mockFetch.mock.calls.map((c) => c[0] as string);
+        expect(calledUrls.some((u) => u === `/mandates/${MANDATE_ID}`)).toBe(false);
       });
     });
   });

@@ -57,14 +57,10 @@ const SIZE_BANDS = [
   { value: 'mega', label: '$1B+' },
 ];
 
-const JURISDICTIONS = [
-  { value: 'us_delaware', label: 'US — Delaware' },
-  { value: 'us_federal', label: 'US — Federal' },
-  { value: 'uk', label: 'United Kingdom' },
-  { value: 'eu', label: 'European Union' },
-  { value: 'singapore', label: 'Singapore' },
-  { value: 'cayman', label: 'Cayman Islands' },
-];
+// JURISDICTIONS is no longer a hardcoded constant — the dropdown is populated
+// from the `availableJurisdictions` prop (SSR-fetched active disclaimer templates).
+// This ensures only jurisdictions with an active disclaimer template are selectable,
+// preventing derive-no-match 400s on create (CRITICAL-2 fix).
 
 // ---------------------------------------------------------------------------
 // Shared input styles
@@ -333,7 +329,20 @@ const INITIAL_STATE: FormState = {
 // MandateForm component
 // ---------------------------------------------------------------------------
 
-export function MandateForm() {
+/**
+ * A jurisdiction value + display label from an active disclaimer template.
+ * Populated by the server component (SSR-fetched); never hardcoded here.
+ */
+export interface AvailableJurisdiction {
+  value: string;
+  label: string;
+}
+
+export function MandateForm({
+  availableJurisdictions,
+}: {
+  availableJurisdictions: AvailableJurisdiction[];
+}) {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(INITIAL_STATE);
   const [errors, setErrors] = useState<string[]>([]);
@@ -411,7 +420,10 @@ export function MandateForm() {
 
     setSubmitting(true);
     try {
-      const res = await apiFetch('/mandates', {
+      // POST to /mandates-data — the non-colliding proxy path (CRITICAL-1 fix).
+      // /mandates-data (no page file) → afterFiles rewrite → POST /mandates on API.
+      // The old /mandates path is a Next.js page route and cannot be used for mutations.
+      const res = await apiFetch('/mandates-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed.data),
@@ -752,29 +764,62 @@ export function MandateForm() {
               </p>
             </div>
 
-            {/* D2 — Legal Jurisdiction dropdown (NO disclaimer picker) */}
+            {/* D2 — Legal Jurisdiction dropdown (NO disclaimer picker).
+                Populated from availableJurisdictions prop (SSR-fetched active
+                disclaimer templates — CRITICAL-2 fix). Only jurisdictions with an
+                active template are offered; if none are configured, an empty state
+                is shown and the form cannot be submitted. */}
             <div>
               <label htmlFor="jurisdiction" style={labelStyle}>
                 Legal Jurisdiction {requiredMark}
               </label>
-              <select
-                id="jurisdiction"
-                required
-                value={form.jurisdiction}
-                onChange={(e) => setField('jurisdiction', e.target.value)}
-                style={{ ...inputStyle, maxWidth: '320px', appearance: 'none' }}
-                aria-required="true"
-                aria-describedby="jurisdiction-hint"
-              >
-                <option value="" disabled>
-                  Select jurisdiction…
-                </option>
-                {JURISDICTIONS.map((j) => (
-                  <option key={j.value} value={j.value}>
-                    {j.label}
+              {availableJurisdictions.length === 0 ? (
+                <div
+                  role="alert"
+                  aria-label="No compliance jurisdictions configured"
+                  style={{
+                    backgroundColor: '#FFF7ED',
+                    border: '1px solid #FED7AA',
+                    borderRadius: '6px',
+                    padding: '12px 14px',
+                    maxWidth: '480px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: '#92400E',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    No compliance jurisdictions configured
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#B45309', margin: 0, lineHeight: 1.5 }}>
+                    An admin must add an active disclaimer template before a mandate can be created.
+                    Contact your compliance administrator.
+                  </p>
+                </div>
+              ) : (
+                <select
+                  id="jurisdiction"
+                  required
+                  value={form.jurisdiction}
+                  onChange={(e) => setField('jurisdiction', e.target.value)}
+                  style={{ ...inputStyle, maxWidth: '320px', appearance: 'none' }}
+                  aria-required="true"
+                  aria-describedby="jurisdiction-hint"
+                >
+                  <option value="" disabled>
+                    Select jurisdiction…
                   </option>
-                ))}
-              </select>
+                  {availableJurisdictions.map((j) => (
+                    <option key={j.value} value={j.value}>
+                      {j.label}
+                    </option>
+                  ))}
+                </select>
+              )}
               <p
                 id="jurisdiction-hint"
                 style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}
