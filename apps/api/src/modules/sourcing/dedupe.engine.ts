@@ -88,7 +88,14 @@
  *   - company_provenance: UNIQUE(company_id, raw_company_id) → ON CONFLICT DO NOTHING.
  *   - contacts: unique on (company_id, normalized_email) promotion logic → no dup.
  *   - contact_provenance: UNIQUE(contact_id, raw_company_id) → ON CONFLICT DO NOTHING.
- *   Proven by test (b) below.
+ *   - dedupe_candidates (ambiguous path): two-layer guard:
+ *       1. promoteStaging excludes raw rows that already have a PENDING candidate
+ *          (pendingCandidateIdSet check before promoteOne is called).
+ *       2. insertDedupeCandidate uses .onConflictDoNothing on the partial-unique
+ *          index UNIQUE(raw_company_id, matched_company_id) WHERE status='pending'
+ *          as a DB-level backstop; on conflict it re-reads and returns the
+ *          existing id instead of throwing.
+ *   Proven by test (b) [domain-path] and test (g) [candidate-path] below.
  *
  * ── Transaction composition ──────────────────────────────────────────────────
  *
@@ -105,7 +112,7 @@
  * Machine promotions (auto-merge) are NOT audited (high-volume, deterministic).
  */
 
-import { and, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
 // ---------------------------------------------------------------------------
 // Re-export Tx type (sourcing module re-uses the same Drizzle tx type)
 // ---------------------------------------------------------------------------
@@ -159,13 +166,11 @@ export function normalizeDomain(raw: string | null | undefined): string | null {
  */
 export function normalizeName(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional whitespace collapse
   let n = raw.trim().toLowerCase().replace(/\s+/g, ' ');
 
   // Pass 1 — strip punctuation first (before suffix matching) so "Corp, Inc."
   // becomes "Corp Inc" and suffix regex can match "Inc" at the end.
   n = n.replace(/[^a-z0-9\s]/g, ' ').trim();
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional whitespace collapse
   n = n.replace(/\s+/g, ' ').trim();
 
   // Pass 2 — strip corporate suffixes from the end, repeatedly until stable.
@@ -181,7 +186,6 @@ export function normalizeName(raw: string | null | undefined): string | null {
   }
 
   // Pass 3 — final whitespace collapse.
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional whitespace collapse
   n = n.replace(/\s+/g, ' ').trim();
   return n.length > 0 ? n : null;
 }
@@ -230,9 +234,6 @@ type RawRow = typeof rawCompanies.$inferSelect;
 /** A canonical companies row as read from the canonical tier. */
 type CanonicalCompany = typeof companies.$inferSelect;
 
-/** A canonical contacts row. */
-type CanonicalContact = typeof contacts.$inferSelect;
-
 /** Result of a single raw row promotion. */
 export type PromotionResult =
   | { kind: 'new'; companyId: string }
@@ -280,25 +281,38 @@ export class DedupeEngine {
    * individual promotion rolls back all writes in this call.
    */
   async promoteStaging(tx: Tx, connectionId?: string | null): Promise<PromoteStagingResult> {
-    // Read unpromoted raw rows — those with no company_provenance entry yet.
-    // We use a LEFT JOIN / NOT IN pattern via a subquery.
+    // Read unpromoted raw rows — those with no company_provenance entry AND no
+    // pending dedupe_candidate yet. The second exclusion is the idempotency guard
+    // for the ambiguous-candidate path: a raw row that already has a pending
+    // candidate must NOT re-enter promoteOne on re-run (it would insert a duplicate
+    // candidate). Together, these two exclusions make all three promotion outcomes
+    // (new/merged/candidate) fully idempotent across re-runs.
     //
-    // "Not promoted" = no company_provenance row exists where raw_company_id = raw.id.
-    // We fetch the set of already-promoted raw_company_ids first, then exclude them.
+    // We fetch both exclusion sets first, then filter in application memory.
     const promotedRawIds = await tx
       .select({ rawCompanyId: companyProvenance.rawCompanyId })
       .from(companyProvenance);
 
     const promotedIdSet = new Set(promotedRawIds.map((r) => r.rawCompanyId));
 
+    // Fetch raw_company_ids that already have a pending dedupe_candidate row.
+    const pendingCandidateRawIds = await tx
+      .select({ rawCompanyId: dedupeCandidates.rawCompanyId })
+      .from(dedupeCandidates)
+      .where(eq(dedupeCandidates.status, 'pending'));
+
+    const pendingCandidateIdSet = new Set(pendingCandidateRawIds.map((r) => r.rawCompanyId));
+
     // Build base query for unpromoted raw rows
     const whereClause = connectionId ? eq(rawCompanies.connectionId, connectionId) : undefined;
 
     const allRaw = await tx.select().from(rawCompanies).where(whereClause);
 
-    // Filter out already-promoted rows in application memory
+    // Filter out already-promoted rows and rows already in the pending candidate queue.
     // (avoids a complex SQL NOT IN with potentially large subquery)
-    const unpromotedRaw = allRaw.filter((r) => !promotedIdSet.has(r.id));
+    const unpromotedRaw = allRaw.filter(
+      (r) => !promotedIdSet.has(r.id) && !pendingCandidateIdSet.has(r.id)
+    );
 
     const result: PromoteStagingResult = {
       promoted: 0,
@@ -685,6 +699,11 @@ export class DedupeEngine {
     score: number,
     reason: string
   ): Promise<string> {
+    // Use the partial-unique index (raw_company_id, matched_company_id) WHERE status='pending'
+    // as the conflict target. On conflict = a pending candidate already exists for this
+    // (raw, canonical) pair → no-op (do not throw, do not insert duplicate).
+    // The promoteStaging exclusion filter (pendingCandidateIdSet) normally prevents
+    // re-entry here, but this is the DB-level backstop for any gap in that filter.
     const inserted = await tx
       .insert(dedupeCandidates)
       .values({
@@ -694,9 +713,33 @@ export class DedupeEngine {
         reason,
         status: 'pending',
       })
+      .onConflictDoNothing({
+        target: [dedupeCandidates.rawCompanyId, dedupeCandidates.matchedCompanyId],
+        where: sql`status = 'pending'`,
+      })
       .returning({ id: dedupeCandidates.id });
-    if (!inserted[0]) throw new Error('DedupeEngine: INSERT dedupe_candidates returned no row');
-    return inserted[0].id;
+
+    if (inserted.length > 0 && inserted[0] !== undefined) {
+      // Fresh insert succeeded — return the new candidate id.
+      return inserted[0].id;
+    }
+
+    // Conflict fired: a pending candidate for this (raw, canonical) pair already exists.
+    // Re-read it to return its id (the caller records the candidateId in PromotionResult).
+    const existing = await tx
+      .select({ id: dedupeCandidates.id })
+      .from(dedupeCandidates)
+      .where(eq(dedupeCandidates.rawCompanyId, rawCompanyId))
+      .limit(1);
+
+    if (existing.length > 0 && existing[0] !== undefined) {
+      return existing[0].id;
+    }
+
+    // Should be unreachable: conflict fired but re-read found nothing.
+    throw new Error(
+      `DedupeEngine: onConflictDoNothing fired for dedupe_candidate but re-read returned no row (rawCompanyId=${rawCompanyId})`
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -706,7 +749,7 @@ export class DedupeEngine {
   private extractContacts(raw: unknown): Array<{ name?: string; email?: string; title?: string }> {
     if (typeof raw !== 'object' || raw === null) return [];
     const obj = raw as Record<string, unknown>;
-    const contacts = obj['contacts'];
+    const contacts = obj.contacts;
     if (!Array.isArray(contacts)) return [];
     return contacts.filter((c): c is { name?: string; email?: string; title?: string } => {
       return typeof c === 'object' && c !== null;

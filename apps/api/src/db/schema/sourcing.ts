@@ -620,5 +620,18 @@ export const dedupeCandidates = pgTable(
      * Covers: WHERE matched_company_id = $1 AND status = 'pending'.
      */
     index('dedupe_candidates_matched_company_id_idx').on(table.matchedCompanyId),
+
+    /**
+     * PARTIAL-UNIQUE idempotency backstop for the ambiguous-candidate path.
+     *   UNIQUE(raw_company_id, matched_company_id) WHERE status = 'pending'
+     * Partial on status='pending' so a resolved (rejected/merged) candidate does
+     * NOT block a legitimately re-raised one after a new sync cycle.
+     * Hand-appended in migration 0004 (drizzle-kit cannot emit partial indexes —
+     * follows companies_normalized_domain_partial_unique precedent in the same
+     * migration file). The engine's insertDedupeCandidate uses
+     * .onConflictDoNothing({ target: [rawCompanyId, matchedCompanyId],
+     *                         targetWhere: sql`status = 'pending'` })
+     * to safely no-op on re-runs rather than throwing on the constraint.
+     */
   ]
 );

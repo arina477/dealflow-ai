@@ -426,6 +426,16 @@ function buildMockTx(store: InMemoryStore): Tx {
             r['contactId'] === values['contactId'] && r['rawCompanyId'] === values['rawCompanyId']
         );
       }
+      // Candidate partial-unique: UNIQUE(raw_company_id, matched_company_id) WHERE status='pending'
+      // Models the DB partial-unique index the engine relies on for candidate idempotency.
+      if (storeKey === 'dedupeCandidates' && values['status'] === 'pending') {
+        conflict = rows.some(
+          (r) =>
+            r['status'] === 'pending' &&
+            r['rawCompanyId'] === values['rawCompanyId'] &&
+            r['matchedCompanyId'] === values['matchedCompanyId']
+        );
+      }
       if (conflict) return [];
     }
     rows.push(values);
@@ -477,8 +487,10 @@ function buildMockTx(store: InMemoryStore): Tx {
           _values = { id: nextId(), ...v };
           return chain;
         },
-        onConflictDoNothing() {
+        onConflictDoNothing(_opts?: unknown) {
           _onConflict = true;
+          // _opts (target + targetWhere for the partial-unique) is ignored in the mock;
+          // conflict detection is handled in execInsert by table-specific logic above.
           // Return a Promise (awaitable for the no-.returning() case)
           // with a .returning() method attached.
           const p = Promise.resolve().then(() => execInsert(storeKey, _values, _onConflict));
@@ -996,6 +1008,82 @@ describe('edge case: raw with no usable name or domain → skipped', () => {
     expect(store.companies).toHaveLength(0);
     expect(result.skipped).toBe(1);
     expect(result.results[0].kind).toBe('skipped');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (g) IDEMPOTENT CANDIDATE PATH: re-running promoteStaging for an ambiguous raw
+//     row must NOT pile up duplicate pending dedupe_candidates.
+//
+// This is the B-6 defect regression test. Pre-fix, a second promoteStaging call
+// over a store containing an ambiguous raw row (no company_provenance, but an
+// existing pending dedupe_candidate) would call insertDedupeCandidate again and
+// insert a second pending candidate — violating task db274731 AC.
+//
+// Post-fix: promoteStaging excludes raw rows that already have a pending
+// candidate (pendingCandidateIdSet), AND insertDedupeCandidate's
+// .onConflictDoNothing backs this up at the DB level.
+// ---------------------------------------------------------------------------
+
+describe('(g) candidate-path idempotent — second promoteStaging does NOT add a second pending candidate', () => {
+  it('produces exactly 1 dedupe_candidate after 2 runs (not 2)', async () => {
+    _idCounter = 900;
+
+    // Existing canonical: "acme" (normalizedName only — no domain).
+    const existingCanonical = makeCanonical({
+      id: 'canon-acme-g',
+      normalizedDomain: null,
+      domain: null,
+      normalizedName: 'acme',
+      name: 'Acme',
+    });
+
+    // Raw: "Acme Holdings" — token overlap with "acme" → ambiguous path.
+    // No domain on either side → Priority 3 (token-overlap ambiguous).
+    const rawRow = makeRaw({
+      id: 'raw-90',
+      connectionId: 'conn-1',
+      sourceRecordId: 'src-90',
+      name: 'Acme Holdings',
+      domain: null,
+      normalizedDomain: null,
+      raw: { contacts: [] },
+    });
+
+    const store: InMemoryStore = {
+      rawCompanies: [rawRow],
+      companies: [existingCanonical],
+      contacts: [],
+      companyProvenance: [],
+      contactProvenance: [],
+      dedupeCandidates: [],
+    };
+
+    const engine = new DedupeEngine();
+
+    // First run: raw-90 is unpromoted → promoteOne fires → insertDedupeCandidate
+    // writes 1 pending candidate.
+    const tx1 = buildMockTx(store);
+    const result1 = await engine.promoteStaging(tx1);
+    expect(result1.candidates).toBe(1);
+    expect(store.dedupeCandidates).toHaveLength(1);
+    expect(store.dedupeCandidates[0]['status']).toBe('pending');
+    expect(store.dedupeCandidates[0]['rawCompanyId']).toBe('raw-90');
+    expect(store.dedupeCandidates[0]['matchedCompanyId']).toBe('canon-acme-g');
+
+    // Second run: raw-90 still has no company_provenance, but now has a pending
+    // dedupe_candidate. The fixed promoteStaging excludes it via pendingCandidateIdSet.
+    // Result: NO new candidate is inserted — store.dedupeCandidates must still be 1.
+    const tx2 = buildMockTx(store);
+    const result2 = await engine.promoteStaging(tx2);
+
+    // The raw row is excluded from unpromotedRaw → nothing to process.
+    expect(result2.candidates).toBe(0);
+    expect(result2.promoted).toBe(0);
+    expect(result2.merged).toBe(0);
+
+    // THE CRITICAL ASSERTION: exactly 1 pending candidate, not 2.
+    expect(store.dedupeCandidates).toHaveLength(1);
   });
 });
 

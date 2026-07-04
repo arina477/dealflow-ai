@@ -104,3 +104,11 @@ CREATE INDEX "raw_companies_connection_id_idx" ON "raw_companies" USING btree ("
 -- guaranteeing at most one canonical company per normalized domain (idempotent
 -- dedupe even under a future concurrent/async promotion path).
 CREATE UNIQUE INDEX "companies_normalized_domain_partial_unique" ON "companies" ("normalized_domain") WHERE "normalized_domain" IS NOT NULL;
+-- HAND-APPENDED: dedupe_candidates partial-unique idempotency backstop.
+-- UNIQUE(raw_company_id, matched_company_id) WHERE status = 'pending' ensures
+-- that a re-sync producing an ambiguous candidate for the same (raw, canonical)
+-- pair does NOT pile up duplicate pending review-queue rows.
+-- Partial on status='pending' so a resolved candidate (rejected/merged) does
+-- NOT prevent a legitimately re-raised pending candidate in a future sync.
+-- The engine uses .onConflictDoNothing({ target, targetWhere }) against this index.
+CREATE UNIQUE INDEX "dedupe_candidates_raw_matched_pending_unique" ON "dedupe_candidates" ("raw_company_id", "matched_company_id") WHERE status = 'pending';
