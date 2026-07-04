@@ -143,7 +143,7 @@ describe('matchCandidateSchema — Zod read parse', () => {
       matchRunId: '00000000-0000-0000-0000-000000000002',
       buyerUniverseCandidateId: '00000000-0000-0000-0000-000000000003',
       fitScore: 75,
-      scoreBreakdown: { sectorMatch: 60, contactCompleteness: 15, tieBreak: 0, total: 75 },
+      scoreBreakdown: { sectorMatch: 60, contactCompleteness: 15, tieBreak: 0, total: 75, notApplied: [] },
       disposition: 'pending',
       createdAt: '2026-07-04T00:00:00Z',
     };
