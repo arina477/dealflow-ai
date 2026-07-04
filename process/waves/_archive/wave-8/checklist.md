@@ -67,6 +67,6 @@ LEARN:
 - [x] L-2 Distill — promoted BUILD rule 5 (client-parse-real-API-shape; 2-wave gate met)
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — head-next APPROVED; M4 NOT closed (buyer-universe unshipped); decomposition fired → bundle 92a8ff3f (+394a60ba, c907731f)
+- [x] N-2 Seed — head-next APPROVED; seed 92a8ff3f + 2 siblings; validation PASS; vertical slice; M4/M5 boundary held
+- [x] N-3 Handoff — head-next APPROVED; wave-8 archived; waves row 8 → status='ok'; wave-9 seeded; STATUS RUNNING
