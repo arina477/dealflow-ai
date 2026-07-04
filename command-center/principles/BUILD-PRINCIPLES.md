@@ -73,3 +73,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
    Why: NestJS DI resolves constructor tokens at the consuming module boundary, not where defined.
 3. Never use `import type` for a class that is constructor-injected into a NestJS provider.
    Why: import type is erased at emit, so the DI token vanishes and NestJS bootstrap crashes.
+4. Any hand-authored drizzle migration must appear in `_journal.json` with a `when` greater than all prior entries.
+   Why: drizzle skips a migration with a missing or stale `when` while reporting success.
