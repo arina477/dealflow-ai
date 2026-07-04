@@ -136,6 +136,18 @@ const nextConfig: NextConfig = {
           source: '/sourcing/dedupe-candidates/:id/resolve',
           destination: `${apiProxyTarget}/sourcing/dedupe-candidates/:id/resolve`,
         },
+        // Wave-7: page-route-collision fix — non-colliding proxy path for the
+        // company detail API. /sourcing/company-detail/:id has NO Next.js page
+        // route (no file at app/(app)/sourcing/company-detail/[id]/page.tsx),
+        // so it always falls through afterFiles to this rewrite and is proxied
+        // to GET /sourcing/companies/:id on the API. Client fetches from the
+        // workspace DetailDrawer (and any other client component that needs the
+        // full detail) use this path instead of /sourcing/companies/:id to avoid
+        // the page-route collision.
+        {
+          source: '/sourcing/company-detail/:id',
+          destination: `${apiProxyTarget}/sourcing/companies/:id`,
+        },
       ],
       beforeFiles: [],
       fallback: [],

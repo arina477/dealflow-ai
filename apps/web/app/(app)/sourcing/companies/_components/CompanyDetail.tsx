@@ -584,6 +584,15 @@ interface CompanyDetailProps {
   companyId: string;
   companyName: string;
   companyDomain?: string;
+  /**
+   * Optional: SSR-hydrated detail data passed from the detail page server
+   * component. When provided the component skips the client fetch entirely,
+   * eliminating the page-route collision at /sourcing/companies/:id.
+   *
+   * When absent (workspace drawer case) the component fetches via the
+   * non-colliding proxied path /sourcing/company-detail/:id instead.
+   */
+  initialDetail?: DetailResponse;
   /** Optional: called after a dedupe candidate is resolved. Absent on the
    *  standalone detail page (server component cannot pass function props). */
   onCandidateResolved?: (companyId: string, hasPending: boolean) => void;
@@ -593,16 +602,32 @@ export function CompanyDetail({
   companyId,
   companyName,
   companyDomain,
+  initialDetail,
   onCandidateResolved,
 }: CompanyDetailProps) {
-  const [detail, setDetail] = useState<DetailResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState<DetailResponse | null>(initialDetail ?? null);
+  const [loading, setLoading] = useState(initialDetail === undefined);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>('contacts');
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    // If SSR-hydrated data has pending candidates, auto-select dedupe tab.
+    if (initialDetail && initialDetail.pendingCandidates.length > 0) return 'dedupe';
+    return 'contacts';
+  });
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // Fetch detail whenever companyId changes
+  // Fetch detail whenever companyId changes — skipped when initialDetail is
+  // provided (detail page SSR-hydration path; no client fetch, no page-route
+  // collision at /sourcing/companies/:id).
+  //
+  // When initialDetail is absent (workspace drawer) fetch via the non-colliding
+  // proxied path /sourcing/company-detail/:id so the request never resolves to
+  // the Next.js page route.
   useEffect(() => {
+    if (initialDetail !== undefined) {
+      // SSR-hydrated: no client fetch needed.
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -610,10 +635,11 @@ export function CompanyDetail({
 
     void (async () => {
       try {
-        const res = await fetch(`/sourcing/companies/${companyId}`, {
-          credentials: 'include',
+        // Use the non-colliding proxy path — /sourcing/company-detail/:id is
+        // proxied to ${apiProxyTarget}/sourcing/companies/:id by next.config.ts
+        // afterFiles rewrites and has NO corresponding Next.js page route.
+        const res = await apiFetch(`/sourcing/company-detail/${companyId}`, {
           cache: 'no-store',
-          headers: { rid: 'anti-csrf' },
         });
         if (!res.ok) {
           if (!cancelled) setError(`Failed to load company (${res.status})`);
@@ -642,7 +668,7 @@ export function CompanyDetail({
     return () => {
       cancelled = true;
     };
-  }, [companyId]);
+  }, [companyId, initialDetail]);
 
   const pushToast = useCallback((message: string, kind: Toast['kind']) => {
     const id = `toast-${Date.now()}`;

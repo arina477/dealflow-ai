@@ -83,7 +83,12 @@ export function DetailDrawer({ companyId, connections, onClose }: DetailDrawerPr
     setLoading(true);
     setError(null);
 
-    apiFetch(`/sourcing/companies/${companyId}`)
+    // Use the non-colliding proxied path /sourcing/company-detail/:id.
+    // /sourcing/companies/:id is a Next.js PAGE route — a client fetch to that
+    // path returns page HTML, not API JSON. /sourcing/company-detail/:id has no
+    // page file and is proxied by next.config.ts afterFiles rewrites to
+    // GET /sourcing/companies/:id on the API. See next.config.ts for the rule.
+    apiFetch(`/sourcing/company-detail/${companyId}`)
       .then(async (res) => {
         if (!res.ok) throw new Error('Failed to load company detail');
         const raw: unknown = await res.json();
