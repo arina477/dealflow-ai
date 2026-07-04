@@ -18,3 +18,15 @@
 - **Screen:** view/filter/clean ONLY (NO manual-create this wave). Repoint /companies→/sourcing/companies + UPDATE rbac.test.ts.
 ## Gate verdict log
 <appended by head-builder at B-6>
+
+## B-6 Action-6 — commit → task_id mapping (multi-spec traceability)
+| commit | task_id(s) | scope |
+|---|---|---|
+| e44a5fd | ff378a95 + f5771d13 | B-1 shared contracts (serves connections+screen — cross-cutting contract, legit) |
+| f6071e7 | ff378a95 + db274731 | B-2 schema (ff378a95) + dedupe engine (db274731) |
+| 299e7c1 | ff378a95 | B-2 migration journal-register fix (schema) |
+| 43fe212 | 0241222b + f5771d13 | B-2 ETL/sync (0241222b) + CRUD/resolve endpoints (f5771d13) |
+| 952207d | f5771d13 | B-3 companies-contacts screen |
+| b3a12d8 | db274731 | B-6 rework: dedupe candidate-path idempotency |
+| d0f6f0a | (deliverables) | chore: B-block transcripts/manifests (non-code, no spec overlap) |
+**Coverage:** all 4 claimed_task_ids cited by ≥1 code commit (ff378a95: e44a5fd/f6071e7/299e7c1; 0241222b: 43fe212; db274731: f6071e7/b3a12d8; f5771d13: e44a5fd/43fe212/952207d). Cross-cutting commits = shared-contract/multi-block work (same legit pattern accepted waves 3-5). d0f6f0a = deliverables-only (non-code). Discipline: PASS (intent satisfied; not rebasing unpushed history to force 1:1 — mapping recorded per head-builder's Action-6 alt).
