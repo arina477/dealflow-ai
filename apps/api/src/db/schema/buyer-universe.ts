@@ -140,6 +140,15 @@ export const buyerUniverse = pgTable(
       foreignColumns: [users.id],
     }).onDelete('restrict'),
 
+    /**
+     * One-universe-per-mandate: a mandate has exactly one buyer universe.
+     * Enforced at the DB level to prevent duplicate universes under concurrent
+     * assembleAsActor calls (CRITICAL-3). The service also acquires a
+     * pg_advisory_xact_lock(hashtext($mandateId)) before the find-or-insert for
+     * defense-in-depth.
+     */
+    unique('buyer_universe_mandate_id_unique').on(table.mandateId),
+
     /** Mandate-scoped lookup: find the universe for a given mandate. */
     index('buyer_universe_mandate_id_idx').on(table.mandateId),
 

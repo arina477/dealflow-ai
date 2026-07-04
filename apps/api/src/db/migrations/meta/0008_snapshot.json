@@ -246,7 +246,15 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "buyer_universe_mandate_id_unique": {
+          "name": "buyer_universe_mandate_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "mandate_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

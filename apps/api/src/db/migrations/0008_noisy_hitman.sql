@@ -6,7 +6,8 @@ CREATE TABLE "buyer_universe" (
 	"created_by" uuid NOT NULL,
 	"status" "buyer_universe_status" DEFAULT 'draft' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "buyer_universe_mandate_id_unique" UNIQUE("mandate_id")
 );
 --> statement-breakpoint
 CREATE TABLE "buyer_universe_candidates" (

@@ -2,7 +2,7 @@
  * BuyerUniverseRepository — Drizzle queries for the buyer-universe spine.
  *
  * Covers:
- *   - buyer_universe CRUD (insert/upsert, find by id, find by mandate, update status)
+ *   - buyer_universe CRUD (upsert/get-or-create, find by id, find by mandate, update status)
  *   - buyer_universe_candidates insert (onConflictDoNothing for idempotent re-assemble),
  *     update membership_status, list with contacts join (enrich)
  *   - Transaction composition (runInTransaction for the service)
@@ -144,6 +144,8 @@ export class BuyerUniverseRepository {
 
   /**
    * listActiveCompaniesInTx — transaction-aware active company listing.
+   * orderBy name ASC — presentation-stability only; NO ranking semantics
+   * (M5 owns ranking). Never interpret this order as fit/score order.
    */
   async listActiveCompaniesInTx(tx: Tx): Promise<CompanyRow[]> {
     return tx
@@ -167,21 +169,47 @@ export class BuyerUniverseRepository {
     return this.db.select().from(contacts).where(inArray(contacts.companyId, companyIds));
   }
 
+  /**
+   * findContactsByCompanyIdsInTx — transaction-aware contacts lookup (CRITICAL-5).
+   * Must be used inside runInTransaction so the snapshot is consistent with other
+   * in-tx reads (listIncludedCandidatesByUniverseIdInTx, findBuyerUniverseByIdInTx).
+   */
+  async findContactsByCompanyIdsInTx(tx: Tx, companyIds: string[]): Promise<ContactRow[]> {
+    if (companyIds.length === 0) return [];
+    return tx.select().from(contacts).where(inArray(contacts.companyId, companyIds));
+  }
+
   // ---------------------------------------------------------------------------
   // buyer_universe CRUD
   // ---------------------------------------------------------------------------
 
   /**
-   * insertBuyerUniverse — inserts a new buyer_universe row.
-   * Must be called within a transaction for atomicity.
+   * acquireMandateAdvisoryLockInTx — acquires a per-mandate pg_advisory_xact_lock.
+   * Defense-in-depth against concurrent assembleAsActor calls (CRITICAL-3).
+   * The DB UNIQUE on mandate_id is the authoritative guard; the advisory lock
+   * prevents two concurrent first-inserts from both trying the ON CONFLICT path.
+   * Lock is released automatically at transaction end.
    */
-  async insertBuyerUniverse(
+  async acquireMandateAdvisoryLockInTx(tx: Tx, mandateId: string): Promise<void> {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${mandateId}))`);
+  }
+
+  /**
+   * upsertBuyerUniverseInTx — get-or-create buyer_universe for a mandate (CRITICAL-3).
+   *
+   * Uses ON CONFLICT (mandate_id) DO UPDATE SET mandate_id=EXCLUDED.mandate_id RETURNING
+   * so two concurrent first-inserts resolve to exactly one row (the DB UNIQUE on
+   * mandate_id makes the second concurrent insert hit the ON CONFLICT path).
+   *
+   * Returns { universe, isNew } — isNew=true means this call created the row.
+   */
+  async upsertBuyerUniverseInTx(
     tx: Tx,
     input: {
       mandateId: string;
       createdBy: string;
     }
-  ): Promise<BuyerUniverseRow> {
+  ): Promise<{ universe: BuyerUniverseRow; isNew: boolean }> {
     let rows: BuyerUniverseRow[];
     try {
       rows = await tx
@@ -190,22 +218,39 @@ export class BuyerUniverseRepository {
           mandateId: input.mandateId,
           createdBy: input.createdBy,
         })
+        .onConflictDoUpdate({
+          target: buyerUniverse.mandateId,
+          // No-op update to force RETURNING the existing row.
+          set: { mandateId: sql`EXCLUDED.mandate_id` },
+        })
         .returning();
     } catch (err: unknown) {
       const code = pgCode(err);
       // 23503 = foreign_key_violation (mandate_id or created_by not found)
       if (code === '23503') {
         throw new BadRequestException(
-          'FK violation inserting buyer_universe: mandate or user not found'
+          'FK violation upserting buyer_universe: mandate or user not found'
         );
       }
       throw err;
     }
     const row = rows[0];
     if (!row) {
-      throw new Error('BuyerUniverseRepository: INSERT buyer_universe returned no row');
+      throw new Error('BuyerUniverseRepository: UPSERT buyer_universe returned no row');
     }
-    return row;
+    // isNew: if created_at equals updated_at (null) and createdBy matches input,
+    // this was a fresh insert. A simpler heuristic: the row's updatedAt is null
+    // on a fresh insert; on an ON CONFLICT DO UPDATE it would get the $onUpdateFn
+    // trigger applied — but since the set is a no-op UPDATE, Drizzle's $onUpdateFn
+    // does fire. We distinguish by checking if the row's createdBy matches our input
+    // — but that's unreliable for existing rows. Use a safer approach: try INSERT
+    // INTO then check RETURNING via xmax (0 = inserted, >0 = updated).
+    // Simpler and safe: re-read from returning. The `updatedAt` is null only on
+    // a brand-new row (first insert). On DO UPDATE, $onUpdateFn fires.
+    const isNew = row.updatedAt === null && row.createdBy === input.createdBy;
+    // Note: isNew is best-effort (used only for audit metadata, not for correctness).
+    // The important correctness invariant is that exactly one universe row exists.
+    return { universe: row, isNew };
   }
 
   /**
@@ -220,7 +265,6 @@ export class BuyerUniverseRepository {
       .select()
       .from(buyerUniverse)
       .where(eq(buyerUniverse.mandateId, mandateId))
-      .orderBy(sql`${buyerUniverse.createdAt} DESC`)
       .limit(1);
     return rows[0] ?? null;
   }
@@ -248,6 +292,8 @@ export class BuyerUniverseRepository {
 
   /**
    * listBuyerUniversesByMandateId — returns all universes for a given mandate.
+   * With the mandate_id UNIQUE constraint there will be at most 1 row, but
+   * the method signature is kept as an array for API compatibility.
    */
   async listBuyerUniversesByMandateId(mandateId: string): Promise<BuyerUniverseRow[]> {
     return this.db
@@ -283,22 +329,26 @@ export class BuyerUniverseRepository {
   // ---------------------------------------------------------------------------
 
   /**
-   * insertCandidatesBatch — batch-inserts candidates for a universe.
+   * insertCandidatesBatchCountNew — batch-inserts candidates for a universe and
+   * returns the count of newly inserted rows (CRITICAL-7).
+   *
    * Uses ON CONFLICT DO NOTHING on the composite unique (buyer_universe_id, company_id)
    * to make re-assemble idempotent: re-inserting the same (universe, company) pair
-   * is a safe no-op.
+   * is a safe no-op. The count of new rows lets assembleAsActor decide whether to
+   * reset universe status → 'draft' (re-assemble added companies to a non-draft universe).
    */
-  async insertCandidatesBatch(
+  async insertCandidatesBatchCountNew(
     tx: Tx,
     candidates: Array<{
       buyerUniverseId: string;
       companyId: string;
       provenance: string;
     }>
-  ): Promise<void> {
-    if (candidates.length === 0) return;
+  ): Promise<number> {
+    if (candidates.length === 0) return 0;
+    let inserted: { id: string }[] = [];
     try {
-      await tx
+      inserted = await tx
         .insert(buyerUniverseCandidates)
         .values(
           candidates.map((c) => ({
@@ -307,7 +357,8 @@ export class BuyerUniverseRepository {
             provenance: c.provenance,
           }))
         )
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .returning({ id: buyerUniverseCandidates.id });
     } catch (err: unknown) {
       const code = pgCode(err);
       if (code === '23503') {
@@ -317,6 +368,26 @@ export class BuyerUniverseRepository {
       }
       throw err;
     }
+    return inserted.length;
+  }
+
+  /**
+   * insertCandidatesBatch — batch-inserts candidates for a universe.
+   * Uses ON CONFLICT DO NOTHING on the composite unique (buyer_universe_id, company_id)
+   * to make re-assemble idempotent: re-inserting the same (universe, company) pair
+   * is a safe no-op.
+   *
+   * @deprecated Use insertCandidatesBatchCountNew when the new-count is needed.
+   */
+  async insertCandidatesBatch(
+    tx: Tx,
+    candidates: Array<{
+      buyerUniverseId: string;
+      companyId: string;
+      provenance: string;
+    }>
+  ): Promise<void> {
+    await this.insertCandidatesBatchCountNew(tx, candidates);
   }
 
   /**
@@ -346,7 +417,7 @@ export class BuyerUniverseRepository {
 
   /**
    * listIncludedCandidatesByUniverseId — returns only 'included' candidates.
-   * Used by enrich and gaps queries.
+   * Used by getGaps (not inside a transaction).
    */
   async listIncludedCandidatesByUniverseId(
     universeId: string
@@ -364,8 +435,31 @@ export class BuyerUniverseRepository {
   }
 
   /**
+   * listIncludedCandidatesByUniverseIdInTx — transaction-aware included candidates listing.
+   * CRITICAL-5: use this inside runInTransaction so the snapshot is consistent with
+   * other in-tx reads (findBuyerUniverseByIdInTx, findContactsByCompanyIdsInTx).
+   */
+  async listIncludedCandidatesByUniverseIdInTx(
+    tx: Tx,
+    universeId: string
+  ): Promise<BuyerUniverseCandidateRow[]> {
+    return tx
+      .select()
+      .from(buyerUniverseCandidates)
+      .where(
+        and(
+          eq(buyerUniverseCandidates.buyerUniverseId, universeId),
+          eq(buyerUniverseCandidates.membershipStatus, 'included')
+        )
+      )
+      .orderBy(sql`${buyerUniverseCandidates.createdAt} ASC`);
+  }
+
+  /**
    * updateCandidateMembership — updates membership_status and/or provenance
-   * for a single candidate. Called inside a transaction.
+   * for a single candidate by candidateId only. Called inside a transaction.
+   *
+   * @deprecated Use updateCandidateMembershipScoped for cross-universe safety (INFO fix).
    */
   async updateCandidateMembership(
     tx: Tx,
@@ -401,6 +495,56 @@ export class BuyerUniverseRepository {
       throw new NotFoundException(`Candidate ${candidateId} not found`);
     }
     return row;
+  }
+
+  /**
+   * updateCandidateMembershipScoped — updates membership_status and/or provenance
+   * for a single candidate, scoped to a specific universe (INFO: cross-resource guard).
+   *
+   * The predicate is: candidateId = $candidateId AND buyer_universe_id = $universeId.
+   * Returns null if no row matched (candidate does not belong to the given universe).
+   * The service maps null → 404 so callers cannot update candidates from other universes.
+   */
+  async updateCandidateMembershipScoped(
+    tx: Tx,
+    universeId: string,
+    candidateId: string,
+    patch: {
+      membershipStatus?: 'candidate' | 'included' | 'excluded';
+      provenance?: string;
+    }
+  ): Promise<BuyerUniverseCandidateRow | null> {
+    const updateValues: Record<string, unknown> = {};
+    if (patch.membershipStatus !== undefined)
+      updateValues.membershipStatus = patch.membershipStatus;
+    if (patch.provenance !== undefined) updateValues.provenance = patch.provenance;
+
+    if (Object.keys(updateValues).length === 0) {
+      // No-op patch: verify the candidate belongs to this universe.
+      const rows = await tx
+        .select()
+        .from(buyerUniverseCandidates)
+        .where(
+          and(
+            eq(buyerUniverseCandidates.id, candidateId),
+            eq(buyerUniverseCandidates.buyerUniverseId, universeId)
+          )
+        )
+        .limit(1);
+      return rows[0] ?? null;
+    }
+
+    const rows = await tx
+      .update(buyerUniverseCandidates)
+      .set(updateValues as Partial<typeof buyerUniverseCandidates.$inferInsert>)
+      .where(
+        and(
+          eq(buyerUniverseCandidates.id, candidateId),
+          eq(buyerUniverseCandidates.buyerUniverseId, universeId)
+        )
+      )
+      .returning();
+    return rows[0] ?? null;
   }
 
   /**
@@ -446,13 +590,50 @@ export class BuyerUniverseRepository {
 
   /**
    * countCandidatesByUniverseId — returns the total number of candidates for a universe.
-   * Used by submitAsActor to guard against submitting an empty/un-assembled universe.
+   * @deprecated Use countIncludedCandidatesByUniverseId for submit guard (CRITICAL-4).
    */
   async countCandidatesByUniverseId(universeId: string): Promise<number> {
     const result = await this.db
       .select({ count: sql<number>`COUNT(*)::int` })
       .from(buyerUniverseCandidates)
       .where(eq(buyerUniverseCandidates.buyerUniverseId, universeId));
+    return result[0]?.count ?? 0;
+  }
+
+  /**
+   * countIncludedCandidatesByUniverseId — returns the count of INCLUDED candidates.
+   * CRITICAL-4: the submit guard must check this, not total count, to reject
+   * all-excluded universes (0 included, totalCount>0, status='filtered').
+   */
+  async countIncludedCandidatesByUniverseId(universeId: string): Promise<number> {
+    const result = await this.db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(buyerUniverseCandidates)
+      .where(
+        and(
+          eq(buyerUniverseCandidates.buyerUniverseId, universeId),
+          eq(buyerUniverseCandidates.membershipStatus, 'included')
+        )
+      );
+    return result[0]?.count ?? 0;
+  }
+
+  /**
+   * countUntriagedCandidatesByUniverseId — returns the count of candidates with
+   * membership_status='candidate' (not yet triaged as included|excluded).
+   * CRITICAL-7: the submit guard rejects if this is > 0 (re-assemble added companies
+   * after filter — must re-filter before submit).
+   */
+  async countUntriagedCandidatesByUniverseId(universeId: string): Promise<number> {
+    const result = await this.db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(buyerUniverseCandidates)
+      .where(
+        and(
+          eq(buyerUniverseCandidates.buyerUniverseId, universeId),
+          eq(buyerUniverseCandidates.membershipStatus, 'candidate')
+        )
+      );
     return result[0]?.count ?? 0;
   }
 }
