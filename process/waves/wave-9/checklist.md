@@ -41,7 +41,7 @@ BUILD:
 - [x] B-3 Frontend — /buyer-universe page (SSR-hydrate, /buyer-universe-data proxy, D6 link, no score/rank UI); 341 web tests (b3da6fc)
 - [x] B-4 Wiring — repo typecheck+build PASS; /buyer-universe compiles
 - [x] B-5 Verify — lint 0-err, tests pass, build pass; runtime→C-2
-- [ ] B-6 Review
+- [x] B-6 Review — head-builder APPROVED; /review 7 CRIT fixed (8e40c08+6402d62)
 
 CI/CD:
 - [ ] C-1 PR, CI & merge

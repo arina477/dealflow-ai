@@ -1,5 +1,5 @@
 # Wave 9 — B-block review artifacts
-**Block:** B (Build) · **Wave topic:** Buyer-universe builder (M4 final: assemble/filter/enrich/submit) · **Gate:** B-6 · **Status:** in-progress
+**Block:** B (Build) · **Wave topic:** Buyer-universe builder (M4 final: assemble/filter/enrich/submit) · **Gate:** B-6 · **Status:** gate-passed
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
 | B-0 | stages/B-0-branch-and-schema.md | done | branch + 3 tasks + migration 0008 (journal when>0007 ✓; composite UNIQUE + down.sql) |
@@ -8,7 +8,7 @@
 | B-3 | stages/B-3-frontend.md | done | /buyer-universe page (SSR-hydrate, /buyer-universe-data proxy, D6 link, no score/rank UI); 341 web tests (b3da6fc) |
 | B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS |
 | B-5 | stages/B-5-verify.md | done | lint 0-err, tests pass, build pass; runtime→C-2 |
-| B-6 | stages/B-6-review.md | pending | head-builder gate (polices M4/M5 boundary) + /review; multi-spec commit-per-spec |
+| B-6 | stages/B-6-review.md | gate-passed | head-builder APPROVED; /review 7 CRIT fixed (8e40c08+6402d62) |
 ## Block-specific context
 - **Spec:** seed 92a8ff3f (multi-spec, 3 blocks + P-4 karen/jenny notes). Branch wave-9-buyer-universe.
 - **claimed_task_ids:** [92a8ff3f (spine), 394a60ba (page), c907731f (enrich/submit)]

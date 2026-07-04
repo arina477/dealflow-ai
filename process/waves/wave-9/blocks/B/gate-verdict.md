@@ -24,3 +24,20 @@ n/a
 ## Footer
 - verdict_complete: true
 - rework_attempt_cap_remaining: 3
+
+---
+## Phase 2 — /review (adversarial)
+Found 7 CRITICAL + 3 info (M4/M5 boundary clean [no score/rank column — confirmed]; actor-id/RBAC verified):
+- **CRIT-1 SSR hydration always fails** (list returns {universes:[]} but page parsed z.array → always empty-state → invites re-assemble; BUILD-rule-5/wave-8 real-shape class) → FIXED (6402d62): parse the {universes} wrapper → hydrate existing.
+- **CRIT-2 filter/submit/enrich wipe workspace** (returned bare row, client treated as Detail → table collapses; wave-8 PATCH-crash class) → FIXED: backend returns BuyerUniverseDetail (8e40c08) + client parses buyerUniverseDetailSchema (6402d62).
+- **CRIT-3 double-universe race** (no mandate_id UNIQUE + no lock) → FIXED: mandate_id UNIQUE (0008) + upsert ON CONFLICT + pg_advisory_xact_lock.
+- **CRIT-4 submit guard TOTAL not INCLUDED** (all-excluded → submitted-empty) → FIXED: guard on included count + un-triaged guard → 400.
+- **CRIT-5 enrich tx-scope leak** (reads via this.db in txn) → FIXED: InTx read variants (consistent audit snapshot).
+- **CRIT-6 filter ignores 3/4 criteria dims** (M3 companies only have sector — the wave-8 D1 gap biting) → FIXED (honest): token-match on sector + unsupported geo/size/deal dims RECORDED in provenance+audit (partialFilter:true), NOT silently ignored.
+- **CRIT-7 re-assemble mixed/stale state** → FIXED: re-assemble resets status→draft on new candidates + submit rejects un-triaged.
+- INFO: patchCandidate cross-universe scoped→404; assemble ordering comment (boundary-clean).
+Fix commits 8e40c08 (backend) + 6402d62 (web). Re-verify: typecheck clean, lint 0, tests pass (+ all regressions), build pass. 7 CRIT regression-tested.
+
+## Action 6 — commit-discipline (multi-spec): commits cite 92a8ff3f/394a60ba/c907731f. PASS.
+## Phase 2 Verdict: PASS. **B-block gate: PASSED** (head-builder APPROVED + /review 7 CRIT fixed). → next block C.
+### C-2 carry: verify assemble(idempotent)→filter(partial-dims)→enrich→submit(included-guard) live; SSR hydrates existing universe.
