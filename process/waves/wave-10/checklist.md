@@ -58,7 +58,7 @@ TEST:
 - [x] T-6 Layout — §10-conformant; AI-framing STRIPPED confirmed live (rule-based, no AI badges); TopBar→polish
 - [x] T-7 Perf
 - [x] T-8 Security
-- [ ] T-9 Journey
+- [x] T-9 Journey — head-tester APPROVED; journey regen (matching LIVE, rule-based)
 
 VERIFY:
 - [ ] V-1 Independent reviews (Karen + jenny, parallel)
