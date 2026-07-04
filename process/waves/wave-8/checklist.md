@@ -47,14 +47,14 @@ CI/CD:
 - [x] C-2 Deploy & verify — **PASS @ 46642e7: head-ci-cd verdict APPROVED → PROCEED_TO_T.** Both services redeployed @ 46642e7 (GIT_SHA bump → fresh immutable builds, both terminal SUCCESS not SKIPPED, rollback armed api `7f9b9582`/web `6c2c01c1`, migration one-shot before traffic). /health == 46642e7 (exact deployed hash, not stale). **create-via-UI FINAL proof (real headless chromium, post-hydration DOM+URL):** advisor fills full form → 201 → **URL REDIRECTS to /mandates/e3dbadef-…** (the fix), **NO "Failed to create mandate." alert** (role=alert count 0), detail renders (seller name, US, derived disclaimer fe1c504d-…, status draft, 3 deferred placeholders), **exactly ONE mandate (no duplicate)**. Regression re-green: SSR-HTML detail, active-lock 200/409, RBAC/anon 401, login/sourcing/compliance-settings render. Canary skipped (0 DAU). Verified DOM/URL not just HTTP status.
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
+- [x] T-5 E2E — S1-S5 PASS (create end-to-end, 3-acks, active-lock, RBAC, regression); 63/64 (1 pre-existing); W8-2/W8-3 findings→fix
+- [x] T-6 Layout — 3 mandate pages §10-conformant (3 form sections, captured-not-enforced notice, deferred placeholders); TopBar-title→polish
+- [x] T-7 Perf
+- [x] T-8 Security
 - [ ] T-9 Journey
 
 VERIFY:
