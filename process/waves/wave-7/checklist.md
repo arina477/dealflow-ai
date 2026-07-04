@@ -40,11 +40,11 @@ TEST:
 - [x] T-6 Layout — workspace §10-conformant (TopBar-title→polish, recurring 5 screens)
 - [x] T-7 Perf
 - [x] T-8 Security
-- [ ] T-9 Journey
+- [x] T-9 Journey — head-tester APPROVED; journey regen (workspace LIVE)
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
+- [x] V-1 Independent reviews (Karen + jenny, parallel) — Karen APPROVE, jenny REJECT (2 CRITICAL: SSR-timestamp + client-search-API → workspace empty)
+- [x] V-2 Triage — 2 blocking→fast-fix (timestamp-parse + client-search-API)
 - [ ] V-3 Fast-fix loop (or close)
 
 LEARN:
