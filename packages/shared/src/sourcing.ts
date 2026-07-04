@@ -85,8 +85,12 @@ export const companySchema = z
     sector: z.string().optional().nullable(),
     /** 'active' | 'archived' — soft-delete via status per convention. */
     status: z.string().min(1),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime().nullable(),
+    // PG-wire timestamptz format ("2026-07-04 04:42:20.996353+00") is NOT
+    // ISO-8601 and is rejected by z.string().datetime(). These are READ shapes
+    // for API-returned timestamps (display/transport only) — strict ISO
+    // validation is wrong for the wire format the API emits.
+    createdAt: z.string(),
+    updatedAt: z.string().nullable(),
   })
   .strict();
 
@@ -101,8 +105,9 @@ export const contactSchema = z
     email: z.string().optional().nullable(),
     normalizedEmail: z.string().optional().nullable(),
     title: z.string().optional().nullable(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime().nullable(),
+    // PG-wire format — see companySchema note above.
+    createdAt: z.string(),
+    updatedAt: z.string().nullable(),
   })
   .strict();
 
@@ -119,7 +124,8 @@ export const dataSourceConnectionSchema = z
     /** Non-secret: field mappings / filter config. */
     config: z.record(z.unknown()),
     createdBy: z.string().uuid().nullable(),
-    createdAt: z.string().datetime(),
+    // PG-wire format — see companySchema note above.
+    createdAt: z.string(),
   })
   .strict();
 
@@ -137,7 +143,8 @@ export const companyProvenanceSchema = z
     connectionId: z.string().uuid(),
     /** Which canonical fields this raw record contributed (jsonb). */
     contributedFields: z.record(z.unknown()).nullable(),
-    ingestedAt: z.string().datetime(),
+    // PG-wire format — see companySchema note above.
+    ingestedAt: z.string(),
   })
   .strict();
 
@@ -153,7 +160,8 @@ export const contactProvenanceSchema = z
     rawCompanyId: z.string().uuid(),
     /** FK → data_source_connections.id */
     connectionId: z.string().uuid(),
-    ingestedAt: z.string().datetime(),
+    // PG-wire format — see companySchema note above.
+    ingestedAt: z.string(),
   })
   .strict();
 
@@ -178,8 +186,9 @@ export const dedupeCandidateSchema = z
     status: dedupeCandidateStatusEnum,
     /** FK → users.id; null if unresolved or user was deleted. */
     resolvedBy: z.string().uuid().nullable(),
-    createdAt: z.string().datetime(),
-    resolvedAt: z.string().datetime().nullable(),
+    // PG-wire format — see companySchema note above.
+    createdAt: z.string(),
+    resolvedAt: z.string().nullable(),
   })
   .strict();
 

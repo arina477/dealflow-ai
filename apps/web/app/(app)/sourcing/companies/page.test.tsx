@@ -259,6 +259,78 @@ describe('CompaniesPage (/sourcing/companies)', () => {
   });
 });
 
+// ── CRITICAL-1 regression: PG-wire timestamp — deep-screen ───────────────────
+//
+// The /sourcing/companies SSR page fetches companies and parses them via
+// companySchema (from @dealflow/shared). Before the shared-schema fix,
+// companySchema used z.string().datetime() for createdAt/updatedAt; the API
+// returns PG-wire format ("2026-07-04 04:42:20.996353+00", SPACE separator,
+// +00 offset, microseconds) which z.string().datetime() REJECTS.
+//
+// Failure path (pre-fix):
+//   fetchCompanies → safeParse companiesWithMetaResponseSchema → FAIL
+//   (companySchema.createdAt z.string().datetime() rejects PG-wire) →
+//   returns [] → page renders "No companies yet" despite real data.
+//
+// This test MUST fail on the pre-fix shared schema and MUST pass after the fix
+// (companySchema.createdAt/updatedAt changed to z.string()).
+
+const PG_WIRE_TS = '2026-07-04 04:42:20.996353+00';
+
+const COMPANY_PG_WIRE_DEEP: typeof COMPANY_1 = {
+  id: '33333333-0000-0000-0000-000000000033',
+  name: 'PgWire Deep Corp',
+  domain: 'pgwiredeep.io',
+  normalizedDomain: 'pgwiredeep.io',
+  normalizedName: 'pgwire deep corp',
+  sector: 'Data',
+  status: 'active',
+  createdAt: PG_WIRE_TS,
+  updatedAt: null,
+  contactCount: 0,
+  sourceCount: 1,
+  hasPendingCandidates: false,
+};
+
+describe('CRITICAL-1 regression — PG-wire timestamp accepted by deep-screen (shared companySchema)', () => {
+  beforeEach(() => {
+    mockCookies.mockResolvedValue({ toString: () => 'st-access-token=test-token' });
+    mockRedirect.mockImplementation((path: string): never => {
+      throw new Error(`REDIRECT:${path}`);
+    });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('SSR page renders company name when API returns PG-wire-format createdAt (not "No companies yet")', async () => {
+    // The API response has a real PG-wire timestamp — NOT the ISO mock used elsewhere.
+    vi.stubGlobal('fetch', makePageFetch('analyst', [COMPANY_PG_WIRE_DEEP]));
+    await renderPage();
+    // Company MUST be visible — pre-fix: safeParse fails → empty → "No companies yet"
+    // Post-fix: companySchema.createdAt = z.string() → parse succeeds → company shown
+    expect(screen.getByText('PgWire Deep Corp')).toBeDefined();
+    expect(screen.queryByText(/no companies yet/i)).toBeNull();
+  });
+
+  it('fetchCompanies returns companies when API returns PG-wire-format createdAt', async () => {
+    // Directly validate that the SSR fetch function (which uses companySchema) accepts PG-wire.
+    vi.stubGlobal('fetch', makePageFetch('analyst', [COMPANY_PG_WIRE_DEEP]));
+    await renderPage();
+    // The page shows "1 records" — confirming 1 company was parsed, not 0.
+    expect(screen.getByText(/1 record/i)).toBeDefined();
+  });
+
+  it('CompaniesClient renders correctly when pre-parsed company has PG-wire createdAt', () => {
+    // Confirm the client component renders a company that arrived with a PG-wire timestamp.
+    render(<CompaniesClient initialCompanies={[COMPANY_PG_WIRE_DEEP]} />);
+    expect(screen.getByText('PgWire Deep Corp')).toBeDefined();
+    expect(screen.queryByText(/no companies yet/i)).toBeNull();
+  });
+});
+
 // ── CompaniesClient unit tests ────────────────────────────────────────────
 
 describe('CompaniesClient', () => {

@@ -312,8 +312,22 @@ describe('companySchema', () => {
     expect(() => companySchema.parse({ ...validCompany, name: '' })).toThrow();
   });
 
-  it('rejects invalid createdAt', () => {
-    expect(() => companySchema.parse({ ...validCompany, createdAt: 'not-a-date' })).toThrow();
+  it('accepts PG-wire timestamptz createdAt (NOT ISO-8601)', () => {
+    // The API returns PG wire format: space separator, +00 offset, microseconds.
+    // z.string().datetime() would reject this; z.string() must accept it.
+    const result = companySchema.parse({
+      ...validCompany,
+      createdAt: '2026-07-04 04:42:20.996353+00',
+    });
+    expect(result.createdAt).toBe('2026-07-04 04:42:20.996353+00');
+  });
+
+  it('accepts PG-wire timestamptz updatedAt (NOT ISO-8601)', () => {
+    const result = companySchema.parse({
+      ...validCompany,
+      updatedAt: '2026-07-04 04:42:20.996353+00',
+    });
+    expect(result.updatedAt).toBe('2026-07-04 04:42:20.996353+00');
   });
 
   it('rejects extra unknown fields (strict mode)', () => {
@@ -360,6 +374,14 @@ describe('contactSchema', () => {
   it('rejects non-UUID companyId', () => {
     expect(() => contactSchema.parse({ ...validContact, companyId: 'bad' })).toThrow();
   });
+
+  it('accepts PG-wire timestamptz createdAt (NOT ISO-8601)', () => {
+    const result = contactSchema.parse({
+      ...validContact,
+      createdAt: '2026-07-04 04:42:20.996353+00',
+    });
+    expect(result.createdAt).toBe('2026-07-04 04:42:20.996353+00');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -384,6 +406,14 @@ describe('dataSourceConnectionSchema', () => {
     expect(() =>
       dataSourceConnectionSchema.parse({ ...validConnection, id: 'not-a-uuid' })
     ).toThrow();
+  });
+
+  it('accepts PG-wire timestamptz createdAt (NOT ISO-8601)', () => {
+    const result = dataSourceConnectionSchema.parse({
+      ...validConnection,
+      createdAt: '2026-07-04 04:42:20.996353+00',
+    });
+    expect(result.createdAt).toBe('2026-07-04 04:42:20.996353+00');
   });
 });
 
@@ -420,6 +450,14 @@ describe('companyProvenanceSchema', () => {
     const { connectionId: _c, ...withoutConn } = validCompanyProvenance;
     expect(() => companyProvenanceSchema.parse(withoutConn)).toThrow();
   });
+
+  it('accepts PG-wire timestamptz ingestedAt (NOT ISO-8601)', () => {
+    const result = companyProvenanceSchema.parse({
+      ...validCompanyProvenance,
+      ingestedAt: '2026-07-04 04:42:20.996353+00',
+    });
+    expect(result.ingestedAt).toBe('2026-07-04 04:42:20.996353+00');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -445,10 +483,13 @@ describe('contactProvenanceSchema', () => {
     ).toThrow();
   });
 
-  it('rejects invalid ingestedAt datetime', () => {
-    expect(() =>
-      contactProvenanceSchema.parse({ ...validContactProvenance, ingestedAt: 'not-a-date' })
-    ).toThrow();
+  it('accepts PG-wire timestamptz ingestedAt (NOT ISO-8601)', () => {
+    // z.string().datetime() would reject this wire format; z.string() must accept it.
+    const result = contactProvenanceSchema.parse({
+      ...validContactProvenance,
+      ingestedAt: '2026-07-04 04:42:20.996353+00',
+    });
+    expect(result.ingestedAt).toBe('2026-07-04 04:42:20.996353+00');
   });
 });
 
@@ -512,6 +553,23 @@ describe('dedupeCandidateSchema', () => {
     expect(() =>
       dedupeCandidateSchema.parse({ ...validDedupeCandidate, extraField: true })
     ).toThrow();
+  });
+
+  it('accepts PG-wire timestamptz createdAt (NOT ISO-8601)', () => {
+    const result = dedupeCandidateSchema.parse({
+      ...validDedupeCandidate,
+      createdAt: '2026-07-04 04:42:20.996353+00',
+    });
+    expect(result.createdAt).toBe('2026-07-04 04:42:20.996353+00');
+  });
+
+  it('accepts PG-wire timestamptz resolvedAt (NOT ISO-8601)', () => {
+    const result = dedupeCandidateSchema.parse({
+      ...validDedupeCandidate,
+      status: 'merged',
+      resolvedAt: '2026-07-04 04:42:20.996353+00',
+    });
+    expect(result.resolvedAt).toBe('2026-07-04 04:42:20.996353+00');
   });
 });
 

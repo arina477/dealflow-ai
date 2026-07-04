@@ -53,8 +53,11 @@ export const complianceRuleSchema = z
     enabled: z.boolean(),
     /** UUID of the user who created this rule; null if that user was deleted. */
     createdBy: z.string().uuid().nullable(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime().nullable(),
+    // PG-wire timestamptz format ("2026-07-04 04:42:20.996353+00") is NOT
+    // ISO-8601 and is rejected by z.string().datetime(). This is a READ shape
+    // for API-returned timestamps; strict ISO validation is wrong here.
+    createdAt: z.string(),
+    updatedAt: z.string().nullable(),
   })
   .strict();
 
@@ -111,7 +114,8 @@ export const suppressionEntrySchema = z
     /** Human-readable reason for the suppression; null if not provided. */
     reason: z.string().min(1).nullable(),
     createdBy: z.string().uuid().nullable(),
-    createdAt: z.string().datetime(),
+    // PG-wire format — see complianceRuleSchema note above.
+    createdAt: z.string(),
   })
   .strict();
 
@@ -153,7 +157,8 @@ export const disclaimerTemplateSchema = z
     version: z.number().int().positive(),
     active: z.boolean(),
     createdBy: z.string().uuid().nullable(),
-    createdAt: z.string().datetime(),
+    // PG-wire format — see complianceRuleSchema note above.
+    createdAt: z.string(),
   })
   .strict();
 
@@ -219,7 +224,8 @@ export const complianceApprovalSchema = z
      */
     approverRole: z.string().min(1),
     status: approvalStatusEnum,
-    createdAt: z.string().datetime(),
+    // PG-wire format — see complianceRuleSchema note above.
+    createdAt: z.string(),
   })
   .strict();
 

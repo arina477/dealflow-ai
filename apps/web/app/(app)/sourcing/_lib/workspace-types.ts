@@ -16,16 +16,11 @@ export interface ConnectionWithCount extends DataSourceConnectionRecord {
   companyCount: number;
 }
 
-const connectionWithCountSchema = dataSourceConnectionSchema
-  .extend({
-    companyCount: z.number().int().nonnegative().optional().default(0),
-  })
-  // Override createdAt: the shared schema uses z.string().datetime() which rejects
-  // PG-wire format ("2026-07-04 04:30:08.014852+00"). Accept any string here;
-  // the workspace displays but does not parse this value.
-  .extend({
-    createdAt: z.string(),
-  });
+const connectionWithCountSchema = dataSourceConnectionSchema.extend({
+  companyCount: z.number().int().nonnegative().optional().default(0),
+  // createdAt: shared schema already accepts any string (z.string()) since the
+  // PG-wire timestamp fix — no local override needed.
+});
 
 const connectionsResponseSchema = z.object({
   connections: z.array(connectionWithCountSchema),
@@ -72,9 +67,8 @@ const workspaceCompanySchema = z.object({
   status: z.string().min(1),
   connectionIds: z.array(z.string()).optional().default([]),
   // Accept any string timestamp — the API returns PG-wire format
-  // ("2026-07-04 04:30:08.014852+00", SPACE separator, +00 offset, microseconds)
-  // which is NOT ISO-8601 and would be rejected by z.string().datetime().
-  // The workspace only displays this value; strict ISO validation is not needed.
+  // ("2026-07-04 04:30:08.014852+00"). Shared companySchema also uses z.string()
+  // since the PG-wire timestamp fix; this independent workspace shape matches.
   createdAt: z.string(),
 });
 
