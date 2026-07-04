@@ -44,8 +44,8 @@ BUILD:
 - [x] B-6 Review — head-builder APPROVED; /review 7 CRIT fixed (8e40c08+6402d62)
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [x] C-1 PR, CI & merge — merged @ 937ae18; CI all 5 green (lint/typecheck/test/build/audit)
+- [x] C-2 Deploy & verify — both services @ 937ae18 SUCCESS; /health=937ae18; migration 0008 applied (mandate_id UNIQUE live-enforced); buyer-universe payoff verified live; canary skipped (0 DAU); head-ci-cd APPROVED→PROCEED_TO_T
 
 TEST:
 - [ ] T-1 Static

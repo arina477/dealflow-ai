@@ -1,0 +1,2 @@
+# Wave 9 — C-2 (PASS first-try; full detail in C-2-deploy-and-verify.md)
+Deploy 937ae18; migration 0008 applied (mandate_id UNIQUE live-enforced). Buyer-universe flow LIVE: assemble 201+idempotent+candidates-from-M3; filter→Detail+partial-dims-honest; enrich→Detail; submit-guard(0-included→400)/submitted; SSR-hydrates-existing-universe; NO rank/score (byte-scan); RBAC(anon 401/compliance 403/analyst 2xx); audited(chain ok, 153 entries); D6 link. Regression green. head-ci-cd APPROVED→PROCEED_TO_T. NO fix-cycles (B-6 /review caught all 7 CRIT pre-deploy).
