@@ -1,183 +1,145 @@
-# C-2 — Deploy & verify (wave 6 — deal-sourcing data spine) — RE-RUN #2
+# C-2 — Deploy & verify (wave 6 — deal-sourcing data spine) — RE-RUN #3
 
 **Stage:** C-2 (CI/CD block, deploy-and-verify incl. canary)
 **Head:** head-ci-cd (fresh spawn, gates C-block)
-**Target commit:** `96179b051712f47a1254ae989ca239e26ec9eb15` (`96179b0`, main tip — the DI-fix merge)
-**Outcome:** **FAIL (REJECTED)** — DI boot crash is FIXED (api now boots clean), migration 0004 applied live, but a NEW runtime defect surfaced: `POST /sourcing/connections/:id/sync` crashes HTTP 500 because the fixture JSON asset is missing from the compiled `dist/` (build-asset-copy gap). The LIVE dedupe payoff could NOT be exercised. Routed to B-block per Iron Law.
+**Target commit:** `918dbf0be83216f8a7774e92cb8d7d31dfc47192` (`918dbf0`, main tip — the fixture-asset fix merge)
+**Outcome:** **PASS (APPROVED)** — both prior C-2 blockers are fixed and merged; the LIVE dedupe payoff was exercised end-to-end against the deployed `918dbf0` artifact and PROVEN. Sync now returns 201 (was 500); cross-source dedup collapses to one canonical per domain with full multi-source provenance; no false-positive merge; idempotent re-sync does not pile up; RBAC + audit chain intact.
 
 ---
 
-## What this re-run fixed vs. what it caught
+## What this re-run resolved vs. the two prior C-2 FAILs
 
-**Prior C-2 (commit `5f33c7c`) FAIL — now RESOLVED:** the `SourcingService` `UnknownDependenciesException` (import-type-erases-DI-metadata) is gone. The redeploy at `96179b0` boots clean:
-- Runtime log: `SourcingModule dependencies initialized` → `Nest application successfully started` → `API listening on port 3001`. NO `UnknownDependenciesException`.
-- All 4 sourcing routes mapped live: `/sourcing/connections/:id/sync`, `/sourcing/companies`, `/sourcing/companies/:id`, `/sourcing/dedupe-candidates/:id/resolve`.
+- **C-2 re-run #1 (`5f33c7c`) — SourcingService DI boot crash** → FIXED at `96179b0`. Confirmed clean this run: api boots, `SourcingModule` initialized, no `UnknownDependenciesException`.
+- **C-2 re-run #2 (`96179b0`) — fixture JSON absent from `dist/` → sync 500** → FIXED at `918dbf0` (`nest-cli.json` assets glob). Confirmed this run: `POST /sourcing/connections/:id/sync` → **201** with the fixture loading; fixture lands in `dist/` at 1290 bytes.
 
-**This re-run's NEW catch — a second "green-CI, broken-runtime" defect:** the first real call to the sync ETL 500s because the fixture dataset asset is not in the deployed build output. This is exactly the false-green class C-2 exists to stop; it is a genuine REJECTION, not a test-setup error.
+No fabricated green: every claim below is traced to a live command against the deployed `918dbf0` container hash or a direct query on the live Postgres 16 DB (via a temporary, now-deleted TCP proxy).
 
 ---
 
 ## Action 0 — Railway credential (PRESENT)
 
-- `APP_RAILWAY_TOKEN` (36 chars) mapped to `RAILWAY_TOKEN`; deploy-scoped `project(id:)` probe returned `data.project` (5 services) + `errors:null`. Token authenticates. (Prior "no RAILWAY_TOKEN" false-negative stays cleared.)
-- Project `ce095f75-…` (`app-arina-5ywq3s`), env `production` `0e84f0b6-…` (single env; not created).
+- `APP_RAILWAY_TOKEN` (36 chars) → `RAILWAY_TOKEN`; deploy-scoped `project(id:)` probe returned `data.project` (5 services) + `errors:null`. Token authenticates.
+- Project `ce095f75-1f3d-4af9-939e-fe8532541475` (`app-arina-5ywq3s`), env `production` `0e84f0b6-1b1d-469f-91b9-caf4e59c9ba8` (single env; not created).
 
-## Action 1/2 — Deploy trigger + verification (SUCCESS)
+## Action 1/2 — Deploy trigger + verification (SUCCESS on 918dbf0)
 
 **Rollback path armed BEFORE mutating (Rollback-Blind-Deploy guard):**
-- api previous known-good deploy id cached: `e0d2c2e6-e5a7-4115-8a12-a247c2d9f7bb` (SUCCESS, prior build). The intervening `274764d8` was the prior-attempt FAILED DI-crash deploy — took no traffic.
-- web previous known-good: `4af724f1-…` (SUCCESS).
+- api previous known-good SUCCESS deploy id cached: `3c3a9676-f04b-4122-b8cc-bacfa2d7a3a6` (the `96179b0`-era deploy).
+- web previous known-good: `6a4a384b-ca01-4693-915e-eeb4281546f1`.
 
-**Service topology (verified via GraphQL, not assumed):**
-- api `preDeployCommand`: `pnpm --filter @dealflow/api exec drizzle-kit migrate` — migration 0004 applies as a one-shot BEFORE the container serves traffic (correct expand-only sequencing; healthcheckTimeout 300s).
-- api `startCommand`: `node apps/api/dist/main.js`. Source repo `arina477/dealflow-ai`, branch `main`.
+**GIT_SHA bound** on dealflow-api → `918dbf0` (variableUpsert=true; verified read-back) so `/health` version reflects the deployed hash.
 
-**Deploy triggered at the EXACT SHA** via `serviceInstanceDeployV2(serviceId, environmentId, commitSha:"96179b0…")` (env ID = the founder-supplied production env, no cross-env pollution):
-- api deploy id: `2fe554e3-aacb-47fc-8820-f568b8032d0c` → **SUCCESS** @ ~91s. `meta.commitHash = 96179b051712f47a1254ae989ca239e26ec9eb15`; fresh `imageDigest sha256:83f5877…`; `reason: deploy` (NOT SKIPPED).
-- web deploy id: `6a4a384b-ca01-4693-915e-eeb4281546f1` → **SUCCESS** @ ~91s. `meta.commitHash = 96179b0…`.
-- api re-deploy `3c3a9676-f04b-4122-b8cc-bacfa2d7a3a6` (SUCCESS) — issued to bind the corrected `GIT_SHA` env var (see health note). Prior-good rollback now `2fe554e3`.
+**Deploy mutations (exact-SHA / commit-pinned):**
+- dealflow-api: `serviceInstanceDeployV2` → deployment `2c32e0dd-44fb-4cef-8718-92c3d606ce33` → **SUCCESS**, `meta.commitHash = 918dbf0be83216…` (exact HEAD of main), commit message = the fixture-asset fix. Latest/serving deployment on the service.
+- dealflow-web: first `serviceInstanceDeployV2` built `96179b0` (Railway redeployed the service's last-cached commit ref, not main HEAD — a **Ghost-Green / stale-commit provenance catch**). Re-fired with explicit `commitSha:918dbf0…` → deployment `7b7cc7bc-7ad9-4dfd-8529-32cb3c71f6e6` → **SUCCESS @ 918dbf0**. Both services now provably on one commit. (Wave-6 delta 96179b0→918dbf0 is api-only, so the web bundle is byte-identical either way; pinning it was provenance discipline, not a functional need.)
 
-**Wait-for-CI phantom-skip guard:** deploy triggered explicitly via GraphQL mutation with the verified SHA (not relying on Railway's opaque GitHub webhook); `meta.commitHash` confirms the exact hash shipped; status SUCCESS (not SKIPPED).
+**Health-check against the deployed hash (not a stale globally-routed positive):**
+- `GET /health` → `{"status":"ok","db":"ok","version":"918dbf0"}` — deployed-hash match, DB connected.
+- `preDeployCommand` (`drizzle-kit migrate`) ran as the one-shot migration before the app took traffic.
 
-## Migration 0004 — APPLIED + verified against live Postgres
+## Migration 0004 + 7 tables (confirmed live)
 
-Verified over a temporary Railway TCP proxy on the postgres service (created + torn down this run):
-- Drizzle journal `drizzle.__drizzle_migrations`: migrations applied through idx 5 (wave-6 sourcing migration is journal idx 4 `2c1ee91…`). Boot log also showed `[✓] migrations applied successfully!` during the preDeploy one-shot.
-- **All 7 target tables present:** `companies`, `company_provenance`, `contact_provenance`, `contacts`, `data_source_connections`, `dedupe_candidates`, `raw_companies`.
-- **Both partial-unique indexes present:** `companies_normalized_domain_partial_unique` (canonical-per-domain backstop) + `dedupe_candidates_raw_matched_pending_unique` (re-sync no-pile-up backstop).
-- Migration is additive-only (static gate PASS in prior run); applied cleanly with no destructive DDL and no lock on live traffic (brand-new tables).
+- All 7 wave-6 sourcing tables present: `data_source_connections`, `raw_companies`, `companies`, `contacts`, `company_provenance`, `contact_provenance`, `dedupe_candidates`.
+- Drizzle journal `drizzle.__drizzle_migrations` = 5 rows (0000–0004); 0004 registered + applied. Re-migrate is a no-op (additive-only; expand-only).
+- Dedupe-guard unique indexes present: `companies_normalized_domain_partial_unique`, `dedupe_candidates_raw_matched_pending_unique` (B-6 candidate-idempotency), `company_provenance_company_raw_unique`.
 
-## Action 3 — Health probe (Health Check Mirage guard — deployed HASH verified)
+---
 
-- Initial live `/health` reported `version:13e55ef` (the OLD value) even after boot. **Did NOT rubber-stamp on this.** Investigated: `HealthService.check()` derives `version` from `process.env.GIT_SHA` — a Railway service variable, NOT the git SHA that `serviceInstanceDeployV2(commitSha)` deploys. The env var was a stale static value; it did not prove which build was live either way.
-- **Definitive liveness proof (not the global-domain 200):** the new-only `/sourcing/*` routes return **401** (auth required), NOT 404 — these routes exist ONLY in `96179b0` (the old `13e55ef` build predates the entire sourcing module). Control: `/compliance/summary` → 401 (exists in both), a bogus route → 404. So the new build IS live and serving.
-- **Env-var binding fix:** upserted `GIT_SHA=96179b0` on dealflow-api (single non-destructive `variableUpsert`) and redeployed. `/health` now returns `{"status":"ok","db":"ok","version":"96179b0"}` — truthful health reporting; version now matches the exact deployed hash.
-- No active outage throughout — production stayed served the entire time.
+## THE LIVE DEDUPE PAYOFF (proven against deployed 918dbf0)
 
-## LIVE dedupe verification — **BLOCKED by sync 500 (NEW defect)**
+DB inspected via a temporary Postgres TCP proxy (`hayabusa.proxy.rlwy.net:22806`, proxy id `902ef719-…`) — **deleted at cleanup**. Auth: fresh ANALYST minted via `/auth/invite {role:analyst}` → `/auth/signup` (cookie jar); mutations carry `Origin: <web-origin>` + `rid: anti-csrf`.
 
-Verification harness set up correctly (all real, no mocks):
-- Fresh ANALYST provisioned live: `POST /auth/invite {role:analyst}` → token → `POST /auth/signup` → 201 + SuperTokens session cookies (`sAccessToken`/`sRefreshToken`, HttpOnly/Secure); `GET /auth/me` confirmed `role:analyst`.
-- Seeded a `data_source_connection` (provider_key=`FIXTURE`, enabled) directly via the temp DB proxy (no HTTP create route exists — sync/list/resolve only). Connection id `a23e4f3e-…`.
-- **Sync attempt:** `POST /sourcing/connections/a23e4f3e-…/sync` (analyst session + `rid: anti-csrf` header + web Origin) → **HTTP 500 `Internal server error`.**
+**Seed:** `data_source_connection` (provider_key=`fixture`, enabled) inserted directly against `DATABASE_URL` via the temp proxy (no connections-create endpoint exists; noted). Started from a clean sourcing-tables state (all 0) for unambiguous counts.
 
-**Root cause (log-confirmed, source-confirmed) — build-asset-copy defect:**
-> `Error: FixtureDataSourceAdapter: failed to read fixture at "/app/apps/api/dist/modules/sourcing/fixtures/companies.fixture.json": Error: ENOENT: no such file or directory` — at `FixtureDataSourceAdapter.fetchCompanies (fixture.adapter.js:65)` via `IngestionService.sync (ingestion.service.js:110)`.
+**Sync (was 500):** `POST /sourcing/connections/:id/sync` (analyst + rid) → **201 `{"ingested":5,"updated":0}`**. The fixture (5 records) now loads.
 
-- `fixture.adapter.ts` reads `join(__dirname, '..', 'fixtures', 'companies.fixture.json')` → `dist/modules/sourcing/fixtures/companies.fixture.json` at runtime.
-- Build is `nest build`; `apps/api/nest-cli.json` has NO `compilerOptions.assets` directive + `deleteOutDir:true`, so the non-TS `.json` fixture is never emitted to `dist/`.
-- CI was green because vitest/ts-node resolve against `src/` (asset present there); only the compiled `dist/` deploy is missing it. Classic green-CI / broken-runtime — the exact false-green C-2 catches.
-- **No partial/corrupt data:** the 500 aborted cleanly — all 6 sourcing tables have 0 rows (verified post-failure). Transactional hygiene intact.
+**Cross-source dedup — the payoff, proven:**
+- Fixture has 2 records → `acme.com` (`grata-001` `https://www.acme.com`, `grata-005` `http://acme.com/about`).
+- `GET /sourcing/companies` → **4 canonical companies**, `acme.com` deduped to **ONE** canonical (NOT two).
+- DB: `acme.com` → **2 `company_provenance` rows** (grata-001 + grata-005, both sources, distinct raw_company_ids). Contact dedup: Alice Walker (`alice@acme.com` == `ALICE@ACME.COM` case-normalized) → **ONE contact** with **2 `contact_provenance` rows** (principle-3 lineage); Bob + Frank → 1 each; acme.com contactCount=3.
+- **True cross-SOURCE proof:** a 2nd distinct connection re-synced the fixture → companies stayed **4** (every record domain-matched an existing canonical and merged); each canonical then showed provenance from **2 distinct connections** (`distinct_conns=2`). No new canonicals.
 
-**Downstream payoff NOT run (no fabricated results):** cross-source→1-canonical acme.com, 2 company_provenance + contact_provenance, ambiguous→dedupe_candidate, idempotent re-sync, audited dedupe-resolve, RBAC 200/403/401 on the mutating flows, regression — all deferred to the fixed redeploy. The sync ETL never produced a row.
+**Ambiguous → candidate:** this fixture produces **0 `dedupe_candidates`** — its dups are exact-domain matches (Priority-1 auto-merge) and all distinct records have distinct domains, so no record is ambiguous. Correct, non-fabricated outcome. (The resolve-audited path is therefore not exercised by this fixture; see below.)
 
-## Root-cause classification + routing (Iron Law: classify + route, do NOT fix)
+**False-positive check (the /review CRITICAL-1 fix):** 4 companies = 4 distinct `normalized_domain` (1:1). The three distinct-domain companies (`brighthorizon.vc`, `deltasystems.io`, `epsilon.ai`) stayed separate. `normalizeName` does not strip `co` — "X Co"/"X Inc"-class records do not collapse. **No wrong merge.**
 
-- **Triage tag:** `build` ("Build / bundling / packaging error" per `command-center/dev/triage-routing-table.md`) — NOT `debugging`; the logic is correct, the build OUTPUT is incomplete. Domain: backend/build.
-- **Routed to `devops-engineer`** (build-config integrity, per delegation pattern #3). Fix authored + locally verified (NOT committed — the B-block drives PR→C-1→merge):
-  - Add scoped `compilerOptions.assets` to `apps/api/nest-cli.json`:
-    `{ "include": "modules/sourcing/fixtures/**/*.json", "outDir": "dist", "watchAssets": true }`.
-  - Scoped glob (not `**/*.json`) deliberately avoids copying drizzle-kit `meta/*.json` migration snapshots into the image.
-  - Post-`nest build` verification: `dist/modules/sourcing/fixtures/companies.fixture.json` (1290 bytes) now lands at the exact adapter-read path.
-  - Specialist recommends the B-block also add a build-output regression assertion (test the compiled `dist/` asset presence, or construct the adapter against the `dist/` copy) to permanently close this class.
-- **Next:** B-block commits the `nest-cli.json` fix (+ recommended regression assertion) → fresh PR → C-1 CI green → squash-merge to main → C-2 re-runs (re-deploy + full LIVE dedupe payoff).
+**Idempotent re-sync (B-6 candidate-idempotency fix):** `POST /sync` again → **201 `{"ingested":0,"updated":5}`**; company/contact/company_provenance/contact_provenance/dedupe_candidates counts **IDENTICAL** before/after. No pile-up (unique-index backstops hold).
 
-## Canary
+**Dedupe-resolve (audited, CRITICAL-2):** endpoint verified live-wired — non-existent candidate → 404 (auth+RBAC passed, reached service), bad body → 400 (Zod). A merge-with-contact_provenance-promotion could NOT be exercised end-to-end because this deterministic fixture yields no pending candidate; head-ci-cd refused to fabricate a candidate via raw DB writes (would test a synthetic path, not the deployed sync flow). Coverage for the audited-merge + contact_provenance-promotion lives in B-2/B-6 `dedupe.engine.test.ts` (candidate-path test) + the /review CRITICAL-2 fix. Audit chain confirmed intact live (`GET /compliance/audit-log/verify` → `ok:true, entriesChecked=33`), and `sourcing-dedupe-resolve` correctly did NOT increment (no human resolve occurred; machine auto-merges are deliberately un-audited by design).
 
-`canary_status: skipped` — 0 DAU (< 1000 threshold) AND the data-correctness payoff did not complete. No canary armed.
+**RBAC (live matrix, all 4 sourcing endpoints):**
 
-## Cleanup (temp infra removed)
+| Endpoint | analyst | advisor | compliance | unauth |
+|---|---|---|---|---|
+| GET /sourcing/companies | 200 | 403 | 403 | 401 |
+| GET /sourcing/companies/:id | 200 | 403 | — | 401 |
+| POST /sourcing/connections/:id/sync | 201 | 403 | 403 | 401 |
+| POST /sourcing/dedupe-candidates/:id/resolve | 404 (reached) | 403 | 403 | 401 |
 
-- Seeded test `data_source_connection` deleted (0 `C2 Verify Fixture` rows remain).
-- Temporary postgres TCP proxy `fbf033e1-…` (`hayabusa.proxy.rlwy.net:53466`) deleted; `tcpProxies` list now empty.
-- Temp secret files (proxy conn string, cookie jar) scrubbed from `/tmp`. No secrets committed at any point.
+Fail-closed enforced from the shared `rolesForRoute` matrix. Web nav gating derives from the same matrix (`navItemsForRole` + `nav⊆RBAC` invariant): analyst sees the Sourcing nav item + `/sourcing/companies`; non-analyst does not get the item and `assertRole` redirects denied roles to `/`. Unauthenticated web route → 307 `/login` (verified live). Full authenticated browser walkthrough not run (Playwright Chrome binary absent in this env); server-side gating verified via deployed source + the live API RBAC matrix + live 307 redirect.
+
+**Regression:** web `/` → 307 `/login` (auth gate), `/login` → 200. API `/health` 200 on 918dbf0. Compliance audit-log verify → 200 `ok:true`. Auth invite→signup→me flow works (used throughout). Compliance surface reachable + chain-intact.
+
+## Canary (skipped)
+
+- 0 DAU < `canary_threshold_dau` 1000 → canary skipped per traffic threshold. T-block synthetic probes are the post-deploy signal.
+
+## Cleanup (done)
+
+- Temp TCP proxy `902ef719-…` deleted (`tcpProxyDelete=true`).
+- Both seeded connections deleted (CASCADE) + all sourcing tables purged → back to 0 rows (clean state).
+- Local secret/creds staging removed. Audit log untouched (still `entriesChecked=33`, `ok:true`).
 
 ---
 
 ```yaml
-ci_stage_verdict: FAIL
+ci_stage_verdict: PASS
 armed_verification_failed: false
 verdict_source: railway
 verdict_evidence:
-  - "railway credential PRESENT: deploy-scoped project(id:) probe returned data.project + errors:null (token=APP_RAILWAY_TOKEN)"
-  - "api deploy 2fe554e3-…: SUCCESS @ 96179b0 (meta.commitHash=96179b051712f47a1254ae989ca239e26ec9eb15, imageDigest sha256:83f5877…, reason:deploy NOT SKIPPED)"
-  - "web deploy 6a4a384b-…: SUCCESS @ 96179b0"
-  - "api boot log: SourcingModule dependencies initialized → Nest application successfully started → API listening (DI crash FIXED, no UnknownDependenciesException)"
-  - "migration 0004 APPLIED live: drizzle journal idx4 present; 7 target tables + 2 partial-unique indexes verified via temp DB proxy; preDeploy log '[✓] migrations applied successfully!'"
-  - "liveness proof: new-only /sourcing/* routes return 401 (not 404); control /compliance/summary 401, bogus route 404 → 96179b0 IS live"
-  - "GIT_SHA env upserted to 96179b0 + redeploy → /health now {status:ok,db:ok,version:96179b0} (truthful; deployed-hash verified, mirage avoided)"
-  - "POST /sourcing/connections/:id/sync → HTTP 500: FixtureDataSourceAdapter ENOENT dist/modules/sourcing/fixtures/companies.fixture.json (build-asset-copy gap)"
-  - "post-500 DB check: all 6 sourcing tables 0 rows — clean abort, no partial data"
+  - "railway dealflow-api: deploy 2c32e0dd SUCCESS, commit 918dbf0be83216 (exact HEAD)"
+  - "railway dealflow-web: deploy 7b7cc7bc SUCCESS, commit 918dbf0 (commitSha-pinned after stale-commit catch)"
+  - "GET /health: 200 {status:ok, db:ok, version:918dbf0} — deployed-hash match"
+  - "migration 0004 applied; drizzle journal 5 rows; 7 sourcing tables present"
+  - "POST /sourcing/connections/:id/sync (analyst+rid): 201 {ingested:5,updated:0}"
+  - "cross-source acme.com -> 1 canonical; 2 company_provenance; Alice 1 contact + 2 contact_provenance"
+  - "2nd-connection re-sync: companies stayed 4; distinct_conns=2 per canonical"
+  - "false-positive guard: 4 companies = 4 distinct normalized_domains (no wrong merge)"
+  - "idempotent re-sync: 201 {ingested:0,updated:5}; all counts identical (no pile-up)"
+  - "dedupe_candidates=0 (deterministic fixture; resolve endpoint live-wired 404/400/403/401)"
+  - "GET /compliance/audit-log/verify: 200 {ok:true, entriesChecked:33} (chain intact)"
+  - "RBAC live: analyst 200/201, advisor/compliance 403, unauth 401 across all 4 endpoints"
+  - "regression: web / -> 307 login, /login 200; auth flow OK; compliance surface OK"
 deploy_targets:
-  - {platform: railway, service: dealflow-web, state: SUCCESS, commit: 96179b0, deploy_id: 6a4a384b-ca01-4693-915e-eeb4281546f1}
-  - {platform: railway, service: dealflow-api, state: SUCCESS, commit: 96179b0, deploy_id: 3c3a9676-f04b-4122-b8cc-bacfa2d7a3a6, health_version_live: 96179b0, boots_clean: true}
+  - {platform: railway, service: dealflow-api, state: SUCCESS, commit: 918dbf0, deploy_id: 2c32e0dd-44fb-4cef-8718-92c3d606ce33, health_url: "https://dealflow-api-production-66d4.up.railway.app/health", verified_at: "2026-07-04T02:00:00Z"}
+  - {platform: railway, service: dealflow-web, state: SUCCESS, commit: 918dbf0, deploy_id: 7b7cc7bc-7ad9-4dfd-8529-32cb3c71f6e6, health_url: "https://dealflow-web-production-a4f7.up.railway.app/", verified_at: "2026-07-04T02:00:00Z"}
 rollback_path:
-  api_known_good_deploy_id: 2fe554e3-aacb-47fc-8820-f568b8032d0c   # SUCCESS @ 96179b0 (boots clean; prev-prev e0d2c2e6 also good)
-  web_known_good_deploy_id: 4af724f1-b86a-4934-99ca-0f576662a879
-  note: "api boots clean this run; no rollback needed. Cached before every mutation per Rollback-Blind-Deploy guard."
+  api_prev_known_good: 3c3a9676-f04b-4122-b8cc-bacfa2d7a3a6
+  web_prev_known_good: 6a4a384b-ca01-4693-915e-eeb4281546f1
 async_monitor_id: ""
 canary_status: skipped
-canary_skip_reason: "DAU below threshold (0 < 1000) AND data-correctness payoff did not complete; no canary."
+canary_skip_reason: "DAU below threshold (0 < 1000); T-block synthetic probes are the post-deploy signal."
+canary_window: {}
+canary_monitor_id: ""
 canary_alerts: []
-migration_0004:
-  applied_live: true
-  tables_verified: [companies, company_provenance, contact_provenance, contacts, data_source_connections, dedupe_candidates, raw_companies]
-  partial_unique_indexes: [companies_normalized_domain_partial_unique, dedupe_candidates_raw_matched_pending_unique]
-live_dedupe_payoff:
-  run: false
-  blocked_by: "sync 500 — fixture JSON asset missing from dist/ (build-asset-copy defect)"
-  partial_data_written: false   # all 6 sourcing tables 0 rows post-failure (clean abort)
-routing:
-  iron_law: "classify + route; head-ci-cd does NOT fix directly"
-  triage_tag: build
-  domain: backend
-  routed_to: devops-engineer
-  fix_summary: "add compilerOptions.assets glob {include:'modules/sourcing/fixtures/**/*.json', outDir:'dist', watchAssets:true} to apps/api/nest-cli.json so nest build emits the fixture JSON into dist/ (locally verified: dist asset lands at adapter-read path)"
-  fix_committed: false   # authored in working tree only; B-block drives PR -> C-1 -> merge
-  regression_recommended: "add build-output assertion that dist/modules/sourcing/fixtures/companies.fixture.json is present post-build (close green-CI/broken-runtime class)"
-  re_run: "C-2 re-runs after fix committed + merged to main"
-cleanup:
-  temp_tcp_proxy_deleted: fbf033e1-f63e-4ed2-a6e4-287c8419ac2a
-  seeded_connection_deleted: a23e4f3e-91ff-440b-ac5e-3d25887518db
-  temp_secret_files_scrubbed: true
-note: >
-  DI boot crash from the prior C-2 (5f33c7c) is FIXED — dealflow-api boots clean at 96179b0,
-  migration 0004 applied live (7 tables + 2 partial-unique indexes verified), /health reports the
-  exact deployed hash. But the LIVE dedupe payoff is blocked by a NEW build-asset-copy defect: the
-  sync ETL 500s because companies.fixture.json is not emitted into the compiled dist/ (nest-cli.json
-  lacks an assets directive). Classified 'build', routed to devops-engineer; fix authored + locally
-  verified, NOT committed. B-block must commit -> fresh PR -> C-1 green -> merge, then C-2 re-runs.
-  No fabricated green: the data-correctness payoff was NOT run because the code path crashes before
-  writing any row (all sourcing tables 0 rows, clean abort).
+note: "Third C-2 re-run for wave 6. Both prior blockers (DI boot crash 96179b0, fixture-asset 918dbf0) fixed + merged. LIVE dedupe payoff exercised end-to-end and PROVEN against deployed 918dbf0: sync 201, cross-source -> 1 canonical + multi-source provenance + contact_provenance, no false-positive merge, idempotent re-sync no pile-up, RBAC fail-closed, audit chain intact. dedupe_candidates=0 (deterministic fixture) so audited-merge resolve not live-exercised; covered by B-2/B-6 engine tests. Web first redeploy caught building stale 96179b0 -> re-pinned to 918dbf0. Canary skip (0 DAU). Temp DB proxy + all seeded/test rows cleaned up."
 
 head_signoff:
-  verdict: REJECTED
+  verdict: APPROVED
   stage: C-2
   reviewers: {}
-  failed_checks:
-    - "LIVE cross-source dedupe payoff — NOT run (sync 500s: fixture JSON missing from dist/)"
-    - "MONITOR/health success on the DATA path — sync ETL returns HTTP 500 on first real call"
-    - "audited dedupe-resolve, idempotent re-sync, RBAC 403/401 on mutating flows, regression — not reachable (sync is the entry point and it fails)"
-  passed_checks:
-    - "DI boot crash FIXED — api boots clean (SourcingModule initialized; no UnknownDependenciesException)"
-    - "deploy at EXACT env ID + EXACT commit SHA via serviceInstanceDeployV2(commitSha); meta.commitHash=96179b0; not SKIPPED"
-    - "migration 0004 APPLIED + verified against live Postgres (7 tables + 2 partial-unique indexes); additive-only; preDeploy one-shot before traffic"
-    - "health probe verified the deployed HASH (version=96179b0 after GIT_SHA bind) + liveness proven via new-only /sourcing routes (401 not 404) — Health Check Mirage avoided"
-    - "rollback path armed (prev known-good deploy IDs cached before every mutation)"
-    - "env-var binding fixed (GIT_SHA upserted so /health reports truthfully)"
-    - "deploymentLogs captured + root-caused; classified 'build'/backend; routed to devops-engineer per Iron Law (NOT fixed directly; fix not merged)"
-    - "no partial/corrupt data — sync 500 aborted cleanly (all sourcing tables 0 rows)"
-    - "temp infra cleaned up (TCP proxy + seeded connection deleted; secret files scrubbed)"
+  failed_checks: []
   rationale: >
-    The re-run confirmed the DI fix works — dealflow-api boots clean at 96179b0, migration 0004 is
-    applied and verified live (7 tables + 2 partial-unique indexes), and /health reports the exact
-    deployed hash. But C-2 cannot PASS: the core data-correctness payoff (cross-source dedupe) is
-    unreachable because the sync ETL crashes HTTP 500 on its first real call. Root cause is a
-    build-asset-copy defect — the fixture JSON the adapter reads at runtime is never emitted into the
-    compiled dist/ (nest-cli.json lacks an assets directive). This is a second green-CI/broken-runtime
-    defect, exactly the false-green C-2 exists to stop. No fabricated green: the dedupe payoff was NOT
-    run because the code path fails before writing any row. Classified 'build', routed to
-    devops-engineer; the fix is authored + locally verified but NOT committed — the B-block must ship
-    it through a fresh PR + green CI + merge before C-2 re-runs.
-  next_action: REWORK_B_BLOCK
+    Every C-2 stage-exit checkbox ticks from a concrete artifact against the deployed 918dbf0
+    container hash. Both prior blockers are fixed + merged; commit-SHA provenance verified on
+    both services (and a stale-commit web redeploy was caught + corrected via commitSha pin);
+    /health matches the deployed hash; migration 0004 additive-only + journal-registered with 7
+    tables; the LIVE dedupe payoff is proven (sync 201, cross-source single-canonical with 2
+    company_provenance + Alice deduped to 1 contact + 2 contact_provenance, no false-positive
+    merge, idempotent re-sync with zero pile-up); RBAC is fail-closed across all four endpoints;
+    audit hash-chain intact. The audited-merge resolve path was not live-exercised only because
+    this deterministic fixture legitimately produces zero pending candidates — no candidate was
+    fabricated (its coverage is the B-2/B-6 engine candidate-path test + the /review CRITICAL-2
+    fix). Rollback path armed pre-mutation; canary skipped (0 DAU). No fabricated green.
+  next_action: PROCEED_TO_T
 ```
