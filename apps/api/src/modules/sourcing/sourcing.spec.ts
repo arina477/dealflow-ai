@@ -29,6 +29,7 @@ import type { Role } from '@dealflow/shared';
 import { rolesForRoute } from '@dealflow/shared';
 import type { ExecutionContext } from '@nestjs/common';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
@@ -196,7 +197,8 @@ describe('IngestionService — idempotent ETL upsert', () => {
       mockRepo as unknown as SourcingRepository,
       mockIngestion as never,
       {} as AuditService,
-      {} as AuthRepository
+      {} as AuthRepository,
+      {} as never
     );
 
     const result = await service.syncConnection('conn-1');
@@ -217,7 +219,8 @@ describe('IngestionService — idempotent ETL upsert', () => {
       mockRepo as unknown as SourcingRepository,
       {} as never,
       {} as AuditService,
-      {} as AuthRepository
+      {} as AuthRepository,
+      {} as never
     );
 
     await expect(service.syncConnection('conn-disabled')).rejects.toBeInstanceOf(NotFoundException);
@@ -232,7 +235,8 @@ describe('IngestionService — idempotent ETL upsert', () => {
       mockRepo as unknown as SourcingRepository,
       {} as never,
       {} as AuditService,
-      {} as AuthRepository
+      {} as AuthRepository,
+      {} as never
     );
 
     await expect(service.syncConnection('non-existent')).rejects.toBeInstanceOf(NotFoundException);
@@ -571,7 +575,13 @@ describe('SourcingService.resolveDedupeCandidateAsActor — merge + audit + acto
       getUserWithRole: mockGetUserWithRole,
     } as unknown as AuthRepository;
 
-    service = new SourcingService(mockRepo, {} as never, mockAuditService, mockAuthRepository);
+    service = new SourcingService(
+      mockRepo,
+      {} as never,
+      mockAuditService,
+      mockAuthRepository,
+      {} as never
+    );
   });
 
   afterEach(() => vi.clearAllMocks());
@@ -785,7 +795,8 @@ describe('CRITICAL-2 regression: human-merge (mergeRawIntoCanonical) promotes co
       repoC2,
       {} as never,
       { append: mockAuditC2 } as unknown as AuditService,
-      { getUserWithRole: mockGetUserC2 } as unknown as AuthRepository
+      { getUserWithRole: mockGetUserC2 } as unknown as AuthRepository,
+      {} as never
     );
 
     await svcC2.resolveDedupeCandidateAsActor('cand-c2', { action: 'merge' }, 'st-user-c2');
@@ -844,7 +855,8 @@ describe('CRITICAL-3 regression: double-resolve blocked (concurrent resolve on a
       repoC3,
       {} as never,
       { append: mockAuditC3 } as unknown as AuditService,
-      { getUserWithRole: mockGetUserC3 } as unknown as AuthRepository
+      { getUserWithRole: mockGetUserC3 } as unknown as AuthRepository,
+      {} as never
     );
 
     // The second concurrent resolve sees status=merged → ConflictException.
@@ -899,7 +911,8 @@ describe('CRITICAL-3 regression: double-resolve blocked (concurrent resolve on a
       repoC3b,
       {} as never,
       { append: mockAuditC3b } as unknown as AuditService,
-      { getUserWithRole: mockGetUserC3b } as unknown as AuthRepository
+      { getUserWithRole: mockGetUserC3b } as unknown as AuthRepository,
+      {} as never
     );
 
     // The losing concurrent resolve → ConflictException from the conditional UPDATE.
@@ -959,11 +972,18 @@ describe('SourcingService.createConnectionAsActor — create + audit + actor tra
       runInTransaction: mockRunInTransaction,
     } as unknown as SourcingRepository;
 
+    // Provide a registry that recognises 'fixture' so providerKey validation passes
+    const mockRegistry = {
+      getAdapter: vi.fn().mockReturnValue({ providerKey: 'FIXTURE' }),
+      registeredKeys: vi.fn().mockReturnValue(['FIXTURE']),
+    };
+
     service = new SourcingService(
       mockRepo,
       {} as never,
       { append: mockAuditAppend } as unknown as AuditService,
-      { getUserWithRole: mockGetUserWithRole } as unknown as AuthRepository
+      { getUserWithRole: mockGetUserWithRole } as unknown as AuthRepository,
+      mockRegistry as never
     );
   });
 
@@ -1078,7 +1098,8 @@ describe('SourcingService.listConnections', () => {
       mockRepo,
       {} as never,
       {} as AuditService,
-      {} as AuthRepository
+      {} as AuthRepository,
+      {} as never
     );
 
     const result = await service.listConnections();
@@ -1098,7 +1119,8 @@ describe('SourcingService.listConnections', () => {
       mockRepo,
       {} as never,
       {} as AuditService,
-      {} as AuthRepository
+      {} as AuthRepository,
+      {} as never
     );
 
     const result = await service.listConnections();
@@ -1167,7 +1189,19 @@ describe('Wave-7: create then list — ≥2 connections visible', () => {
       getUserWithRole: vi.fn().mockResolvedValue({ id: 'app-user-multi', roleName: 'analyst' }),
     } as unknown as AuthRepository;
 
-    const service = new SourcingService(mockRepo, {} as never, mockAudit, mockAuth);
+    // Registry must recognise both 'fixture' and 'grata' for providerKey validation to pass
+    const mockRegistryMulti = {
+      getAdapter: vi.fn().mockReturnValue({ providerKey: 'FIXTURE' }),
+      registeredKeys: vi.fn().mockReturnValue(['FIXTURE', 'GRATA']),
+    };
+
+    const service = new SourcingService(
+      mockRepo,
+      {} as never,
+      mockAudit,
+      mockAuth,
+      mockRegistryMulti as never
+    );
 
     // Create first connection
     await service.createConnectionAsActor(
@@ -1187,6 +1221,337 @@ describe('Wave-7: create then list — ≥2 connections visible', () => {
     const providerKeys = listResult.connections.map((c) => c.providerKey);
     expect(providerKeys).toContain('fixture');
     expect(providerKeys).toContain('grata');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CRITICAL-1: SourcingService.listCompanies returns connectionIds per company
+// ---------------------------------------------------------------------------
+
+describe('CRITICAL-1: SourcingService.listCompanies returns connectionIds per company', () => {
+  /**
+   * Verifies that listCompanies maps connectionIds from the repository result
+   * into the response payload. The web ResultsMatrix reads connectionIds to
+   * render per-company source badges; without this field every badge shows '—'.
+   */
+
+  it('returns connectionIds populated for a company sourced from 1 connection', async () => {
+    const CONN_ID = 'conn-badge-1';
+    const rows = [
+      {
+        id: 'company-1',
+        name: 'Acme Corp',
+        domain: 'acme.com',
+        normalizedDomain: 'acme.com',
+        normalizedName: 'acme corp',
+        sector: null,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+        contactCount: 2,
+        sourceCount: 1,
+        connectionIds: [CONN_ID],
+      },
+    ];
+
+    const mockRepo = {
+      listCompanies: vi.fn().mockResolvedValue(rows),
+    } as unknown as SourcingRepository;
+
+    const service = new SourcingService(
+      mockRepo,
+      {} as never,
+      {} as AuditService,
+      {} as AuthRepository,
+      {
+        getAdapter: vi.fn().mockReturnValue(null),
+        registeredKeys: vi.fn().mockReturnValue([]),
+      } as never
+    );
+
+    const result = await service.listCompanies({});
+    expect(result.companies).toHaveLength(1);
+    const company = result.companies[0];
+    expect(company).toBeDefined();
+    expect(company!.connectionIds).toEqual([CONN_ID]);
+    expect(company!.connectionIds.length).toBe(1);
+  });
+
+  it('returns 2 connectionIds for a cross-source deduped company (≥2-source signal)', async () => {
+    const CONN_A = 'conn-source-a';
+    const CONN_B = 'conn-source-b';
+    const rows = [
+      {
+        id: 'company-deduped',
+        name: 'Acme Corp',
+        domain: 'acme.com',
+        normalizedDomain: 'acme.com',
+        normalizedName: 'acme corp',
+        sector: null,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+        contactCount: 3,
+        sourceCount: 2,
+        connectionIds: [CONN_A, CONN_B],
+      },
+    ];
+
+    const mockRepo = {
+      listCompanies: vi.fn().mockResolvedValue(rows),
+    } as unknown as SourcingRepository;
+
+    const service = new SourcingService(
+      mockRepo,
+      {} as never,
+      {} as AuditService,
+      {} as AuthRepository,
+      {
+        getAdapter: vi.fn().mockReturnValue(null),
+        registeredKeys: vi.fn().mockReturnValue([]),
+      } as never
+    );
+
+    const result = await service.listCompanies({});
+    expect(result.companies).toHaveLength(1);
+    const company = result.companies[0];
+    expect(company).toBeDefined();
+    // Cross-source deduped company must expose 2 connectionIds
+    expect(company!.connectionIds).toHaveLength(2);
+    expect(company!.connectionIds).toContain(CONN_A);
+    expect(company!.connectionIds).toContain(CONN_B);
+    // sourceCount should agree with the number of distinct connectionIds
+    expect(company!.sourceCount).toBe(company!.connectionIds.length);
+  });
+
+  it('returns empty connectionIds array for a company with no provenance (edge case)', async () => {
+    const rows = [
+      {
+        id: 'company-no-prov',
+        name: 'Ghost Corp',
+        domain: null,
+        normalizedDomain: null,
+        normalizedName: 'ghost corp',
+        sector: null,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+        contactCount: 0,
+        sourceCount: 0,
+        connectionIds: [],
+      },
+    ];
+
+    const mockRepo = {
+      listCompanies: vi.fn().mockResolvedValue(rows),
+    } as unknown as SourcingRepository;
+
+    const service = new SourcingService(
+      mockRepo,
+      {} as never,
+      {} as AuditService,
+      {} as AuthRepository,
+      {
+        getAdapter: vi.fn().mockReturnValue(null),
+        registeredKeys: vi.fn().mockReturnValue([]),
+      } as never
+    );
+
+    const result = await service.listCompanies({});
+    const company = result.companies[0];
+    expect(company).toBeDefined();
+    expect(company!.connectionIds).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CRITICAL-2: SourcingService.createConnectionAsActor validates providerKey
+// ---------------------------------------------------------------------------
+
+describe('CRITICAL-2: SourcingService.createConnectionAsActor validates providerKey against adapter registry', () => {
+  /**
+   * Verifies that createConnectionAsActor rejects an unknown providerKey with
+   * BadRequestException (400) BEFORE the INSERT, so no un-syncable row is
+   * persisted. Also verifies a known providerKey ('fixture') proceeds to 201.
+   * Verifies that syncConnection maps the IngestionService 'No adapter registered'
+   * error to BadRequestException (400) instead of leaking a plain 500.
+   */
+
+  const MOCK_ST_USER_ID = 'st-c2-user';
+  const MOCK_APP_USER_ID = 'app-c2-user';
+  const CREATED_CONN_ID = 'conn-c2-created';
+
+  function buildMockAdapterRegistry(knownKey: string | null) {
+    return {
+      getAdapter: vi
+        .fn()
+        .mockImplementation((key: string) =>
+          key.toUpperCase() === (knownKey?.toUpperCase() ?? '') ? { providerKey: knownKey } : null
+        ),
+      registeredKeys: vi.fn().mockReturnValue(knownKey ? [knownKey.toUpperCase()] : []),
+    };
+  }
+
+  function buildService(adapterRegistry: unknown, mockCreateConnection: unknown) {
+    const mockRepo = {
+      createConnection: mockCreateConnection,
+      runInTransaction: vi
+        .fn()
+        .mockImplementation(async (work: (tx: unknown) => unknown) => work({})),
+    } as unknown as SourcingRepository;
+
+    const mockAudit = { append: vi.fn().mockResolvedValue({}) } as unknown as AuditService;
+    const mockAuth = {
+      getUserWithRole: vi.fn().mockResolvedValue({ id: MOCK_APP_USER_ID, roleName: 'analyst' }),
+    } as unknown as AuthRepository;
+
+    return new SourcingService(
+      mockRepo,
+      {} as never,
+      mockAudit,
+      mockAuth,
+      adapterRegistry as never
+    );
+  }
+
+  afterEach(() => vi.clearAllMocks());
+
+  it('unknown providerKey → BadRequestException (400) before INSERT', async () => {
+    const mockCreateConnection = vi.fn();
+    const service = buildService(
+      buildMockAdapterRegistry('fixture'), // 'fixture' known; 'not-a-real-adapter' is not
+      mockCreateConnection
+    );
+
+    await expect(
+      service.createConnectionAsActor(
+        { providerKey: 'not-a-real-adapter', displayName: 'Bad Conn', config: {} },
+        MOCK_ST_USER_ID
+      )
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    // CRITICAL: INSERT must NOT have been called (the bad-key row must not be persisted)
+    expect(mockCreateConnection).not.toHaveBeenCalled();
+  });
+
+  it('known providerKey (fixture) → proceeds to 201 (createConnection called)', async () => {
+    const mockCreateConnection = vi.fn().mockResolvedValue({
+      id: CREATED_CONN_ID,
+      providerKey: 'FIXTURE',
+      displayName: 'Fixture',
+      enabled: true,
+      config: {},
+      createdBy: MOCK_APP_USER_ID,
+      createdAt: new Date().toISOString(),
+    });
+
+    const service = buildService(buildMockAdapterRegistry('FIXTURE'), mockCreateConnection);
+
+    const result = await service.createConnectionAsActor(
+      { providerKey: 'fixture', displayName: 'Fixture', config: {} },
+      MOCK_ST_USER_ID
+    );
+
+    expect(mockCreateConnection).toHaveBeenCalledTimes(1);
+    expect(result.id).toBe(CREATED_CONN_ID);
+  });
+
+  it('syncConnection: IngestionService "No adapter registered" error → BadRequestException (400), not 500', async () => {
+    // Simulates a connection that was persisted with a bad providerKey (e.g. before
+    // the CRITICAL-2 create-time validation was in place). When sync fires, the
+    // IngestionService throws 'No adapter registered for provider_key ...' — a plain
+    // Error that NestJS would turn into a 500. SourcingService must catch it and
+    // surface a 400 instead.
+    const mockRepo = {
+      findConnectionById: vi.fn().mockResolvedValue({
+        id: 'conn-bad-key',
+        providerKey: 'NOT-A-REAL-ADAPTER',
+        displayName: 'Bad Conn',
+        enabled: true,
+        config: {},
+        createdBy: null,
+        createdAt: new Date().toISOString(),
+      }),
+    } as unknown as SourcingRepository;
+
+    const mockIngestion = {
+      sync: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            'No adapter registered for provider_key "NOT-A-REAL-ADAPTER". Registered providers: FIXTURE'
+          )
+        ),
+    };
+
+    const service = new SourcingService(
+      mockRepo,
+      mockIngestion as never,
+      {} as AuditService,
+      {} as AuthRepository,
+      { getAdapter: vi.fn(), registeredKeys: vi.fn().mockReturnValue(['FIXTURE']) } as never
+    );
+
+    await expect(service.syncConnection('conn-bad-key')).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// INFO: duplicate display_name → 409 ConflictException
+// ---------------------------------------------------------------------------
+
+describe('INFO: duplicate display_name on createConnectionAsActor → 409 ConflictException', () => {
+  /**
+   * Verifies that when the repository's createConnection raises a ConflictException
+   * (mapped from SQLSTATE 23505 on the display_name UNIQUE constraint, migration 0005),
+   * SourcingService propagates it as 409 ConflictException to the caller.
+   */
+
+  it('2nd create with same display_name → ConflictException (409)', async () => {
+    const MOCK_ST_USER_ID = 'st-dup-user';
+    const MOCK_APP_USER_ID = 'app-dup-user';
+
+    // Simulate the repository throwing ConflictException on duplicate display_name
+    const mockCreateConnection = vi
+      .fn()
+      .mockRejectedValue(
+        new ConflictException('A connection with the display name "Fixture" already exists')
+      );
+
+    const mockRepo = {
+      createConnection: mockCreateConnection,
+      runInTransaction: vi
+        .fn()
+        .mockImplementation(async (work: (tx: unknown) => unknown) => work({})),
+    } as unknown as SourcingRepository;
+
+    const mockAudit = { append: vi.fn().mockResolvedValue({}) } as unknown as AuditService;
+    const mockAuth = {
+      getUserWithRole: vi.fn().mockResolvedValue({ id: MOCK_APP_USER_ID, roleName: 'analyst' }),
+    } as unknown as AuthRepository;
+
+    // Registry returns a valid adapter for 'FIXTURE' so providerKey validation passes
+    const mockRegistry = {
+      getAdapter: vi.fn().mockReturnValue({ providerKey: 'FIXTURE' }),
+      registeredKeys: vi.fn().mockReturnValue(['FIXTURE']),
+    };
+
+    const service = new SourcingService(
+      mockRepo,
+      {} as never,
+      mockAudit,
+      mockAuth,
+      mockRegistry as never
+    );
+
+    await expect(
+      service.createConnectionAsActor(
+        { providerKey: 'fixture', displayName: 'Fixture', config: {} },
+        MOCK_ST_USER_ID
+      )
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });
 

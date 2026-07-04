@@ -35,8 +35,10 @@ import type {
   SyncSummary,
 } from '@dealflow/shared';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -45,6 +47,9 @@ import {
 import { AuditService } from '../audit/audit.service';
 // biome-ignore lint/style/useImportType: NestJS DI needs the runtime value
 import { AuthRepository } from '../auth/auth.repository';
+import type { AdapterRegistry } from './adapters/adapter.registry';
+// biome-ignore lint/style/useImportType: NestJS DI needs the runtime value
+import { ADAPTER_REGISTRY } from './adapters/adapter.registry';
 // biome-ignore lint/style/useImportType: NestJS DI needs the runtime value
 import { IngestionService } from './ingestion.service';
 import type { Tx } from './sourcing.repository';
@@ -57,7 +62,8 @@ export class SourcingService {
     private readonly repository: SourcingRepository,
     private readonly ingestionService: IngestionService,
     private readonly auditService: AuditService,
-    private readonly authRepository: AuthRepository
+    private readonly authRepository: AuthRepository,
+    @Inject(ADAPTER_REGISTRY) private readonly adapterRegistry: AdapterRegistry
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -96,6 +102,18 @@ export class SourcingService {
 
     const appUserId = actor.id;
     const actorRole = actor.roleName;
+
+    // CRITICAL-2 fix (a): validate providerKey against the adapter registry BEFORE
+    // the INSERT. An unknown providerKey creates a row that can never sync (the
+    // first sync call hits IngestionService → 'No adapter registered' → 500). Reject
+    // it here with 400 BadRequestException so the CREATE looks successful IFF the
+    // connection will be syncable.
+    const adapter = this.adapterRegistry.getAdapter(input.providerKey);
+    if (!adapter) {
+      throw new BadRequestException(
+        `Unknown provider_key "${input.providerKey}". Registered providers: ${this.adapterRegistry.registeredKeys().join(', ') || 'none'}`
+      );
+    }
 
     return this.repository.runInTransaction(async (tx: Tx) => {
       // Insert the connection row.
@@ -170,14 +188,30 @@ export class SourcingService {
    *
    * Returns SyncSummary { ingested, updated } on success.
    * Throws NotFoundException (404) if connection unknown or disabled.
-   * Throws the IngestionService error for adapter-not-found (400).
+   * Throws BadRequestException (400) if the connection's provider_key has no
+   * registered adapter (CRITICAL-2 fix b: maps the plain Error from
+   * IngestionService to 400 instead of letting NestJS 500 it).
    */
   async syncConnection(connectionId: string): Promise<SyncSummary> {
     const connection = await this.repository.findConnectionById(connectionId);
     if (!connection?.enabled) {
       throw new NotFoundException(`Connection ${connectionId} not found or is disabled`);
     }
-    return this.ingestionService.sync(connectionId);
+    try {
+      return await this.ingestionService.sync(connectionId);
+    } catch (err: unknown) {
+      // CRITICAL-2 fix (b): IngestionService throws a plain Error (not a NestJS
+      // HttpException) when no adapter is registered for the connection's
+      // provider_key. Map it to BadRequestException (400) so the caller gets a
+      // clean "unknown provider" error instead of an opaque 500.
+      if (
+        err instanceof Error &&
+        err.message.startsWith('No adapter registered for provider_key')
+      ) {
+        throw new BadRequestException(err.message);
+      }
+      throw err;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -185,8 +219,13 @@ export class SourcingService {
   // ---------------------------------------------------------------------------
 
   /**
-   * listCompanies — returns canonical companies + augmented counts for the
-   * list screen. Applies CompaniesListFilter (q/source/status).
+   * listCompanies — returns canonical companies + augmented counts + connectionIds
+   * for the list screen. Applies CompaniesListFilter (q/source/status).
+   *
+   * CRITICAL-1 fix: connectionIds is now included in the mapped response so the
+   * web ResultsMatrix can render per-company source badges from real connection
+   * display_name values, instead of defaulting to [] and showing '—' for every
+   * Source column.
    */
   async listCompanies(filter: CompaniesListFilter) {
     const rows = await this.repository.listCompanies(filter);
@@ -203,6 +242,7 @@ export class SourcingService {
         updatedAt: row.updatedAt,
         contactCount: row.contactCount,
         sourceCount: row.sourceCount,
+        connectionIds: row.connectionIds,
       })),
     };
   }

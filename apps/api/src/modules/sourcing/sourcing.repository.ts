@@ -60,6 +60,11 @@ export class SourcingRepository {
    * createConnection — inserts a new data_source_connections row.
    * created_by is set to the app users.id (never the raw SuperTokens id).
    * Must be called within the caller's transaction (tx) for atomicity with audit.
+   *
+   * INFO fix: data_source_connections.display_name has a UNIQUE constraint
+   * (migration 0005). A duplicate display_name INSERT raises SQLSTATE 23505;
+   * we catch it here and surface it as ConflictException (409) so callers get
+   * a meaningful "a connection with that name exists" error instead of a 500.
    */
   async createConnection(
     tx: Tx,
@@ -70,15 +75,31 @@ export class SourcingRepository {
       createdBy: string;
     }
   ): Promise<ConnectionRow> {
-    const rows = await tx
-      .insert(dataSourceConnections)
-      .values({
-        providerKey: input.providerKey,
-        displayName: input.displayName,
-        config: input.config,
-        createdBy: input.createdBy,
-      })
-      .returning();
+    let rows: ConnectionRow[];
+    try {
+      rows = await tx
+        .insert(dataSourceConnections)
+        .values({
+          providerKey: input.providerKey,
+          displayName: input.displayName,
+          config: input.config,
+          createdBy: input.createdBy,
+        })
+        .returning();
+    } catch (err: unknown) {
+      // SQLSTATE 23505 = unique_violation — display_name UNIQUE constraint (migration 0005).
+      if (
+        typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as { code: unknown }).code === '23505'
+      ) {
+        throw new ConflictException(
+          `A connection with the display name "${input.displayName}" already exists`
+        );
+      }
+      throw err;
+    }
     const row = rows[0];
     if (!row) {
       throw new Error('SourcingRepository: INSERT data_source_connections returned no row');
@@ -132,12 +153,16 @@ export class SourcingRepository {
    * Each result row is augmented with:
    *   contactCount   → number of canonical contacts for this company
    *   sourceCount    → number of distinct connections that contributed provenance
+   *   connectionIds  → distinct data_source_connection ids that sourced this
+   *                    company (via company_provenance); used by the web
+   *                    ResultsMatrix to render per-company source badges.
    */
   async listCompanies(filter: CompaniesListFilter): Promise<
     Array<
       CompanyRow & {
         contactCount: number;
         sourceCount: number;
+        connectionIds: string[];
       }
     >
   > {
@@ -175,10 +200,10 @@ export class SourcingRepository {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     const companyRows = await this.db.select().from(companies).where(whereClause);
 
-    // Augment with contact count and source count
+    // Augment with contact count, source count, and connectionIds
     const result = await Promise.all(
       companyRows.map(async (company) => {
-        const [contactCountRow, sourceCountRow] = await Promise.all([
+        const [contactCountRow, sourceCountRow, connectionIdRows] = await Promise.all([
           this.db
             .select({ count: sql<number>`cast(count(*) as int)` })
             .from(contacts)
@@ -189,12 +214,19 @@ export class SourcingRepository {
             })
             .from(companyProvenance)
             .where(eq(companyProvenance.companyId, company.id)),
+          // CRITICAL-1 fix: return distinct connection ids that sourced this
+          // company so the web ResultsMatrix can render per-company source badges.
+          this.db
+            .selectDistinct({ connectionId: companyProvenance.connectionId })
+            .from(companyProvenance)
+            .where(eq(companyProvenance.companyId, company.id)),
         ]);
 
         return {
           ...company,
           contactCount: contactCountRow[0]?.count ?? 0,
           sourceCount: sourceCountRow[0]?.count ?? 0,
+          connectionIds: connectionIdRows.map((r) => r.connectionId),
         };
       })
     );

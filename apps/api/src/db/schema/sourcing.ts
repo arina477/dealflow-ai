@@ -108,7 +108,15 @@ export const dataSourceConnections = pgTable(
      */
     providerKey: text('provider_key').notNull(),
 
-    /** Human-readable label shown in the UI (e.g. 'Grata', 'Internal Fixture'). */
+    /**
+     * Human-readable label shown in the UI (e.g. 'Grata', 'Internal Fixture').
+     *
+     * INFO integrity fix (migration 0005): UNIQUE constraint on display_name
+     * prevents duplicate connector rows that inflate the ≥2-source signal.
+     * Without this, two connectors with the same display_name (and thus the same
+     * fixture universe) would count the same dataset twice as "2 sources".
+     * Repository.createConnection catches SQLSTATE 23505 → 409 ConflictException.
+     */
     displayName: text('display_name').notNull(),
 
     /** true = available for sync; false = skipped by ETL. */
@@ -133,6 +141,14 @@ export const dataSourceConnections = pgTable(
       columns: [table.createdBy],
       foreignColumns: [users.id],
     }).onDelete('set null'),
+
+    /**
+     * INFO integrity fix (migration 0005): UNIQUE on display_name.
+     * Prevents two connectors with the same human label from being created,
+     * which would inflate the ≥2-source signal (same dataset counted twice).
+     * The UNIQUE constraint is also emitted in migration 0005.
+     */
+    unique('data_source_connections_display_name_unique').on(table.displayName),
   ]
 );
 
