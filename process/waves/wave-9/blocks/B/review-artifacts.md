@@ -5,9 +5,9 @@
 | B-0 | stages/B-0-branch-and-schema.md | done | branch + 3 tasks + migration 0008 (journal when>0007 ✓; composite UNIQUE + down.sql) |
 | B-1 | stages/B-1-contracts.md | done | shared buyer-universe Zod (passthrough/strict) + rbac + NAV + audit actions |
 | B-2 | stages/B-2-backend.md | done | BuyerUniverseService one-txn+audit+actor-id+idempotent+M4/M5-boundary; 461 tests |
-| B-3 | stages/B-3-frontend.md | pending | /buyer-universe page (SSR-hydrate, mounts on mandate-detail D6 anchor) (nextjs-developer) |
-| B-4 | stages/B-4-wiring.md | pending | repo typecheck + build |
-| B-5 | stages/B-5-verify.md | pending | lint+unit+build |
+| B-3 | stages/B-3-frontend.md | done | /buyer-universe page (SSR-hydrate, /buyer-universe-data proxy, D6 link, no score/rank UI); 341 web tests (b3da6fc) |
+| B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS |
+| B-5 | stages/B-5-verify.md | done | lint 0-err, tests pass, build pass; runtime→C-2 |
 | B-6 | stages/B-6-review.md | pending | head-builder gate (polices M4/M5 boundary) + /review; multi-spec commit-per-spec |
 ## Block-specific context
 - **Spec:** seed 92a8ff3f (multi-spec, 3 blocks + P-4 karen/jenny notes). Branch wave-9-buyer-universe.

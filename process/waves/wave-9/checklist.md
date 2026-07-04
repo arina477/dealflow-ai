@@ -38,9 +38,9 @@ BUILD:
 - [x] B-0 Branch & schema — branch wave-9-buyer-universe; 3 tasks claimed; schema 0008 (backend-developer)
 - [x] B-1 Contracts
 - [x] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
-- [ ] B-5 Verify
+- [x] B-3 Frontend — /buyer-universe page (SSR-hydrate, /buyer-universe-data proxy, D6 link, no score/rank UI); 341 web tests (b3da6fc)
+- [x] B-4 Wiring — repo typecheck+build PASS; /buyer-universe compiles
+- [x] B-5 Verify — lint 0-err, tests pass, build pass; runtime→C-2
 - [ ] B-6 Review
 
 CI/CD:
