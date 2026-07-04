@@ -97,6 +97,25 @@ export const auditActionEnum = z.enum([
    * ready-to-rank for the M5 ranking step. Audited in-tx.
    */
   'buyer-universe-submit',
+  // --- Wave-10 match-run actions (additive; serialization order preserved) ---
+  /**
+   * A match_run was created and all candidates scored in a single atomic
+   * transaction. Includes UPSERT of match_run + INSERT of match_candidates.
+   * The pure deterministic scorer ran with NO LLM/AI calls.
+   * Audited LAST-IN-TXN (audit fail → whole tx rolls back).
+   */
+  'match-run-create',
+  /**
+   * A match_candidates row's disposition was updated (accepted/rejected/flagged)
+   * by an advisor or admin. Audited in-tx.
+   */
+  'match-disposition',
+  /**
+   * A match_run was handed off (ready_for_outreach → true), marking it
+   * ready for M6 outreach. Guard: ≥1 accepted candidate required.
+   * Audited in-tx.
+   */
+  'match-handoff',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;

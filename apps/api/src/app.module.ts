@@ -5,6 +5,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { BuyerUniverseModule } from './modules/buyer-universe/buyer-universe.module';
 import { ComplianceModule } from './modules/compliance/compliance.module';
 import { ComplianceGateModule } from './modules/compliance-gate/compliance-gate.module';
+import { MatchingModule } from './modules/matching/matching.module';
 import { MandateModule } from './modules/mandate/mandate.module';
 import { SourcingModule } from './modules/sourcing/sourcing.module';
 
@@ -17,6 +18,7 @@ import { SourcingModule } from './modules/sourcing/sourcing.module';
     ComplianceGateModule,
     BuyerUniverseModule,
     MandateModule,
+    MatchingModule,
     SourcingModule,
   ],
 })

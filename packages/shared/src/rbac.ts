@@ -144,6 +144,19 @@ const NAV_BUYER_UNIVERSE: NavItem = {
   allowedRoles: ['analyst', 'advisor', 'admin'],
 };
 
+// Wave-10: Matches nav item (advisor/admin create+mutate; analyst read-only).
+// advisor is the primary persona (runs scoring + reviews + hands off).
+// analyst can read results; cannot create or mutate.
+// nav⊆RBAC: NAV_MATCHES.allowedRoles references the same array as the
+// /matches route entry below.
+const NAV_MATCHES: NavItem = {
+  label: 'Matches',
+  route: '/matches',
+  icon: 'target',
+  group: 'workspace',
+  allowedRoles: ['advisor', 'admin', 'analyst'],
+};
+
 // ---------- Route entries (the canonical role → route matrix) ----------
 
 export const roleRoutes: ReadonlyArray<RouteEntry> = [
@@ -204,6 +217,38 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
   {
     pattern: '/pipeline',
     allowedRoles: ['advisor'],
+  },
+
+  // --- Matches group (wave-10) ---
+  // advisor/admin: create match runs + mutate (disposition, handoff).
+  // analyst: read-only (GET /matches, /matches/:id, /matches/:id/shortlist).
+  // nav⊆RBAC invariant holds: NAV_MATCHES.allowedRoles references the same
+  // set as the /matches route entry below (advisor, admin, analyst).
+  {
+    pattern: '/matches',
+    allowedRoles: ['advisor', 'admin', 'analyst'],
+    navItem: NAV_MATCHES,
+  },
+  {
+    // POST /matches (create match run) — advisor, admin only.
+    pattern: '/matches/new',
+    allowedRoles: ['advisor', 'admin'],
+  },
+  {
+    // GET /matches/:id — detail read (all three roles).
+    // POST /matches/:id/handoff — advisor, admin only (enforced in controller).
+    pattern: '/matches/:id',
+    allowedRoles: ['advisor', 'admin', 'analyst'],
+  },
+  {
+    // PATCH /matches/:id/candidates/:cid (disposition) — advisor, admin only.
+    pattern: '/matches/:id/candidates/:cid',
+    allowedRoles: ['advisor', 'admin'],
+  },
+  {
+    // GET /matches/:id/shortlist — read-only (all three roles).
+    pattern: '/matches/:id/shortlist',
+    allowedRoles: ['advisor', 'admin', 'analyst'],
   },
 
   // --- Buyer Universe group (wave-9) ---
@@ -482,6 +527,7 @@ export function navItemsForRole(role: Role): NavItem[] {
 export const ALL_NAV_ITEMS: ReadonlyArray<NavItem> = [
   NAV_DASHBOARD,
   NAV_MANDATES,
+  NAV_MATCHES,
   NAV_BUYER_UNIVERSE,
   NAV_SOURCING,
   NAV_COMPLIANCE,

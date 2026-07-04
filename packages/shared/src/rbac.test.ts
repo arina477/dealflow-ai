@@ -1183,3 +1183,131 @@ describe('wave-8 — /mandates RBAC (admin added for mandate API)', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Wave-10 additions — match spine (B-1, task 47ed7ddd)
+// advisor/admin create+mutate; analyst read-only; NAV_MATCHES added.
+// ---------------------------------------------------------------------------
+
+describe('wave-10 — /matches RBAC (advisor/admin create+mutate; analyst read)', () => {
+  it('rolesForRoute("/matches") → advisor + admin + analyst (list/read)', () => {
+    const roles = rolesForRoute('/matches');
+    expect([...roles].sort()).toEqual(['admin', 'advisor', 'analyst']);
+  });
+
+  it('rolesForRoute("/matches/new") → advisor + admin (create run)', () => {
+    const roles = rolesForRoute('/matches/new');
+    expect([...roles].sort()).toEqual(['admin', 'advisor']);
+  });
+
+  it('rolesForRoute("/matches/:id") → advisor + admin + analyst (detail read)', () => {
+    const roles = rolesForRoute('/matches/abc-123');
+    expect([...roles].sort()).toEqual(['admin', 'advisor', 'analyst']);
+  });
+
+  it('rolesForRoute("/matches/:id/candidates/:cid") → advisor + admin (disposition)', () => {
+    const roles = rolesForRoute('/matches/abc-123/candidates/cid-456');
+    expect([...roles].sort()).toEqual(['admin', 'advisor']);
+  });
+
+  it('rolesForRoute("/matches/:id/shortlist") → advisor + admin + analyst (read)', () => {
+    const roles = rolesForRoute('/matches/abc-123/shortlist');
+    expect([...roles].sort()).toEqual(['admin', 'advisor', 'analyst']);
+  });
+
+  it('advisor can access all /matches routes', () => {
+    expect(canAccess('advisor', '/matches')).toBe(true);
+    expect(canAccess('advisor', '/matches/abc-123')).toBe(true);
+    expect(canAccess('advisor', '/matches/new')).toBe(true);
+    expect(canAccess('advisor', '/matches/abc-123/candidates/cid-456')).toBe(true);
+    expect(canAccess('advisor', '/matches/abc-123/shortlist')).toBe(true);
+  });
+
+  it('admin can access all /matches routes', () => {
+    expect(canAccess('admin', '/matches')).toBe(true);
+    expect(canAccess('admin', '/matches/abc-123')).toBe(true);
+    expect(canAccess('admin', '/matches/new')).toBe(true);
+    expect(canAccess('admin', '/matches/abc-123/candidates/cid-456')).toBe(true);
+  });
+
+  it('analyst can read /matches but cannot create or mutate dispositions', () => {
+    expect(canAccess('analyst', '/matches')).toBe(true);
+    expect(canAccess('analyst', '/matches/abc-123')).toBe(true);
+    expect(canAccess('analyst', '/matches/abc-123/shortlist')).toBe(true);
+    // analyst cannot create or patch disposition
+    expect(canAccess('analyst', '/matches/new')).toBe(false);
+    expect(canAccess('analyst', '/matches/abc-123/candidates/cid-456')).toBe(false);
+  });
+
+  it('compliance cannot access /matches at all', () => {
+    expect(canAccess('compliance', '/matches')).toBe(false);
+    expect(canAccess('compliance', '/matches/abc-123')).toBe(false);
+    expect(canAccess('compliance', '/matches/new')).toBe(false);
+  });
+
+  it('advisor sees Matches in their nav', () => {
+    const items = navItemsForRole('advisor');
+    expect(items.some((i) => i.route === '/matches')).toBe(true);
+  });
+
+  it('admin sees Matches in their nav', () => {
+    const items = navItemsForRole('admin');
+    expect(items.some((i) => i.route === '/matches')).toBe(true);
+  });
+
+  it('analyst sees Matches in their nav', () => {
+    const items = navItemsForRole('analyst');
+    expect(items.some((i) => i.route === '/matches')).toBe(true);
+  });
+
+  it('compliance does NOT see Matches in their nav', () => {
+    const items = navItemsForRole('compliance');
+    expect(items.some((i) => i.route === '/matches')).toBe(false);
+  });
+
+  it('NAV_MATCHES has correct icon, label, and group', () => {
+    const entry = roleRoutes.find((e) => e.pattern === '/matches');
+    expect(entry?.navItem).toBeDefined();
+    expect(entry?.navItem?.label).toBe('Matches');
+    expect(entry?.navItem?.icon).toBe('target');
+    expect(entry?.navItem?.group).toBe('workspace');
+  });
+
+  it('NAV_MATCHES is in ALL_NAV_ITEMS', () => {
+    expect(ALL_NAV_ITEMS.some((i) => i.route === '/matches')).toBe(true);
+  });
+
+  it('/matches sub-routes have no navItem (API-only endpoints)', () => {
+    const subPatterns = [
+      '/matches/new',
+      '/matches/:id',
+      '/matches/:id/candidates/:cid',
+      '/matches/:id/shortlist',
+    ];
+    for (const pattern of subPatterns) {
+      const entry = roleRoutes.find((e) => e.pattern === pattern);
+      expect(entry).toBeDefined();
+      expect(entry?.navItem).toBeUndefined();
+    }
+  });
+
+  it('nav⊆RBAC invariant holds for all roles after wave-10 addition', () => {
+    for (const role of ALL_ROLES) {
+      const items = navItemsForRole(role);
+      for (const item of items) {
+        expect(canAccess(role, item.route)).toBe(true);
+      }
+    }
+  });
+
+  it('no nav item appears for a role denied at the route level (exhaustive post-wave-10)', () => {
+    for (const navItem of ALL_NAV_ITEMS) {
+      const deniedRoles = ALL_ROLES.filter((r) => !(navItem.allowedRoles as Role[]).includes(r));
+      for (const deniedRole of deniedRoles) {
+        const items = navItemsForRole(deniedRole);
+        const isShown = items.some((i) => i.route === navItem.route);
+        expect(isShown).toBe(false);
+      }
+    }
+  });
+});

@@ -149,6 +149,30 @@ export {
   mandateSchema,
   mandateStatusEnum,
 } from './mandate';
+export type {
+  DispositionInput,
+  HandoffInput,
+  MatchCandidate,
+  MatchCandidateDisposition,
+  MatchListFilter,
+  MatchRankedList,
+  MatchRun,
+  MatchRunCreateInput,
+  MatchRunStatus,
+  Shortlist,
+} from './matching';
+export {
+  dispositionInputSchema,
+  handoffInputSchema,
+  matchCandidateDispositionEnum,
+  matchCandidateSchema,
+  matchListFilterSchema,
+  matchRankedListSchema,
+  matchRunCreateInputSchema,
+  matchRunSchema,
+  matchRunStatusEnum,
+  shortlistSchema,
+} from './matching';
 export type { NavGroup, NavItem, RouteEntry } from './rbac';
 export {
   ALL_NAV_ITEMS,
