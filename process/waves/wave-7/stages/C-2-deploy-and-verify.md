@@ -726,3 +726,109 @@ head_signoff:
     Iron Law this hard-stops the C-2 exit and returns to Build/fast-fix.
   next_action: REWORK_B-block  # fix [id]/page.tsx Server→Client function-prop violation (make onCandidateResolved optional + omit, or wrap in a client shell); add an SSR route-render test for /sourcing/companies/:id so a Server→Client function-prop regression can't ship green; then re-run C-2. connectionIds fix itself is proven — do not touch companySchema.
 ```
+
+---
+
+## V-3 detail-fnprop re-verify (798fae1) — FINAL
+
+**verdict: FAIL (REJECTED)** — head-ci-cd. The Server→Client function-prop fix at `798fae1` **DID land** — the detail route no longer returns HTTP 500 (it now returns 200 at the transport layer), and the previously-proven surfaces (workspace `/sourcing`, deep-list `/sourcing/companies`, `/compliance/settings`) all still render real data in the live headless-chromium DOM. **BUT** the task's core proof #2 — `/sourcing/companies/:id` (DETAIL) must **render the company detail** (contacts/provenance tabs) — **FAILS live**: the page loads HTTP 200 but the client `CompanyDetail` component renders a hard **"Network error — please try again"** state and never fetches the company. This is a 5th masked sibling defect of exactly the empty-despite-data / broken-render class this chain exists to kill, uncovered *because* the 500 fix cleared the crash that was masking it. Returned to Build/fast-fix.
+
+### Deploy — 798fae1 live on both services (NOT stale, NOT SKIPPED)
+
+- Token: `RAILWAY_TOKEN` sourced from `APP_RAILWAY_TOKEN` (present, 36 chars, project-scoped). `projectToken` query → project `ce095f75-1f3d-4af9-939e-fe8532541475`, env `0e84f0b6-1b1d-469f-91b9-caf4e59c9ba8`. Deploy-scoped probe returned `data.project` with no `errors` → credential usable.
+- `variableUpsert GIT_SHA=798fae1` on **dealflow-api** (`dcdb4ab4…`) + **dealflow-web** (`06b07f19…`) → `variableUpsert:true` each (non-destructive upsert; existing vars untouched).
+- **Explicit deterministic redeploy** via `serviceInstanceDeploy(environmentId, serviceId)` on both services → `true` each (did NOT rely on Railway "Wait for CI" — bypasses the phantom-skip failure mode).
+- New deployments captured + polled to terminal:
+  - api deployment `2d114947` — meta.commitHash `798fae1` — polled BUILDING → DEPLOYING → **SUCCESS**.
+  - web deployment `c786da28` — meta.commitHash `798fae1` — polled BUILDING → **SUCCESS**.
+  - Bounded MONITOR: `success_condition` = both `status==SUCCESS`; `failure_condition` = `status IN (FAILED,CRASHED,REMOVED,SKIPPED)`; `timeout_budget=900s`; `poll_delay=45s`. Reached BOTH_SUCCESS in ~2 min. Neither SKIPPED. Immutable fresh-artifact deploy (new container per service).
+- **Armed rollback (captured before mutation, unused):** api `d0bec3d9` (2ae3e06) / web `2298ce0a` (2ae3e06) — the prior known-good SUCCESS deployments. Not triggered: deploy boots clean, `/health` green, api healthy, no data-loss regression, no crash — the defect is an isolated web-route render bug, not an infra failure warranting rollback.
+
+### /health — own-domain, exact deployed hash
+
+- `GET https://dealflow-api-production-66d4.up.railway.app/health` → **200** `{"status":"ok","db":"ok","version":"798fae1"}`. Version matches the deployed hash exactly (no stale-routing mirage); db connected; no crash-loop. Probed the api service's own domain, not a global alias.
+- Fix present in shipped source: `apps/web/app/(app)/sourcing/companies/[id]/page.tsx` (server component) now passes ONLY serializable props to `<CompanyDetail>` — `companyId`, `companyName`, and conditionally `companyDomain` (lines 90–94). The illegal `onCandidateResolved` function prop is **gone**; `onCandidateResolved` is now optional on `CompanyDetailProps`. HEAD == `798fae1`. The 500 root cause (RSC serializer rejecting an event-handler prop) is fixed and PROVEN by the 200 status.
+
+### The 4-surface DOM proof (real headless chromium-1208, live `document.body.innerText`, HttpOnly cookies via `context.addCookies()`)
+
+Seed: analyst minted web-origin (`/auth/invite {role:analyst}` → 201 token; `/auth/signup {inviteToken,password}` → 201; `/auth/me` → 200 role:analyst). Fixture connection `Vlast-<uniq>` (`68c453ae…`) → **201**; sync → **201 `{"ingested":5,"updated":0}`** → 4 canonical companies. Detail id used: `0095627e-92ec-4e7d-9a0a-659099c263ff` = "Acme Technologies Inc." (also cross-checked `712ef254…` = "Bright Horizon Ventures LLC").
+
+| Surface | Method | HTTP (document) | emptyState | Company names in live DOM | Verdict |
+|---|---|---|---|---|---|
+| `/sourcing` (workspace) | real-DOM | 200 | false | Acme Technologies Inc., Bright Horizon Ventures LLC, Delta Systems Corp, Epsilon Analytics | **PASS** |
+| `/sourcing/companies` (deep list) | real-DOM | 200 | false | all 4 ("4 records", contact/source counts); zero "No companies yet" markers | **PASS** |
+| `/sourcing/companies/:id` (DETAIL — THE fix proof) | real-DOM | **200** (500 is fixed) | n/a (error state) | **NONE** — renders "Network error — please try again" + dead "Try again" button | **FAIL** |
+| `/compliance/settings` | real-DOM | 200 | n/a | "Compliance Rules Engine", Rules/Disclaimer/Suppression UI, "3 rules", Add Rule | **PASS** |
+
+- In-memory filter: typing "Acme" into the `/sourcing` filter fired **0** page-route data-fetches; DOM narrowed to just Acme. **PASS.**
+- RBAC: analyst → `/compliance/settings` redirected off (307 at HTTP; landed on `/` in-browser). Compliance user (invite→signup role:compliance → 201) renders the settings page. **PASS.**
+
+### Detail-page "Network error" — root-caused with certainty (5th masked sibling defect; NOT the 500, NOT the api, NOT a harness artifact)
+
+- **Transport:** the 500 is genuinely gone — `/sourcing/companies/:id` document request returns **200**. The function-prop fix landed.
+- **Render:** the client `CompanyDetail` component (`_components/CompanyDetail.tsx`, `'use client'`) fetches detail via `apiFetch('/sourcing/companies/:id')` in a `useEffect`; on fetch throw it sets `setError('Network error — please try again')` (line 636). The agent observed exactly this branch — the fetch **throws**, no successful request.
+- **Mechanism (proven against deployed state):** `apiFetch` issues a **same-origin** GET to the WEB origin (`/sourcing/companies/<id>`), relying on Next.js `afterFiles` rewrites to proxy it to the API. But **there is NO `/sourcing/companies/:id` rewrite rule** in `apps/web/next.config.ts` `afterFiles` (only `/sourcing/connections[/:id[/sync]]` and `/sourcing/dedupe-candidates/:id/resolve` exist). Because `afterFiles` runs *after* page resolution and the `[id]/page.tsx` page EXISTS, the same-origin client GET is served the **Next.js HTML page**, never the API JSON. `res.json()`/`safeParse` on HTML throws → caught → "Network error". The config's own comment admits the ambiguity ("Client JSON fetch → Next.js [id] page OR API … the [id] page returns HTML").
+- **Empirical confirmation:** `curl -H "Accept: application/json" https://dealflow-web-production-a4f7.up.railway.app/sourcing/companies/<id>` → `content-type: text/html`, body `<!DOCTYPE html>…#__next_error__…` (unauth 307→/login; authed serves the `[id]` page HTML). Never `application/json`. The client can never get JSON from this path.
+- **Isolation proving web-only, not api:** API-direct `GET /sourcing/companies/:id` (analyst cookie jar) → **200** valid JSON (route healthy). RBAC resolves analyst with no throw. The only broken link is the missing rewrite / same-origin HTML collision on the client detail fetch.
+- **Why prior rounds & HTML-substring checks missed it:** server-rendered HTML for this route contains "Acme Technologies" and no "Network error" — a substring check PASSES. The client then hydrates and overwrites the server output with the error state. Only a post-hydration live-DOM assertion catches it. And before `798fae1`, the route 500'd first, masking this entirely.
+- **Triage tag:** `nextjs` (App Router rewrite / same-origin page-vs-API collision on `/sourcing/companies/:id`). **Fix options:** (a) point `CompanyDetail`'s detail fetch at the API origin directly (env `NEXT_PUBLIC_API_URL`) instead of the same-origin path, OR (b) give the client a distinct data path that has an `afterFiles` rewrite and does not collide with the `[id]` page (e.g. `/api/sourcing/companies/:id`), OR (c) hydrate the detail from the server component (pass the already-fetched detail JSON as a serializable prop — the server `[id]/page.tsx` already fetches `fetchCompanyBasic`; extend it to fetch full detail and pass it down, eliminating the client fetch entirely). **Add a post-hydration route-render test** for `/sourcing/companies/:id` that asserts the company heading + tabs render (not the error state), feeding the real deployed rewrite topology, so this class can't ship green again.
+
+### Regression
+
+| Check | Result | Verdict |
+|---|---|---|
+| connection create | **201** | PASS |
+| connection create dup | **409** | PASS |
+| connection create bad providerKey | **400** | PASS |
+| login (`/auth/me`) | **200** role:analyst | PASS |
+| `/health` | **200** version `798fae1`, db ok, no crash | PASS |
+| API-direct `GET /sourcing/companies/:id` | **200** valid JSON | PASS |
+| **WEB `/sourcing/companies/:id` detail renders a company** | **200 document, but DOM renders "Network error" — detail NOT rendered** | **FAIL** |
+
+### No fabricated green
+
+Every verdict is traced to a live deployed-state artifact: Railway GraphQL deployment `status` + `meta.commitHash`, `/health` body, real headless-chromium-1208 post-hydration `innerText` DOM assertions, live API JSON, captured document-response HTTP statuses/content-types, and the deployed `next.config.ts` rewrite topology. The 500 fix is genuinely proven (200 status). The detail render failure is genuinely reproduced (two ids) and mechanistically root-caused (missing rewrite → same-origin HTML collision), explicitly ruled NOT a harness artifact by the `curl content-type: text/html` proof against the deployed web origin. Approving on a green transport status while the required DETAIL surface renders an error state with data present would be a fabricated green; per the Iron Law this hard-stops the C-2 exit and returns to Build/fast-fix.
+
+### Cleanup
+
+- Temp fixture connections (`68c453ae…` `Vlast-<uniq>`, `62accaa3…` `Reg-<uniq>`) retained — no DELETE endpoint (404; ingestion sources are audit-referenced by design). Bad-providerKey attempt rejected 400, not persisted.
+- Test analyst + compliance users retained — append-only `audit_log_entries` immutability trigger blocks deleting an actor referenced by the hash chain (compliance control working as designed, per prior C-2 rounds).
+- Cookie jars, header dumps, cookie-JSON (session tokens), and all `/tmp/dealflow-*` temp files `shred`/removed.
+
+```yaml
+head_signoff:
+  verdict: REJECTED
+  stage: C-2
+  reviewers: {}
+  failed_checks:
+    - "core-proof#2: /sourcing/companies/:id (DETAIL) must render the company detail (contacts/provenance tabs) — FAILS live. Document returns HTTP 200 (function-prop 500 IS fixed), but client CompanyDetail renders 'Network error — please try again' and never fetches. Root cause: NO /sourcing/companies/:id rewrite in apps/web/next.config.ts afterFiles → same-origin apiFetch('/sourcing/companies/:id') is served the Next.js [id] page HTML (proven: curl → content-type text/html, #__next_error__), res.json parse throws → error branch. Web-only; API-direct GET /sourcing/companies/:id → 200 valid JSON. 5th masked sibling of the empty/broken-render chain, uncovered by the 500 fix."
+  rationale: >
+    The Server→Client function-prop fix at 798fae1 is CORRECT and PROVEN to have landed: both
+    services are live on 798fae1 (api + web, meta.commitHash 798fae1, neither SKIPPED),
+    /health == 798fae1 on the api own-domain (db ok, no crash), and the DETAIL route no longer
+    returns HTTP 500 — it now returns 200 at the transport layer, with the illegal
+    onCandidateResolved function prop removed from [id]/page.tsx and made optional on
+    CompanyDetailProps in shipped source. Three of the four surfaces render real data in the live
+    headless-chromium-1208 DOM: workspace /sourcing (4 rows, emptyState false, in-memory filter
+    confirmed), deep-list /sourcing/companies (all 4 names, zero empty-state markers), and
+    /compliance/settings (rules UI + RBAC). HOWEVER the task's core proof #2 — the
+    /sourcing/companies/:id DETAIL page must RENDER the company detail — FAILS live: HTTP 200 masks
+    a client component that renders a hard 'Network error — please try again' state and never
+    fetches. Root-caused with certainty against deployed state: there is NO /sourcing/companies/:id
+    rewrite in next.config.ts afterFiles, so the client's same-origin apiFetch('/sourcing/companies/:id')
+    is served the Next.js [id] page HTML instead of API JSON (proven empirically — curl returns
+    content-type text/html, #__next_error__, never application/json), the JSON parse throws, and the
+    catch sets the error state. This is web-only (API-direct GET /sourcing/companies/:id → 200 valid
+    JSON, route healthy), NOT the 500 and NOT a harness artifact, and is exactly the masked-render
+    sibling class this chain exists to kill — surfaced now precisely because 798fae1 cleared the 500
+    that was hiding it. The Iron Law is explicit: any DETAIL surface that 500s OR renders
+    empty-with-data → FAIL + RETURN with the specific DOM/error evidence. Approving on a green
+    transport status while the required DETAIL surface renders an error with data present would be a
+    fabricated green. No fabricated green: every check traces to a live artifact — Railway GraphQL
+    status + commitHash, /health body, headless post-hydration DOM assertion, live API JSON, and the
+    deployed rewrite topology + content-type proof. Deploy 798fae1 left in place (boots clean, /health
+    green, 3 of 4 surfaces render, no api crash, no data-loss regression); DB left clean; rollback
+    armed (api d0bec3d9 / web 2298ce0a, both 2ae3e06) but unused — the defect is an isolated web SSR/
+    client-fetch route bug, not an infra failure warranting rollback.
+  next_action: REWORK_B-block  # DETAIL client fetch must reach the API JSON, not the same-origin [id] page HTML. Fix one of: (a) CompanyDetail fetches the API origin directly (NEXT_PUBLIC_API_URL) for detail; (b) add a non-colliding data path (e.g. /api/sourcing/companies/:id) WITH an afterFiles rewrite; or (c) hydrate detail from the server component ([id]/page.tsx already fetches basic — extend to full detail + pass serializable JSON down, dropping the client fetch). Add a POST-HYDRATION route-render test for /sourcing/companies/:id asserting the company heading + contacts/provenance tabs render (not the error state), exercising the real deployed rewrite topology, so this same-origin-collision class can't ship green again. Do NOT touch the 798fae1 function-prop fix or companySchema — both are proven. Then re-run C-2.
+```
