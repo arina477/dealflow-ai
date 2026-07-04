@@ -363,10 +363,10 @@ describe('A. MandatesPage (/mandates)', () => {
   });
 
   describe('empty state', () => {
-    it('renders "Create your first mandate" when list is empty', async () => {
+    it('renders empty-state heading when list is empty (advisor)', async () => {
       vi.stubGlobal('fetch', makeListPageFetch('advisor', []));
       await renderListPage();
-      expect(screen.getByText(/create your first mandate/i)).toBeDefined();
+      expect(screen.getByText(/no mandates yet/i)).toBeDefined();
     });
 
     it('does not crash on empty list (no throw)', async () => {
@@ -378,7 +378,7 @@ describe('A. MandatesPage (/mandates)', () => {
 
   describe('error state', () => {
     it('renders error alert when API returns error (initialMandates=null)', () => {
-      render(<MandateListClient initialMandates={null} />);
+      render(<MandateListClient initialMandates={null} userRole="advisor" />);
       expect(screen.getByRole('alert')).toBeDefined();
       expect(screen.getByText(/unable to load mandates/i)).toBeDefined();
     });
@@ -393,7 +393,7 @@ describe('A. MandatesPage (/mandates)', () => {
     });
 
     it('renders date string from PG-wire timestamp (not raw timestamp)', () => {
-      render(<MandateListClient initialMandates={[MANDATE_PG_WIRE]} />);
+      render(<MandateListClient initialMandates={[MANDATE_PG_WIRE]} userRole="advisor" />);
       expect(screen.getByText('PgWire Corp')).toBeDefined();
       // The date should be formatted (not raw PG-wire string)
       // We check that the raw wire string is NOT rendered as-is
@@ -449,14 +449,18 @@ describe('A3. MandateListClient — in-memory status filter', () => {
   });
 
   it('shows all mandates when filter=all', () => {
-    render(<MandateListClient initialMandates={[MANDATE_DRAFT, MANDATE_ACTIVE]} />);
+    render(
+      <MandateListClient initialMandates={[MANDATE_DRAFT, MANDATE_ACTIVE]} userRole="advisor" />
+    );
     expect(screen.getByText('Apex Analytics Inc.')).toBeDefined();
     expect(screen.getByText('Delta Systems Corp.')).toBeDefined();
   });
 
   it('filters to only draft mandates when "Draft" is clicked', async () => {
     const user = userEvent.setup();
-    render(<MandateListClient initialMandates={[MANDATE_DRAFT, MANDATE_ACTIVE]} />);
+    render(
+      <MandateListClient initialMandates={[MANDATE_DRAFT, MANDATE_ACTIVE]} userRole="advisor" />
+    );
     await user.click(screen.getByRole('radio', { name: 'Draft' }));
     await waitFor(() => {
       expect(screen.getByText('Apex Analytics Inc.')).toBeDefined();
@@ -466,7 +470,9 @@ describe('A3. MandateListClient — in-memory status filter', () => {
 
   it('filters to only active mandates when "Active" is clicked', async () => {
     const user = userEvent.setup();
-    render(<MandateListClient initialMandates={[MANDATE_DRAFT, MANDATE_ACTIVE]} />);
+    render(
+      <MandateListClient initialMandates={[MANDATE_DRAFT, MANDATE_ACTIVE]} userRole="advisor" />
+    );
     await user.click(screen.getByRole('radio', { name: 'Active' }));
     await waitFor(() => {
       expect(screen.queryByText('Apex Analytics Inc.')).toBeNull();
@@ -476,7 +482,9 @@ describe('A3. MandateListClient — in-memory status filter', () => {
 
   it('restores all mandates when "All" is clicked after filtering', async () => {
     const user = userEvent.setup();
-    render(<MandateListClient initialMandates={[MANDATE_DRAFT, MANDATE_ACTIVE]} />);
+    render(
+      <MandateListClient initialMandates={[MANDATE_DRAFT, MANDATE_ACTIVE]} userRole="advisor" />
+    );
 
     await user.click(screen.getByRole('radio', { name: 'Draft' }));
     await waitFor(() => {
@@ -494,10 +502,212 @@ describe('A3. MandateListClient — in-memory status filter', () => {
     vi.stubGlobal('fetch', fetchSpy);
 
     const user = userEvent.setup();
-    render(<MandateListClient initialMandates={[MANDATE_DRAFT, MANDATE_ACTIVE]} />);
+    render(
+      <MandateListClient initialMandates={[MANDATE_DRAFT, MANDATE_ACTIVE]} userRole="advisor" />
+    );
     await user.click(screen.getByRole('radio', { name: 'Draft' }));
 
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ── A4. W8-3 — "New mandate" button RBAC-UX consistency ───────────────────
+//
+// advisor + admin → button visible; analyst → button hidden (W8-3).
+// Gated by rolesForRoute('/mandates/new') from the shared RBAC map.
+
+describe('A4. MandateListClient — W8-3 "New mandate" button RBAC-UX', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows "New mandate" header button for advisor (write role)', () => {
+    render(<MandateListClient initialMandates={[MANDATE_DRAFT]} userRole="advisor" />);
+    expect(screen.getByRole('button', { name: /create a new mandate/i })).toBeDefined();
+  });
+
+  it('shows "New mandate" header button for admin (write role)', () => {
+    render(<MandateListClient initialMandates={[MANDATE_DRAFT]} userRole="admin" />);
+    expect(screen.getByRole('button', { name: /create a new mandate/i })).toBeDefined();
+  });
+
+  it('hides "New mandate" header button for analyst (read-only role)', () => {
+    render(<MandateListClient initialMandates={[MANDATE_DRAFT]} userRole="analyst" />);
+    expect(screen.queryByRole('button', { name: /create a new mandate/i })).toBeNull();
+  });
+
+  it('hides "New mandate" header button for compliance (read-only role)', () => {
+    // compliance cannot access /mandates at all (server-gated), but defensive check:
+    render(<MandateListClient initialMandates={[MANDATE_DRAFT]} userRole="compliance" />);
+    expect(screen.queryByRole('button', { name: /create a new mandate/i })).toBeNull();
+  });
+
+  it('shows empty-state "New mandate" button for advisor (write role)', () => {
+    render(<MandateListClient initialMandates={[]} userRole="advisor" />);
+    // The empty-state "New mandate" button (no aria-label; match by text)
+    expect(screen.getByRole('button', { name: /^new mandate$/i })).toBeDefined();
+  });
+
+  it('hides empty-state "New mandate" button for analyst (read-only role)', () => {
+    render(<MandateListClient initialMandates={[]} userRole="analyst" />);
+    // No create button in the empty state — analyst is read-only
+    expect(screen.queryByRole('button', { name: /^new mandate$/i })).toBeNull();
+  });
+});
+
+// ── A5. W8-2 — MandateForm 3-ack client validation reliability ────────────
+//
+// Confirms the submit handler reads live ack state from the current form
+// snapshot (not a stale closure). Unchecking any ack → blocked; all 3 → allowed.
+
+describe('A5. MandateForm — W8-2 reliable 3-ack client validation', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('blocks submit and shows error when ack-1 (lawful_authorization) is unchecked', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn());
+
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
+
+    // Fill required fields
+    await user.type(screen.getByLabelText(/company name/i), 'Test Corp');
+    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'US');
+
+    // Check only ack-2 and ack-3; leave ack-1 unchecked
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes.length).toBeGreaterThanOrEqual(3);
+    const [, cb1, cb2] = checkboxes as [HTMLElement, HTMLElement, HTMLElement];
+    // cb0 = ack-1 (lawful_authorization) — left unchecked
+    if (!(cb1 as HTMLInputElement).checked) await user.click(cb1);
+    if (!(cb2 as HTMLInputElement).checked) await user.click(cb2);
+
+    await user.click(screen.getByRole('button', { name: /create mandate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeDefined();
+      // Error message appears in the alert list — match inside the role="alert" element
+      expect(screen.getAllByText(/lawfully authorized by the seller/i).length).toBeGreaterThan(0);
+    });
+    // No POST fired
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('blocks submit and shows error when ack-2 (ai_results_validated) is unchecked', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn());
+
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
+
+    await user.type(screen.getByLabelText(/company name/i), 'Test Corp');
+    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'US');
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    const [cb0, , cb2b] = checkboxes as [HTMLElement, HTMLElement, HTMLElement];
+    // Check ack-1 and ack-3; leave ack-2 (index 1) unchecked
+    if (!(cb0 as HTMLInputElement).checked) await user.click(cb0);
+    // cb1 = ack-2 (ai_results_validated) — left unchecked
+    if (!(cb2b as HTMLInputElement).checked) await user.click(cb2b);
+
+    await user.click(screen.getByRole('button', { name: /create mandate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeDefined();
+      expect(screen.getAllByText(/AI results.*validated/i).length).toBeGreaterThan(0);
+    });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('blocks submit and shows error when ack-3 (conflict_dbs_reviewed) is unchecked', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn());
+
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
+
+    await user.type(screen.getByLabelText(/company name/i), 'Test Corp');
+    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'US');
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    const [cb0c, cb1c] = checkboxes as [HTMLElement, HTMLElement, HTMLElement];
+    // Check ack-1 and ack-2; leave ack-3 (index 2) unchecked
+    if (!(cb0c as HTMLInputElement).checked) await user.click(cb0c);
+    if (!(cb1c as HTMLInputElement).checked) await user.click(cb1c);
+    // cb2c = ack-3 (conflict_dbs_reviewed) — left unchecked
+
+    await user.click(screen.getByRole('button', { name: /create mandate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeDefined();
+      expect(screen.getAllByText(/conflict databases.*reviewed/i).length).toBeGreaterThan(0);
+    });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('allows submit (POSTs) when all 3 acks are checked', async () => {
+    const user = userEvent.setup();
+    // Mock a 201 so the form proceeds past the ack gate
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: () => Promise.resolve(MANDATE_DRAFT),
+    } as Response);
+    vi.stubGlobal('fetch', mockFetch);
+
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
+
+    await user.type(screen.getByLabelText(/company name/i), 'Test Corp');
+    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'US');
+
+    // Check all 3 acks
+    const checkboxes = screen.getAllByRole('checkbox');
+    for (const cb of checkboxes) {
+      if (!(cb as HTMLInputElement).checked) await user.click(cb);
+    }
+
+    await user.click(screen.getByRole('button', { name: /create mandate/i }));
+
+    // POST must fire when all 3 acks are checked
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/mandates-data',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+    // No ack-related error alert shown
+    expect(screen.queryByText(/All three compliance acknowledgments are required/i)).toBeNull();
+  });
+
+  it('blocks submit immediately after unchecking a previously-checked ack (live state)', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn());
+
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
+
+    await user.type(screen.getByLabelText(/company name/i), 'Test Corp');
+    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'US');
+
+    const checkboxes = screen.getAllByRole('checkbox');
+
+    // Check all 3 first
+    for (const cb of checkboxes) {
+      if (!(cb as HTMLInputElement).checked) await user.click(cb);
+    }
+
+    // Now uncheck ack-1 — validate() must see the live unchecked state
+    const [firstCb] = checkboxes as [HTMLElement, ...HTMLElement[]];
+    await user.click(firstCb);
+    expect((firstCb as HTMLInputElement).checked).toBe(false);
+
+    await user.click(screen.getByRole('button', { name: /create mandate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeDefined();
+      expect(screen.getAllByText(/lawfully authorized by the seller/i).length).toBeGreaterThan(0);
+    });
+    // Validate blocked the submit — no POST fired
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 

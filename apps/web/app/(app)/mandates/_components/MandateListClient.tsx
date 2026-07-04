@@ -12,13 +12,24 @@
  */
 'use client';
 
-import type { Mandate } from '@dealflow/shared';
+import type { Mandate, Role } from '@dealflow/shared';
+import { rolesForRoute } from '@dealflow/shared';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { type MandateStatusFilter, StatusFilter } from './StatusFilter';
 
+/**
+ * Roles that may create a mandate — derived from the shared RBAC map
+ * (/mandates/new) so the client gate stays in sync with the server gate.
+ * nav⊆RBAC-consistency: analyst and compliance are read-only; they must not
+ * see the "New mandate" CTA (W8-3).
+ */
+const MANDATE_CREATE_ROLES: ReadonlyArray<Role> = rolesForRoute('/mandates/new');
+
 interface MandateListClientProps {
   initialMandates: Mandate[] | null;
+  /** Server-resolved role; used to gate the "New mandate" create CTA (W8-3). */
+  userRole: Role;
 }
 
 function formatDate(raw: string): string {
@@ -70,9 +81,12 @@ function StatusBadge({ status }: { status: Mandate['status'] }) {
   );
 }
 
-export function MandateListClient({ initialMandates }: MandateListClientProps) {
+export function MandateListClient({ initialMandates, userRole }: MandateListClientProps) {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<MandateStatusFilter>('all');
+
+  /** True for advisor + admin; false for analyst/compliance (W8-3). */
+  const canCreate = (MANDATE_CREATE_ROLES as Role[]).includes(userRole);
 
   if (initialMandates === null) {
     return (
@@ -131,55 +145,58 @@ export function MandateListClient({ initialMandates }: MandateListClientProps) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => router.push('/mandates/new')}
-          aria-label="Create a new mandate"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 16px',
-            fontSize: '13px',
-            fontWeight: 500,
-            color: '#FFFFFF',
-            backgroundColor: '#10B981',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            boxShadow: '0 1px 3px rgba(16,24,40,0.08)',
-            transition: 'background-color 150ms ease',
-          }}
-          onMouseOver={(e) => {
-            (e.currentTarget as HTMLElement).style.backgroundColor = '#047857';
-          }}
-          onMouseOut={(e) => {
-            (e.currentTarget as HTMLElement).style.backgroundColor = '#10B981';
-          }}
-          onFocus={(e) => {
-            (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 3px rgba(16,185,129,0.4)';
-          }}
-          onBlur={(e) => {
-            (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 3px rgba(16,24,40,0.08)';
-          }}
-        >
-          {/* Plus icon */}
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+        {/* W8-3: only advisor + admin may create mandates; analyst/compliance sees no CTA */}
+        {canCreate && (
+          <button
+            type="button"
+            onClick={() => router.push('/mandates/new')}
+            aria-label="Create a new mandate"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              fontSize: '13px',
+              fontWeight: 500,
+              color: '#FFFFFF',
+              backgroundColor: '#10B981',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              boxShadow: '0 1px 3px rgba(16,24,40,0.08)',
+              transition: 'background-color 150ms ease',
+            }}
+            onMouseOver={(e) => {
+              (e.currentTarget as HTMLElement).style.backgroundColor = '#047857';
+            }}
+            onMouseOut={(e) => {
+              (e.currentTarget as HTMLElement).style.backgroundColor = '#10B981';
+            }}
+            onFocus={(e) => {
+              (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 3px rgba(16,185,129,0.4)';
+            }}
+            onBlur={(e) => {
+              (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 3px rgba(16,24,40,0.08)';
+            }}
           >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          New mandate
-        </button>
+            {/* Plus icon */}
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            New mandate
+          </button>
+        )}
       </div>
 
       {/* Filter + table container */}
@@ -209,7 +226,11 @@ export function MandateListClient({ initialMandates }: MandateListClientProps) {
         </div>
 
         {filtered.length === 0 ? (
-          <EmptyState filter={statusFilter} onNew={() => router.push('/mandates/new')} />
+          <EmptyState
+            filter={statusFilter}
+            canCreate={canCreate}
+            onNew={() => router.push('/mandates/new')}
+          />
         ) : (
           <MandateTable mandates={filtered} />
         )}
@@ -218,7 +239,16 @@ export function MandateListClient({ initialMandates }: MandateListClientProps) {
   );
 }
 
-function EmptyState({ filter, onNew }: { filter: MandateStatusFilter; onNew: () => void }) {
+function EmptyState({
+  filter,
+  canCreate,
+  onNew,
+}: {
+  filter: MandateStatusFilter;
+  /** W8-3: only show the CTA when the user has create access (advisor/admin). */
+  canCreate: boolean;
+  onNew: () => void;
+}) {
   const isFiltered = filter !== 'all';
   return (
     <div
@@ -256,7 +286,7 @@ function EmptyState({ filter, onNew }: { filter: MandateStatusFilter; onNew: () 
         </svg>
       </div>
       <div style={{ fontSize: '15px', fontWeight: 600, color: '#111827', marginBottom: '6px' }}>
-        {isFiltered ? `No ${filter} mandates` : 'Create your first mandate'}
+        {isFiltered ? `No ${filter} mandates` : 'No mandates yet'}
       </div>
       <p
         style={{
@@ -269,9 +299,10 @@ function EmptyState({ filter, onNew }: { filter: MandateStatusFilter; onNew: () 
       >
         {isFiltered
           ? `No mandates with status "${filter}" exist yet.`
-          : 'Start by creating a mandate to capture seller profile, buyer criteria, and compliance guardrails.'}
+          : 'No mandates have been created yet.'}
       </p>
-      {!isFiltered && (
+      {/* W8-3: create CTA only for advisor/admin */}
+      {!isFiltered && canCreate && (
         <button
           type="button"
           onClick={onNew}

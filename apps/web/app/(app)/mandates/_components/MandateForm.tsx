@@ -353,15 +353,20 @@ export function MandateForm({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function validate(): string[] {
+  /**
+   * W8-2: validate takes the current FormState snapshot explicitly so it always
+   * reads up-to-date values — avoids stale-closure timing if a checkbox state
+   * update and the submit click land in the same React batch.
+   */
+  function validate(snapshot: FormState): string[] {
     const msgs: string[] = [];
-    if (!form.sellerName.trim()) msgs.push('Seller company name is required.');
-    if (!form.jurisdiction) msgs.push('Legal jurisdiction is required.');
-    if (!form.lawful_authorization)
+    if (!snapshot.sellerName.trim()) msgs.push('Seller company name is required.');
+    if (!snapshot.jurisdiction) msgs.push('Legal jurisdiction is required.');
+    if (!snapshot.lawful_authorization)
       msgs.push('Attestation required: lawfully authorized by the seller.');
-    if (!form.ai_results_validated)
+    if (!snapshot.ai_results_validated)
       msgs.push('Attestation required: AI results must be validated before outreach.');
-    if (!form.conflict_dbs_reviewed)
+    if (!snapshot.conflict_dbs_reviewed)
       msgs.push('Attestation required: conflict databases must be reviewed.');
     return msgs;
   }
@@ -370,7 +375,13 @@ export function MandateForm({
     e.preventDefault();
     setSubmitError(null);
 
-    const clientErrors = validate();
+    // W8-2: capture the live form state at submit time by reading directly from
+    // the `form` ref produced by setForm — React guarantees that useState gives
+    // the up-to-date state within a given render's closure.  We additionally
+    // guard all-3-acks from the same snapshot so the two checks are consistent.
+    const currentForm = form;
+
+    const clientErrors = validate(currentForm);
     if (clientErrors.length > 0) {
       setErrors(clientErrors);
       return;
@@ -379,28 +390,35 @@ export function MandateForm({
 
     // Build the mandateCreateSchema-compatible payload.
     // All 3 acks must be literal true (D5) — schema enforcement.
-    if (!form.lawful_authorization || !form.ai_results_validated || !form.conflict_dbs_reviewed) {
+    // W8-2: read from currentForm (same snapshot as validate()) not from form
+    // closure — prevents any residual stale-capture of the ack booleans.
+    if (
+      !currentForm.lawful_authorization ||
+      !currentForm.ai_results_validated ||
+      !currentForm.conflict_dbs_reviewed
+    ) {
       setErrors(['All three compliance acknowledgments are required.']);
       return;
     }
 
+    // W8-2: build entire payload from currentForm (consistent snapshot).
     const payload = {
-      sellerName: form.sellerName.trim(),
-      ...(form.sellerIndustry ? { sellerIndustry: form.sellerIndustry } : {}),
-      ...(form.sellerGeo.length > 0 ? { sellerGeo: form.sellerGeo } : {}),
-      ...(form.sellerSizeBand ? { sellerSizeBand: form.sellerSizeBand } : {}),
-      ...(form.dealType ? { dealType: form.dealType } : {}),
-      ...(form.description.trim() ? { description: form.description.trim() } : {}),
+      sellerName: currentForm.sellerName.trim(),
+      ...(currentForm.sellerIndustry ? { sellerIndustry: currentForm.sellerIndustry } : {}),
+      ...(currentForm.sellerGeo.length > 0 ? { sellerGeo: currentForm.sellerGeo } : {}),
+      ...(currentForm.sellerSizeBand ? { sellerSizeBand: currentForm.sellerSizeBand } : {}),
+      ...(currentForm.dealType ? { dealType: currentForm.dealType } : {}),
+      ...(currentForm.description.trim() ? { description: currentForm.description.trim() } : {}),
       buyerCriteria: {
-        ...(form.buyerIndustry ? { industry: form.buyerIndustry } : {}),
-        ...(form.buyerGeo ? { geo: form.buyerGeo } : {}),
-        ...(form.buyerSizeBand ? { sizeBand: form.buyerSizeBand } : {}),
-        ...(form.buyerDealType ? { dealType: form.buyerDealType } : {}),
+        ...(currentForm.buyerIndustry ? { industry: currentForm.buyerIndustry } : {}),
+        ...(currentForm.buyerGeo ? { geo: currentForm.buyerGeo } : {}),
+        ...(currentForm.buyerSizeBand ? { sizeBand: currentForm.buyerSizeBand } : {}),
+        ...(currentForm.buyerDealType ? { dealType: currentForm.buyerDealType } : {}),
       },
       compliance: {
-        jurisdiction: form.jurisdiction,
-        ...(form.suppressionText.length > 0
-          ? { suppressionScope: form.suppressionText.join(', ') }
+        jurisdiction: currentForm.jurisdiction,
+        ...(currentForm.suppressionText.length > 0
+          ? { suppressionScope: currentForm.suppressionText.join(', ') }
           : {}),
         acknowledgments: {
           lawful_authorization: true as const,

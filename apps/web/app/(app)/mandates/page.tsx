@@ -105,5 +105,5 @@ export default async function MandatesPage() {
 
   const mandates = await fetchMandates(cookieHeader);
 
-  return <MandateListClient initialMandates={mandates} />;
+  return <MandateListClient initialMandates={mandates} userRole={me.role} />;
 }
