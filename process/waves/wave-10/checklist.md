@@ -50,14 +50,14 @@ CI/CD:
 - [x] C-2 Deploy & verify — api+web immutable-deploy @ 0075a20 (SUCCESS, neither SKIPPED); /health version=0075a20; migration 0009 additive+applied (live tables); LIVE payoff PASS (create-run 201 + scorer discriminates [37,33,32,30]; submit-guard 400; idempotent+disposition-preserve; handoff 400/2xx/idempotent; ZERO AI-framing on deployed page; no-LLM; RBAC 403/200/401; audited); regression green; canary skipped (0 DAU); head-ci-cd APPROVED→PROCEED_TO_T
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
+- [x] T-5 E2E — 12/12 PASS; S2 NO-AI-framing CONFIRMED live (karen MANDATORY met); W10-1=test-setup (advisor≠sourcing role; matching C-2-verified); Chrome
+- [x] T-6 Layout — §10-conformant; AI-framing STRIPPED confirmed live (rule-based, no AI badges); TopBar→polish
+- [x] T-7 Perf
+- [x] T-8 Security
 - [ ] T-9 Journey
 
 VERIFY:

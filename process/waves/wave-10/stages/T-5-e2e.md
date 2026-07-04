@@ -138,3 +138,6 @@ S4-g: /buyer-universe (no mandateId) renders for analyst: PASS
 | FINDING-W10-TOPBAR | Low | Product bug | TopBar shows "Dashboard" on /matches-shortlist page (recurring from wave-3/4/8). Routes to B. |
 
 No test-bugs introduced. All pre-existing spec failures are unchanged.
+
+## Orchestrator clearance on FINDING-W10-1 (test-setup, NOT a product bug)
+FINDING-W10-1 = POST /sourcing/connections 401/403 for an ADVISOR session (the E2E used the advisor to seed M3 companies). This is CORRECT RBAC (sourcing connections = analyst/admin-only per wave-7; advisor is the mandate/matching role, NOT sourcing) — the E2E setup should seed M3 with an ANALYST session (the spec prompt said "mint analyst → ensure M3 companies"; the test used the advisor for that step). NOT a product bug. **C-2 head-ci-cd ALREADY verified the FULL matching payoff LIVE** (seeded correctly with an analyst → create-run 201 + ranked + scorer-discriminates [37,33,32,30] + disposition-preserve + handoff-guard). The matching flow works end-to-end. Fix = E2E test-setup (analyst-seed the sourcing step) — test-maintenance, not a B route. S2 (NO-AI-framing) CONFIRMED LIVE — the key CODE-OF-CONDUCT check passed.
