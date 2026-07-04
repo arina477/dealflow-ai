@@ -1,5 +1,5 @@
 # Wave 8 — B-block review artifacts
-**Block:** B (Build) · **Wave topic:** Mandate data spine + create/list/detail (M4 first bundle) · **Gate:** B-6 · **Status:** in-progress
+**Block:** B (Build) · **Wave topic:** Mandate data spine + create/list/detail (M4 first bundle) · **Gate:** B-6 · **Status:** gate-passed
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
 | B-0 | stages/B-0-branch-and-schema.md | done | branch + 3 tasks + migration 0006 (journal when>0005 ✓) |
@@ -8,7 +8,7 @@
 | B-3 | stages/B-3-frontend.md | done | 3 pages (list+new+detail SSR-hydrate); D1-D6; 304 web tests (c430bbd) |
 | B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS; 3 routes compile |
 | B-5 | stages/B-5-verify.md | done | lint 0-err, ~1091 tests, build pass; runtime→C-2 |
-| B-6 | stages/B-6-review.md | pending | head-builder gate + /review; multi-spec commit-per-spec |
+| B-6 | stages/B-6-review.md | gate-passed | head-builder APPROVED; /review 3 CRIT fixed (PATCH-crash+draft-lock+ambiguous-disclaimer, 37998bb) |
 ## Block-specific context
 - **Spec contract:** tasks row ba0edebf (multi-spec, 3 blocks + P-4 D1-D6 addendum). Branch wave-8-mandate-spine.
 - **claimed_task_ids:** [ba0edebf (spine), c070ca23 (list), 50227055 (detail)]

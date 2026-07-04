@@ -40,7 +40,7 @@ BUILD:
 - [x] B-3 Frontend — 3 mandate pages (list+new+detail SSR-hydrate); D1-D6; 304 web tests (c430bbd)
 - [x] B-4 Wiring — repo typecheck+build PASS; 3 /mandates routes compile
 - [x] B-5 Verify — lint 0-err, ~1091 tests pass, build pass; runtime→C-2
-- [ ] B-6 Review
+- [x] B-6 Review — head-builder APPROVED; /review 3 CRIT fixed (PATCH-crash+draft-lock+ambiguous-disclaimer+0007, 37998bb)
 
 CI/CD:
 - [ ] C-1 PR, CI & merge
