@@ -14,11 +14,11 @@ Pending ritual outcomes affecting P-0:
   - P-4 flags (embedded in seed/sibling descriptions): security-scope-tightened + SoD/RBAC gate; concurrent-send P99 latency load-test on the synchronous non-bypassable pre-send gate.
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe) — PROCEED (all 3 aligned; version-binding-invariant + LLM/email-SDK boundaries; no-prior-spec); wave 11 opened
+- [x] P-1 Decompose — PROCEED, multi-spec (3 tasks: template-spine+composer/gate+SoD); ~3.5-4.5k LOC; design_gap_flag FALSE (designs exist → D skips)
+- [x] P-2 Spec — multi-spec (3 blocks: template-spine+composer/gate+SoD) in seed 102a2f00
+- [x] P-3 Plan — new outreach module (3 tables 0010 + TemplateService version-binding + non-bypassable gate REUSING M2 ComplianceGateService + SoD + pages); reuse M2/M1/M5; no new dep/SDK/secret; boundaries+invariants
+- [x] P-4 Gate — PASSED (head-product APPROVED; karen+jenny APPROVE after AC-STRIP hardening; Gemini 429; security-scope 2 iterations)
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
