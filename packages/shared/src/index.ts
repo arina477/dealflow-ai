@@ -159,6 +159,7 @@ export type {
   MatchRun,
   MatchRunCreateInput,
   MatchRunStatus,
+  ScoreBreakdown,
   Shortlist,
 } from './matching';
 export {
@@ -171,6 +172,7 @@ export {
   matchRunCreateInputSchema,
   matchRunSchema,
   matchRunStatusEnum,
+  scoreBreakdownSchema,
   shortlistSchema,
 } from './matching';
 export type { NavGroup, NavItem, RouteEntry } from './rbac';

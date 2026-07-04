@@ -19,6 +19,39 @@ import { z } from 'zod';
  */
 
 // ---------------------------------------------------------------------------
+// ScoreBreakdown schema (mirrors matching.scorer.ts ScoreBreakdown interface)
+// ---------------------------------------------------------------------------
+
+/**
+ * scoreBreakdownSchema — typed contract for score_breakdown JSONB.
+ * Mirrors the ScoreBreakdown interface from matching.scorer.ts exactly.
+ * Fields are flat numbers (NOT nested objects with score/weight/label).
+ * notApplied entries are strings like 'geo: not applied — M3 lacks column'.
+ *
+ * READ schema: .passthrough() — tolerates extra server-added fields.
+ */
+export const scoreBreakdownSchema = z
+  .object({
+    /** Points from sector/industry token match (0, 20, 30, or 60). */
+    sectorMatch: z.number(),
+    /** Points from contact completeness (0, 15, or 30). */
+    contactCompleteness: z.number(),
+    /** Deterministic tie-break points (0..10). */
+    tieBreak: z.number(),
+    /** Total fit score (sum of above, clamped to [0, 100]). */
+    total: z.number(),
+    /**
+     * Dimensions that were specified in criteria but could not be applied
+     * (M3 companies lack the column). Each entry is a string like
+     * 'geo: not applied — M3 lacks column'.
+     */
+    notApplied: z.array(z.string()),
+  })
+  .passthrough();
+
+export type ScoreBreakdown = z.infer<typeof scoreBreakdownSchema>;
+
+// ---------------------------------------------------------------------------
 // Status / disposition enums
 // ---------------------------------------------------------------------------
 
@@ -76,10 +109,11 @@ export const matchCandidateSchema = z
     fitScore: z.number().int().min(0).max(100),
     /**
      * Structured rule-contribution breakdown.
-     * Shape: { sectorMatch, contactCompleteness, tieBreak, notApplied }.
+     * Shape: { sectorMatch, contactCompleteness, tieBreak, total, notApplied }.
      * NOT prose — no rationale-text field.
+     * Typed by scoreBreakdownSchema (mirrors matching.scorer.ts ScoreBreakdown).
      */
-    scoreBreakdown: z.record(z.unknown()).nullable(),
+    scoreBreakdown: scoreBreakdownSchema.nullable(),
     disposition: matchCandidateDispositionEnum,
     createdAt: z.string(),
   })

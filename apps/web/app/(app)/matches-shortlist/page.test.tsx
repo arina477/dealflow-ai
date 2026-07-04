@@ -90,16 +90,20 @@ function meFor(role: RoleStr) {
   return { userId: `u-${role}`, email: `${role}@firm.com`, role };
 }
 
+// CANDIDATE_1 uses the REAL scorer ScoreBreakdown shape:
+// flat numbers (sectorMatch/contactCompleteness/tieBreak/total as top-level number fields)
+// NOT nested objects with { score, weight, label }.
 const CANDIDATE_1 = {
   id: CANDIDATE_ID_1,
   matchRunId: RUN_ID,
   buyerUniverseCandidateId: BUC_ID_1,
   fitScore: 88,
   scoreBreakdown: {
-    sectorMatch: { score: 60, weight: 60, label: 'Sector / industry match' },
-    contactCompleteness: { score: 20, weight: 30, label: 'Contact completeness' },
-    tieBreak: { score: 8, label: 'Tie-break (name order)' },
-    notApplied: ['geo (not in M3)', 'deal_type (not in M3)'],
+    sectorMatch: 60,
+    contactCompleteness: 20,
+    tieBreak: 8,
+    total: 88,
+    notApplied: ['geo: not applied — M3 lacks column', 'dealType: not applied — M3 lacks column'],
   },
   disposition: 'pending' as const,
   createdAt: NOW_ISO,
@@ -814,6 +818,159 @@ describe('H. INFO-2 — wrong-shape create-run response → error state, data un
 
       // The create-run CTA must still be present (state was not clobbered)
       expect(screen.getByRole('button', { name: /create match run/i })).toBeDefined();
+    });
+  });
+});
+
+// ── I. F-1 V-1 fix — Score Breakdown drawer renders real per-dimension breakdown ──
+//    (write/read shape drift fix; was blank/NaN — now reads flat scorer numbers)
+
+describe('I. F-1 fix — Score Breakdown drawer renders real per-dimension breakdown', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /**
+   * The scorer writes ScoreBreakdown as flat numbers:
+   *   { sectorMatch: 60, contactCompleteness: 20, tieBreak: 8, total: 88,
+   *     notApplied: ['geo: not applied — M3 lacks column', ...] }
+   *
+   * The drawer must render each dimension's real point contribution (not NaN/blank).
+   */
+  it('drawer renders real dimension values from scorer ScoreBreakdown (NOT NaN/blank)', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn());
+
+    // CANDIDATE_1 has the real scorer shape (flat numbers)
+    const { container } = render(
+      <MatchesShortlistClient mandateId={MANDATE_ID} initialData={RANKED_LIST} userRole="advisor" />
+    );
+
+    const breakdownBtns = screen.getAllByRole('button', { name: /view score breakdown/i });
+    const firstBtn = breakdownBtns[0];
+    if (!firstBtn) throw new Error('Expected at least one score breakdown button');
+    await user.click(firstBtn);
+
+    await waitFor(() => {
+      const html = container.innerHTML;
+
+      // The drawer must show the real score breakdown dialog
+      expect(screen.getByRole('dialog')).toBeDefined();
+
+      // Real dimension values must appear (60, 20, 8 from the scorer)
+      // "60 / 60" — sectorMatch: earned 60 out of max 60
+      expect(html).toContain('60');
+      // "20 / 30" — contactCompleteness: earned 20 out of max 30
+      expect(html).toContain('20');
+      // "8 / 10" — tieBreak: earned 8 out of max 10
+      expect(html).toContain('8');
+
+      // Dimension labels must appear
+      expect(html.toLowerCase()).toContain('sector / industry match');
+      expect(html.toLowerCase()).toContain('contact completeness');
+      expect(html.toLowerCase()).toContain('tie-break');
+
+      // notApplied section must render with the scorer's provenance strings
+      expect(html.toLowerCase()).toContain('not applied');
+      expect(html).toContain('geo: not applied — M3 lacks column');
+      expect(html).toContain('dealType: not applied — M3 lacks column');
+
+      // NO NaN in the rendered output (the core regression guard)
+      expect(html).not.toContain('NaN');
+
+      // Rule-based framing — NOT AI
+      expect(html.toLowerCase()).toContain('rule-based fit score');
+      expect(html.toLowerCase()).not.toContain('ai match');
+      expect(html.toLowerCase()).not.toContain('rationale explainability');
+    });
+  });
+
+  it('drawer renders "No breakdown data available" when scoreBreakdown is null (CANDIDATE_2)', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn());
+
+    // RANKED_LIST has CANDIDATE_2 with scoreBreakdown: null
+    render(
+      <MatchesShortlistClient mandateId={MANDATE_ID} initialData={RANKED_LIST} userRole="advisor" />
+    );
+
+    // CANDIDATE_2 is the second row
+    const breakdownBtns = screen.getAllByRole('button', { name: /view score breakdown/i });
+    const secondBtn = breakdownBtns[1];
+    if (!secondBtn) throw new Error('Expected a second score breakdown button');
+    await user.click(secondBtn);
+
+    await waitFor(() => {
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toBeDefined();
+      expect(dialog.textContent?.toLowerCase()).toContain('no breakdown data available');
+    });
+  });
+
+  it('drawer shows not-applied block when notApplied array is non-empty', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn());
+
+    // CANDIDATE_1 has notApplied: ['geo: not applied — M3 lacks column', 'dealType: ...']
+    render(
+      <MatchesShortlistClient mandateId={MANDATE_ID} initialData={RANKED_LIST} userRole="advisor" />
+    );
+
+    const breakdownBtns = screen.getAllByRole('button', { name: /view score breakdown/i });
+    const firstBtn = breakdownBtns[0];
+    if (!firstBtn) throw new Error('Expected at least one score breakdown button');
+    await user.click(firstBtn);
+
+    await waitFor(() => {
+      // The "not applied (data unavailable)" section header must appear
+      expect(screen.getByRole('dialog').textContent?.toLowerCase()).toContain(
+        'not applied (data unavailable)'
+      );
+    });
+  });
+
+  it('no-applied drawer candidate (empty notApplied) does NOT show not-applied block', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn());
+
+    // Create a candidate with a real scorer shape but empty notApplied
+    const candidateNoNotApplied = {
+      ...CANDIDATE_1,
+      id: 'eeeeeeee-9999-0000-0000-000000000010',
+      scoreBreakdown: {
+        sectorMatch: 60,
+        contactCompleteness: 30,
+        tieBreak: 5,
+        total: 95,
+        notApplied: [] as string[],
+      },
+    };
+    const rankedListNoNotApplied: MatchRankedList = {
+      ...RANKED_LIST,
+      candidates: [candidateNoNotApplied, CANDIDATE_2],
+    };
+
+    render(
+      <MatchesShortlistClient
+        mandateId={MANDATE_ID}
+        initialData={rankedListNoNotApplied}
+        userRole="advisor"
+      />
+    );
+
+    const breakdownBtns = screen.getAllByRole('button', { name: /view score breakdown/i });
+    const firstBtn = breakdownBtns[0];
+    if (!firstBtn) throw new Error('Expected at least one score breakdown button');
+    await user.click(firstBtn);
+
+    await waitFor(() => {
+      const dialog = screen.getByRole('dialog');
+      // notApplied section must NOT appear when array is empty
+      expect(dialog.textContent?.toLowerCase()).not.toContain('not applied (data unavailable)');
+      // But the three dimension rows must still be present
+      expect(dialog.textContent?.toLowerCase()).toContain('sector / industry match');
+      expect(dialog.textContent?.toLowerCase()).toContain('contact completeness');
+      expect(dialog.textContent?.toLowerCase()).toContain('tie-break');
     });
   });
 });

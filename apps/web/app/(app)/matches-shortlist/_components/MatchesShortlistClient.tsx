@@ -29,6 +29,7 @@ import type {
   MatchCandidateDisposition,
   MatchRankedList,
   Role,
+  ScoreBreakdown,
 } from '@dealflow/shared';
 import { matchRankedListSchema } from '@dealflow/shared';
 import { useState } from 'react';
@@ -59,17 +60,10 @@ function ScoreBreakdownPanel({
   candidate: MatchCandidate;
   onClose: () => void;
 }) {
-  const breakdown = candidate.scoreBreakdown as Record<string, unknown> | null;
-
-  // Extract well-known keys from the deterministic scorer output
-  const sectorMatch = breakdown?.sectorMatch as
-    | { score: number; weight: number; label: string }
-    | undefined;
-  const contactCompleteness = breakdown?.contactCompleteness as
-    | { score: number; weight: number; label: string }
-    | undefined;
-  const tieBreak = breakdown?.tieBreak as { score: number; label: string } | undefined;
-  const notApplied = breakdown?.notApplied as string[] | undefined;
+  // scoreBreakdown is typed as ScoreBreakdown | null (flat numbers — matches
+  // matching.scorer.ts ScoreBreakdown exactly: sectorMatch/contactCompleteness/
+  // tieBreak/total/notApplied are all top-level fields, NOT nested objects).
+  const breakdown: ScoreBreakdown | null = candidate.scoreBreakdown;
 
   return (
     <div
@@ -188,24 +182,26 @@ function ScoreBreakdownPanel({
 
           {breakdown ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {sectorMatch && (
-                <BreakdownDimension
-                  label={sectorMatch.label ?? 'Sector / industry match'}
-                  score={sectorMatch.score}
-                  weight={sectorMatch.weight}
-                />
-              )}
-              {contactCompleteness && (
-                <BreakdownDimension
-                  label={contactCompleteness.label ?? 'Contact completeness'}
-                  score={contactCompleteness.score}
-                  weight={contactCompleteness.weight}
-                />
-              )}
-              {tieBreak && (
-                <BreakdownDimension label={tieBreak.label ?? 'Tie-break'} score={tieBreak.score} />
-              )}
-              {notApplied && notApplied.length > 0 && (
+              {/* sectorMatch is a flat number (0 | 20 | 30 | 60) — max weight 60 */}
+              <BreakdownDimension
+                label="Sector / industry match"
+                score={breakdown.sectorMatch}
+                maxWeight={60}
+              />
+              {/* contactCompleteness is a flat number (0 | 15 | 30) — max weight 30 */}
+              <BreakdownDimension
+                label="Contact completeness"
+                score={breakdown.contactCompleteness}
+                maxWeight={30}
+              />
+              {/* tieBreak is a flat number (0..10) — max weight 10 */}
+              <BreakdownDimension
+                label="Tie-break (deterministic)"
+                score={breakdown.tieBreak}
+                maxWeight={10}
+              />
+              {/* notApplied: dimensions specified in criteria but not evaluatable on M3 */}
+              {breakdown.notApplied.length > 0 && (
                 <div
                   style={{
                     padding: '10px 12px',
@@ -224,10 +220,10 @@ function ScoreBreakdownPanel({
                       marginBottom: '6px',
                     }}
                   >
-                    Dimensions not applied
+                    Not applied (data unavailable)
                   </div>
                   <ul style={{ margin: 0, padding: '0 0 0 16px' }}>
-                    {notApplied.map((dim) => (
+                    {breakdown.notApplied.map((dim) => (
                       <li
                         key={dim}
                         style={{ fontSize: '11px', color: '#6B7280', marginBottom: '2px' }}
@@ -280,13 +276,16 @@ function ScoreBreakdownPanel({
 function BreakdownDimension({
   label,
   score,
-  weight,
+  maxWeight,
 }: {
   label: string;
+  /** Actual points earned for this dimension. */
   score: number;
-  weight?: number;
+  /** Maximum points available for this dimension (used to scale the bar). */
+  maxWeight: number;
 }) {
-  const pct = Math.min(100, Math.max(0, score));
+  // Bar fill is score/maxWeight * 100 — reflects how much of the max was earned.
+  const pct = maxWeight > 0 ? Math.min(100, Math.max(0, (score / maxWeight) * 100)) : 0;
   const barColor = pct >= 70 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#D1D5DB';
 
   return (
@@ -302,9 +301,7 @@ function BreakdownDimension({
         <span style={{ fontSize: '12px', fontWeight: 500, color: '#374151' }}>{label}</span>
         <span style={{ fontSize: '11px', fontWeight: 600, color: '#6B7280' }}>
           {score}
-          {weight !== undefined && (
-            <span style={{ fontWeight: 400, color: '#9CA3AF' }}> / wt {weight}</span>
-          )}
+          <span style={{ fontWeight: 400, color: '#9CA3AF' }}> / {maxWeight}</span>
         </span>
       </div>
       <div
