@@ -73,6 +73,30 @@ export const auditActionEnum = z.enum([
    * by an advisor or admin. Audited in-tx.
    */
   'mandate-configure',
+  // --- Wave-9 buyer-universe actions (additive; serialization order preserved) ---
+  /**
+   * A buyer_universe was assembled from M3 companies for a mandate.
+   * Includes UPSERT of the buyer_universe row + INSERT of buyer_universe_candidates.
+   * Audited LAST-IN-TXN (audit fail → whole tx rolls back).
+   */
+  'buyer-universe-assemble',
+  /**
+   * A buyer_universe's candidates were filtered by the mandate's buyer criteria.
+   * Sets membership_status included|excluded + provenance per candidate.
+   * Audited in-tx.
+   */
+  'buyer-universe-filter',
+  /**
+   * A buyer_universe's included candidates were enriched with M3 contacts.
+   * No new data written to companies/contacts; enrichment is a view/join read.
+   * Audited in-tx.
+   */
+  'buyer-universe-enrich',
+  /**
+   * A buyer_universe was submitted (status → submitted), marking it
+   * ready-to-rank for the M5 ranking step. Audited in-tx.
+   */
+  'buyer-universe-submit',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;

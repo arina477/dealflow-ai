@@ -37,6 +37,40 @@ export {
   signupRequestSchema,
   signupResponseSchema,
 } from './auth';
+export type {
+  BuyerUniverse,
+  BuyerUniverseAssembleInput,
+  BuyerUniverseCandidate,
+  BuyerUniverseCandidateMembershipStatus,
+  BuyerUniverseCandidatePatchInput,
+  BuyerUniverseDetail,
+  BuyerUniverseEnrichInput,
+  BuyerUniverseFilterInput,
+  BuyerUniverseGap,
+  BuyerUniverseGapsResponse,
+  BuyerUniverseListFilter,
+  BuyerUniverseStatus,
+  BuyerUniverseSubmitInput,
+  EnrichedCandidate,
+  EnrichedContact,
+} from './buyer-universe';
+export {
+  buyerUniverseAssembleInputSchema,
+  buyerUniverseCandidateMembershipStatusEnum,
+  buyerUniverseCandidatePatchInputSchema,
+  buyerUniverseCandidateSchema,
+  buyerUniverseDetailSchema,
+  buyerUniverseEnrichInputSchema,
+  buyerUniverseFilterInputSchema,
+  buyerUniverseGapSchema,
+  buyerUniverseGapsResponseSchema,
+  buyerUniverseListFilterSchema,
+  buyerUniverseSchema,
+  buyerUniverseStatusEnum,
+  buyerUniverseSubmitInputSchema,
+  enrichedCandidateSchema,
+  enrichedContactSchema,
+} from './buyer-universe';
 export type { ComplianceSummaryResponse } from './compliance';
 export { complianceSummaryResponseSchema } from './compliance';
 export type {

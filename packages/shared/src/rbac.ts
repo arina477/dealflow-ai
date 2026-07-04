@@ -133,6 +133,17 @@ const NAV_COMPLIANCE_SETTINGS: NavItem = {
   allowedRoles: ['compliance'],
 };
 
+// Wave-9: Buyer Universe nav item (analyst/advisor/admin — all ops; analyst is primary).
+// nav⊆RBAC: NAV_BUYER_UNIVERSE.allowedRoles references the same array as
+// the /buyer-universe route entry below.
+const NAV_BUYER_UNIVERSE: NavItem = {
+  label: 'Buyer Universe',
+  route: '/buyer-universe',
+  icon: 'users-round',
+  group: 'workspace',
+  allowedRoles: ['analyst', 'advisor', 'admin'],
+};
+
 // ---------- Route entries (the canonical role → route matrix) ----------
 
 export const roleRoutes: ReadonlyArray<RouteEntry> = [
@@ -193,6 +204,34 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
   {
     pattern: '/pipeline',
     allowedRoles: ['advisor'],
+  },
+
+  // --- Buyer Universe group (wave-9) ---
+  // All three roles (analyst/advisor/admin) can access all buyer-universe operations.
+  // analyst is the primary persona; advisor and admin have full access too.
+  // nav⊆RBAC invariant holds: NAV_BUYER_UNIVERSE.allowedRoles references the same
+  // set as the /buyer-universe route entry below.
+  {
+    pattern: '/buyer-universe',
+    allowedRoles: ['analyst', 'advisor', 'admin'],
+    navItem: NAV_BUYER_UNIVERSE,
+  },
+  {
+    // POST /buyer-universe (assemble)
+    pattern: '/buyer-universe/new',
+    allowedRoles: ['analyst', 'advisor', 'admin'],
+  },
+  {
+    // GET /buyer-universe/:id, POST /buyer-universe/:id/filter,
+    // POST /buyer-universe/:id/enrich, GET /buyer-universe/:id/gaps,
+    // POST /buyer-universe/:id/submit
+    pattern: '/buyer-universe/:id',
+    allowedRoles: ['analyst', 'advisor', 'admin'],
+  },
+  {
+    // PATCH /buyer-universe/:id/candidates/:candidateId
+    pattern: '/buyer-universe/:id/candidates/:candidateId',
+    allowedRoles: ['analyst', 'advisor', 'admin'],
   },
 
   // --- Sourcing group ---
@@ -443,6 +482,7 @@ export function navItemsForRole(role: Role): NavItem[] {
 export const ALL_NAV_ITEMS: ReadonlyArray<NavItem> = [
   NAV_DASHBOARD,
   NAV_MANDATES,
+  NAV_BUYER_UNIVERSE,
   NAV_SOURCING,
   NAV_COMPLIANCE,
   NAV_AUDIT_LOG,
