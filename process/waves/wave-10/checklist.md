@@ -61,8 +61,8 @@ TEST:
 - [x] T-9 Journey — head-tester APPROVED; journey regen (matching LIVE, rule-based)
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
+- [x] V-1 Independent reviews (Karen + jenny, parallel) — Karen APPROVE + jenny APPROVE (0 blocking; 1 Medium F-1 fast-fix)
+- [x] V-2 Triage — 0 blocking; F-1 score_breakdown-render → fast-fix; route-label → journey
 - [ ] V-3 Fast-fix loop (or close)
 
 LEARN:
