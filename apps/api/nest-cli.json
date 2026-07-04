@@ -4,6 +4,13 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "tsConfigPath": "tsconfig.json",
-    "deleteOutDir": true
+    "deleteOutDir": true,
+    "assets": [
+      {
+        "include": "modules/sourcing/fixtures/**/*.json",
+        "outDir": "dist",
+        "watchAssets": true
+      }
+    ]
   }
 }
