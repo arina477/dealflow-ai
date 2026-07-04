@@ -61,12 +61,12 @@ describe('rolesForRoute — exact routes', () => {
     expect(rolesForRoute('/')).toHaveLength(4);
   });
 
-  it('/mandates → advisor + analyst only', () => {
+  it('/mandates → advisor + admin + analyst (wave-8: admin added for mandate API)', () => {
     const roles = rolesForRoute('/mandates');
     expect(roles).toContain('advisor');
     expect(roles).toContain('analyst');
+    expect(roles).toContain('admin');
     expect(roles).not.toContain('compliance');
-    expect(roles).not.toContain('admin');
   });
 
   it('/compliance/queue → compliance + advisor', () => {
@@ -139,10 +139,13 @@ describe('rolesForRoute — exact routes', () => {
     expect(roles).not.toContain('admin');
   });
 
-  it('/mandates/new → advisor only', () => {
+  it('/mandates/new → advisor + admin (wave-8: admin added for mandate create/configure)', () => {
     const roles = rolesForRoute('/mandates/new');
     expect(roles).toContain('advisor');
-    expect(roles).toHaveLength(1);
+    expect(roles).toContain('admin');
+    expect(roles).not.toContain('analyst');
+    expect(roles).not.toContain('compliance');
+    expect([...roles].sort()).toEqual(['admin', 'advisor']);
   });
 
   it('/pipeline → advisor only', () => {
@@ -169,7 +172,12 @@ describe('rolesForRoute — URL normalization', () => {
 
   it('strips a query string before matching', () => {
     expect([...rolesForRoute('/compliance/summary?x=1')].sort()).toEqual(['admin', 'compliance']);
-    expect([...rolesForRoute('/mandates?foo=bar&baz=1')].sort()).toEqual(['advisor', 'analyst']);
+    // Wave-8: admin added to /mandates
+    expect([...rolesForRoute('/mandates?foo=bar&baz=1')].sort()).toEqual([
+      'admin',
+      'advisor',
+      'analyst',
+    ]);
   });
 
   it('strips both trailing slash AND query together', () => {
@@ -177,8 +185,10 @@ describe('rolesForRoute — URL normalization', () => {
   });
 
   it('normalizes trailing slash / query on :param routes', () => {
-    expect([...rolesForRoute('/mandates/abc123/')].sort()).toEqual(['advisor', 'analyst']);
+    // Wave-8: admin added to /mandates/:id
+    expect([...rolesForRoute('/mandates/abc123/')].sort()).toEqual(['admin', 'advisor', 'analyst']);
     expect([...rolesForRoute('/mandates/abc123?tab=buyers')].sort()).toEqual([
+      'admin',
       'advisor',
       'analyst',
     ]);
@@ -221,29 +231,34 @@ describe('canAccess — URL normalization', () => {
 // ---------------------------------------------------------------------------
 
 describe('rolesForRoute — route-pattern matching', () => {
-  it('/mandates/:id matches a concrete id', () => {
+  it('/mandates/:id matches a concrete id (wave-8: admin included)', () => {
     const roles = rolesForRoute('/mandates/abc123');
     expect(roles).toContain('advisor');
     expect(roles).toContain('analyst');
+    expect(roles).toContain('admin');
     expect(roles).not.toContain('compliance');
   });
 
-  it('/mandates/:id/buyers matches nested param route', () => {
+  it('/mandates/:id/buyers matches nested param route (wave-8: admin included)', () => {
     const roles = rolesForRoute('/mandates/abc123/buyers');
     expect(roles).toContain('advisor');
     expect(roles).toContain('analyst');
+    expect(roles).toContain('admin');
   });
 
-  it('/mandates/:id/outreach matches nested param route', () => {
+  it('/mandates/:id/outreach matches nested param route (wave-8: admin included)', () => {
     const roles = rolesForRoute('/mandates/abc123/outreach');
     expect(roles).toContain('advisor');
     expect(roles).toContain('analyst');
+    expect(roles).toContain('admin');
   });
 
-  it('/mandates/:id/matches → advisor only', () => {
+  it('/mandates/:id/matches → advisor + admin (wave-8: admin added)', () => {
     const roles = rolesForRoute('/mandates/abc123/matches');
     expect(roles).toContain('advisor');
+    expect(roles).toContain('admin');
     expect(roles).not.toContain('analyst');
+    expect(roles).not.toContain('compliance');
   });
 
   it('param segment must be non-empty — /mandates/ does not match /:id pattern', () => {
@@ -256,10 +271,11 @@ describe('rolesForRoute — route-pattern matching', () => {
     expect(Array.isArray(roles)).toBe(true);
   });
 
-  it('a UUID-style id matches /mandates/:id', () => {
+  it('a UUID-style id matches /mandates/:id (wave-8: admin included)', () => {
     const roles = rolesForRoute('/mandates/1931b452-c7d5-43a0-9657-7e7cd1728203');
     expect(roles).toContain('advisor');
     expect(roles).toContain('analyst');
+    expect(roles).toContain('admin');
   });
 });
 
@@ -328,7 +344,9 @@ describe('canAccess', () => {
     expect(canAccess('admin', '/admin/integrations')).toBe(true));
   it('admin: allows /compliance/summary', () =>
     expect(canAccess('admin', '/compliance/summary')).toBe(true));
-  it('admin: denies /mandates', () => expect(canAccess('admin', '/mandates')).toBe(false));
+  // Wave-8: admin now allowed on /mandates (mandate API read + write access)
+  it('admin: allows /mandates (wave-8 mandate API)', () =>
+    expect(canAccess('admin', '/mandates')).toBe(true));
   it('admin: denies /sourcing', () => expect(canAccess('admin', '/sourcing')).toBe(false));
   it('admin: denies /compliance/queue', () =>
     expect(canAccess('admin', '/compliance/queue')).toBe(false));
@@ -350,11 +368,12 @@ describe('canAccess', () => {
   });
 
   // param-based route
-  it('canAccess works for param routes', () => {
+  it('canAccess works for param routes (wave-8: admin now allowed on mandate sub-routes)', () => {
     expect(canAccess('advisor', '/mandates/abc/buyers')).toBe(true);
     expect(canAccess('analyst', '/mandates/abc/buyers')).toBe(true);
     expect(canAccess('compliance', '/mandates/abc/buyers')).toBe(false);
-    expect(canAccess('admin', '/mandates/abc/buyers')).toBe(false);
+    // Wave-8: admin added to /mandates/:id/buyers
+    expect(canAccess('admin', '/mandates/abc/buyers')).toBe(true);
   });
 });
 
@@ -406,14 +425,15 @@ describe('navItemsForRole — per-role nav sets', () => {
     expect(routes).not.toContain('/admin/settings');
   });
 
-  it('admin sees Dashboard, Team, Settings (in order)', () => {
+  it('admin sees Dashboard, Mandates, Team, Settings (wave-8: admin added to mandates nav)', () => {
     const items = navItemsForRole('admin');
     const routes = items.map((i) => i.route);
     expect(routes).toContain('/');
     expect(routes).toContain('/admin/users');
     expect(routes).toContain('/admin/settings');
-    // admin does NOT see Mandates, Sourcing, Compliance nav items
-    expect(routes).not.toContain('/mandates');
+    // Wave-8: admin now sees Mandates nav item (mandate API + read access)
+    expect(routes).toContain('/mandates');
+    // admin still does NOT see Sourcing or Compliance top-level nav
     expect(routes).not.toContain('/sourcing');
     expect(routes).not.toContain('/compliance/queue');
   });
@@ -510,12 +530,13 @@ describe('roleRoutes — completeness against pinned matrix', () => {
 
   const matrixRows: [string, Role[]][] = [
     ['/', ['advisor', 'analyst', 'compliance', 'admin']],
-    ['/mandates', ['advisor', 'analyst']],
-    ['/mandates/new', ['advisor']],
-    ['/mandates/:id', ['advisor', 'analyst']],
-    ['/mandates/:id/buyers', ['advisor', 'analyst']],
-    ['/mandates/:id/outreach', ['advisor', 'analyst']],
-    ['/mandates/:id/matches', ['advisor']],
+    // Wave-8: admin added to mandate routes (mandate API read + write access)
+    ['/mandates', ['advisor', 'admin', 'analyst']],
+    ['/mandates/new', ['advisor', 'admin']],
+    ['/mandates/:id', ['advisor', 'admin', 'analyst']],
+    ['/mandates/:id/buyers', ['advisor', 'admin', 'analyst']],
+    ['/mandates/:id/outreach', ['advisor', 'admin', 'analyst']],
+    ['/mandates/:id/matches', ['advisor', 'admin']],
     ['/pipeline', ['advisor']],
     ['/sourcing', ['analyst']],
     // Wave-6: /companies repointed to /sourcing/companies; new sourcing API routes added.
@@ -1056,6 +1077,102 @@ describe('wave-6 — nav⊆RBAC preserved after /sourcing/companies + API routes
   });
 
   it('no nav item appears for a role denied at the route level (exhaustive ALL_NAV_ITEMS check)', () => {
+    for (const navItem of ALL_NAV_ITEMS) {
+      const deniedRoles = ALL_ROLES.filter((r) => !(navItem.allowedRoles as Role[]).includes(r));
+      for (const deniedRole of deniedRoles) {
+        const items = navItemsForRole(deniedRole);
+        const isShown = items.some((i) => i.route === navItem.route);
+        expect(isShown).toBe(false);
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave-8 additions — mandate spine (B-1, task ba0edebf)
+// admin added to /mandates (list/detail/create/configure). NAV_MANDATES updated.
+// ---------------------------------------------------------------------------
+
+describe('wave-8 — /mandates RBAC (admin added for mandate API)', () => {
+  it('rolesForRoute("/mandates") → advisor + admin + analyst', () => {
+    const roles = rolesForRoute('/mandates');
+    expect([...roles].sort()).toEqual(['admin', 'advisor', 'analyst']);
+  });
+
+  it('rolesForRoute("/mandates/new") → advisor + admin (create/configure)', () => {
+    const roles = rolesForRoute('/mandates/new');
+    expect([...roles].sort()).toEqual(['admin', 'advisor']);
+  });
+
+  it('rolesForRoute("/mandates/:id") → advisor + admin + analyst (detail read)', () => {
+    const roles = rolesForRoute('/mandates/abc-123');
+    expect([...roles].sort()).toEqual(['admin', 'advisor', 'analyst']);
+  });
+
+  it('advisor can list, read, create, and configure mandates', () => {
+    expect(canAccess('advisor', '/mandates')).toBe(true);
+    expect(canAccess('advisor', '/mandates/abc-123')).toBe(true);
+    expect(canAccess('advisor', '/mandates/new')).toBe(true);
+  });
+
+  it('admin can list, read, create, and configure mandates (wave-8)', () => {
+    expect(canAccess('admin', '/mandates')).toBe(true);
+    expect(canAccess('admin', '/mandates/abc-123')).toBe(true);
+    expect(canAccess('admin', '/mandates/new')).toBe(true);
+  });
+
+  it('analyst can list and read mandates but NOT create or configure', () => {
+    expect(canAccess('analyst', '/mandates')).toBe(true);
+    expect(canAccess('analyst', '/mandates/abc-123')).toBe(true);
+    expect(canAccess('analyst', '/mandates/new')).toBe(false);
+  });
+
+  it('compliance cannot access mandates (unchanged)', () => {
+    expect(canAccess('compliance', '/mandates')).toBe(false);
+    expect(canAccess('compliance', '/mandates/abc-123')).toBe(false);
+    expect(canAccess('compliance', '/mandates/new')).toBe(false);
+  });
+
+  it('admin sees Mandates in their nav (NAV_MANDATES updated to advisor/admin/analyst)', () => {
+    const items = navItemsForRole('admin');
+    expect(items.some((i) => i.route === '/mandates')).toBe(true);
+  });
+
+  it('analyst still sees Mandates in their nav (unchanged)', () => {
+    const items = navItemsForRole('analyst');
+    expect(items.some((i) => i.route === '/mandates')).toBe(true);
+  });
+
+  it('compliance does NOT see Mandates in nav (compliance not in allowedRoles)', () => {
+    const items = navItemsForRole('compliance');
+    expect(items.some((i) => i.route === '/mandates')).toBe(false);
+  });
+
+  it('NAV_MANDATES navItem has correct icon, label, and group', () => {
+    const entry = roleRoutes.find((e) => e.pattern === '/mandates');
+    expect(entry?.navItem).toBeDefined();
+    expect(entry?.navItem?.label).toBe('Mandates');
+    expect(entry?.navItem?.icon).toBe('briefcase');
+    expect(entry?.navItem?.group).toBe('workspace');
+  });
+
+  it('nav⊆RBAC invariant holds for admin after wave-8 mandate addition', () => {
+    const items = navItemsForRole('admin');
+    for (const item of items) {
+      expect(canAccess('admin', item.route)).toBe(true);
+    }
+  });
+
+  it('nav⊆RBAC invariant holds for all roles after wave-8 mandate addition', () => {
+    for (const role of ALL_ROLES) {
+      const items = navItemsForRole(role);
+      for (const item of items) {
+        expect(canAccess(role, item.route)).toBe(true);
+      }
+    }
+  });
+
+  it('no nav item appears for a role denied at the route level (exhaustive post-wave-8)', () => {
     for (const navItem of ALL_NAV_ITEMS) {
       const deniedRoles = ALL_ROLES.filter((r) => !(navItem.allowedRoles as Role[]).includes(r));
       for (const deniedRole of deniedRoles) {

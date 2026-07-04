@@ -75,7 +75,9 @@ const NAV_MANDATES: NavItem = {
   route: '/mandates',
   icon: 'briefcase',
   group: 'workspace',
-  allowedRoles: ['advisor', 'analyst'],
+  // Wave-8: admin added — mandate API allows admin for list/detail/create/configure.
+  // nav⊆RBAC holds: the /mandates route entry below references these same roles.
+  allowedRoles: ['advisor', 'admin', 'analyst'],
 };
 
 const NAV_SOURCING: NavItem = {
@@ -142,30 +144,42 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
   },
 
   // --- Mandates group ---
+  // Wave-8 B-1: admin added to mandates routes.
+  //   /mandates — list+detail read (GET): advisor, admin, analyst.
+  //   /mandates/new — create/configure (POST, PATCH): advisor, admin (NOT analyst).
+  //   /mandates/:id — detail read: advisor, admin, analyst.
+  //   Sub-routes (buyers, outreach, matches) also updated for admin access consistency.
+  // The MandateController uses two role constants derived from this table:
+  //   MANDATES_READ_ROLES  = rolesForRoute('/mandates')     → advisor, admin, analyst
+  //   MANDATES_WRITE_ROLES = rolesForRoute('/mandates/new') → advisor, admin
+  // nav⊆RBAC invariant holds: NAV_MANDATES.allowedRoles references the same set
+  // as the /mandates route entry below.
   {
     pattern: '/mandates',
-    allowedRoles: ['advisor', 'analyst'],
+    allowedRoles: ['advisor', 'admin', 'analyst'],
     navItem: NAV_MANDATES,
   },
   {
+    // POST /mandates (create) + PATCH /mandates/:id (configure) — advisor, admin.
+    // Analyst is read-only for mandates; write access requires advisor or admin.
     pattern: '/mandates/new',
-    allowedRoles: ['advisor'],
+    allowedRoles: ['advisor', 'admin'],
   },
   {
     pattern: '/mandates/:id',
-    allowedRoles: ['advisor', 'analyst'],
+    allowedRoles: ['advisor', 'admin', 'analyst'],
   },
   {
     pattern: '/mandates/:id/buyers',
-    allowedRoles: ['advisor', 'analyst'],
+    allowedRoles: ['advisor', 'admin', 'analyst'],
   },
   {
     pattern: '/mandates/:id/outreach',
-    allowedRoles: ['advisor', 'analyst'],
+    allowedRoles: ['advisor', 'admin', 'analyst'],
   },
   {
     pattern: '/mandates/:id/matches',
-    allowedRoles: ['advisor'],
+    allowedRoles: ['advisor', 'admin'],
   },
   {
     pattern: '/pipeline',

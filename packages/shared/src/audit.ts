@@ -60,6 +60,19 @@ export const auditActionEnum = z.enum([
    * Audited in-tx (rollback on audit fail) — actor = app users.id.
    */
   'sourcing-connection-create',
+  // --- Wave-8 mandate actions (additive; serialization order preserved) ---
+  /**
+   * A mandates row was created (along with mandate_buyer_criteria and
+   * mandate_compliance_profile) in a single atomic transaction. The actor
+   * is the app users.id of the creating advisor (NOT the raw ST id).
+   * Audited LAST-IN-TXN so audit failure rolls back all three table writes.
+   */
+  'mandate-create',
+  /**
+   * A mandates row was re-configured (status change, criteria update, etc.)
+   * by an advisor or admin. Audited in-tx.
+   */
+  'mandate-configure',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;
