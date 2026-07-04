@@ -52,6 +52,6 @@ LEARN:
 - [x] L-2 Distill — promoted BUILD rule 4 (drizzle journal when-timestamp; 2-wave gate met)
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M3->done (BOARD 7/7 APPROVE); M4->in_progress; decomposition fired
+- [x] N-2 Seed — M4 bundle: seed ba0edebf (mandate spine) + siblings c070ca23 (list) + 50227055 (detail); validated
+- [x] N-3 Handoff — wave 7 archived, waves.status=ok, wave 8 seeded, STATUS=RUNNING
