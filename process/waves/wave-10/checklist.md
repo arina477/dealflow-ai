@@ -46,8 +46,8 @@ BUILD:
 - [x] B-6 Review — head-builder APPROVED (boundaries+AI-grep); /review 2 CRIT fixed (8b88519+13a0cfb)
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [x] C-1 PR, CI & merge — merged to main @ 0075a20 (squash); CI success on the EXACT deployed SHA (no Ghost-Green)
+- [x] C-2 Deploy & verify — api+web immutable-deploy @ 0075a20 (SUCCESS, neither SKIPPED); /health version=0075a20; migration 0009 additive+applied (live tables); LIVE payoff PASS (create-run 201 + scorer discriminates [37,33,32,30]; submit-guard 400; idempotent+disposition-preserve; handoff 400/2xx/idempotent; ZERO AI-framing on deployed page; no-LLM; RBAC 403/200/401; audited); regression green; canary skipped (0 DAU); head-ci-cd APPROVED→PROCEED_TO_T
 
 TEST:
 - [ ] T-1 Static
