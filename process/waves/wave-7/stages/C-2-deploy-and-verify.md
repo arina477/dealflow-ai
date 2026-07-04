@@ -271,3 +271,87 @@ head_signoff:
     left in place (boots fine, not crash-looping); no rollback needed.
   next_action: REWORK_B-block  # fix 0005 journal `when` timestamp + add preDeploy migrate-count guard, then re-run C-2
 ```
+
+---
+
+## dup-409 fix re-verify (0fe63de)
+
+**ci_stage_verdict: PASS** — the dup→409 flip is verified live. This focused re-verify targeted the ONLY open defect from the prior REJECTED verdict (dup-displayName → 500 instead of 409, root-caused to DrizzleQueryError.cause.code not unwrapped). All other C-2 criteria (0005 applied, workspace, connection-create-201, unknown-providerKey-400, ≥2-source badges) had already PASSED at prior re-verifies and were not re-litigated except the required quick regression.
+
+### Provenance & deploy
+- **Token:** project-scoped `RAILWAY_TOKEN` valid → `projectToken` returned project `ce095f75…` / env `0e84f0b6…` (production). Not a block.
+- **Armed rollback captured pre-mutation** (prior known-good SUCCESS): api `399792d5-ef44-45fc-9a8e-5345d404ae5d`, web `f5bb7781-fab8-4cff-b931-ed1067985565`. Not needed.
+- **GIT_SHA upserted 0fe63de** (non-destructive single-var upsert) on api `dcdb4ab4…` + web `06b07f19…`; all env (DATABASE_URL, AUDIT_LOG_HMAC_KEY) pre-bound.
+- **Explicit fresh deploys** via `serviceInstanceDeployV2` (NOT Wait-for-CI webhook): api deploy `27761064-ea7e-4093-82f5-049cf6bb305a`, web deploy `98948a92-72f6-4f03-bf0f-3ed337edc7e0`.
+- **MONITOR: bounded** — success=`status==SUCCESS`, failure=`IN(FAILED,CRASHED,REMOVED,SKIPPED)`, timeout_budget=900s, poll_delay=45s. Both reached **SUCCESS** in ~90s; neither SKIPPED. Latest-deployment query confirms `27761064…` is api's current head (no phantom skip).
+- **/health version == 0fe63de** on the api's OWN deployed domain `dealflow-api-production-66d4.up.railway.app` (NOT the global domain) → `{"status":"ok","db":"ok","version":"0fe63de"}`. Mirage defeated; app boots clean.
+
+### The fix proof (dup-displayName → 409 live)
+Driven through the **web-origin proxy** `dealflow-web-production-a4f7.up.railway.app` (same-origin SuperTokens session), analyst minted via `/auth/invite`(role=analyst) → `/auth/signup` → session cookies. State-changing POSTs carry the `rid: anti-csrf` custom header (config uses `antiCsrf: VIA_CUSTOM_HEADER` — this is why GET /auth/me passed while unheadered POSTs 401'd; expected, not a defect).
+
+| Step | Request | Result | Expected |
+|---|---|---|---|
+| 3a | POST /sourcing/connections {providerKey:fixture, displayName:DupFix-…} | **201** (id 9360cbbe…) | 201 ✓ |
+| 3b | POST same displayName again | **409 Conflict** ("A connection with the display name … already exists") | 409 ✓ (was 500 pre-fix) |
+| 3c | POST unknown providerKey | **400** ("Unknown provider_key … Registered providers: FIXTURE") | 400 ✓ (regression intact) |
+
+The `err.cause.code` unwrap now maps the DrizzleQueryError-wrapped 23505 → `ConflictException(409)`. **Data integrity confirmed: the duplicate did NOT insert a 2nd row** (DB probe showed exactly 1 DupFix row before cleanup — the constraint blocked the 2nd, and the code now surfaces it as 409 not 500).
+
+### Regression (quick, per re-verify scope)
+- **Workspace renders:** GET /sourcing (analyst) → **200**, 20505 bytes, DealFlow AI shell + sourcing content.
+- **/health:** ok / db ok / 0fe63de (above).
+- **Connection-create audited:** chain-verify GET /compliance/audit-log/verify (compliance role) → **200 `{"ok":true,"entriesChecked":40}`** — HMAC-SHA256 hash chain intact and includes the new create rows.
+- **Schema safety (DB probe, not log-trust):** `data_source_connections_display_name_unique` UNIQUE constraint PRESENT; `__drizzle_migrations` = 6 rows (0005 applied). Live schema matches deployed artifact.
+
+### Canary — SKIPPED
+0 DAU < `canary_threshold_dau: 1000`. No real-user traffic to shift.
+
+### Cleanup (done)
+- Test connection rows (`DupFix-%` / `BadKey-%`) DELETED → **0 connections** remain (authoritative DB count).
+- Temporary Postgres TCP proxy `28f9c4a5-…` (`kodama.proxy.rlwy.net:30444`) DELETED; local credential temp files scrubbed (`shred`).
+- 3 test users (dupfix-analyst / dupfix2 / dupfix-compliance) LEFT IN PLACE — deletion is correctly blocked by the append-only `audit_log_entries` immutability trigger (they are the `actor_user_id` on audited rows). Orphan-tolerant per prior C-2; audit-chain integrity outranks test-user cleanup. This is the compliance audit-log working as designed.
+- GIT_SHA left at `0fe63de` (correct for deployed hash); deploy left in place.
+
+### Chronology
+- 2026-07-04 ~04:14 UTC: api+web deploy of 0fe63de triggered (serviceInstanceDeployV2); both SUCCESS by ~04:16:37 UTC (~90s build). Canary window: N/A (skipped, 0 DAU).
+- /health 0fe63de confirmed on own domain; dup POST → 201 then **409** (fix proven); bad-key → 400; audit chain ok:true (40 entries); workspace 200.
+
+---
+
+```yaml
+head_signoff:
+  verdict: APPROVED
+  stage: C-2
+  reverify: "dup-409 fix re-verify (0fe63de)"
+  reviewers:
+    sre-engineer: "prior C-2 — root-caused (a) drizzle 0005 journal-timestamp skip [fixed 2384c54], then (b) DrizzleQueryError.cause.code non-unwrap → dup 500 [fixed 0fe63de]; both now verified resolved live"
+  reverify_passed_checks:
+    - "dup-displayName → 409 LIVE (the fix proof): 201 on first create, 409 Conflict on duplicate (was 500). err.cause.code unwrap maps DrizzleQueryError-wrapped 23505 → ConflictException. Data integrity intact (no 2nd row inserted)."
+    - "commit SHA provenance: /health version == 0fe63de on api's OWN deployed domain (not global); both services SUCCESS via explicit serviceInstanceDeployV2, neither SKIPPED; latest-deployment query confirms 27761064… is api head"
+    - "schema safety by DB probe (not log-trust): UNIQUE(display_name) constraint present + __drizzle_migrations=6 (0005 applied); live schema matches deployed artifact"
+    - "armed rollback captured pre-mutation (api 399792d5 / web f5bb7781)"
+    - "unknown-providerKey → 400 (regression intact); workspace GET /sourcing → 200 (analyst RBAC)"
+    - "connection-create audited: audit-log chain-verify ok:true, entriesChecked=40; HMAC-SHA256 chain intact"
+    - "bounded MONITOR: success=SUCCESS / failure=IN(FAILED,CRASHED,REMOVED,SKIPPED) / timeout_budget=900s; immutable fresh-artifact deploy; GIT_SHA upserted non-destructively; all env pre-bound"
+    - "canary correctly skipped (0 DAU < 1000); cleanup complete (0 connections, temp proxy 28f9c4a5 deleted, creds scrubbed)"
+  rationale: >
+    The merged 0fe63de fix WORKS live. The dup→409 acceptance criterion — the single open
+    defect that drove the prior REJECTED verdict — now flips correctly: a duplicate displayName
+    POST returns 409 Conflict (was 500), driven end-to-end through the web-origin proxy with a
+    real analyst session and the VIA_CUSTOM_HEADER anti-csrf rid header. The repository's
+    err.cause.code unwrap surfaces the DrizzleQueryError-wrapped SQLSTATE 23505 as
+    ConflictException, and data integrity is provably preserved (the 2nd insert was blocked by
+    the UNIQUE constraint — exactly one DupFix row existed before cleanup). Provenance is clean:
+    /health confirms 0fe63de on the deployed container's own domain (not a global-domain mirage),
+    both services deployed via explicit serviceInstanceDeployV2 and reached SUCCESS (no phantom
+    SKIPPED), the schema was verified by direct DB probe rather than trusting a preDeploy log line
+    (UNIQUE constraint present, 6 migration rows), and the required quick regression is green —
+    unknown-providerKey still 400, workspace renders 200, and the connection-create is audited into
+    an intact HMAC-SHA256 chain (verify ok:true). Armed rollback was captured before mutation and
+    was not needed. Canary correctly skipped (0 DAU). No fabricated green: every check is traced to
+    a live artifact (HTTP status, GraphQL deployment status, /health body, or DB probe). C-2 passes;
+    the wave proceeds to T-block. Test users left in place because the append-only audit trigger
+    correctly refuses to delete an actor referenced by the immutable audit log — the compliance
+    control working as designed, not a cleanup miss.
+  next_action: PROCEED_TO_T
+```
