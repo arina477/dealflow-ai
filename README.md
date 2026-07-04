@@ -57,6 +57,13 @@ sender), required per-jurisdiction disclaimers, and content-bound approval befor
 outreach may be sent — every verdict recorded in the audit log. Compliance and admin
 roles manage the underlying rules at `/compliance/settings`.
 
+**Deal sourcing is live.** Pluggable data-source connectors pull company and contact
+records into a staging area, then a deterministic de-duplication step promotes them into
+one canonical company/contact universe — collapsing the same company seen across sources
+into a single record while preserving provenance from every source. Uncertain matches go
+to a review queue that never auto-merges. Analysts view, filter, and resolve records at
+`/sourcing/companies`.
+
 ---
 
 ## Quick start

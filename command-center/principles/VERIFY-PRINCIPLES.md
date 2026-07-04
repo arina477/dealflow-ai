@@ -69,3 +69,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
 
 1. Test any path that recomputes a value from persisted data against the real DB wire format, not an echoing stub.
    Why: A stub returning the stored value verbatim cannot detect app-vs-DB serialization divergence.
+2. Run adversarial /review on every B-block diff that builds an auth guard, integrity chain, or merge engine.
+   Why: Head-builder gate reviews structure; adversarial review finds fail-open and hash CRITICALs.

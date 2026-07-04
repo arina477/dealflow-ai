@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0/).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-04
+
+Deal sourcing goes live: connect data sources, pull in companies and contacts, and automatically fold duplicates into one clean record that remembers where every detail came from.
+
+### Added
+- Pluggable data-source connectors with an on-demand sync that pulls company and contact records into a staging area without touching the clean data set.
+- Deterministic de-duplication that promotes staged records into canonical companies and contacts, collapsing the same company seen across sources into one record.
+- Source provenance on every canonical company and contact, so each record traces back to every source and connection it came from.
+- A review queue for uncertain matches that never auto-merges, plus a companies-and-contacts screen to view, filter, and resolve them.
+
 ## [0.5.0] — 2026-07-03
 
 The compliance gate goes live: a single, non-bypassable check that every outreach must pass before it can be sent, with each decision recorded in the tamper-evident audit log.

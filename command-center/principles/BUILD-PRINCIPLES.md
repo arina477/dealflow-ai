@@ -71,3 +71,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
    Why: In pnpm 10+ the overrides key lives in pnpm-workspace.yaml, not package.json.
 2. When a NestJS guard injects a repository, that repository must be exported by every module that imports the guard.
    Why: NestJS DI resolves constructor tokens at the consuming module boundary, not where defined.
+3. Never use `import type` for a class that is constructor-injected into a NestJS provider.
+   Why: import type is erased at emit, so the DI token vanishes and NestJS bootstrap crashes.
