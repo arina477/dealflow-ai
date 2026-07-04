@@ -832,3 +832,132 @@ head_signoff:
     client-fetch route bug, not an infra failure warranting rollback.
   next_action: REWORK_B-block  # DETAIL client fetch must reach the API JSON, not the same-origin [id] page HTML. Fix one of: (a) CompanyDetail fetches the API origin directly (NEXT_PUBLIC_API_URL) for detail; (b) add a non-colliding data path (e.g. /api/sourcing/companies/:id) WITH an afterFiles rewrite; or (c) hydrate detail from the server component ([id]/page.tsx already fetches basic — extend to full detail + pass serializable JSON down, dropping the client fetch). Add a POST-HYDRATION route-render test for /sourcing/companies/:id asserting the company heading + contacts/provenance tabs render (not the error state), exercising the real deployed rewrite topology, so this same-origin-collision class can't ship green again. Do NOT touch the 798fae1 function-prop fix or companySchema — both are proven. Then re-run C-2.
 ```
+
+---
+
+## V-3 detail-SSR-hydrate re-verify (e4debc6) — FINAL
+
+**verdict: PASS (APPROVED)** — head-ci-cd. The page-route-collision fix at `e4debc6` **is CORRECT and PROVEN live**. The detail route's client fetch no longer collides with the Next.js `[id]` page: the server component SSR-fetches the full detail and passes it as a serializable `initialDetail` prop, `CompanyDetail`'s `useEffect` early-returns (skips the client fetch entirely), and the workspace drawer now fetches the non-colliding proxied path `/sourcing/company-detail/:id`. **All 4 sourcing/compliance surfaces render real data in the live post-hydration headless-chromium-1208 DOM — including the DETAIL surface, which now renders the company heading + Contacts/Provenance/Dedupe-Review tabs + real contacts with NO "Network error" and NO empty/error state.** This closes the 5-sibling defect chain. The wave's Iron Law is NOT tripped on any surface and the api does NOT crash. C-2 passes; return to the V-3 gate.
+
+### Deploy — e4debc6 live on both services (NOT stale, NOT SKIPPED, deterministic)
+
+- **Token:** project-scoped `RAILWAY_TOKEN` (len 36) from `APP_RAILWAY_TOKEN` valid → `projectToken` returned project `ce095f75-1f3d-4af9-939e-fe8532541475`, env `0e84f0b6-1b1d-469f-91b9-caf4e59c9ba8` (production). Deploy-scoped `project(id)` probe returned `data.project` (5 services) with no `errors` → credential usable. Not a block.
+- **GIT_SHA** upserted to `e4debc6` on **dealflow-api** (`dcdb4ab4…`) + **dealflow-web** (`06b07f19…`) via non-destructive single `variableUpsert` each (`variableUpsert:true`; no other var touched — all env pre-bound: AUDIT_LOG_HMAC_KEY, DATABASE_URL, SUPERTOKENS_*, WEB_ORIGIN, INTERNAL_API_BASE_URL confirmed present on api).
+- **Explicit deterministic redeploy** via `serviceInstanceDeploy(environmentId, serviceId)` on both services → `true` each. Did NOT trust the ambient CI/webhook auto-deploy (an e4debc6 SUCCESS pair already existed — `d97c26e7`/`47f266f5` — but the C-block gate never accepts an ambient green; provenance is self-triggered).
+- New deployments, polled to terminal via bounded MONITOR:
+  - api deployment `67a39336-da0f-4baa-9904-fe5558bbda57` — meta.commitHash `e4debc6161550cd1730707a7b16c5711279a151e` — BUILDING → **SUCCESS**.
+  - web deployment `bfcca5a0-2e3b-43a8-8a17-d1c158e0fa9b` — meta.commitHash `e4debc6161550cd…` — DEPLOYING → **SUCCESS**.
+  - Reached BOTH_SUCCESS in ~30s. Neither SKIPPED. Post-deploy `deployments(first:1)` query confirms `67a39336…`/`bfcca5a0…` are the current heads on each service (no phantom-skip; the deploy I triggered is what is live). Immutable fresh-artifact deploy.
+- **Armed rollback (captured before mutation, unused):** api `d97c26e7-eaf8-40b0-843f-25bcabac60fa` / web `47f266f5-589a-442c-a214-25ac39fa7624` — the prior known-good SUCCESS deployments (both e4debc6, boot-clean). Not triggered: e4debc6 boots clean, `/health` green, no crash, no data-loss regression, all surfaces render — nothing to roll back from.
+
+### /health — own-domain, exact deployed hash
+
+- `GET https://dealflow-api-production-66d4.up.railway.app/health` → **200** `{"status":"ok","db":"ok","version":"e4debc6"}` on the api service's OWN container domain (not a global alias). Version matches the deployed hash exactly (no stale-routing mirage); db connected; no crash-loop. Re-confirmed a second time after verification.
+- Fix present in shipped source (HEAD `e4debc6`, `git show --stat`): `apps/web/app/(app)/sourcing/companies/[id]/page.tsx` (+70) SSR-fetches full detail (`fetchCompanyDetail` → server-side `${apiBase()}/sourcing/companies/:id`) and passes it as `initialDetail` to `<CompanyDetail>`; `CompanyDetail.tsx` (+42) `useEffect` returns early when `initialDetail !== undefined` (skips the client fetch — the "Network error" branch is now unreachable on the detail page); `DetailDrawer.tsx` fetches `/sourcing/company-detail/:id`; `next.config.ts` (+12) adds the `afterFiles` rewrite `/sourcing/company-detail/:id → ${apiProxyTarget}/sourcing/companies/:id` (no Next.js page at that path → always proxied to API JSON). A 556-line `[id]/page.test.tsx` was added.
+
+### The 4-surface POST-HYDRATION DOM proof (real headless chromium-1208, Playwright 1.61.1, live `document.body.innerText`, HttpOnly session cookies via `context.addCookies()`)
+
+Seed: analyst minted web-origin (`/auth/invite {role:analyst}` → token; `/auth/signup {inviteToken,password}` → 201; `/auth/me` → 200 role:analyst). Anti-CSRF = SuperTokens VIA_CUSTOM_HEADER; mutations carry `Origin: <web-origin>` + `rid: anti-csrf`. Fixture connection `Vfinal-1783149838` (`4e4bf186…`) → **201**; sync → **201 `{"ingested":5,"updated":0}`** → 4 canonical companies. Detail id `0095627e-92ec-4e7d-9a0a-659099c263ff` = "Acme Technologies Inc." (API-direct GET `/sourcing/companies/:id` → **200 valid JSON**, route healthy). Session cookies (sAccessToken/sRefreshToken, HttpOnly) injected into a real chromium-1208 context; live post-hydration DOM asserted.
+
+| Surface | Method | HTTP | emptyState | Live-DOM result | Verdict |
+|---|---|---|---|---|---|
+| `/sourcing` (workspace) | real-DOM | 200 | **false** | Acme, Delta Systems, Bright Horizon, Epsilon all render | **PASS** |
+| `/sourcing/companies` (deep list) | real-DOM | 200 | **false** | all 4 company names render; zero "No companies yet"/"No companies found" markers | **PASS** |
+| `/sourcing/companies/:id` (**DETAIL — THE fix proof**) | real-DOM | **200** | n/a | **`networkError:false`, `emptyOrError:false`, `redirectedToList:false`, 0 console errors.** Renders the company heading "Acme Technologies Inc." + `ID: 0095627e…` + `https://www.acme.com · Active`, the **Contacts / Provenance / Dedupe Review** tabs, and real contacts (Alice Walker CEO, Bob Chen CTO, Frank Li VP Engineering, masked emails). SSR-hydration fix PROVEN. | **PASS** |
+| `/compliance/settings` | real-DOM | 200 | n/a | compliance user minted; renders "Compliance Rules Engine" + Rules/Disclaimer/Suppression UI, `errorState:false` | **PASS** |
+
+- **In-memory filter (workspace):** typing "Acme" into the search input → `afterQuery_hasAcme:true`, `afterQuery_deltaFiltered:true` (Delta Systems removed from the DOM), and **`netRequestsDuringSearch: []`** — the filter runs entirely in-memory over the SSR-loaded list with ZERO network fetch to any `/sourcing/*` path. **PASS.**
+- The DETAIL result directly reverses every prior round: `798fae1` rendered "Network error — please try again"; `e4debc6` renders the full detail with no error branch reachable (client fetch skipped via `initialDetail`).
+
+### Regression (all PASS)
+
+| Check | Result | Verdict |
+|---|---|---|
+| POST /sourcing/connections (new displayName) | **201** (id `4e4bf186…`, createdBy set) | PASS |
+| POST same displayName again (dup) | **409** | PASS |
+| POST unknown providerKey (`nope-xyz`) | **400** | PASS |
+| POST /sourcing/connections/:id/sync | **201** `{"ingested":5,"updated":0}` | PASS |
+| login (`/auth/me`) | **200** role:analyst | PASS |
+| api `/health` | **200** version `e4debc6`, db ok, no crash | PASS |
+| API-direct GET /sourcing/companies/:id | **200** valid JSON | PASS |
+| connection-create audited (compliance GET /compliance/audit-log/verify) | **200 `{"ok":true,"entriesChecked":57}`** — HMAC-SHA256 hash chain intact | PASS |
+
+### No fabricated green
+
+Every verdict traces to a live deployed-state artifact: Railway GraphQL deployment `status` + `meta.commitHash`, `/health` body on the api's own domain, real headless-chromium-1208 **post-hydration** `innerText` DOM assertions (not HTML-substring — the exact failure mode that masked the prior "Network error" behind a 200), live API JSON, and the audit-chain verify. The detail render is proven in the live DOM (heading + tabs + contacts, no error branch), not inferred from a 200 status.
+
+### Canary — SKIPPED
+
+0 DAU < `canary_threshold_dau: 1000`. No real-user traffic to shift; canary not armed this wave.
+
+### Cleanup
+
+- **No temp TCP proxy created this round** — verification used API-direct calls + the headless-DOM harness (no DB probe needed). `DATABASE_PUBLIC_URL` is an unresolved Railway template (host `:`) and reaching the DB to truncate would require standing up a new proxy; standing one up solely to delete harmless demo fixtures is the worse security posture, so none was opened (nothing to tear down).
+- Seeded fixture connection + 4 canonical demo companies **retained** — external-party fixture/demo data, no DELETE endpoint (connections are audit-referenced by design). Harmless; not real user data. (This is a PASS — no migration-retry depends on a clean DB, unlike prior REJECTED rounds.)
+- Test analyst + compliance users **retained** — append-only `audit_log_entries` immutability trigger blocks deleting an actor referenced by the hash chain (compliance control working as designed, per prior C-2 rounds).
+- Local credential + cookie-jar + token + proof-script temp files `shred`-scrubbed / removed (verified: no `/tmp/dealflow-*` or `/tmp/ph_*` remain).
+- GIT_SHA left at `e4debc6` (correct for the deployed hash); deploy left in place (boots clean, `/health` green, all 4 surfaces render).
+
+### Chronology
+
+- 2026-07-04 ~07:21 UTC: GIT_SHA=e4debc6 upserted on api+web; explicit `serviceInstanceDeploy` both services.
+- ~07:22 UTC: api dep `67a39336` + web dep `bfcca5a0` both **SUCCESS** (~30s rebuild); neither SKIPPED. /health == e4debc6 own-domain.
+- ~07:23 UTC: analyst minted; connection `4e4bf186` created (201), dup 409, bad-key 400, sync `{ingested:5}` → 4 companies.
+- ~07:25–07:26 UTC: headless-chromium-1208 4-surface post-hydration DOM proof — workspace / deep-list / **DETAIL (renders heading+tabs+contacts, no Network error)** / compliance-settings all render. In-memory filter fires 0 fetches. Audit chain ok:true (57 entries). Canary skipped (0 DAU).
+- Cleanup: temp cred files scrubbed; no proxy created. Deploy e4debc6 left in place.
+
+### Monitor task (deploy wait — bounded, three-condition)
+
+```yaml
+platform: railway
+success_condition: deployments(first:1).edges[0].node.status == "SUCCESS"   # per-service, polled
+failure_condition: status IN ("FAILED","CRASHED","REMOVED","SKIPPED")
+timeout_budget: 900   # seconds
+poll_delay: 30
+result: BOTH_SUCCESS (api 67a39336, web bfcca5a0) in ~30s — no SKIPPED
+```
+
+```yaml
+head_signoff:
+  verdict: APPROVED
+  stage: C-2
+  reverify: "V-3 detail-SSR-hydrate re-verify (e4debc6) — FINAL"
+  reviewers: {}
+  reverify_passed_checks:
+    - "DETAIL /sourcing/companies/:id renders the company detail (THE fix proof): live headless-chromium-1208 post-hydration DOM shows the company heading 'Acme Technologies Inc.' + Contacts/Provenance/Dedupe-Review tabs + real contacts; networkError=false, emptyOrError=false, redirectedToList=false, 0 console errors. The SSR-hydrate fix (server passes initialDetail → CompanyDetail skips the client fetch; drawer uses the non-colliding /sourcing/company-detail/:id proxy) closes the 5th masked sibling. Directly reverses 798fae1's 'Network error'."
+    - "workspace /sourcing renders companies (live DOM emptyState=false, 4 names); in-memory search filters (Delta removed) with netRequestsDuringSearch=[] (zero page-route fetch)"
+    - "deep-list /sourcing/companies renders all 4 companies (live DOM emptyState=false, zero 'No companies yet' markers)"
+    - "compliance /compliance/settings renders Rules Engine UI (compliance user, errorState=false)"
+    - "commit-SHA provenance: /health version == e4debc6 on api's OWN container domain (not global); both services SUCCESS via explicit serviceInstanceDeploy (api 67a39336 / web bfcca5a0, meta.commitHash e4debc6), neither SKIPPED; post-deploy latest-deployment query confirms current heads (no phantom skip)"
+    - "armed rollback captured pre-mutation (api d97c26e7 / web 47f266f5); unused (boots clean)"
+    - "regression: connection create 201 / dup 409 / bad-key 400 / sync {ingested:5} / login 200 / /health ok / API-direct detail 200 JSON — all PASS"
+    - "connection-create audited: audit-log chain-verify ok:true, entriesChecked=57; HMAC-SHA256 chain intact"
+    - "bounded MONITOR: success=SUCCESS / failure=IN(FAILED,CRASHED,REMOVED,SKIPPED) / timeout_budget=900s; immutable fresh-artifact deploy; GIT_SHA upserted non-destructively; all env pre-bound"
+    - "canary correctly skipped (0 DAU < 1000); temp credential/cookie/token files shredded; no lingering TCP proxy (none created)"
+  rationale: >
+    The merged e4debc6 fix WORKS live and closes the 5-sibling chain. The DETAIL surface —
+    /sourcing/companies/:id, the single open defect that drove the prior REJECTED verdict
+    (798fae1 rendered "Network error — please try again") — now renders the full company
+    detail in a real headless-chromium-1208 post-hydration DOM: the company heading, the
+    Contacts/Provenance/Dedupe-Review tabs, and real contact rows, with the error branch
+    provably unreachable. Root cause is genuinely eliminated: the server component now
+    SSR-fetches the full detail and passes it as a serializable initialDetail prop, so
+    CompanyDetail's useEffect early-returns and never issues the same-origin client fetch that
+    was being served the Next.js [id] page HTML; the workspace drawer fetches the new
+    non-colliding /sourcing/company-detail/:id path that has an afterFiles rewrite to the API.
+    All four surfaces render real data (workspace, deep list, detail, compliance-settings), the
+    in-memory workspace filter fires zero network requests, and every non-detail acceptance
+    criterion is green — connection create 201, dup 409, bad-key 400, sync ingested, login 200,
+    and the create is audited into an intact HMAC-SHA256 chain (verify ok:true, 57 entries).
+    Provenance is clean and self-triggered: I did not trust the ambient auto-deploy — I upserted
+    GIT_SHA and issued an explicit serviceInstanceDeploy on both services, polled both to SUCCESS
+    (neither SKIPPED), confirmed they are the current heads, and verified /health == e4debc6 on the
+    api's own container domain (not a global-domain mirage). Armed rollback was captured before
+    mutation and was not needed. Critically, this round asserts the POST-HYDRATION live DOM rather
+    than an HTML substring — the exact discipline that catches the class of masked bug (a green 200
+    hiding a client error state) that hid behind the prior four rounds. No fabricated green: every
+    verdict traces to a live deployed-state artifact — Railway GraphQL deployment status +
+    meta.commitHash, /health body, headless post-hydration DOM assertions, live API JSON, and the
+    audit-chain verify. C-2 passes; the wave returns to the V-3 gate to close the V-block.
+  next_action: PROCEED_TO_V3-GATE  # detail SSR-hydrate fix proven live; all 4 surfaces render post-hydration; chain closed. Return to head-verifier V-3 gate to close the V-block. Deploy e4debc6 left in place; DB left with harmless demo fixtures; no rollback.
+```
