@@ -91,7 +91,6 @@ export default async function CompanyDetailPage({ params }: PageProps) {
         companyId={id}
         companyName={company.name}
         {...(company.domain != null ? { companyDomain: company.domain } : {})}
-        onCandidateResolved={(_companyId, _hasPending) => undefined}
       />
     </div>
   );

@@ -1003,3 +1003,167 @@ describe('filter interaction — CompaniesClient', () => {
     });
   });
 });
+
+// ── wave-7: CompanyDetail optional onCandidateResolved — server→client fix ──
+//
+// Root cause: /sourcing/companies/[id]/page.tsx is a SERVER component that
+// previously passed `onCandidateResolved={(...) => undefined}` — a function
+// prop — to the 'use client' CompanyDetail component. Next.js App Router
+// forbids function props crossing the server→client boundary and throws a
+// runtime 500.
+//
+// Fix: onCandidateResolved is now optional (?) on CompanyDetailProps; the
+// call site is guarded with optional chaining (?.); the [id] page passes NO
+// function prop. These tests guard the optional-prop contract:
+//   (a) CompanyDetail renders and functions correctly without the callback.
+//   (b) Resolving a candidate without a callback does NOT throw.
+//   (c) CompaniesClient (client parent) still passes the callback and it fires.
+
+describe('wave-7 fix — CompanyDetail.onCandidateResolved is optional (server→client boundary)', () => {
+  const DETAIL_RESPONSE_NO_CANDIDATES = {
+    company: {
+      id: COMPANY_1.id,
+      name: COMPANY_1.name,
+      domain: COMPANY_1.domain,
+      normalizedDomain: COMPANY_1.normalizedDomain,
+      normalizedName: COMPANY_1.normalizedName,
+      sector: COMPANY_1.sector,
+      status: COMPANY_1.status,
+      createdAt: NOW,
+      updatedAt: null,
+    },
+    contacts: [CONTACT_1],
+    provenance: [PROVENANCE_1],
+    pendingCandidates: [],
+  };
+
+  const DETAIL_WITH_CANDIDATE_NO_CB = {
+    ...DETAIL_RESPONSE_NO_CANDIDATES,
+    company: {
+      ...DETAIL_RESPONSE_NO_CANDIDATES.company,
+      id: COMPANY_2.id,
+      name: COMPANY_2.name,
+      domain: COMPANY_2.domain,
+    },
+    contacts: [],
+    provenance: [],
+    pendingCandidates: [CANDIDATE_1],
+  };
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  // (a) Detail page case: no onCandidateResolved prop — renders without throwing.
+  it('renders loading skeleton without onCandidateResolved prop (detail page case)', () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => new Promise(() => {}), // never resolves — stays in loading
+      } as unknown as Response)
+    );
+    // onCandidateResolved is intentionally omitted — simulates the server-component
+    // detail page which cannot pass function props across the boundary.
+    expect(() =>
+      render(<CompanyDetail companyId={COMPANY_1.id} companyName={COMPANY_1.name} />)
+    ).not.toThrow();
+    // Still in loading state; no heading yet
+    expect(screen.queryByRole('heading', { name: /nexus data systems/i })).toBeNull();
+  });
+
+  // (a) continued — detail renders after fetch without the callback.
+  it('renders company detail after fetch with onCandidateResolved absent', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(DETAIL_RESPONSE_NO_CANDIDATES),
+      } as Response)
+    );
+    render(<CompanyDetail companyId={COMPANY_1.id} companyName={COMPANY_1.name} />);
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Nexus Data Systems' })).toBeDefined();
+    });
+    expect(screen.getByText('Elena Rostova')).toBeDefined();
+  });
+
+  // (b) Resolving a candidate without the callback must not throw.
+  it('resolving a dedupe candidate with onCandidateResolved absent does not throw', async () => {
+    const user = userEvent.setup();
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(DETAIL_WITH_CANDIDATE_NO_CB),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ status: 'merged' }),
+      } as Response);
+
+    vi.stubGlobal('fetch', mockFetch);
+
+    // No onCandidateResolved — the guard (onCandidateResolved?.(...)) must swallow it.
+    render(<CompanyDetail companyId={COMPANY_2.id} companyName={COMPANY_2.name} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /merge records/i })).toBeDefined();
+    });
+
+    // Should not throw even though onCandidateResolved is undefined.
+    await expect(
+      user.click(screen.getByRole('button', { name: /merge records/i }))
+    ).resolves.not.toThrow();
+
+    // Candidate card is removed from view — state update happened correctly.
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /merge records/i })).toBeNull();
+    });
+  });
+
+  // (c) List screen (client parent) still passes the callback and it fires correctly.
+  it('onCandidateResolved fires when provided by a client parent (list-screen case)', async () => {
+    const user = userEvent.setup();
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(DETAIL_WITH_CANDIDATE_NO_CB),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ status: 'merged' }),
+      } as Response);
+
+    vi.stubGlobal('fetch', mockFetch);
+
+    const onCandidateResolved = vi.fn();
+    render(
+      <CompanyDetail
+        companyId={COMPANY_2.id}
+        companyName={COMPANY_2.name}
+        onCandidateResolved={onCandidateResolved}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /merge records/i })).toBeDefined();
+    });
+
+    await user.click(screen.getByRole('button', { name: /merge records/i }));
+
+    await waitFor(() => {
+      expect(onCandidateResolved).toHaveBeenCalledWith(COMPANY_2.id, false);
+    });
+  });
+});

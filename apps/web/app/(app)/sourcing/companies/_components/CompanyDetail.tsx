@@ -584,7 +584,9 @@ interface CompanyDetailProps {
   companyId: string;
   companyName: string;
   companyDomain?: string;
-  onCandidateResolved: (companyId: string, hasPending: boolean) => void;
+  /** Optional: called after a dedupe candidate is resolved. Absent on the
+   *  standalone detail page (server component cannot pass function props). */
+  onCandidateResolved?: (companyId: string, hasPending: boolean) => void;
 }
 
 export function CompanyDetail({
@@ -655,7 +657,7 @@ export function CompanyDetail({
       setDetail((prev) => {
         if (!prev) return prev;
         const remaining = prev.pendingCandidates.filter((c) => c.id !== candidateId);
-        onCandidateResolved(companyId, remaining.length > 0);
+        onCandidateResolved?.(companyId, remaining.length > 0);
         return { ...prev, pendingCandidates: remaining };
       });
       pushToast(
