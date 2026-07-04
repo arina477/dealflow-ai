@@ -59,9 +59,9 @@ TEST:
 - [x] T-9 Journey — head-tester APPROVED; journey regen (buyer-universe LIVE + route reconciled)
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-1 Independent reviews (Karen + jenny, parallel) — Karen APPROVE + jenny APPROVE (0 drift, 0 blocking; M4 complete)
+- [x] V-2 Triage — 0 blocking; V-3 close (deployed=verified)
+- [x] V-3 Fast-fix loop (or close) — CLOSE (0 blocking; deployed=verified 937ae18; C-2 first-try)
 
 LEARN:
 - [ ] L-1 Docs

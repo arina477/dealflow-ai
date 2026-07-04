@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0] — 2026-07-04 — Buyer universe (M4 complete)
+
+### Added
+- **Buyer-universe builder** (M4 final bundle) — for a sell-side mandate, an analyst assembles a candidate buyer set from the canonical companies store, filters it by the mandate's buyer criteria (per-candidate include/exclude with provenance), enriches included candidates with their contacts, flags gaps, and submits the universe as ready-to-rank. Reached from the mandate detail's "Buyer Engine" panel at `/buyer-universe`. Migration 0008 (buyer_universe + buyer_universe_candidates; one universe per mandate). This **completes Milestone M4 — Mandates & buyer universe** (create a configured mandate → assemble + enrich a buyer universe ready to rank).
+- Endpoints: `POST /buyer-universe` (assemble; idempotent per mandate), `POST /:id/filter`, `POST /:id/enrich`, `GET /:id/gaps`, `POST /:id/submit`, `GET /buyer-universe`, `PATCH /:id/candidates/:cid`. RBAC analyst-primary (advisor/admin permitted); every mutation audited.
+
+### Compliance / correctness
+- Idempotent assembly (a mandate has exactly one buyer universe; concurrent-safe); submit is guarded (rejects a universe with no included candidates or any un-triaged candidate); the criteria filter is honest about dimensions it cannot yet apply (geo/size/deal-type are recorded as not-applied and surfaced in provenance + the audit trail, rather than silently claiming a full filter).
+
+### Boundary
+- Assembly + filtering + enrichment + submission only — no fit-scoring, ranking, or AI matching here; ranked buyer-seller matching is the next milestone (M5).
+
 ## [0.8.0] — 2026-07-04 — Mandate spine (M4 create/list/detail)
 
 ### Added
