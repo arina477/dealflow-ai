@@ -200,9 +200,9 @@ test.describe('S1: analyst — Sourcing nav visible + /sourcing renders workspac
     ).toBeVisible({ timeout: 8_000 });
 
     // 4. Source facet — "Filter by source" or "Source Filter" label
-    const sourceFacet = page.getByRole('group', { name: /filter.*source|source.*filter/i }).or(
-      page.locator('fieldset[aria-label*="source"]')
-    );
+    const sourceFacet = page
+      .getByRole('group', { name: /filter.*source|source.*filter/i })
+      .or(page.locator('fieldset[aria-label*="source"]'));
     await expect(
       sourceFacet,
       'Source facet (fieldset/group) must render in the left sidebar'
@@ -306,11 +306,13 @@ test.describe('S2: connection-create + ≥2-source in facet', () => {
     await nameInput.fill('t5-src-A');
 
     // Listen for the API response before clicking
-    const connectionPostPromise = page.waitForResponse(
-      (resp) =>
-        resp.url().includes('/sourcing/connections') && resp.request().method() === 'POST',
-      { timeout: 10_000 }
-    ).catch(() => null); // null = no response captured within timeout
+    const connectionPostPromise = page
+      .waitForResponse(
+        (resp) =>
+          resp.url().includes('/sourcing/connections') && resp.request().method() === 'POST',
+        { timeout: 10_000 }
+      )
+      .catch(() => null); // null = no response captured within timeout
 
     await createBtn.click();
 
@@ -350,7 +352,10 @@ test.describe('S2: connection-create + ≥2-source in facet', () => {
       const facetCount = await page
         .getByRole('button', { name: /filter by t5-src-(A|B)/i })
         .count();
-      expect(facetCount, `Must have ≥2 source facet buttons; got ${facetCount}`).toBeGreaterThanOrEqual(2);
+      expect(
+        facetCount,
+        `Must have ≥2 source facet buttons; got ${facetCount}`
+      ).toBeGreaterThanOrEqual(2);
 
       await page.screenshot({
         path: path.join(SCREENSHOT_DIR, 'sourcing-workspace-s2-two-sources.png'),
@@ -441,9 +446,7 @@ test.describe('S3a: RBAC deny — advisor: no Sourcing nav + /sourcing redirects
       finalUrl,
       'Advisor must be redirected away from /sourcing (workspace denied)'
     ).not.toMatch(/\/sourcing/);
-    expect(finalUrl, 'Redirect must land on / or /login, not an error page').toMatch(
-      /\/(login|)$/
-    );
+    expect(finalUrl, 'Redirect must land on / or /login, not an error page').toMatch(/\/(login|)$/);
   });
 });
 

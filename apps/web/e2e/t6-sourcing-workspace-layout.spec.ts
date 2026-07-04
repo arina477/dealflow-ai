@@ -69,10 +69,7 @@ async function acceptInviteInBrowser(
   await page.waitForURL(/\/(login)?$/, { timeout: 20_000 });
 }
 
-async function ensureLoggedIn(
-  page: import('@playwright/test').Page,
-  email: string
-): Promise<void> {
+async function ensureLoggedIn(page: import('@playwright/test').Page, email: string): Promise<void> {
   if (!page.url().includes('/login')) return;
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible({
     timeout: 10_000,
@@ -93,8 +90,14 @@ async function assertSidebar(page: import('@playwright/test').Page): Promise<voi
   });
 
   const bbox = await nav.boundingBox();
-  expect(bbox?.width, `Sidebar width must be ~256px (w-64); got ${bbox?.width}`).toBeGreaterThanOrEqual(240);
-  expect(bbox?.width, `Sidebar width must be ~256px (w-64); got ${bbox?.width}`).toBeLessThanOrEqual(280);
+  expect(
+    bbox?.width,
+    `Sidebar width must be ~256px (w-64); got ${bbox?.width}`
+  ).toBeGreaterThanOrEqual(240);
+  expect(
+    bbox?.width,
+    `Sidebar width must be ~256px (w-64); got ${bbox?.width}`
+  ).toBeLessThanOrEqual(280);
 
   const bgColor = await nav.evaluate((el) => window.getComputedStyle(el).backgroundColor);
   expect(bgColor, `Sidebar bg must be zinc-900 rgb(17,24,39); got "${bgColor}"`).toBe(
@@ -113,7 +116,9 @@ async function assertTopBar(page: import('@playwright/test').Page): Promise<{
   await expect(header, 'TopBar <header> must be present').toBeVisible();
 
   const bbox = await header.boundingBox();
-  expect(bbox?.height, `TopBar height must be ~64px; got ${bbox?.height}`).toBeGreaterThanOrEqual(56);
+  expect(bbox?.height, `TopBar height must be ~64px; got ${bbox?.height}`).toBeGreaterThanOrEqual(
+    56
+  );
   expect(bbox?.height, `TopBar height must be ~64px; got ${bbox?.height}`).toBeLessThanOrEqual(72);
 
   const bgColor = await header.evaluate((el) => window.getComputedStyle(el).backgroundColor);
@@ -218,7 +223,9 @@ test.describe('T-6 sourcing-workspace — analyst visual baseline (wave-7)', () 
           'expected "Sourcing" or "Target Sourcing" per design/sourcing-workspace.html §10. Routes to B.'
       );
     } else {
-      console.log(`[T-6] TopBar title: "${headerText}" — contains expected sourcing keyword. PASS.`);
+      console.log(
+        `[T-6] TopBar title: "${headerText}" — contains expected sourcing keyword. PASS.`
+      );
     }
 
     // ── Workspace-specific chrome ─────────────────────────────────────────────

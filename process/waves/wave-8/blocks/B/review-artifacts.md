@@ -5,9 +5,9 @@
 | B-0 | stages/B-0-branch-and-schema.md | done | branch + 3 tasks + migration 0006 (journal when>0005 ✓) |
 | B-1 | stages/B-1-contracts.md | done | shared mandate Zod + rbac /mandates+NAV + audit actions |
 | B-2 | stages/B-2-backend.md | done | MandateService one-txn+audit+actor-id+derive-disclaimer+3-acks; RBAC matrix; 787 tests |
-| B-3 | stages/B-3-frontend.md | pending | mandates-list + mandate-new + mandate-detail (SSR-hydrate) (nextjs-developer) |
-| B-4 | stages/B-4-wiring.md | pending | repo typecheck + build |
-| B-5 | stages/B-5-verify.md | pending | lint+unit+build |
+| B-3 | stages/B-3-frontend.md | done | 3 pages (list+new+detail SSR-hydrate); D1-D6; 304 web tests (c430bbd) |
+| B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS; 3 routes compile |
+| B-5 | stages/B-5-verify.md | done | lint 0-err, ~1091 tests, build pass; runtime→C-2 |
 | B-6 | stages/B-6-review.md | pending | head-builder gate + /review; multi-spec commit-per-spec |
 ## Block-specific context
 - **Spec contract:** tasks row ba0edebf (multi-spec, 3 blocks + P-4 D1-D6 addendum). Branch wave-8-mandate-spine.
