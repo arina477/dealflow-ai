@@ -1,0 +1,10 @@
+# Wave 7 — P-0 Frame
+## Discover
+- wave_db_id 3694481c… (wave_number 7, M3 backfilled). M1+M2 DONE; M3 data spine shipped wave 6 (fixture adapter + ETL + dedupe + companies screen, LIVE). This wave = sourcing-workspace page (M3 metric: search across ≥2 sources).
+- no-prior-spec → full P-1..P-3. design_gap TBD (sourcing-workspace.html).
+## Reframe — RESCOPE-AUTO-SPLIT + THIN (all 3 reframers align)
+- **problem-framer:** RESCOPE-AUTO-SPLIT. The sourcing-workspace PAGE (dfa5bd56) is well-framed + demoable NOW on the wave-6 FIXTURE adapter; the real DataSourceAdapter (345dfbc6) is EXTERNALLY BLOCKED (unchosen vendor spend-commitment + founder-supplied API key — not autonomously completable). Coupling them = scope-creep. Ship the page; DEFER the real adapter to its own wave once vendor+key provisioned.
+- **ceo-reviewer:** PROCEED (HOLD-SCOPE) — endorse the split. The page completes M3's UX loop + verifies the metric + works over the deduped universe + is needed regardless of vendor. The real adapter is correctly a founder/BOARD spend+credential decision, not an autonomous default.
+- **mvp-thinner:** THIN — 1 AC-split: the in-page per-candidate dedupe-review/import modal duplicates the wave-6 /sourcing/companies review queue (where cleaning routes) → sibling under M3 (deferred). KEPT (mvp-critical): search → connection-level "select for import → trigger sync" → sync-outcome → results-matrix + detail-drawer → hand-off to companies screen. NOTE: ≥2-source UI buildable/testable NOW on ≥2 FIXTURE connections (NOT blocked on the real adapter); search basic (no facets/saved-search to peel).
+- **Disposition:** PROCEED on the sourcing-workspace PAGE (single-spec) on the fixture, with ≥2 fixture connections for the ≥2-source UI. DEFER: real adapter (345dfbc6, founder vendor+key) + the in-page dedupe-modal (sibling).
+## Founder-facing decision surfaced (deferred, non-blocking): pick a real deal-source provider (vendor) + supply an account-issued API key → then the deferred real-adapter wave proceeds. (Money + account credential → founder/BOARD per rule 6 + rule 19.)
