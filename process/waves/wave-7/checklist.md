@@ -48,8 +48,8 @@ VERIFY:
 - [x] V-3 Fast-fix loop (or close) — 5-sibling render chain RESOLVED + all 4 surfaces LIVE (e4debc6); head-ci-cd APPROVED
 
 LEARN:
-- [ ] L-1 Docs
-- [ ] L-2 Distill
+- [x] L-1 Docs — CHANGELOG 0.7.0; 5 observations
+- [x] L-2 Distill — promoted BUILD rule 4 (drizzle journal when-timestamp; 2-wave gate met)
 
 NEXT:
 - [ ] N-1 Survey & triggers

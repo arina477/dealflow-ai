@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0] — 2026-07-04 — Sourcing workspace (M3 search entry)
+
+### Added
+- **Sourcing workspace** at `/sourcing` (analyst) — the M3 search entry point: search over the deduped canonical company universe (in-memory over the SSR-loaded set), a source facet across connected data sources, a results matrix with per-company source badges (from real connection displayNames), a company detail drawer (contacts + provenance), and a per-connection "sync now" trigger that reuses the wave-6 idempotent ETL→dedupe pipeline. Hand-off to `/sourcing/companies` (the dedupe review queue). Completes M3's success metric — "search across ≥2 connected sources" — verifiable on ≥2 fixture connections.
+- **Connection management**: `POST /sourcing/connections` (create; analyst/admin; audited via the M2 hash-chain; providerKey validated against the adapter registry → 400 on unknown; `UNIQUE(display_name)` → 409 on dup) + `GET /sourcing/connections` (list, per-connection company counts). Migration 0005 (UNIQUE display_name). Per-company `connectionIds` on the companies list (source badges).
+
+### Fixed
+- Web SSR/client render hardening across the sourcing + compliance surfaces: shared read-schema timestamps accept the PostgreSQL wire format (were rejecting real API data → empty lists); `companySchema` accepts the API `connectionIds`/`sourceCount` fields; the company detail page SSR-hydrates (no Server→Client function-prop violation, no client fetch colliding with the page route).
+
+### Deferred
+- The first REAL data-source provider adapter (awaits a founder vendor choice + account-issued API key); an in-page per-candidate dedupe modal; advanced search facets / saved searches.
+
 All notable changes to DealFlow AI are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0/).
