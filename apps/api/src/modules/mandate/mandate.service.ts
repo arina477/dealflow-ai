@@ -97,11 +97,13 @@ export class MandateService {
 
     // 2. Defensive acknowledgments check (schema-level z.literal(true) is the
     //    primary guard; this catches any call-site that bypasses Zod validation).
+    //    Uses strict === true (NOT truthy) so that "true" (string) or 1 (number)
+    //    are rejected even if a caller bypasses Zod entirely.
     const { acknowledgments } = input.compliance;
     if (
-      !acknowledgments.lawful_authorization ||
-      !acknowledgments.ai_results_validated ||
-      !acknowledgments.conflict_dbs_reviewed
+      acknowledgments.lawful_authorization !== true ||
+      acknowledgments.ai_results_validated !== true ||
+      acknowledgments.conflict_dbs_reviewed !== true
     ) {
       throw new BadRequestException(
         'All three acknowledgments (lawful_authorization, ai_results_validated, ' +

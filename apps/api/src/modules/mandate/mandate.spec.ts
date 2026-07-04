@@ -786,6 +786,254 @@ describe('MandateService.createAsActor — acknowledgments validation (D5)', () 
   });
 });
 
+// ---------------------------------------------------------------------------
+// T-block regression: ALL bypass shapes → 400 at schema + service boundary
+// (Refs: ba0edebf — compliance invariant: all 3 acks must be true; no bypass)
+// ---------------------------------------------------------------------------
+
+describe('T-block: 3-acks bypass-shape regression — schema boundary', () => {
+  // Shape 1: one ack false (lawful_authorization) → schema REJECTS
+  it('schema: {lawful_authorization:false, ai_results_validated:true, conflict_dbs_reviewed:true} → REJECTED (400)', () => {
+    const result = mandateCreateSchema.safeParse({
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {
+          lawful_authorization: false,
+          ai_results_validated: true as const,
+          conflict_dbs_reviewed: true as const,
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const msgs = result.error.issues.map((i) => i.message).join('; ');
+      expect(msgs).toContain('lawful_authorization');
+    }
+  });
+
+  // Shape 2: one ack MISSING (omitted key) → schema REJECTS (not defaulted-to-true)
+  it('schema: conflict_dbs_reviewed OMITTED → REJECTED (400, not defaulted-to-true)', () => {
+    const result = mandateCreateSchema.safeParse({
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {
+          lawful_authorization: true as const,
+          ai_results_validated: true as const,
+          // conflict_dbs_reviewed deliberately omitted
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths.some((p) => p.includes('conflict_dbs_reviewed'))).toBe(true);
+    }
+  });
+
+  // Shape 3: acknowledgments object entirely absent → schema REJECTS
+  it('schema: acknowledgments object entirely absent → REJECTED (400)', () => {
+    const result = mandateCreateSchema.safeParse({
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        // acknowledgments key entirely missing
+      },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths.some((p) => p.includes('acknowledgments'))).toBe(true);
+    }
+  });
+
+  // Shape 4: all 3 true → schema ACCEPTS
+  it('schema: all 3 true → ACCEPTED (valid create input)', () => {
+    const result = mandateCreateSchema.safeParse({
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {
+          lawful_authorization: true as const,
+          ai_results_validated: true as const,
+          conflict_dbs_reviewed: true as const,
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // Shape 5: ack = "true" (string) → schema REJECTS (z.literal(true); no truthy coercion)
+  it('schema: lawful_authorization = "true" (string) → REJECTED (no truthy coercion)', () => {
+    const result = mandateCreateSchema.safeParse({
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {
+          lawful_authorization: 'true', // string, NOT boolean true
+          ai_results_validated: true as const,
+          conflict_dbs_reviewed: true as const,
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  // Shape 6: ack = 1 (number) → schema REJECTS (z.literal(true); no truthy coercion)
+  it('schema: ai_results_validated = 1 (number) → REJECTED (no truthy coercion)', () => {
+    const result = mandateCreateSchema.safeParse({
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {
+          lawful_authorization: true as const,
+          ai_results_validated: 1, // number, NOT boolean true
+          conflict_dbs_reviewed: true as const,
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('T-block: 3-acks bypass-shape regression — service boundary (independent of schema)', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  // These tests call the SERVICE DIRECTLY with pre-coerced inputs that bypass
+  // Zod (simulating a call-site that skips schema validation). They confirm
+  // the defensive === true check in MandateService.createAsActor rejects them.
+
+  // Shape 1: service receives {lawful_authorization:false} → throws BadRequestException
+  it('service: {lawful_authorization:false} bypassing schema → BadRequestException (400)', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository();
+    const audit = makeMockAuditService();
+    const service = new MandateService(repo, audit, authRepo);
+
+    const badInput = {
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {
+          lawful_authorization: false as unknown as true,
+          ai_results_validated: true as const,
+          conflict_dbs_reviewed: true as const,
+        },
+      },
+    };
+    await expect(service.createAsActor(badInput, 'st-id')).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+  });
+
+  // Shape 2: service receives missing ack (undefined) → throws BadRequestException
+  it('service: conflict_dbs_reviewed=undefined bypassing schema → BadRequestException (400)', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository();
+    const audit = makeMockAuditService();
+    const service = new MandateService(repo, audit, authRepo);
+
+    const badInput = {
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {
+          lawful_authorization: true as const,
+          ai_results_validated: true as const,
+          conflict_dbs_reviewed: undefined as unknown as true, // missing/undefined
+        },
+      },
+    };
+    await expect(service.createAsActor(badInput, 'st-id')).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+  });
+
+  // Shape 3: service receives acknowledgments entirely absent → throws BadRequestException
+  it('service: acknowledgments object absent (no acks key) bypassing schema → BadRequestException (400)', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository();
+    const audit = makeMockAuditService();
+    const service = new MandateService(repo, audit, authRepo);
+
+    const badInput = {
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {} as unknown as {
+          lawful_authorization: true;
+          ai_results_validated: true;
+          conflict_dbs_reviewed: true;
+        },
+      },
+    };
+    await expect(service.createAsActor(badInput, 'st-id')).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+  });
+
+  // Shape 5: service receives ack = "true" (string) bypassing schema → BadRequestException
+  // Validates the strict === true check (not truthy) in the service guard.
+  it('service: lawful_authorization = "true" (string) bypassing schema → BadRequestException (400)', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository();
+    const audit = makeMockAuditService();
+    const service = new MandateService(repo, audit, authRepo);
+
+    const badInput = {
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {
+          lawful_authorization: 'true' as unknown as true, // string, not boolean
+          ai_results_validated: true as const,
+          conflict_dbs_reviewed: true as const,
+        },
+      },
+    };
+    await expect(service.createAsActor(badInput, 'st-id')).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+  });
+
+  // Shape 6: service receives ack = 1 (number) bypassing schema → BadRequestException
+  // Validates the strict === true check (not truthy) in the service guard.
+  it('service: ai_results_validated = 1 (number) bypassing schema → BadRequestException (400)', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository();
+    const audit = makeMockAuditService();
+    const service = new MandateService(repo, audit, authRepo);
+
+    const badInput = {
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {
+          lawful_authorization: true as const,
+          ai_results_validated: 1 as unknown as true, // number, not boolean
+          conflict_dbs_reviewed: true as const,
+        },
+      },
+    };
+    await expect(service.createAsActor(badInput, 'st-id')).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+  });
+
+  // Shape 4 (positive case): service with all 3 true → accepted (no BadRequestException thrown)
+  it('service: all 3 acks true → accepted (passes service guard, proceeds to tx)', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository();
+    const audit = makeMockAuditService();
+    const service = new MandateService(repo, audit, authRepo);
+
+    // Should succeed (returns Mandate)
+    const result = await service.createAsActor(VALID_CREATE_INPUT, 'st-id');
+    expect(result.id).toBe('mandate-uuid-001');
+  });
+});
+
 describe('MandateService.getById — 404 when not found', () => {
   afterEach(() => vi.clearAllMocks());
 
