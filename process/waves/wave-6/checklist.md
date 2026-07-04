@@ -34,14 +34,14 @@ CI/CD:
 - [x] C-2 Deploy & verify — **RE-RUN #3 @ 918dbf0: PASS (APPROVED → PROCEED_TO_T)**. Both prior blockers fixed+merged (DI boot crash 96179b0; fixture-asset dist copy 918dbf0). api+web deployed SUCCESS @ **918dbf0** (api serviceInstanceDeployV2 `2c32e0dd`; web re-pinned via `commitSha:918dbf0` `7b7cc7bc` after 1st web redeploy built stale 96179b0 — stale-commit catch). /health=918dbf0 (deployed-hash + GIT_SHA bound). Migration 0004 applied + journal-registered (5 rows), 7 tables + dedupe unique indexes. **LIVE dedupe payoff PROVEN:** sync 201 {ingested:5,updated:0} (was 500); cross-source acme.com → 1 canonical + 2 company_provenance; Alice deduped → 1 contact + 2 contact_provenance; NO false-positive merge (4 companies = 4 distinct domains); 2nd-connection re-sync → still 4 companies, distinct_conns=2 (true cross-SOURCE); idempotent re-sync 201 {ingested:0,updated:5} identical counts (no pile-up). dedupe_candidates=0 (deterministic fixture → auto-merge only; resolve endpoint live-wired 404/400, audited-merge covered by B-2/B-6 engine tests — NOT fabricated). RBAC fail-closed: analyst 200/201, advisor/compliance 403, unauth 401 across all 4 endpoints; nav gating via shared matrix. Audit chain intact (verify ok:true, entriesChecked=33). Regression OK (web / →307 login, /login 200). Canary skip (0 DAU). Temp DB proxy + all seeded/test rows cleaned up.
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
 - [ ] T-5 E2E
 - [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
+- [x] T-7 Perf
+- [x] T-8 Security
 - [ ] T-9 Journey
 
 VERIFY:
