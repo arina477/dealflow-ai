@@ -54,6 +54,6 @@ LEARN:
 - [x] L-2 Distill
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M3 stays in_progress (data spine is M3's foundation, not the whole milestone); decomposition fired for M3 next bundle (seed dfa5bd56 sourcing-workspace + sibling 345dfbc6 real adapter); no M4 promotion; product-decisions.md @ 8916e58
+- [x] N-2 Seed — bundle dfa5bd56 (+345dfbc6) validated (pass); vertical slice; claimed_task_ids=[dfa5bd56,345dfbc6]
+- [x] N-3 Handoff — wave→7; wave-6 closed (status=ok); archived; .last-wave-completed.yaml written
