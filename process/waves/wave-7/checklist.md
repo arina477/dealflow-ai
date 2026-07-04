@@ -32,14 +32,14 @@ CI/CD:
 - [x] C-2 Deploy & verify — PASS (head-ci-cd APPROVED, dup-409 re-verify @ 0fe63de): the dup→409 fix is VERIFIED LIVE. Deploy 0fe63de SUCCESS both services (api 27761064 / web 98948a92 via serviceInstanceDeployV2, neither SKIPPED), /health==0fe63de on api's own domain, boots clean. **dup-displayName → 409** (201 first, 409 Conflict on duplicate — was 500 pre-fix; err.cause.code unwrap maps DrizzleQueryError-wrapped 23505 → ConflictException; data integrity intact, no 2nd row). Regression: unknown-providerKey→400, workspace GET /sourcing→200, connection-create audited (chain-verify ok:true, 40 entries). Schema via DB probe: UNIQUE(display_name) present + 6 migration rows. Armed rollback captured (api 399792d5 / web f5bb7781, unused). Canary skipped (0 DAU). Cleanup: 0 connections, temp proxy 28f9c4a5 deleted, creds scrubbed; test users left (audit-immutability blocks actor deletion). Prior FAILs — (23e5372: 0005 journal `when`) and (2384c54: dup 500) — both now resolved. → PROCEED_TO_T.
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
+- [x] T-5 E2E — 4/5 real-browser scenarios PASS (workspace renders, RBAC deny, regression); S2 = test-data collision [409≠401 = auth worked], create LIVE-verified C-2; Chrome
+- [x] T-6 Layout — workspace §10-conformant (TopBar-title→polish, recurring 5 screens)
+- [x] T-7 Perf
+- [x] T-8 Security
 - [ ] T-9 Journey
 
 VERIFY:

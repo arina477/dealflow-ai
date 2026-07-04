@@ -90,3 +90,6 @@ chromium-1208 (Playwright bundled, resolved via `PLAYWRIGHT_BROWSERS_PATH=$HOME/
 - Wave-2..6 specs (40 prior tests) all pass — no regressions introduced.
 - S2 connection-create full happy path is gated on FINDING-2 resolution (cookie-based session). The affordance itself works as designed up to the network boundary.
 - The test correctly classifies the 409 as a product bug (not a test bug) and falls back to affordance verification as directed.
+
+## Orchestrator clarification on S2 (NOT a product bug)
+The test-automator flagged S2 (connection-create) as a session-cookie bug, but the evidence contradicts that: the POST returned **409, not 401**. A 409 (ConflictException) means the request AUTHENTICATED (passed SessionGuard + RolesGuard) and hit the UNIQUE(display_name) constraint — a broken/header-not-cookie session would return 401. So S2 is a **test-data collision** (a reused/leftover display_name from a prior run → 409 on re-create), NOT a session/product bug. **C-2 is authoritative:** connection-create was live-verified 201 (unique name) + 409 (dup) via a real browser-equivalent cookie-jar + rid header. The feature works. Fix for the spec: use a per-run-unique displayName (test-maintenance, not a B route).
