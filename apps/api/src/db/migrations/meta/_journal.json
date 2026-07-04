@@ -64,6 +64,13 @@
       "when": 1783468800000,
       "tag": "0008_noisy_hitman",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783555200000,
+      "tag": "0009_omniscient_sabretooth",
+      "breakpoints": true
     }
   ]
 }
