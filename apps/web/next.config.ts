@@ -115,6 +115,19 @@ const nextConfig: NextConfig = {
         //     (the [id] page returns HTML; client uses /sourcing API URL from env)
         //   - POST /sourcing/dedupe-candidates/:id/resolve → API (no page, falls through)
         //   - POST /sourcing/connections/:id/sync → API (no page, falls through)
+        // Wave-7: /sourcing/connections (create + list).
+        // afterFiles: the /sourcing PAGE is served by Next.js (page file exists
+        // at app/(app)/sourcing/page.tsx), so the /sourcing route is NEVER
+        // hijacked. Only /sourcing/connections (no matching page file) falls
+        // through here and is proxied to the API.
+        {
+          source: '/sourcing/connections',
+          destination: `${apiProxyTarget}/sourcing/connections`,
+        },
+        {
+          source: '/sourcing/connections/:id',
+          destination: `${apiProxyTarget}/sourcing/connections/:id`,
+        },
         {
           source: '/sourcing/connections/:id/sync',
           destination: `${apiProxyTarget}/sourcing/connections/:id/sync`,
