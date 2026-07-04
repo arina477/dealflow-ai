@@ -71,8 +71,9 @@ async function fetchMe(cookie: string): Promise<MeShape | null> {
 /**
  * Fetches GET /buyer-universe?mandateId= from the internal API server-side.
  *
- * The API returns an array of universes. We take the first one (at most one
- * per mandate — partial-unique on mandate_id). Returns null if none found.
+ * The API returns { universes: BuyerUniverseRow[] } (controller.listUniverses →
+ * { universes }). We take the first entry (at most one per mandate — UNIQUE on
+ * mandate_id). Returns null if none found.
  *
  * NOTE: We do NOT use GET /buyer-universe/:id here because we only have
  * the mandateId from the query param; the universe id is not known at page-load.
@@ -83,19 +84,22 @@ async function fetchUniverseByMandate(
   cookie: string
 ): Promise<BuyerUniverseDetail | null> {
   try {
-    // First fetch the list to find the universe id for this mandate
+    // First fetch the list to find the universe id for this mandate.
+    // The controller returns { universes: BuyerUniverseRow[] } — NOT a bare array.
     const listRes = await fetch(`${apiBase()}/buyer-universe?mandateId=${mandateId}`, {
       headers: { cookie },
       cache: 'no-store',
     });
     if (!listRes.ok) return null;
     const listRaw: unknown = await listRes.json();
-    // The list endpoint returns an array of universes
-    const listSchema = z.array(z.object({ id: z.string().uuid() }).passthrough());
+    // Parse the wrapper object shape the controller actually returns.
+    const listSchema = z.object({
+      universes: z.array(z.object({ id: z.string().uuid() }).passthrough()),
+    });
     const listParsed = listSchema.safeParse(listRaw);
-    if (!listParsed.success || listParsed.data.length === 0) return null;
+    if (!listParsed.success || listParsed.data.universes.length === 0) return null;
 
-    const universeId = listParsed.data[0]?.id;
+    const universeId = listParsed.data.universes[0]?.id;
     if (!universeId) return null;
 
     // Fetch the full detail

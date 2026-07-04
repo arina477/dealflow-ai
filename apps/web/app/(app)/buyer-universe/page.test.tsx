@@ -181,18 +181,19 @@ function makePageFetch(
       } as Response);
     }
     // List fetch: GET /buyer-universe?mandateId=
+    // The controller returns { universes: BuyerUniverseRow[] } — NOT a bare array.
     if (s.includes('/buyer-universe') && s.includes('mandateId=')) {
       if (universeDetail === null) {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: () => Promise.resolve([]),
+          json: () => Promise.resolve({ universes: [] }),
         } as Response);
       }
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve([{ id: UNIVERSE_ID }]),
+        json: () => Promise.resolve({ universes: [{ id: UNIVERSE_ID }] }),
       } as Response);
     }
     // Detail fetch: GET /buyer-universe/:id
@@ -201,6 +202,42 @@ function makePageFetch(
         ok: true,
         status: 200,
         json: () => Promise.resolve(universeDetail),
+      } as Response);
+    }
+    return Promise.reject(new Error(`Unexpected fetch: ${s}`));
+  });
+}
+
+/**
+ * makePageFetchBareArray — returns the old (broken) list shape: a bare array
+ * instead of { universes: [...] }. Used to verify the pre-fix z.array parse
+ * would have silently returned null (page always showed assemble CTA).
+ */
+function makePageFetchBareArray(role: RoleStr) {
+  return vi.fn().mockImplementation((url: string) => {
+    const s = String(url);
+    if (s.includes('/auth/me')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(meFor(role)),
+      } as Response);
+    }
+    // Old (broken) list shape: bare array — the pre-fix z.array parse accepted this,
+    // but the pre-fix z.array parse was WRONG — the real API returns { universes: [] }.
+    // We use this fixture to confirm the old parse would have returned null.
+    if (s.includes('/buyer-universe') && s.includes('mandateId=')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([{ id: UNIVERSE_ID }]),
+      } as Response);
+    }
+    if (s.includes(`/buyer-universe/${UNIVERSE_ID}`)) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(UNIVERSE_DETAIL),
       } as Response);
     }
     return Promise.reject(new Error(`Unexpected fetch: ${s}`));
@@ -711,6 +748,215 @@ describe('D. MandateDetailClient — D6 Buyer Engine anchor', () => {
       screen.getByRole('region', { name: /ranked candidates.*coming in a later step/i })
     ).toBeDefined();
     expect(screen.getByRole('region', { name: /pipeline.*coming in a later step/i })).toBeDefined();
+  });
+});
+
+// ── F-extra. CRITICAL-1 regression — list-wrapper parse (must fail on bare array) ─
+//
+// The list endpoint returns { universes: [...] } (object), NOT a bare array.
+// The pre-fix code used z.array(...) which would silently return null for a bare
+// array that matched the old wrong assumption — but the real API never returned
+// a bare array in the first place; what made it a bug is it also returns null
+// for the CORRECT { universes: [...] } shape. This test suite validates:
+//   1. Correct { universes: [...] } → page hydrates candidate table (NOT assemble CTA).
+//   2. Bare array (wrong shape, was the old mock) → page shows assemble CTA (parse fails → null).
+
+describe('F-extra. CRITICAL-1 — list-wrapper parse regression', () => {
+  beforeEach(() => {
+    mockCookies.mockResolvedValue({ toString: () => 'st-access-token=test' });
+    mockRedirect.mockImplementation((path: string): never => {
+      throw new Error(`REDIRECT:${path}`);
+    });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('hydrates candidate table when list returns { universes: [{id}] } (CRITICAL-1 fix)', async () => {
+    // Correct shape: { universes: [{ id }] } — the real API shape
+    vi.stubGlobal('fetch', makePageFetch('analyst', UNIVERSE_DETAIL));
+    const { redirected } = await renderPage(MANDATE_ID);
+    expect(redirected).toBe(false);
+    // Candidate table must be present — universe was hydrated, NOT the assemble CTA
+    expect(screen.getByRole('table', { name: /buyer universe candidates/i })).toBeDefined();
+    // Assemble CTA must NOT be present
+    expect(screen.queryByRole('button', { name: /assemble buyer universe/i })).toBeNull();
+  });
+
+  it('shows assemble CTA when list returns bare array (wrong shape — parse fails → null → empty state)', async () => {
+    // Bare array: the old (broken) mock shape — the page should treat this as
+    // "no universe" and show the assemble CTA, because the real API never returns
+    // a bare array; a bare-array response is unrecognized and must be treated as null.
+    vi.stubGlobal('fetch', makePageFetchBareArray('analyst'));
+    const { redirected } = await renderPage(MANDATE_ID);
+    expect(redirected).toBe(false);
+    // The z.object({ universes: ... }) parse fails on a bare array → null → assemble CTA
+    expect(screen.getByRole('button', { name: /assemble buyer universe/i })).toBeDefined();
+    // Candidate table must NOT be present
+    expect(screen.queryByRole('table', { name: /buyer universe candidates/i })).toBeNull();
+  });
+});
+
+// ── G-extra. CRITICAL-2 regression — filter/submit/enrich consume BuyerUniverseDetail ─
+//
+// After backend commit 8e40c08, filter/submit/enrich all return BuyerUniverseDetail
+// (universe + candidates). These tests verify the client parses the response with
+// buyerUniverseDetailSchema and the candidate table stays populated after each mutation.
+
+describe('G-extra. CRITICAL-2 — filter/submit/enrich consume BuyerUniverseDetail (table stays populated)', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('filter: candidate table stays populated after Apply Filter (consumes BuyerUniverseDetail)', async () => {
+    const user = userEvent.setup();
+    const FILTERED_DETAIL: BuyerUniverseDetail = {
+      universe: { ...UNIVERSE_DETAIL.universe, status: 'filtered' },
+      candidates: [{ ...CANDIDATE_1, membershipStatus: 'included' }],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const s = String(url);
+        if (s === `/buyer-universe-data/${UNIVERSE_ID}/filter`) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve(FILTERED_DETAIL),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected: ${s}`));
+      })
+    );
+
+    render(
+      <BuyerUniverseClient
+        mandateId={MANDATE_ID}
+        initialDetail={UNIVERSE_DETAIL}
+        userRole="analyst"
+      />
+    );
+
+    // Before filter: candidate table is present
+    expect(screen.getByRole('table', { name: /buyer universe candidates/i })).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: /apply filter/i }));
+
+    await waitFor(() => {
+      // After Apply Filter: candidate table still present (NOT wiped)
+      expect(screen.getByRole('table', { name: /buyer universe candidates/i })).toBeDefined();
+      // Status badge updated to 'filtered'
+      expect(screen.getByText('filtered')).toBeDefined();
+    });
+  });
+
+  it('submit: candidate table stays populated after Submit (consumes BuyerUniverseDetail)', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const s = String(url);
+        if (s === `/buyer-universe-data/${UNIVERSE_ID}/submit`) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve(UNIVERSE_DETAIL_SUBMITTED),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected: ${s}`));
+      })
+    );
+
+    render(
+      <BuyerUniverseClient
+        mandateId={MANDATE_ID}
+        initialDetail={UNIVERSE_DETAIL}
+        userRole="analyst"
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /submit to match engine/i }));
+
+    await waitFor(() => {
+      // After Submit: candidate table still present (NOT wiped)
+      expect(screen.getByRole('table', { name: /buyer universe candidates/i })).toBeDefined();
+      // Status badge updated to 'submitted'
+      expect(screen.getByText('submitted')).toBeDefined();
+    });
+  });
+
+  it('enrich: candidate table stays populated after Enrich (consumes BuyerUniverseDetail)', async () => {
+    const user = userEvent.setup();
+    const ENRICHED_DETAIL: BuyerUniverseDetail = {
+      universe: UNIVERSE_DETAIL.universe,
+      candidates: [CANDIDATE_1],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const s = String(url);
+        if (s === `/buyer-universe-data/${UNIVERSE_ID}/enrich`) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve(ENRICHED_DETAIL),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected: ${s}`));
+      })
+    );
+
+    render(
+      <BuyerUniverseClient
+        mandateId={MANDATE_ID}
+        initialDetail={UNIVERSE_DETAIL}
+        userRole="analyst"
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /enrich/i }));
+
+    await waitFor(() => {
+      // After Enrich: candidate table still present (NOT wiped)
+      expect(screen.getByRole('table', { name: /buyer universe candidates/i })).toBeDefined();
+    });
+  });
+
+  it('filter: surfaces error banner when response is not BuyerUniverseDetail shape', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const s = String(url);
+        if (s === `/buyer-universe-data/${UNIVERSE_ID}/filter`) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            // Return a bare row (wrong shape) to simulate pre-fix behaviour
+            json: () => Promise.resolve({ id: UNIVERSE_ID, status: 'filtered' }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected: ${s}`));
+      })
+    );
+
+    render(
+      <BuyerUniverseClient
+        mandateId={MANDATE_ID}
+        initialDetail={UNIVERSE_DETAIL}
+        userRole="analyst"
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /apply filter/i }));
+
+    await waitFor(() => {
+      // Error banner should surface, not a blank table
+      expect(screen.getByRole('alert')).toBeDefined();
+    });
   });
 });
 

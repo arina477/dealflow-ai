@@ -27,6 +27,7 @@ import type {
   EnrichedCandidate,
   Role,
 } from '@dealflow/shared';
+import { buyerUniverseDetailSchema } from '@dealflow/shared';
 import { useState } from 'react';
 import { apiFetch } from '../../_lib/apiFetch';
 
@@ -839,8 +840,13 @@ export function BuyerUniverseClient({
         setError(body.message ?? 'Failed to apply filter.');
         return;
       }
-      const updated = (await res.json()) as BuyerUniverseDetail;
-      setDetail(updated);
+      const raw: unknown = await res.json();
+      const parsed = buyerUniverseDetailSchema.safeParse(raw);
+      if (!parsed.success) {
+        setError('Filter succeeded but the response shape was unexpected. Please refresh.');
+        return;
+      }
+      setDetail(parsed.data);
     } catch {
       setError('Network error. Please try again.');
     } finally {
@@ -909,8 +915,13 @@ export function BuyerUniverseClient({
         setError(body.message ?? 'Failed to enrich candidates.');
         return;
       }
-      const updated = (await res.json()) as BuyerUniverseDetail;
-      setDetail(updated);
+      const raw: unknown = await res.json();
+      const parsed = buyerUniverseDetailSchema.safeParse(raw);
+      if (!parsed.success) {
+        setError('Enrich succeeded but the response shape was unexpected. Please refresh.');
+        return;
+      }
+      setDetail(parsed.data);
     } catch {
       setError('Network error. Please try again.');
     } finally {
@@ -962,8 +973,13 @@ export function BuyerUniverseClient({
         setError(body.message ?? 'Failed to submit to match engine.');
         return;
       }
-      const updated = (await res.json()) as BuyerUniverseDetail;
-      setDetail(updated);
+      const raw: unknown = await res.json();
+      const parsed = buyerUniverseDetailSchema.safeParse(raw);
+      if (!parsed.success) {
+        setError('Submit succeeded but the response shape was unexpected. Please refresh.');
+        return;
+      }
+      setDetail(parsed.data);
     } catch {
       setError('Network error. Please try again.');
     } finally {
