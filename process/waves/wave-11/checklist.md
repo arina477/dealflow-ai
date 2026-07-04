@@ -1,0 +1,64 @@
+## Wave 11 stage completion
+
+Seed task: 102a2f00-1ac5-442c-a328-a31fedb2597c (Build versioned template library spine + templates-library page)
+Bundled siblings:
+  - e90a4a99-2071-4084-93cc-5fc1b8a37477 (Build outreach composer + non-bypassable server-side pre-send compliance gate)
+  - 2601ba33-c9b5-40e2-b932-507f53a0226a (Enforce sender!=approver SoD + template version-binding)
+Claimed task ids: [102a2f00-1ac5-442c-a328-a31fedb2597c, e90a4a99-2071-4084-93cc-5fc1b8a37477, 2601ba33-c9b5-40e2-b932-507f53a0226a]
+Active milestone: a068dc3d-8f77-4d01-ba1d-bbc6ed9b16bc (M6 — Compliant outreach & pipeline, in_progress)
+
+Pending ritual outcomes affecting P-0:
+  - Founder LLM-spend decision surfaced NON-BLOCKING (Status: Deferred) — M5 (d72b4510) is blocked awaiting it, LLM-rationale bundle pending; re-surface at this wave's close if M6 ships before the founder answers.
+  - M6 Class product-feature → P-0 runs mvp-thinner.
+  - UI wave (templates-library + outreach-composer pages) → D-block runs.
+  - P-4 flags (embedded in seed/sibling descriptions): security-scope-tightened + SoD/RBAC gate; concurrent-send P99 latency load-test on the synchronous non-bypassable pre-send gate.
+
+PRODUCT:
+- [ ] P-0 Frame (discover + reframe)
+- [ ] P-1 Decompose
+- [ ] P-2 Spec
+- [ ] P-3 Plan
+- [ ] P-4 Gate
+
+DESIGN (skip block if non-UI wave):
+- [ ] D-1 Brief
+- [ ] D-2 Variants (with bounded iteration)
+- [ ] D-3 Review & adopt
+
+BUILD:
+- [ ] B-0 Branch & schema
+- [ ] B-1 Contracts
+- [ ] B-2 Backend
+- [ ] B-3 Frontend
+- [ ] B-4 Wiring
+- [ ] B-5 Verify
+- [ ] B-6 Review
+
+CI/CD:
+- [ ] C-1 PR, CI & merge
+- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+
+TEST:
+- [ ] T-1 Static
+- [ ] T-2 Unit
+- [ ] T-3 Contract
+- [ ] T-4 Integration
+- [ ] T-5 E2E
+- [ ] T-6 Layout
+- [ ] T-7 Perf
+- [ ] T-8 Security
+- [ ] T-9 Journey
+
+VERIFY:
+- [ ] V-1 Independent reviews (Karen + jenny, parallel)
+- [ ] V-2 Triage
+- [ ] V-3 Fast-fix loop (or close)
+
+LEARN:
+- [ ] L-1 Docs
+- [ ] L-2 Distill
+
+NEXT:
+- [ ] N-1 Survey & triggers
+- [ ] N-2 Seed
+- [ ] N-3 Handoff

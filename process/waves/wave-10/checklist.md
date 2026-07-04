@@ -70,6 +70,6 @@ LEARN:
 - [x] L-2 Distill — 3 tasks done; 5 observations; 1 promotion (BUILD rule 7, tx-scoped in-tx reads, 2-wave-confirmed); L-block gate APPROVED (head-learn)
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers
+- [x] N-2 Seed
+- [x] N-3 Handoff
