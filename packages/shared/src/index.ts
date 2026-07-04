@@ -175,6 +175,34 @@ export {
   scoreBreakdownSchema,
   shortlistSchema,
 } from './matching';
+export type {
+  GateVerdictRecord,
+  Outreach,
+  OutreachApprovalStatus,
+  OutreachComposeInput,
+  OutreachStatus,
+  OutreachTemplate,
+  OutreachTemplateVersion,
+  TemplateCreateInput,
+  VersionDraftInput,
+  ApprovalRequestInput,
+  ApprovalGrantInput,
+  ApprovalRejectInput,
+} from './outreach';
+export {
+  approvalGrantInputSchema,
+  approvalRejectInputSchema,
+  approvalRequestInputSchema,
+  gateVerdictRecordSchema,
+  outreachApprovalStatusEnum,
+  outreachComposeInputSchema,
+  outreachSchema,
+  outreachStatusEnum,
+  outreachTemplateSchema,
+  outreachTemplateVersionSchema,
+  templateCreateInputSchema,
+  versionDraftInputSchema,
+} from './outreach';
 export type { NavGroup, NavItem, RouteEntry } from './rbac';
 export {
   ALL_NAV_ITEMS,

@@ -116,6 +116,44 @@ export const auditActionEnum = z.enum([
    * Audited in-tx.
    */
   'match-handoff',
+  // --- Wave-11 outreach template + compose actions (additive; serialization order preserved) ---
+  /**
+   * An outreach_templates row was created (along with version 1) in a single
+   * atomic transaction. The actor is the app users.id of the creating advisor/analyst.
+   * Audited LAST-IN-TXN so audit failure rolls back all writes.
+   */
+  'template-create',
+  /**
+   * A new outreach_template_versions row was drafted (draftNewVersion).
+   * ALWAYS creates a new version row — never mutates an approved version.
+   * The content_hash is computed via the M2 computeContentHash (keyless SHA-256).
+   * Audited in-tx.
+   */
+  'template-version-draft',
+  /**
+   * An outreach_template_versions row's approval was requested (requestApproval).
+   * Returns 400 if the version's disclaimer_template_id does not reference a valid
+   * disclaimer_templates row. Audited in-tx.
+   */
+  'template-approval-request',
+  /**
+   * An outreach_template_versions row was approved by a compliance user.
+   * Sets approved_content_hash = current content_hash + approved_by = actor.
+   * Compliance role ONLY (SoD — advisor 403). Audited in-tx.
+   */
+  'template-approval-grant',
+  /**
+   * An outreach_template_versions row was rejected by a compliance user.
+   * Compliance role ONLY. Audited in-tx.
+   */
+  'template-approval-reject',
+  /**
+   * An outreach record was composed by an advisor.
+   * The non-bypassable pre-send gate (ComplianceGateService.evaluate) was called
+   * and the verdict is stored in outreach.gate_verdict. Status = send_eligible
+   * (allowed:true) | blocked (allowed:false). Audited LAST-IN-TXN.
+   */
+  'outreach-compose',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;

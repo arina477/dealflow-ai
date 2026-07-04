@@ -157,6 +157,30 @@ const NAV_MATCHES: NavItem = {
   allowedRoles: ['advisor', 'admin', 'analyst'],
 };
 
+// Wave-11: Outreach Templates nav item (advisor/analyst draft; compliance approve).
+// advisor is the primary compose persona; compliance-only approves versions.
+// nav⊆RBAC: NAV_TEMPLATES.allowedRoles references the same array as the
+// /outreach-templates route entry below.
+const NAV_OUTREACH_TEMPLATES: NavItem = {
+  label: 'Templates',
+  route: '/outreach-templates',
+  icon: 'file-text',
+  group: 'workspace',
+  allowedRoles: ['advisor', 'analyst', 'compliance'],
+};
+
+// Wave-11: Outreach nav item (advisor compose; compliance read-only visibility).
+// advisor is the primary compose persona. compliance may view outreach records.
+// nav⊆RBAC: NAV_OUTREACH.allowedRoles references the same array as the
+// /outreach route entry below.
+const NAV_OUTREACH: NavItem = {
+  label: 'Outreach',
+  route: '/outreach',
+  icon: 'send',
+  group: 'workspace',
+  allowedRoles: ['advisor', 'compliance'],
+};
+
 // ---------- Route entries (the canonical role → route matrix) ----------
 
 export const roleRoutes: ReadonlyArray<RouteEntry> = [
@@ -376,6 +400,64 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     allowedRoles: ['compliance', 'admin'],
   },
 
+  // --- Outreach Templates group (wave-11) ---
+  // advisor/analyst: draft templates + request approval.
+  // compliance: approve or reject versions.
+  // nav⊆RBAC invariant holds: NAV_OUTREACH_TEMPLATES.allowedRoles references the same
+  // set as the /outreach-templates route entry below.
+  {
+    pattern: '/outreach-templates',
+    allowedRoles: ['advisor', 'analyst', 'compliance'],
+    navItem: NAV_OUTREACH_TEMPLATES,
+  },
+  {
+    // POST /outreach-templates (create template + v1) — advisor, analyst.
+    pattern: '/outreach-templates/new',
+    allowedRoles: ['advisor', 'analyst'],
+  },
+  {
+    // GET /outreach-templates/:id — detail (advisor, analyst, compliance).
+    // POST /outreach-templates/:id/versions — draft new version (advisor, analyst).
+    pattern: '/outreach-templates/:id',
+    allowedRoles: ['advisor', 'analyst', 'compliance'],
+  },
+  {
+    // POST /outreach-templates/:id/versions/:vid/request-approval — advisor, analyst.
+    pattern: '/outreach-templates/:id/versions/:vid/request-approval',
+    allowedRoles: ['advisor', 'analyst'],
+  },
+  {
+    // POST /outreach-templates/:id/versions/:vid/approve — compliance ONLY (SoD).
+    pattern: '/outreach-templates/:id/versions/:vid/approve',
+    allowedRoles: ['compliance'],
+  },
+  {
+    // POST /outreach-templates/:id/versions/:vid/reject — compliance ONLY (SoD).
+    pattern: '/outreach-templates/:id/versions/:vid/reject',
+    allowedRoles: ['compliance'],
+  },
+
+  // --- Outreach group (wave-11) ---
+  // advisor: compose outreach (triggers non-bypassable pre-send gate).
+  // compliance: read outreach records (visibility for compliance queue).
+  // nav⊆RBAC invariant holds: NAV_OUTREACH.allowedRoles references the same
+  // set as the /outreach route entry below.
+  {
+    pattern: '/outreach',
+    allowedRoles: ['advisor', 'compliance'],
+    navItem: NAV_OUTREACH,
+  },
+  {
+    // POST /outreach (compose — advisor only).
+    pattern: '/outreach/new',
+    allowedRoles: ['advisor'],
+  },
+  {
+    // GET /outreach/:id — detail (advisor, compliance).
+    pattern: '/outreach/:id',
+    allowedRoles: ['advisor', 'compliance'],
+  },
+
   // --- Admin / Config group ---
   {
     pattern: '/admin/users',
@@ -529,6 +611,8 @@ export const ALL_NAV_ITEMS: ReadonlyArray<NavItem> = [
   NAV_MANDATES,
   NAV_MATCHES,
   NAV_BUYER_UNIVERSE,
+  NAV_OUTREACH_TEMPLATES,
+  NAV_OUTREACH,
   NAV_SOURCING,
   NAV_COMPLIANCE,
   NAV_AUDIT_LOG,
