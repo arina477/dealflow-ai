@@ -355,3 +355,138 @@ head_signoff:
     control working as designed, not a cleanup miss.
   next_action: PROCEED_TO_T
 ```
+
+---
+
+## V-3 render-fix re-verify (3e2042f)
+
+**Re-verify date:** 2026-07-04
+**Commit under deploy:** `3e2042f09b4b29457f7f820cf0f7226be0bf8621` (main HEAD — the merged V-1 render fix)
+**Target defect:** V-1 CRITICAL — the sourcing **workspace `/sourcing`** rendered "No companies found" despite real data in the DB. Two root causes fixed in-tree: (1) SSR company-list schema loosened `z.string().datetime()` → `z.string()` in `apps/web/app/(app)/sourcing/_lib/workspace-types.ts` (PG-wire timestamp `2026-07-04 04:42:20.996353+00` no longer drops the list); (2) search/facet now filter the SSR-loaded companies IN-MEMORY (were fetching the HTML page route).
+
+### Verdict
+
+**ci_stage_verdict: FAIL (REJECTED)** — The V-1 CRITICAL itself (workspace `/sourcing` renders empty) is **genuinely FIXED and PROVEN** live: the workspace now displays companies (SSR HTML + real headless-chromium DOM) and in-memory search filters them with **zero network fetch**. The task's primary Iron Law ("workspace STILL renders empty → FAIL") is **NOT** tripped. **BUT** the task's explicit regression requirement #3 — "login + `/sourcing/companies` deep screen still render" — **FAILS live**: the deep-screen `/sourcing/companies` renders **"No companies yet"** with 4 real canonical companies in the DB. Root cause is the **identical bug class** the workspace fix addressed, left un-fixed on a sibling route: the fix loosened the timestamp only in the workspace's local `_lib/workspace-types.ts` override, NOT in the shared `companySchema` (`packages/shared/src/sourcing.ts:88` still `createdAt: z.string().datetime()`) that the deep-screen imports and `safeParse`s — on parse-fail `fetchCompanies()` returns `[]`, dropping the whole list. This is a partial fix that shipping green would rubber-stamp; returned to Build/fast-fix.
+
+### The V-1 fix proof — WORKSPACE DISPLAYS COMPANIES (PASS)
+
+- **Seeded real data:** analyst minted (invite→signup, web-origin, `rid: anti-csrf`). Two fixture connections `V3-Src-A-…` / `V3-Src-B-…` → **201** each; sync BOTH → **201 `{"ingested":5}`** each → cross-source dedup to **4 canonical companies**.
+- **API/DB returns companies with PG-wire timestamps (spot-confirm, DB probe):** `companies` = 4 rows — Acme Technologies Inc., Bright Horizon Ventures LLC, Delta Systems Corp, Epsilon Analytics — each `created_at = 2026-07-04 04:42:20.996353+00` (space-separated, no `T`/`Z` — the exact PG-wire format `z.datetime()` rejects and the fix's `z.string()` accepts).
+- **SSR HTML contains company data (NOT empty-state):** analyst GET `/sourcing` → **200**, 56–58 KB HTML. `grep`: "No companies found"/"No companies yet"/"No results" = **0 occurrences**; company names PRESENT — "Acme" ×8, `Acme Technologies Inc.`, `Delta Systems Corp`, `Bright Horizon Ventures LLC`, `Epsilon Analytics`; both source badges (`V3-Src-A-…`, `V3-Src-B-…`) present; 10–11 `createdAt` entries embedded as client-hydration data (proving the SSR now parses what the API returns). Confirms the fix vs the prior deploy `0fe63de` which rendered empty despite the same DB data.
+- **Real headless-browser proof (Playwright 1.61.1, bundled chromium-1208):** injected the analyst session cookies, loaded `/sourcing` → NAV **200**; `EMPTY_STATE_PRESENT: false`; `RENDERED_COMPANIES: ["Acme","Delta Systems","Horizon Ventures"]` render as live DOM rows. **In-memory search verified:** typed "Acme" into the "Search companies by name or domain…" input → `afterQuery_hasAcme: true`, `afterQuery_deltaFiltered: true` (Delta Systems removed), and **`nonStaticNetRequests: []`** — the search filters the SSR-loaded list in-memory with ZERO network fetch to any page route (the second half of the fix, confirmed).
+
+### Deploy provenance (PASS)
+
+| Service | New deployment ID | Status | Commit | Notes |
+|---|---|---|---|---|
+| dealflow-web | `e520f0a1-9795-4c97-b35a-2e6ab40bda95` | SUCCESS | `3e2042f` | `serviceInstanceDeployV2(commitSha:3e2042f…)`; the fix is web-side |
+| dealflow-api | `599542b3-79ab-47c5-979a-fc770452ca70` | SUCCESS | `3e2042f` | `serviceInstanceDeployV2`; boots clean; db ok |
+
+- **Token:** project-scoped `RAILWAY_TOKEN` (len 36) valid → `projectToken` returned project `ce095f75…` / env `0e84f0b6…` (production). Not a block.
+- Both reached **SUCCESS** in ~90s (BUILDING→SUCCESS); neither SKIPPED (phantom-skip ruled out). Latest-deployment query confirms `599542b3…`/`e520f0a1…` are the current heads.
+- Explicit commit-pinned `serviceInstanceDeployV2` — NOT the opaque Wait-for-CI webhook.
+- **GIT_SHA** upserted `0fe63de` → `3e2042f` on api before boot (non-destructive single `variableUpsert`; no other var touched; all env pre-bound — DATABASE_URL, AUDIT_LOG_HMAC_KEY, SUPERTOKENS_*, WEB_ORIGIN present).
+- **/health version == 3e2042f** — `{"status":"ok","db":"ok","version":"3e2042f"}` HTTP 200 on the api's OWN container domain (`dealflow-api-production-66d4.up.railway.app`), NOT the global domain. Health-check-mirage defeated; new-container-hash + clean boot confirmed.
+- Immutable fresh-artifact deploy; no in-place mutation.
+
+### Armed rollback path (PASS)
+
+Captured BEFORE any mutation (prior known-good SUCCESS, serving `0fe63de`):
+- **api known-good:** `27761064-ea7e-4093-82f5-049cf6bb305a`
+- **web known-good:** `98948a92-72f6-4f03-bf0f-3ed337edc7e0`
+
+Rollback NOT triggered: `3e2042f` boots clean and is not crash-looping; the workspace fix is real; the deep-screen defect is a latent code bug (not a crash/regression introduced by this deploy). Rollback would revert the (real) V-1 workspace fix. Correct remediation is a targeted shared-schema code fix, not a rollback.
+
+### Regression
+
+| Check | Result | Verdict |
+|---|---|---|
+| POST /sourcing/connections (new displayName) | **201** | PASS |
+| POST same displayName again (dup) | **409** | PASS |
+| POST unknown providerKey | **400** `Unknown provider_key … Registered providers: FIXTURE` | PASS |
+| api /health | **200** `version:3e2042f`, db ok | PASS |
+| login + workspace `/sourcing` renders companies | **200**, companies render (fix proof above) | PASS |
+| **`/sourcing/companies` deep screen renders** | **200** but **"No companies yet"** with 4 companies in DB | **FAIL** |
+
+### Root cause of the deep-screen FAIL (confirmed with certainty)
+
+- `apps/web/app/(app)/sourcing/companies/page.tsx` imports `companySchema` from `@dealflow/shared` (line 31) and parses the SSR company-list with it (`companiesResponseSchema = z.object({ companies: z.array(companySchema) })`, lines 93–94, 103).
+- `packages/shared/src/sourcing.ts:88` — shared `companySchema` still declares `createdAt: z.string().datetime()` (and `updatedAt` same). PG-wire `2026-07-04 04:42:20.996353+00` fails `.datetime()` (no `T`/`Z`) → `safeParse` fails → `fetchCompanies()` returns `[]` (page.tsx:113–135) → deep-screen renders the "No companies yet" empty-state.
+- The V-1 fix (`3e2042f`) touched ONLY the workspace (`WorkspaceClient.tsx`, `_lib/workspace-types.ts` local override, `page.test.tsx`) — `git show --stat 3e2042f` confirms it did NOT touch `packages/shared/src/sourcing.ts`. So every consumer of the shared schema (the deep-screen, and any future consumer) still has the un-fixed timestamp bug.
+- **Not a new regression from this deploy** — the deep-screen (wave-6, `952207d`) has carried this latent bug since authoring; it was masked because prior C-2 cleanups left 0 companies (so "No companies yet" was the *correct* empty-state). Seeding real fixture companies exposes it for the first time — the same "empty-despite-data" failure mode as the V-1 CRITICAL, on the sibling route.
+
+### Remediation (routed to Build / fast-fix — head-ci-cd does NOT fix source)
+
+- Classification: `frontend` / shared-contract schema defect (SSR parse rejects valid PG-wire timestamp) → Build/fast-fix.
+- Fix at the SHARED layer, not per-route: `packages/shared/src/sourcing.ts` `companySchema.createdAt` (and `updatedAt`) `z.string().datetime()` → `z.string()` (or a PG-wire-tolerant refine). This fixes the deep-screen and removes the need for the workspace's local `_lib/workspace-types.ts` override (audit whether the override can then be dropped to avoid two drifting copies of the same contract).
+- Harden the shared-schema unit test (`packages/shared/src/sourcing.test.ts:316` asserts `createdAt:'not-a-date'` throws but never tests a real PG-wire string) + add a deep-screen SSR test that feeds a PG-wire timestamp and asserts rows render — mirror of the workspace `page.test.tsx` guard — so this class stops slipping through per-route.
+- No DB change; DB left clean (0 connections/companies) → retry is clean.
+
+### Canary — SKIPPED
+
+0 DAU < `canary_threshold_dau: 1000`. No real-user traffic to shift.
+
+### Cleanup (done)
+
+- Sourcing demo tables reset via temp TCP proxy `hayabusa.proxy.rlwy.net:17022` (id `30e292f6-…`, created + **DELETED** this run): `TRUNCATE raw_companies, company_provenance, companies, contacts, contact_provenance, dedupe_candidates, data_source_connections RESTART IDENTITY CASCADE` → verified 0 connections / 0 companies / 0 raw. External-party demo data — safe to reset per prior C-2 convention.
+- Local credential temp files scrubbed (`shred`).
+- Test analyst user left in place (append-only `audit_log_entries` immutability trigger blocks deleting an actor referenced by the audit chain — compliance control working as designed).
+- GIT_SHA left at `3e2042f` (correct for deployed hash); deploy left in place (boots clean, not crash-looping).
+
+### Chronology
+
+- 2026-07-04 ~05:31 UTC: web+api deploy of `3e2042f` triggered (`serviceInstanceDeployV2`); both SUCCESS by ~05:33:52 UTC (~90s build). Canary window: N/A (skipped, 0 DAU).
+- /health `3e2042f` confirmed on api's own domain; workspace `/sourcing` renders companies (SSR HTML + headless DOM + in-memory search, 0 network); DB probe: 4 canonical companies with PG-wire `created_at`.
+- Deep-screen `/sourcing/companies` → "No companies yet" despite 4 companies → root-caused to un-fixed shared `companySchema` `.datetime()`.
+
+### Monitor task (deploy wait — bounded, three-condition)
+
+```yaml
+platform: railway
+success_condition: deployment(id).status == "SUCCESS"           # per-service, polled
+failure_condition: status IN ("FAILED","CRASHED","REMOVED","SKIPPED")
+timeout_budget: 900   # seconds
+poll_delay: 30
+result: BOTH_SUCCESS (web e520f0a1, api 599542b3) — no SKIPPED
+```
+
+```yaml
+head_signoff:
+  verdict: REJECTED
+  stage: C-2
+  reverify: "V-3 render-fix re-verify (3e2042f)"
+  reviewers: {}
+  reverify_failed_checks:
+    - "deep-screen /sourcing/companies renders companies — FAILED: renders 'No companies yet' with 4 real companies in DB. Root cause: shared companySchema (packages/shared/src/sourcing.ts:88) still z.string().datetime(); deep-screen imports it and safeParse-drops the whole list on the PG-wire timestamp. The V-1 fix loosened only the workspace's LOCAL _lib/workspace-types.ts override, not the shared schema every consumer uses — a partial fix. Task regression requirement #3 not met live."
+  reverify_passed_checks:
+    - "V-1 CRITICAL (workspace /sourcing renders empty) — FIXED & PROVEN: SSR HTML contains company data (Acme/Delta/Horizon/Epsilon, source badges, embedded createdAt), NO empty-state; real headless-chromium DOM renders company rows"
+    - "in-memory search — PROVEN: typing 'Acme' filters the SSR-loaded list (Delta removed) with nonStaticNetRequests=[] (zero page-route fetch — the second half of the fix)"
+    - "API/DB returns companies with PG-wire timestamps: 4 canonical companies, each created_at = '2026-07-04 04:42:20.996353+00' (DB probe)"
+    - "commit SHA provenance: /health version == 3e2042f on api's OWN container domain (not global); both services SUCCESS via explicit serviceInstanceDeployV2, neither SKIPPED; latest-deployment query confirms current heads"
+    - "armed rollback captured pre-mutation (api 27761064 / web 98948a92); not needed (boots clean)"
+    - "regression: connection-create 201 / dup 409 / bad-key 400 / /health ok all PASS"
+    - "bounded MONITOR: success=SUCCESS / failure=IN(FAILED,CRASHED,REMOVED,SKIPPED) / timeout_budget=900s; immutable fresh-artifact deploy; GIT_SHA upserted non-destructively; all env pre-bound"
+    - "canary correctly skipped (0 DAU < 1000); cleanup complete (0 connections/companies, temp proxy 30e292f deleted, creds scrubbed)"
+  rationale: >
+    The V-1 CRITICAL itself is genuinely fixed and I proved it three ways: the /sourcing workspace
+    SSR HTML now contains company data (no empty-state), a real headless-chromium session renders the
+    company rows in the live DOM, and the in-memory search filters the SSR-loaded list with zero
+    network fetch to any page route — with real fixture companies whose PG-wire created_at
+    (2026-07-04 04:42:20.996353+00, verified by direct DB probe) is exactly the timestamp the prior
+    deploy dropped. Provenance is clean: /health confirms 3e2042f on the deployed container's own
+    domain (not a global-domain mirage), both services deployed via explicit serviceInstanceDeployV2
+    and reached SUCCESS with no phantom SKIPPED, and armed rollback was captured pre-mutation. The
+    primary Iron Law (workspace still empty) is NOT tripped. HOWEVER I cannot rubber-stamp a green:
+    the task's explicit regression requirement #3 — the /sourcing/companies deep screen still renders
+    — FAILS live. That deep screen shows "No companies yet" with four real companies in the DB,
+    because the fix was applied to the workspace's LOCAL _lib/workspace-types.ts override rather than
+    to the shared companySchema (packages/shared/src/sourcing.ts:88 still z.string().datetime()) that
+    the deep-screen imports and safeParse-drops on. This is the IDENTICAL empty-despite-data bug class
+    the wave was fixing, surviving on a sibling route — a partial fix, and exactly the kind of drift
+    the C-block gate exists to catch. Returned to Build/fast-fix to loosen the timestamp at the shared
+    layer (fixing every consumer at once) and add a deep-screen SSR guard test mirroring the workspace
+    one. No fabricated green: every check is traced to a live artifact (HTTP status, GraphQL deployment
+    status, /health body, headless DOM assertion, or DB probe). DB left clean; deploy left in place
+    (boots fine); no rollback needed.
+  next_action: REWORK_B-block  # loosen shared companySchema createdAt/updatedAt .datetime()→.string(); add deep-screen SSR PG-wire test; then re-run C-2
+```
