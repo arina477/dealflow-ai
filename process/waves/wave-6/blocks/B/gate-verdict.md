@@ -55,3 +55,34 @@ B-block cascade rules (trigger = B-0 schema change + B-2 backend change):
 ## Footer
 - verdict_complete: true
 - rework_attempt_cap_remaining: 2
+
+---
+
+# Wave 6 — B-6 Verdict
+
+**Reviewer:** head-builder (fresh spawn, agentId head-builder-w6-b6-attempt2)
+**Reviewed against:** process/waves/wave-6/blocks/B/review-artifacts.md
+**Attempt:** 2  (post-rework re-gate; scope limited to the 2 attempt-1 REWORK items)
+
+## Verdict
+APPROVED
+
+## Rationale
+
+Both attempt-1 REWORK items are resolved; the substance-approved invariants from attempt 1 (cross-source dedup, contact_provenance, env-only secrets, actor-id translation, same-tx audit on resolve, RBAC fail-closed, no manual-create, `.safeParse()` boundaries) were not re-litigated. **Item 1 (candidate-path idempotency) is genuinely fixed with defense in depth.** `DedupeEngine.promoteStaging` now computes TWO exclusion sets — company_provenance-bearing raws (`promotedIdSet`) AND raws already carrying a `status='pending'` dedupe_candidate (`pendingCandidateIdSet`) — and filters both out of `unpromotedRaw` (dedupe.engine.ts:292-315), so an ambiguous raw never re-enters `promoteOne` on re-sync. Behind that application guard, `insertDedupeCandidate` uses `.onConflictDoNothing({ target:[rawCompanyId, matchedCompanyId], where: sql\`status = 'pending'\` })` and, on conflict, re-reads and returns the existing candidate id rather than throwing on the empty `.returning()` (dedupe.engine.ts:707-742) — a correct DB-level backstop against any future concurrent path that bypasses the in-memory filter. The DB constraint is real: migration 0004 hand-appends `CREATE UNIQUE INDEX "dedupe_candidates_raw_matched_pending_unique" ... WHERE status = 'pending'` (0004.sql:114) following the existing `companies_normalized_domain_partial_unique` precedent, with the matching `DROP INDEX IF EXISTS` first in the FK-ordered `.down.sql`; the partial predicate on `status='pending'` correctly permits a legitimately re-raised candidate after a prior resolve. The migration journal stays coherent — exactly one 0004 entry (`0004_wandering_harry_osborn`); the partial index is hand-appended, not snapshot-managed, so no snapshot drift. **Test (g) is a real regression test, not coverage theater:** it drives the true Priority-3 branch (raw "Acme Holdings" token-overlapping canonical "acme", no domain on either side), runs `promoteStaging` TWICE, and asserts `store.dedupeCandidates` has length 1 after both runs (dedupe.engine.test.ts:1069, 1086) with `result2.candidates === 0`; the in-memory mock faithfully models the partial-unique conflict key (execInsert lines 431-437), so the test would go RED on the pre-fix engine and GREEN after. The H-B-DB-Constraint-Illusion and H-B-Dedupe-Idempotency-Gap heuristics that fired at attempt 1 are both cleared: the idempotency invariant is now enforced in application memory AND in Postgres, and it is proven by a test that re-runs the exact branch that regressed. **Item 2 (commit discipline)** is satisfied per the Action-6 alternative offered at attempt 1: review-artifacts.md now carries a per-commit→task_id mapping table covering all four claimed_task_ids (ff378a95: e44a5fd/f6071e7/299e7c1; 0241222b: 43fe212; db274731: f6071e7/b3a12d8; f5771d13: e44a5fd/43fe212/952207d), the new fix commit b3a12d8 cites db274731, cross-cutting commits are documented as shared-contract work (same accepted pattern as waves 3-5), and d0f6f0a is scoped deliverables-only; unpushed history was not force-rebased to 1:1, which the attempt-1 verdict explicitly permitted. Re-verification is green: `pnpm -r typecheck` — both apps Done; `pnpm -r test` — api 248 passed / 1 pre-existing skip (dedupe.engine.test.ts now 32 tests, incl. test g), web 179 passed, consistent with the recorded B-5 (lint 0-err, build pass, cumulative suite green with test g added). No new over-engineering: the fix is a targeted guard on the candidate branch, not a generalized abstraction, per the attempt-1 "do NOT widen this" instruction.
+
+## Footer
+- verdict_complete: true
+- rework_attempt_cap_remaining: 1
+
+---
+## Phase 2 — /review (adversarial, dedupe-correctness)
+Found 4 CRITICAL + 5 info (candidate-idempotency fix verified CORRECT; RBAC/actor-id/audit/secrets clean):
+- **CRITICAL false-positive merge** ('co' suffix-strip → "Acme Co"="Acme Inc" auto-merge distinct companies) → FIXED (dbee1d0): 'co' removed + name-only NEVER auto-merges (only domain agreement); reserved auto-merge for domain-match. "Acme Co" vs "Acme Inc" stay separate (test).
+- **CRITICAL lost contact-provenance on human-merge** (mergeRawIntoCanonical never promoted contacts/contact_provenance — principle-3 violation) → FIXED: mergeRawIntoCanonical delegates to DedupeEngine.mergeInto (one shared impl; contacts + contact_provenance written).
+- **CRITICAL non-atomic resolve double-apply** (read outside tx + no status guard) → FIXED: findForUpdate (FOR UPDATE) + conditional UPDATE WHERE status='pending' RETURNING → ConflictException single-winner.
+- **CRITICAL missed-review** (name-match+domain-conflict silently new canonical) → FIXED: explicit insertDedupeCandidate on name+domain-conflict (review, not silent split).
+- INFO normalizeDomain trailing-dot/port; insertDedupeCandidate re-read scoped → FIXED.
+Fix commit dbee1d0. Re-verify: repo typecheck clean, lint 0, tests pass (+ regression: false-positive-prevented, name-conflict→candidate, human-merge-provenance, double-resolve-blocked), build pass. 4 CRITICALs encoded as regression tests → re-review satisfied.
+
+## Phase 2 Verdict: PASS. **B-block gate: PASSED** (head-builder attempt-2 APPROVED + /review 4 CRIT fixed + commit-discipline mapping). → next block C.

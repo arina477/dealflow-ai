@@ -1,5 +1,5 @@
 # Wave 6 — B-block review artifacts
-**Block:** B (Build) · **Wave topic:** deal-sourcing data spine (ingest→stage→dedupe→canonical + companies/contacts screen) · **Gate:** B-6 · **Status:** in-progress
+**Block:** B (Build) · **Wave topic:** deal-sourcing data spine (ingest→stage→dedupe→canonical + companies/contacts screen) · **Gate:** B-6 · **Status:** gate-passed
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
 | B-0 | stages/B-0-branch-and-schema.md | done | branch wave-6-deal-sourcing; no new deps (fixture JSON); schema=YES(0004,7 tables@B-2); 4 tasks claimed |
@@ -8,7 +8,7 @@
 | B-3 | stages/B-3-frontend.md | done | companies-contacts screen at /sourcing/companies (952207d); 179 tests |
 | B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS; 0004 journal-registered |
 | B-5 | stages/B-5-verify.md | done | lint 0-err, 816 tests, build pass; cross-source-dedup test; runtime→C-2 |
-| B-6 | stages/B-6-review.md | pending | head-builder gate + /review |
+| B-6 | stages/B-6-review.md | gate-passed | head-builder APPROVED (attempt-2); /review 4 dedupe CRIT fixed (dbee1d0) |
 
 ## Block context
 - **Spec:** seed ff378a95 (multi-spec 4 blocks + P-4 remediation addendum: 7 tables incl. contact_provenance, normalized_domain unique, reconcile). Branch wave-6-deal-sourcing.

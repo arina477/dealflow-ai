@@ -27,7 +27,7 @@ BUILD:
 - [x] B-3 Frontend — companies-contacts screen at /sourcing/companies (view/filter/dedupe-review, no manual-create); 179 tests (952207d)
 - [x] B-4 Wiring — repo typecheck+build PASS; /sourcing routes compile; 0004 journal-registered
 - [x] B-5 Verify — lint 0-err, 816 tests pass, build pass; cross-source-dedup test present; runtime→C-2
-- [ ] B-6 Review
+- [x] B-6 Review — head-builder APPROVED (attempt-2, candidate-idempotency); /review 4 dedupe CRIT fixed (dbee1d0); commit-discipline mapped
 
 CI/CD:
 - [ ] C-1 PR, CI & merge
