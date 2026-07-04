@@ -88,15 +88,20 @@ async function assertAppShellChrome(
   await expect(nav, `[${pageName}] Sidebar nav must be present`).toBeVisible({ timeout: 10_000 });
 
   const navBg = await nav.evaluate((el) => window.getComputedStyle(el).backgroundColor);
-  expect(
-    navBg,
-    `[${pageName}] Sidebar bg must be zinc-900 (rgb(17, 24, 39)); got "${navBg}"`
-  ).toBe('rgb(17, 24, 39)');
+  expect(navBg, `[${pageName}] Sidebar bg must be zinc-900 (rgb(17, 24, 39)); got "${navBg}"`).toBe(
+    'rgb(17, 24, 39)'
+  );
 
   // Sidebar width: ~256px (w-64).
   const navBox = await nav.boundingBox();
-  expect(navBox?.width, `[${pageName}] Sidebar width must be 240-280px; got ${navBox?.width}`).toBeGreaterThanOrEqual(240);
-  expect(navBox?.width, `[${pageName}] Sidebar width must be 240-280px; got ${navBox?.width}`).toBeLessThanOrEqual(280);
+  expect(
+    navBox?.width,
+    `[${pageName}] Sidebar width must be 240-280px; got ${navBox?.width}`
+  ).toBeGreaterThanOrEqual(240);
+  expect(
+    navBox?.width,
+    `[${pageName}] Sidebar width must be 240-280px; got ${navBox?.width}`
+  ).toBeLessThanOrEqual(280);
 
   // TopBar: <header> first, h=64px, white background.
   const header = page.locator('header').first();
@@ -148,7 +153,9 @@ async function assertEmeraldPrimaryButton(
   const btnBg = await newBtn.first().evaluate((el) => window.getComputedStyle(el).backgroundColor);
   // Emerald-600 = rgb(16, 185, 129) or rgba variant.
   const isEmerald =
-    btnBg === 'rgb(16, 185, 129)' || btnBg === 'rgba(16, 185, 129, 1)' || btnBg.startsWith('rgb(16, 185');
+    btnBg === 'rgb(16, 185, 129)' ||
+    btnBg === 'rgba(16, 185, 129, 1)' ||
+    btnBg.startsWith('rgb(16, 185');
   if (!isEmerald) {
     console.warn(
       `[T-6][${pageName}] "New mandate" button bg="${btnBg}" — expected emerald-600 (rgb(16, 185, 129)). Possible off-palette defect.`
@@ -205,16 +212,21 @@ test.describe('T-6 mandate pages — advisor visual baseline', () => {
 
     // "New mandate" or "Create a new mandate" button (emerald primary CTA).
     const newMandateBtn = page.getByRole('button', { name: /new mandate|create.*mandate/i });
-    await expect(newMandateBtn.first(), '[/mandates] New mandate CTA button must be present').toBeVisible();
+    await expect(
+      newMandateBtn.first(),
+      '[/mandates] New mandate CTA button must be present'
+    ).toBeVisible();
     await assertEmeraldPrimaryButton(page, '/mandates');
 
     // Filter segmented control (StatusFilter: draft/active/all).
     // StatusFilter renders buttons; look for "All" or the segment control area.
     // The component renders via StatusFilter.tsx with "all"/"draft"/"active" options.
     // Check for the filter container.
-    const filterContainer = page.locator('div[role="group"], [aria-label*="filter"], button').filter({
-      hasText: /all|draft|active/i,
-    });
+    const filterContainer = page
+      .locator('div[role="group"], [aria-label*="filter"], button')
+      .filter({
+        hasText: /all|draft|active/i,
+      });
     // Non-fatal: filter controls are visible.
     const filterCount = await filterContainer.count();
     if (filterCount === 0) {
@@ -344,11 +356,13 @@ test.describe('T-6 mandate pages — advisor visual baseline', () => {
 
     // ── Submit button (emerald) ───────────────────────────────────────────────
     const submitBtn = page.getByRole('button', { name: 'Create Mandate' });
-    await expect(submitBtn, '[/mandates/new] "Create Mandate" submit button must be present').toBeVisible();
+    await expect(
+      submitBtn,
+      '[/mandates/new] "Create Mandate" submit button must be present'
+    ).toBeVisible();
 
     const submitBg = await submitBtn.evaluate((el) => window.getComputedStyle(el).backgroundColor);
-    const isEmerald =
-      submitBg === 'rgb(16, 185, 129)' || submitBg.startsWith('rgb(16, 185');
+    const isEmerald = submitBg === 'rgb(16, 185, 129)' || submitBg.startsWith('rgb(16, 185');
     if (!isEmerald) {
       console.warn(
         `[T-6][/mandates/new] "Create Mandate" button bg="${submitBg}" — expected emerald-600. Possible off-palette defect.`
@@ -507,7 +521,11 @@ test.describe('T-6 mandate pages — advisor visual baseline', () => {
 
     // ── TopBar title check — recurring defect from prior waves ───────────────
     // TopBar title sometimes shows a wrong/blank/stale title. Check it.
-    const topbarTitle = await page.locator('header h2, header [data-testid="page-title"]').first().textContent().catch(() => null);
+    const topbarTitle = await page
+      .locator('header h2, header [data-testid="page-title"]')
+      .first()
+      .textContent()
+      .catch(() => null);
     if (topbarTitle !== null) {
       // If the TopBar title element exists, note its value.
       console.info(`[T-6][/mandates/:id] TopBar title text: "${topbarTitle?.trim()}"`);

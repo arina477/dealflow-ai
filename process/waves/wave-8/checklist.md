@@ -55,7 +55,7 @@ TEST:
 - [x] T-6 Layout — 3 mandate pages §10-conformant (3 form sections, captured-not-enforced notice, deferred placeholders); TopBar-title→polish
 - [x] T-7 Perf
 - [x] T-8 Security
-- [ ] T-9 Journey
+- [x] T-9 Journey — head-tester APPROVED; journey regen (mandate pages LIVE)
 
 VERIFY:
 - [ ] V-1 Independent reviews (Karen + jenny, parallel)

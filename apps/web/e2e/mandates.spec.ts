@@ -209,10 +209,9 @@ test.describe('S1: advisor creates mandate end-to-end', () => {
     const errorCount = await errorAlerts.count();
     if (errorCount > 0) {
       const alertText = await errorAlerts.first().textContent();
-      expect(
-        alertText,
-        '[FINDING] /mandates rendered service error'
-      ).not.toContain('Unable to load mandates');
+      expect(alertText, '[FINDING] /mandates rendered service error').not.toContain(
+        'Unable to load mandates'
+      );
     }
 
     // ── Navigate to /mandates/new ─────────────────────────────────────────────
@@ -288,7 +287,10 @@ test.describe('S1: advisor creates mandate end-to-end', () => {
 
     // Jurisdiction US in Compliance Profile section.
     await expect(
-      page.getByRole('region', { name: /compliance/i }).getByText('US').first(),
+      page
+        .getByRole('region', { name: /compliance/i })
+        .getByText('US')
+        .first(),
       'Detail page must show jurisdiction "US" in compliance section'
     ).toBeVisible();
 
@@ -420,7 +422,8 @@ test.describe('S2: 3-acks required — missing ack blocks submit', () => {
 
     if (didRedirect) {
       console.error(
-        '[FINDING-W8-2] Mandate created without ack-2 (ai_results_validated=false). URL: ' + urlAfter
+        '[FINDING-W8-2] Mandate created without ack-2 (ai_results_validated=false). URL: ' +
+          urlAfter
       );
       expect(urlAfter, '[FINDING-W8-2] Must NOT redirect when ack-2 is unchecked').toMatch(
         /\/mandates\/new/
@@ -466,7 +469,8 @@ test.describe('S2: 3-acks required — missing ack blocks submit', () => {
 
     if (didRedirect) {
       console.error(
-        '[FINDING-W8-2] Mandate created without ack-3 (conflict_dbs_reviewed=false). URL: ' + urlAfter
+        '[FINDING-W8-2] Mandate created without ack-3 (conflict_dbs_reviewed=false). URL: ' +
+          urlAfter
       );
       expect(urlAfter, '[FINDING-W8-2] Must NOT redirect when ack-3 is unchecked').toMatch(
         /\/mandates\/new/
@@ -544,9 +548,7 @@ test.describe('S3: active-lock — draft→active via configure; editor controls
     // The StatusBadge renders a <span> with uppercase text "ACTIVE" but the
     // textContent is "active" (lowercase in source, CSS uppercase via style).
     // Playwright's getByText is case-insensitive when using regex.
-    const activeBadge = page
-      .locator('span', { hasText: /^active$/i })
-      .locator('nth=0');
+    const activeBadge = page.locator('span', { hasText: /^active$/i }).locator('nth=0');
     await expect(
       activeBadge,
       'Status badge must show "active" after draft→active transition'
@@ -635,10 +637,7 @@ test.describe('S4: RBAC — analyst is read-only; /mandates/new denied; unauth r
     await page.goto('/mandates/new');
 
     // assertRole('/mandates/new', 'analyst') → redirect('/') in server component.
-    await page.waitForURL(
-      (url) => !url.pathname.startsWith('/mandates/new'),
-      { timeout: 15_000 }
-    );
+    await page.waitForURL((url) => !url.pathname.startsWith('/mandates/new'), { timeout: 15_000 });
     expect(
       page.url(),
       'Analyst navigating to /mandates/new must be redirected away (RBAC deny)'
