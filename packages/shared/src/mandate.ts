@@ -251,6 +251,31 @@ export const mandateListFilterSchema = z
 export type MandateListFilter = z.infer<typeof mandateListFilterSchema>;
 
 // ---------------------------------------------------------------------------
+// Available jurisdictions — GET /mandates/jurisdictions
+// ---------------------------------------------------------------------------
+
+/**
+ * availableJurisdictionSchema — one entry returned by GET /mandates/jurisdictions.
+ * Only the jurisdiction string is returned (no template body / sensitive data).
+ * READ schema: .passthrough() — tolerant of any future server-added fields.
+ */
+export const availableJurisdictionSchema = z
+  .object({
+    jurisdiction: z.string(),
+  })
+  .passthrough();
+
+export type AvailableJurisdiction = z.infer<typeof availableJurisdictionSchema>;
+
+/**
+ * availableJurisdictionsResponseSchema — array response from GET /mandates/jurisdictions.
+ * Parsed by the frontend SSR fetch to build the jurisdiction dropdown options.
+ */
+export const availableJurisdictionsResponseSchema = z.array(availableJurisdictionSchema);
+
+export type AvailableJurisdictionsResponse = z.infer<typeof availableJurisdictionsResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // Aggregate detail type
 // ---------------------------------------------------------------------------
 

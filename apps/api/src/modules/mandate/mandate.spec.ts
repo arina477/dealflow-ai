@@ -374,6 +374,115 @@ describe('RBAC matrix — GET /mandates (read: advisor, admin, analyst)', () => 
 });
 
 // ---------------------------------------------------------------------------
+// 21. GET /mandates/jurisdictions — RBAC + route-ordering
+// ---------------------------------------------------------------------------
+
+describe('RBAC matrix — GET /mandates/jurisdictions (advisor+admin only)', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  const listJurisdictionsHandler = MandateController.prototype.listJurisdictions;
+
+  it('sources @Roles() from the shared roleRoutes map for /mandates/new (write roles)', () => {
+    // listJurisdictions uses MANDATES_WRITE_ROLES (same as /mandates/new).
+    const fromSharedMap = [...rolesForRoute('/mandates/new')].sort();
+    const fromMetadata = [
+      ...new Reflector().get<Role[]>(ROLES_KEY, listJurisdictionsHandler),
+    ].sort();
+    expect(fromMetadata).toEqual(fromSharedMap);
+    expect(fromMetadata).toEqual(['admin', 'advisor']);
+  });
+
+  it('advisor → ALLOW (200) — advisor is the primary create-mandate persona', async () => {
+    const guard = guardWithDbRole('advisor');
+    await expect(guard.canActivate(contextFor(listJurisdictionsHandler, 'advisor'))).resolves.toBe(
+      true
+    );
+  });
+
+  it('admin → ALLOW (200)', async () => {
+    const guard = guardWithDbRole('admin');
+    await expect(guard.canActivate(contextFor(listJurisdictionsHandler, 'admin'))).resolves.toBe(
+      true
+    );
+  });
+
+  it('analyst → DENY (403) — analyst cannot create mandates; jurisdiction list is write-gated', async () => {
+    const guard = guardWithDbRole('analyst');
+    await expect(
+      guard.canActivate(contextFor(listJurisdictionsHandler, 'analyst'))
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('unauthenticated (no session) → 401 UnauthorizedException', async () => {
+    const guard = guardWithDbRole('advisor');
+    await expect(
+      guard.canActivate(contextFor(listJurisdictionsHandler, undefined))
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+});
+
+describe('Route ordering — GET /mandates/jurisdictions not captured by :id', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('@Roles on listJurisdictions is MANDATES_WRITE_ROLES (advisor+admin), not MANDATES_READ_ROLES', () => {
+    // If "jurisdictions" were captured by :id it would resolve via getMandateDetail
+    // (which uses MANDATES_READ_ROLES = advisor, admin, analyst). By asserting
+    // listJurisdictions handler uses MANDATES_WRITE_ROLES we confirm the correct
+    // handler is registered for the literal "jurisdictions" segment.
+    const listJurisdictionsHandler = MandateController.prototype.listJurisdictions;
+    const getByIdHandler = MandateController.prototype.getMandateDetail;
+
+    const jurisdictionsRoles = [
+      ...new Reflector().get<Role[]>(ROLES_KEY, listJurisdictionsHandler),
+    ].sort();
+    const byIdRoles = [...new Reflector().get<Role[]>(ROLES_KEY, getByIdHandler)].sort();
+
+    // listJurisdictions handler is write-gated (advisor + admin)
+    expect(jurisdictionsRoles).toEqual(['admin', 'advisor']);
+    // getMandateDetail handler is read-gated (advisor + admin + analyst)
+    expect(byIdRoles).toEqual(['admin', 'advisor', 'analyst']);
+    // They must differ — proving the handlers are distinct (not the same :id handler)
+    expect(jurisdictionsRoles).not.toEqual(byIdRoles);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 22. MandateService.listAvailableJurisdictions — delegates to repository
+// ---------------------------------------------------------------------------
+
+describe('MandateService.listAvailableJurisdictions — delegates to repository', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('returns distinct active jurisdiction objects from the repository', async () => {
+    const expected = [{ jurisdiction: 'US' }, { jurisdiction: 'EU' }];
+    const repo = makeMockRepository({
+      listAvailableJurisdictions: vi.fn().mockResolvedValue(expected),
+    });
+    const audit = makeMockAuditService();
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+
+    const service = new MandateService(repo, audit, authRepo);
+    const result = await service.listAvailableJurisdictions();
+
+    expect(repo.listAvailableJurisdictions).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(expected);
+  });
+
+  it('returns empty array when no active disclaimer templates exist', async () => {
+    const repo = makeMockRepository({
+      listAvailableJurisdictions: vi.fn().mockResolvedValue([]),
+    });
+    const audit = makeMockAuditService();
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+
+    const service = new MandateService(repo, audit, authRepo);
+    const result = await service.listAvailableJurisdictions();
+
+    expect(result).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 4–9. MandateService unit tests — mocked repository + audit + auth
 // ---------------------------------------------------------------------------
 
@@ -394,6 +503,7 @@ function makeMockRepository(overrides: Partial<MandateRepository> = {}) {
     runInTransaction: vi
       .fn()
       .mockImplementation((work: (tx: unknown) => Promise<unknown>) => work({})),
+    listAvailableJurisdictions: vi.fn().mockResolvedValue([{ jurisdiction: 'US' }]),
     findActiveDisclaimerByJurisdiction: vi.fn().mockResolvedValue({
       id: 'disclaimer-uuid-001',
       jurisdiction: 'US',

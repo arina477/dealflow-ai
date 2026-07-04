@@ -166,6 +166,15 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     allowedRoles: ['advisor', 'admin'],
   },
   {
+    // GET /mandates/jurisdictions — advisor-readable list of active disclaimer
+    // template jurisdictions. Gated by the same write-roles (advisor, admin) so
+    // advisors (the primary create-mandate persona) can fetch the dropdown list.
+    // Analyst is intentionally excluded (read-only, cannot create mandates).
+    // Wave-8 C-2 fix: replaces the admin-only /compliance/disclaimers fetch.
+    pattern: '/mandates/jurisdictions',
+    allowedRoles: ['advisor', 'admin'],
+  },
+  {
     pattern: '/mandates/:id',
     allowedRoles: ['advisor', 'admin', 'analyst'],
   },

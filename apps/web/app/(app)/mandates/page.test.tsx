@@ -198,34 +198,16 @@ function makeDetailPageFetch(role: RoleStr, detail: MandateDetail | null = MANDA
 }
 
 /**
- * makeNewPageFetch — mocks both /auth/me and /compliance/disclaimers for the
- * new-mandate server page (CRITICAL-2 fix: page now SSR-fetches disclaimer
- * jurisdictions to populate the form's jurisdiction dropdown).
+ * makeNewPageFetch — mocks /auth/me and /mandates/jurisdictions for the
+ * new-mandate server page (CRITICAL-2 fix: page SSR-fetches advisor-readable
+ * jurisdiction list from GET /mandates/jurisdictions, not /compliance/disclaimers).
  *
  * @param role - the authenticated user's role
- * @param disclaimers - disclaimer templates to return (default: active 'US' seed)
+ * @param jurisdictions - jurisdictions to return (default: [{jurisdiction:'US'}])
  */
 function makeNewPageFetch(
   role: RoleStr,
-  disclaimers: Array<{
-    id: string;
-    jurisdiction: string;
-    body: string;
-    version: number;
-    active: boolean;
-    createdBy: null;
-    createdAt: string;
-  }> = [
-    {
-      id: '33333333-0000-0000-0000-000000000001',
-      jurisdiction: 'US',
-      body: 'Standard US disclaimer.',
-      version: 1,
-      active: true,
-      createdBy: null,
-      createdAt: '2026-07-04T00:00:00.000Z',
-    },
-  ]
+  jurisdictions: Array<{ jurisdiction: string }> = [{ jurisdiction: 'US' }]
 ) {
   return vi.fn().mockImplementation((url: string) => {
     const s = String(url);
@@ -236,17 +218,17 @@ function makeNewPageFetch(
         json: () => Promise.resolve(meFor(role)),
       } as Response);
     }
-    // CRITICAL-2: page SSR-fetches available disclaimer jurisdictions.
-    // admin can access; advisor gets 403 → page shows empty-state.
-    if (s.includes('/compliance/disclaimers')) {
-      const canAccess = role === 'admin' || role === 'compliance';
+    // CRITICAL-2 (C-2 fix): page SSR-fetches /mandates/jurisdictions.
+    // advisor + admin → 200; analyst → 403 (read-only — cannot create mandates).
+    if (s.includes('/mandates/jurisdictions')) {
+      const canAccess = role === 'advisor' || role === 'admin';
       if (!canAccess) {
         return Promise.resolve({ ok: false, status: 403 } as Response);
       }
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve(disclaimers),
+        json: () => Promise.resolve(jurisdictions),
       } as Response);
     }
     return Promise.reject(new Error(`Unexpected fetch: ${url}`));

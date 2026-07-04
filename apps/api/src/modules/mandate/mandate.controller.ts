@@ -33,6 +33,7 @@
  */
 
 import type {
+  AvailableJurisdiction,
   MandateConfigureInput,
   MandateCreateInput,
   MandateListFilter,
@@ -197,6 +198,33 @@ export class MandateController {
     }
     const filter: MandateListFilter = result.data;
     return this.mandateService.list(filter);
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /mandates/jurisdictions  (advisor-readable jurisdiction list)
+  //
+  // ROUTE-ORDERING CRITICAL: this handler is declared BEFORE @Get(':id') so
+  // NestJS matches the literal segment "jurisdictions" here and does NOT
+  // capture it as the `:id` param. NestJS matches routes in declaration order;
+  // a `:param` wildcard at the same path depth would swallow the literal
+  // "jurisdictions" segment if declared first.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * listJurisdictions — returns distinct jurisdictions that have an active
+   * disclaimer template, i.e. the set from which an advisor can pick a
+   * derivable compliance jurisdiction on the create-mandate form.
+   *
+   * Returns: { jurisdiction: string }[] — no template body, version, or id.
+   * Auth: advisor, admin (MANDATES_WRITE_ROLES — the create/configure roles).
+   *   analyst is intentionally excluded: analysts cannot create mandates.
+   *   anon → 401 (SessionGuard).
+   */
+  @Get('jurisdictions')
+  @UseGuards(SessionGuard, RolesGuard)
+  @Roles(...MANDATES_WRITE_ROLES)
+  async listJurisdictions(): Promise<AvailableJurisdiction[]> {
+    return this.mandateService.listAvailableJurisdictions();
   }
 
   // ---------------------------------------------------------------------------

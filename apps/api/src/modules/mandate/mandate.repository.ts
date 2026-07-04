@@ -133,6 +133,29 @@ export class MandateRepository {
   }
 
   // ---------------------------------------------------------------------------
+  // Available jurisdictions (GET /mandates/jurisdictions)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * listAvailableJurisdictions — returns DISTINCT jurisdictions that have at
+   * least one active disclaimer template.
+   *
+   * This is the advisor-readable "which jurisdictions can I pick" query. It
+   * returns only the jurisdiction strings — no template body, version, or id —
+   * to avoid leaking compliance content to non-compliance roles.
+   *
+   * ORDER BY jurisdiction ASC for stable, alphabetical dropdown ordering.
+   */
+  async listAvailableJurisdictions(): Promise<Array<{ jurisdiction: string }>> {
+    const rows = await this.db
+      .selectDistinct({ jurisdiction: disclaimerTemplates.jurisdiction })
+      .from(disclaimerTemplates)
+      .where(eq(disclaimerTemplates.active, true))
+      .orderBy(disclaimerTemplates.jurisdiction);
+    return rows;
+  }
+
+  // ---------------------------------------------------------------------------
   // Mandate CRUD
   // ---------------------------------------------------------------------------
 

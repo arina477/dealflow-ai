@@ -90,6 +90,8 @@ export { parseEnv } from './env';
 export type { HealthResponse } from './health';
 export { healthResponseSchema } from './health';
 export type {
+  AvailableJurisdiction,
+  AvailableJurisdictionsResponse,
   Mandate,
   MandateAcknowledgments,
   MandateBuyerCriteria,
@@ -101,6 +103,8 @@ export type {
   MandateStatus,
 } from './mandate';
 export {
+  availableJurisdictionSchema,
+  availableJurisdictionsResponseSchema,
   mandateAcknowledgmentsSchema,
   mandateBuyerCriteriaSchema,
   mandateComplianceProfileSchema,

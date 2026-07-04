@@ -332,6 +332,23 @@ export class MandateService {
   }
 
   // ---------------------------------------------------------------------------
+  // available jurisdictions
+  // ---------------------------------------------------------------------------
+
+  /**
+   * listAvailableJurisdictions — returns the distinct jurisdictions that have an
+   * active disclaimer template, so the mandate-create form can populate its
+   * jurisdiction dropdown with only derivable options.
+   *
+   * No auth logic here — the caller (controller endpoint) is gated at
+   * @Roles(...MANDATES_WRITE_ROLES) (advisor, admin). The query returns only
+   * jurisdiction strings, not template bodies.
+   */
+  async listAvailableJurisdictions(): Promise<Array<{ jurisdiction: string }>> {
+    return this.repository.listAvailableJurisdictions();
+  }
+
+  // ---------------------------------------------------------------------------
   // list + detail
   // ---------------------------------------------------------------------------
 

@@ -7,25 +7,24 @@
  *   1. Fine-grained RBAC: assertRole('/mandates/new', me.role) — advisor/admin only.
  *      Analyst is read-only for mandates; redirects to '/' if access denied.
  *   2. SSR-fetch available disclaimer-template jurisdictions (CRITICAL-2 fix).
+ *      Calls GET /mandates/jurisdictions — advisor + admin readable (write roles).
  *      Only active templates are surfaced; the jurisdiction dropdown in MandateForm
  *      is populated from this list — so advisors can only pick a derivable jurisdiction,
  *      eliminating derive-no-match 400s.
  *   3. Renders <MandateForm availableJurisdictions={...}> (client component).
  *
- * RBAC note on disclaimer fetch:
- *   GET /compliance/disclaimers is compliance/admin-only. When called with an
- *   advisor session cookie the API returns 403, which is caught → empty array → the
- *   form shows "no compliance jurisdictions configured" (empty-state per spec). Admin
- *   sessions can reach the endpoint and get the real list. This is the correct
- *   behaviour: an advisor can only create mandates once an admin has configured
- *   disclaimer templates and an admin-scoped session is used for the new-mandate flow.
+ * RBAC note on jurisdiction fetch:
+ *   GET /mandates/jurisdictions is gated by MANDATES_WRITE_ROLES (advisor + admin).
+ *   Both roles can reach this endpoint — unlike /compliance/disclaimers which was
+ *   compliance/admin-only and returned 403 for advisors. This endpoint returns only
+ *   the jurisdiction strings (not template bodies), so it is safe to expose to
+ *   the create-mandate persona (advisor).
  *
  * On success: MandateForm POSTs to /mandates-data (non-colliding proxy) → API,
  * then redirects to /mandates/:id (the created mandate's detail page).
  */
 
-import type { DisclaimerTemplate } from '@dealflow/shared';
-import { disclaimerTemplateSchema } from '@dealflow/shared';
+import { availableJurisdictionsResponseSchema } from '@dealflow/shared';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -73,42 +72,36 @@ async function fetchMe(cookie: string): Promise<MeShape | null> {
 }
 
 // ---------------------------------------------------------------------------
-// Disclaimer jurisdictions fetch (CRITICAL-2 fix)
+// Jurisdiction fetch (CRITICAL-2 fix — wave-8 C-2 gap)
 //
-// Fetches GET /compliance/disclaimers server-side to discover which jurisdictions
-// have an active disclaimer template. Only active rows are surfaced as selectable
-// options in MandateForm — prevents derive-no-match 400s on create.
+// Fetches GET /mandates/jurisdictions server-side to discover which jurisdictions
+// have an active disclaimer template. This endpoint is gated by MANDATES_WRITE_ROLES
+// (advisor + admin) — unlike /compliance/disclaimers which is compliance/admin-only
+// and returned 403 for advisors (the primary create-mandate persona).
 //
-// Returns empty array on any error (403 for non-admin roles, network failure, etc.).
+// The endpoint returns only { jurisdiction: string }[] — no template body,
+// version, or id — safe to expose to advisors.
+//
+// Returns empty array on any error (network failure, unexpected response shape, etc.).
 // The form renders the empty-state fallback when the array is empty.
 // ---------------------------------------------------------------------------
 
-const disclaimerListSchema = z.array(disclaimerTemplateSchema);
-
 async function fetchAvailableJurisdictions(cookie: string): Promise<AvailableJurisdiction[]> {
   try {
-    const res = await fetch(`${apiBase()}/compliance/disclaimers`, {
+    const res = await fetch(`${apiBase()}/mandates/jurisdictions`, {
       headers: { cookie },
       cache: 'no-store',
     });
     if (!res.ok) return [];
     const raw: unknown = await res.json();
-    // The API returns DisclaimerTemplate[] (list, not wrapped object)
-    const parsed = disclaimerListSchema.safeParse(raw);
+    // Parse with the shared availableJurisdictionsResponseSchema.
+    // Returns { jurisdiction: string }[] — transform to { value, label } for the dropdown.
+    const parsed = availableJurisdictionsResponseSchema.safeParse(raw);
     if (!parsed.success) return [];
-    // Filter to only active templates and deduplicate by jurisdiction
-    // (only one active row per jurisdiction by DB constraint, but filter defensively).
-    const seen = new Set<string>();
-    const available: AvailableJurisdiction[] = [];
-    for (const template of parsed.data as DisclaimerTemplate[]) {
-      if (template.active && !seen.has(template.jurisdiction)) {
-        seen.add(template.jurisdiction);
-        // Use the API's jurisdiction value as both the option value and display label.
-        // The value MUST match exactly what the API expects for derive-match.
-        available.push({ value: template.jurisdiction, label: template.jurisdiction });
-      }
-    }
-    return available;
+    return parsed.data.map((entry) => ({
+      value: entry.jurisdiction,
+      label: entry.jurisdiction,
+    }));
   } catch {
     return [];
   }
