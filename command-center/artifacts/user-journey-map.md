@@ -36,6 +36,8 @@ Canonical inventory of every screen / route + the flows that connect them. Sourc
 | 11 | Pipeline | `/pipeline` | Adv | F4 | Pipeline module |
 | 12 | Sourcing workspace | `/sourcing` | An | F6 | Ingestion, dedupe |
 | 13 | Companies & contacts | `/companies` · `/companies/:id` | An | F9 | Data store, dedupe/enrichment |
+
+> **Wave 6 (deal-sourcing data spine) — LIVE (deployed 918dbf0 + real-browser E2E 8/8):** the companies & contacts screen is live at **`/sourcing/companies`** (analyst persona) — view/filter deduped canonical companies+contacts + a dedupe review queue (merge/reject uncertain matches). Behind it: a pluggable `DataSourceAdapter` (fixture adapter this wave; real provider SDKs later) → idempotent ETL into `raw_companies` staging → a deterministic DEDUPE engine promoting to canonical `companies`/`contacts` with company- AND contact-level provenance (source lineage). LIVE-verified: cross-source dedup (same domain from 2 sources → 1 canonical + provenance from both), NO false-positive merge (distinct companies stay separate), idempotent re-sync (no pile-up), and audited dedupe-resolution (M2 audit log). Route repointed `/companies`→`/sourcing/companies`. Deferred: real provider adapters + scheduled/incremental sync + contact enrichment + the sourcing-workspace page (row 12). This is the data spine M4 (mandates) / M5 (matching) consume.
 | 14 | Templates library | `/templates` · `/templates/:id` | An, Comp | F8 | Outreach engine, compliance |
 | 15 | Compliance queue (approvals) | `/compliance/queue` | Comp, Adv | F10 | Compliance rules, audit log |
 | 16 | Audit log & recordkeeping export | `/compliance/audit-log` | Comp | F11 | Audit-log service, export |
