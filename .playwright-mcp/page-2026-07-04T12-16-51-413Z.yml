@@ -1,0 +1,54 @@
+- generic [active] [ref=f11e1]:
+  - generic [ref=f11e2]:
+    - navigation "Main navigation" [ref=f11e3]:
+      - generic [ref=f11e4]:
+        - img [ref=f11e6]
+        - generic [ref=f11e11]: DealFlow AI
+      - generic [ref=f11e13]:
+        - paragraph [ref=f11e14]: Workspace
+        - list [ref=f11e15]:
+          - listitem [ref=f11e16]:
+            - link "Dashboard" [ref=f11e17] [cursor=pointer]:
+              - /url: /
+              - img [ref=f11e19]
+              - generic [ref=f11e24]: Dashboard
+          - listitem [ref=f11e25]:
+            - link "Mandates" [ref=f11e26] [cursor=pointer]:
+              - /url: /mandates
+              - img [ref=f11e27]
+              - generic [ref=f11e30]: Mandates
+          - listitem [ref=f11e31]:
+            - link "Sourcing" [ref=f11e32] [cursor=pointer]:
+              - /url: /sourcing
+              - img [ref=f11e33]
+              - generic [ref=f11e37]: Sourcing
+      - 'button "User menu: ana-c2-1783166708@example.com (analyst)" [ref=f11e39] [cursor=pointer]':
+        - generic [ref=f11e40]: AC
+        - generic [ref=f11e41]:
+          - paragraph [ref=f11e42]: ana-c2-1783166708@example.com
+          - paragraph [ref=f11e43]: analyst
+    - generic [ref=f11e44]:
+      - banner [ref=f11e45]:
+        - heading "Dashboard" [level=1] [ref=f11e47]
+        - generic [ref=f11e48]:
+          - button "Search" [ref=f11e49] [cursor=pointer]:
+            - img [ref=f11e50]
+          - button "Notifications" [ref=f11e53] [cursor=pointer]:
+            - img [ref=f11e54]
+          - status "Signed in as ana-c2-1783166708@example.com" [ref=f11e57]:
+            - generic [ref=f11e58]: AN
+            - generic [ref=f11e59]: ana-c2-1783166708@example.com
+      - main [ref=f11e60]:
+        - generic [ref=f11e61]:
+          - region "Welcome" [ref=f11e62]:
+            - heading "Welcome back" [level=2] [ref=f11e63]
+            - paragraph [ref=f11e64]:
+              - text: Signed in as
+              - strong [ref=f11e65]: ana-c2-1783166708@example.com
+            - paragraph [ref=f11e66]: "Role: Analyst"
+          - region "Deal management — coming soon" [ref=f11e67]:
+            - paragraph [ref=f11e68]: Deal management features are coming in the next milestone.
+          - region "Quick actions" [ref=f11e69]:
+            - heading "Sourcing pipeline" [level=3] [ref=f11e70]
+            - paragraph [ref=f11e71]: Company sourcing and database features ship with M3. Your analyst access is ready for when they launch.
+  - alert [ref=f11e72]

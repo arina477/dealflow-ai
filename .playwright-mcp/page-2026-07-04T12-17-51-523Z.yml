@@ -1,0 +1,54 @@
+- generic [active] [ref=f14e1]:
+  - generic [ref=f14e2]:
+    - navigation "Main navigation" [ref=f14e3]:
+      - generic [ref=f14e4]:
+        - img [ref=f14e6]
+        - generic [ref=f14e11]: DealFlow AI
+      - generic [ref=f14e13]:
+        - paragraph [ref=f14e14]: Workspace
+        - list [ref=f14e15]:
+          - listitem [ref=f14e16]:
+            - link "Dashboard" [ref=f14e17] [cursor=pointer]:
+              - /url: /
+              - img [ref=f14e19]
+              - generic [ref=f14e24]: Dashboard
+          - listitem [ref=f14e25]:
+            - link "Mandates" [ref=f14e26] [cursor=pointer]:
+              - /url: /mandates
+              - img [ref=f14e27]
+              - generic [ref=f14e30]: Mandates
+          - listitem [ref=f14e31]:
+            - link "Compliance" [ref=f14e32] [cursor=pointer]:
+              - /url: /compliance/queue
+              - img [ref=f14e33]
+              - generic [ref=f14e36]: Compliance
+      - 'button "User menu: adv-c2-1783166708@example.com (advisor)" [ref=f14e38] [cursor=pointer]':
+        - generic [ref=f14e39]: AC
+        - generic [ref=f14e40]:
+          - paragraph [ref=f14e41]: adv-c2-1783166708@example.com
+          - paragraph [ref=f14e42]: advisor
+    - generic [ref=f14e43]:
+      - banner [ref=f14e44]:
+        - heading "Dashboard" [level=1] [ref=f14e46]
+        - generic [ref=f14e47]:
+          - button "Search" [ref=f14e48] [cursor=pointer]:
+            - img [ref=f14e49]
+          - button "Notifications" [ref=f14e52] [cursor=pointer]:
+            - img [ref=f14e53]
+          - status "Signed in as adv-c2-1783166708@example.com" [ref=f14e56]:
+            - generic [ref=f14e57]: AD
+            - generic [ref=f14e58]: adv-c2-1783166708@example.com
+      - main [ref=f14e59]:
+        - generic [ref=f14e60]:
+          - region "Welcome" [ref=f14e61]:
+            - heading "Welcome back" [level=2] [ref=f14e62]
+            - paragraph [ref=f14e63]:
+              - text: Signed in as
+              - strong [ref=f14e64]: adv-c2-1783166708@example.com
+            - paragraph [ref=f14e65]: "Role: Advisor"
+          - region "Deal management — coming soon" [ref=f14e66]:
+            - paragraph [ref=f14e67]: Deal management features are coming in the next milestone.
+          - region "Quick actions" [ref=f14e68]:
+            - heading "Your mandates" [level=3] [ref=f14e69]
+            - paragraph [ref=f14e70]: Mandate management and buyer matching ship with M2. Use the navigation to explore available modules.
+  - alert [ref=f14e71]

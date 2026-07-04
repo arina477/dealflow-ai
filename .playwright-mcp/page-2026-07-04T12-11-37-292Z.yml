@@ -1,0 +1,30 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - link "DealFlow AI" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - generic [ref=e12]: DealFlow AI
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - heading "Welcome back" [level=1] [ref=e15]
+          - paragraph [ref=e16]: Sign in to access deal intelligence and compliance workflows.
+        - generic [ref=e17]:
+          - generic [ref=e18]:
+            - generic [ref=e20]: Email address
+            - textbox "Email address" [ref=e21]:
+              - /placeholder: name@firm.com
+          - generic [ref=e22]:
+            - generic [ref=e23]:
+              - generic [ref=e24]: Password
+              - link "Forgot password?" [ref=e25] [cursor=pointer]:
+                - /url: /reset-password
+            - textbox "Password" [ref=e26]:
+              - /placeholder: ••••••••
+          - button "Sign in" [ref=e28] [cursor=pointer]
+      - generic [ref=e29]:
+        - generic [ref=e30]: © 2026 DealFlow AI
+        - generic [ref=e31]:
+          - generic [ref=e32]: Privacy
+          - generic [ref=e33]: Terms
+  - alert [ref=e34]

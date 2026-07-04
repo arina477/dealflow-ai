@@ -1,0 +1,200 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - navigation "Main navigation" [ref=f3e3]:
+      - generic [ref=f3e4]:
+        - img [ref=f3e6]
+        - generic [ref=f3e11]: DealFlow AI
+      - generic [ref=f3e13]:
+        - paragraph [ref=f3e14]: Workspace
+        - list [ref=f3e15]:
+          - listitem [ref=f3e16]:
+            - link "Dashboard" [ref=f3e17] [cursor=pointer]:
+              - /url: /
+              - img [ref=f3e19]
+              - generic [ref=f3e24]: Dashboard
+          - listitem [ref=f3e25]:
+            - link "Mandates" [ref=f3e26] [cursor=pointer]:
+              - /url: /mandates
+              - img [ref=f3e27]
+              - generic [ref=f3e30]: Mandates
+          - listitem [ref=f3e31]:
+            - link "Compliance" [ref=f3e32] [cursor=pointer]:
+              - /url: /compliance/queue
+              - img [ref=f3e33]
+              - generic [ref=f3e36]: Compliance
+      - 'button "User menu: adv-c2-1783166708@example.com (advisor)" [ref=f3e38] [cursor=pointer]':
+        - generic [ref=f3e39]: AC
+        - generic [ref=f3e40]:
+          - paragraph [ref=f3e41]: adv-c2-1783166708@example.com
+          - paragraph [ref=f3e42]: advisor
+    - generic [ref=f3e43]:
+      - banner [ref=f3e44]:
+        - heading "Dashboard" [level=1] [ref=f3e46]
+        - generic [ref=f3e47]:
+          - button "Search" [ref=f3e48] [cursor=pointer]:
+            - img [ref=f3e49]
+          - button "Notifications" [ref=f3e52] [cursor=pointer]:
+            - img [ref=f3e53]
+          - status "Signed in as adv-c2-1783166708@example.com" [ref=f3e56]:
+            - generic [ref=f3e57]: AD
+            - generic [ref=f3e58]: adv-c2-1783166708@example.com
+      - main [ref=f3e59]:
+        - generic [ref=f3e60]:
+          - navigation "Breadcrumb" [ref=f3e61]:
+            - list [ref=f3e62]:
+              - listitem [ref=f3e63]:
+                - link "Mandates" [ref=f3e64] [cursor=pointer]:
+                  - /url: /mandates
+              - listitem [ref=f3e65]: /
+              - listitem [ref=f3e66]: New Mandate
+          - generic [ref=f3e67]:
+            - heading "Create Engagement" [level=1] [ref=f3e68]
+            - paragraph [ref=f3e69]: Configure seller profile, buyer criteria, and compliance guardrails.
+          - form "Create mandate form" [ref=f3e70]:
+            - generic [ref=f3e71]:
+              - generic [ref=f3e72]:
+                - generic [ref=f3e73]:
+                  - generic [ref=f3e74]: "1"
+                  - heading "Seller & Target Profile" [level=2] [ref=f3e75]
+                - generic [ref=f3e77]:
+                  - generic [ref=f3e78]:
+                    - generic [ref=f3e79]:
+                      - generic [ref=f3e80]: Company Name *
+                      - textbox "Company Name" [ref=f3e81]:
+                        - /placeholder: e.g. Acme Manufacturing Inc.
+                    - generic [ref=f3e82]:
+                      - generic [ref=f3e83]: Industry / Sector
+                      - combobox "Industry / Sector" [ref=f3e84]:
+                        - option "Select primary sector…" [disabled] [selected]
+                        - option "Enterprise Software / SaaS"
+                        - option "Advanced Manufacturing"
+                        - option "Healthcare Services"
+                        - option "Financial Technology"
+                        - option "B2B Professional Services"
+                        - option "Industrials / Distribution"
+                        - option "Consumer / Retail"
+                        - option "Real Estate / Property"
+                        - option "Media / Content"
+                        - option "Other"
+                  - generic [ref=f3e85]:
+                    - generic [ref=f3e86]: Seller Geography / Regions
+                    - textbox "Seller Geography / Regions" [ref=f3e88]:
+                      - /placeholder: Type a region and press Enter (e.g. North America)
+                    - paragraph [ref=f3e89]: Press Enter or comma to add a region. Multiple regions accepted.
+                  - group "Company Size (Revenue)" [ref=f3e90]:
+                    - generic [ref=f3e91]: Company Size (Revenue)
+                    - generic [ref=f3e92]:
+                      - generic [ref=f3e93] [cursor=pointer]:
+                        - radio "< $10M"
+                        - generic [ref=f3e94]: < $10M
+                      - generic [ref=f3e95] [cursor=pointer]:
+                        - radio "$10M–$50M"
+                        - generic [ref=f3e96]: $10M–$50M
+                      - generic [ref=f3e97] [cursor=pointer]:
+                        - radio "$50M–$250M"
+                        - generic [ref=f3e98]: $50M–$250M
+                      - generic [ref=f3e99] [cursor=pointer]:
+                        - radio "$250M–$1B"
+                        - generic [ref=f3e100]: $250M–$1B
+                      - generic [ref=f3e101] [cursor=pointer]:
+                        - radio "$1B+"
+                        - generic [ref=f3e102]: $1B+
+                  - generic [ref=f3e103]:
+                    - generic [ref=f3e104]: Deal Type
+                    - combobox "Deal Type" [ref=f3e105]:
+                      - option "Select deal type…" [disabled] [selected]
+                      - option "Full Acquisition"
+                      - option "Majority Stake"
+                      - option "Minority Stake"
+                      - option "Merger"
+                      - option "Asset Sale"
+                  - generic [ref=f3e106]:
+                    - generic [ref=f3e107]: Executive Snippet
+                    - textbox "Executive Snippet" [ref=f3e108]:
+                      - /placeholder: Family-owned, profitable, seeking liquidity. Strong margins, recurring revenue…
+              - generic [ref=f3e109]:
+                - generic [ref=f3e110]:
+                  - generic [ref=f3e111]: "2"
+                  - heading "Buyer Universe Criteria" [level=2] [ref=f3e112]
+                - generic [ref=f3e113]:
+                  - paragraph [ref=f3e114]: Specify the characteristics of the ideal buyer universe. All fields are optional — leave blank to apply no restriction on that dimension.
+                  - generic [ref=f3e115]:
+                    - generic [ref=f3e116]:
+                      - generic [ref=f3e117]: Buyer Industry / Sector
+                      - combobox "Buyer Industry / Sector" [ref=f3e118]:
+                        - option "Any industry" [selected]
+                        - option "Enterprise Software / SaaS"
+                        - option "Advanced Manufacturing"
+                        - option "Healthcare Services"
+                        - option "Financial Technology"
+                        - option "B2B Professional Services"
+                        - option "Industrials / Distribution"
+                        - option "Consumer / Retail"
+                        - option "Real Estate / Property"
+                        - option "Media / Content"
+                        - option "Other"
+                    - generic [ref=f3e119]:
+                      - generic [ref=f3e120]: Buyer Geography
+                      - textbox "Buyer Geography" [ref=f3e121]:
+                        - /placeholder: e.g. North America, Europe
+                    - generic [ref=f3e122]:
+                      - generic [ref=f3e123]: Buyer Size Band
+                      - combobox "Buyer Size Band" [ref=f3e124]:
+                        - option "Any size" [selected]
+                        - option "< $10M"
+                        - option "$10M–$50M"
+                        - option "$50M–$250M"
+                        - option "$250M–$1B"
+                        - option "$1B+"
+                    - generic [ref=f3e125]:
+                      - generic [ref=f3e126]: Buyer Deal Type
+                      - combobox "Buyer Deal Type" [ref=f3e127]:
+                        - option "Any deal type" [selected]
+                        - option "Full Acquisition"
+                        - option "Majority Stake"
+                        - option "Minority Stake"
+                        - option "Merger"
+                        - option "Asset Sale"
+              - generic [ref=f3e128]:
+                - generic [ref=f3e129]:
+                  - generic [ref=f3e130]: "3"
+                  - heading "Compliance Guardrails" [level=2] [ref=f3e131]
+                - generic [ref=f3e133]:
+                  - note [ref=f3e134]:
+                    - generic [ref=f3e135]: Compliance information captured here
+                    - paragraph [ref=f3e136]:
+                      - text: The following details are captured now to prepare for the compliance gate. They are
+                      - strong [ref=f3e137]: not enforced at this step
+                      - text: — a separate compliance review is required before any outreach can be authorized.
+                  - generic [ref=f3e138]:
+                    - generic [ref=f3e139]: Legal Jurisdiction *
+                    - combobox "Legal Jurisdiction" [ref=f3e140]:
+                      - option "Select jurisdiction…" [disabled] [selected]
+                      - option "US — Delaware"
+                      - option "US — Federal"
+                      - option "United Kingdom"
+                      - option "European Union"
+                      - option "Singapore"
+                      - option "Cayman Islands"
+                    - paragraph [ref=f3e141]: Determines the disclaimer format applied to NDA distributions. The disclaimer template is resolved automatically from the selected jurisdiction.
+                  - generic [ref=f3e142]:
+                    - generic [ref=f3e143]: Suppression List / Conflict Blocking
+                    - textbox "Suppression List / Conflict Blocking" [ref=f3e145]:
+                      - /placeholder: Type a company name and press Enter
+                    - paragraph [ref=f3e146]: Enter company names to suppress from buyer matching. Press Enter or comma after each entry. (CSV upload deferred — enter names manually.)
+                  - group "Required Acknowledgments" [ref=f3e147]:
+                    - generic [ref=f3e148]: Required Acknowledgments
+                    - generic [ref=f3e149]:
+                      - generic [ref=f3e150] [cursor=pointer]:
+                        - checkbox "I confirm this engagement is lawfully authorized by the seller." [ref=f3e152]
+                        - generic [ref=f3e153]: I confirm this engagement is lawfully authorized by the seller.
+                      - generic [ref=f3e154] [cursor=pointer]:
+                        - checkbox "I understand that buyer-matching results are AI-generated and must be independently validated before any outreach is initiated." [ref=f3e156]
+                        - generic [ref=f3e157]: I understand that buyer-matching results are AI-generated and must be independently validated before any outreach is initiated.
+                      - generic [ref=f3e158] [cursor=pointer]:
+                        - checkbox "I have reviewed relevant conflict databases and entered any necessary suppression entries above." [ref=f3e160]
+                        - generic [ref=f3e161]: I have reviewed relevant conflict databases and entered any necessary suppression entries above.
+              - generic [ref=f3e162]:
+                - button "Cancel" [ref=f3e163] [cursor=pointer]
+                - button "Create Mandate" [ref=f3e164] [cursor=pointer]
+  - alert [ref=f3e165]

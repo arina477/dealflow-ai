@@ -1,0 +1,54 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e34]
+  - generic [ref=e35]:
+    - navigation "Main navigation" [ref=e36]:
+      - generic [ref=e37]:
+        - img [ref=e39]
+        - generic [ref=e44]: DealFlow AI
+      - generic [ref=e46]:
+        - paragraph [ref=e47]: Workspace
+        - list [ref=e48]:
+          - listitem [ref=e49]:
+            - link "Dashboard" [ref=e50] [cursor=pointer]:
+              - /url: /
+              - img [ref=e52]
+              - generic [ref=e57]: Dashboard
+          - listitem [ref=e58]:
+            - link "Mandates" [ref=e59] [cursor=pointer]:
+              - /url: /mandates
+              - img [ref=e60]
+              - generic [ref=e63]: Mandates
+          - listitem [ref=e64]:
+            - link "Compliance" [ref=e65] [cursor=pointer]:
+              - /url: /compliance/queue
+              - img [ref=e66]
+              - generic [ref=e69]: Compliance
+      - 'button "User menu: adv-c2-1783166708@example.com (advisor)" [ref=e71] [cursor=pointer]':
+        - generic [ref=e72]: AC
+        - generic [ref=e73]:
+          - paragraph [ref=e74]: adv-c2-1783166708@example.com
+          - paragraph [ref=e75]: advisor
+    - generic [ref=e76]:
+      - banner [ref=e77]:
+        - heading "Dashboard" [level=1] [ref=e79]
+        - generic [ref=e80]:
+          - button "Search" [ref=e81] [cursor=pointer]:
+            - img [ref=e82]
+          - button "Notifications" [ref=e85] [cursor=pointer]:
+            - img [ref=e86]
+          - status "Signed in as adv-c2-1783166708@example.com" [ref=e89]:
+            - generic [ref=e90]: AD
+            - generic [ref=e91]: adv-c2-1783166708@example.com
+      - main [ref=e92]:
+        - generic [ref=e93]:
+          - region "Welcome" [ref=e94]:
+            - heading "Welcome back" [level=2] [ref=e95]
+            - paragraph [ref=e96]:
+              - text: Signed in as
+              - strong [ref=e97]: adv-c2-1783166708@example.com
+            - paragraph [ref=e98]: "Role: Advisor"
+          - region "Deal management — coming soon" [ref=e99]:
+            - paragraph [ref=e100]: Deal management features are coming in the next milestone.
+          - region "Quick actions" [ref=e101]:
+            - heading "Your mandates" [level=3] [ref=e102]
+            - paragraph [ref=e103]: Mandate management and buyer matching ship with M2. Use the navigation to explore available modules.

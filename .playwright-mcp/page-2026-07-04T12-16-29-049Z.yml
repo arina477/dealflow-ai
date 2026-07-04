@@ -1,0 +1,71 @@
+- generic [active] [ref=f10e1]:
+  - generic [ref=f10e2]:
+    - navigation "Main navigation" [ref=f10e3]:
+      - generic [ref=f10e4]:
+        - img [ref=f10e6]
+        - generic [ref=f10e11]: DealFlow AI
+      - generic [ref=f10e13]:
+        - paragraph [ref=f10e14]: Workspace
+        - list [ref=f10e15]:
+          - listitem [ref=f10e16]:
+            - link "Dashboard" [ref=f10e17] [cursor=pointer]:
+              - /url: /
+              - img [ref=f10e19]
+              - generic [ref=f10e24]: Dashboard
+          - listitem [ref=f10e25]:
+            - link "Mandates" [ref=f10e26] [cursor=pointer]:
+              - /url: /mandates
+              - img [ref=f10e27]
+              - generic [ref=f10e30]: Mandates
+          - listitem [ref=f10e31]:
+            - link "Sourcing" [ref=f10e32] [cursor=pointer]:
+              - /url: /sourcing
+              - img [ref=f10e33]
+              - generic [ref=f10e37]: Sourcing
+      - 'button "User menu: ana-c2-1783166708@example.com (analyst)" [ref=f10e39] [cursor=pointer]':
+        - generic [ref=f10e40]: AC
+        - generic [ref=f10e41]:
+          - paragraph [ref=f10e42]: ana-c2-1783166708@example.com
+          - paragraph [ref=f10e43]: analyst
+    - generic [ref=f10e44]:
+      - banner [ref=f10e45]:
+        - heading "Dashboard" [level=1] [ref=f10e47]
+        - generic [ref=f10e48]:
+          - button "Search" [ref=f10e49] [cursor=pointer]:
+            - img [ref=f10e50]
+          - button "Notifications" [ref=f10e53] [cursor=pointer]:
+            - img [ref=f10e54]
+          - status "Signed in as ana-c2-1783166708@example.com" [ref=f10e57]:
+            - generic [ref=f10e58]: AN
+            - generic [ref=f10e59]: ana-c2-1783166708@example.com
+      - main [ref=f10e60]:
+        - generic [ref=f10e61]:
+          - generic [ref=f10e62]:
+            - generic [ref=f10e63]:
+              - heading "Mandates" [level=1] [ref=f10e64]
+              - paragraph [ref=f10e65]: Manage active engagements, AI matchmaking, and outreach velocity.
+            - button "Create a new mandate" [ref=f10e66] [cursor=pointer]:
+              - img [ref=f10e67]
+              - text: New mandate
+          - generic [ref=f10e68]:
+            - radiogroup "Filter mandates by status" [ref=f10e70]:
+              - radio "All" [checked] [ref=f10e71] [cursor=pointer]
+              - radio "Draft" [ref=f10e72] [cursor=pointer]
+              - radio "Active" [ref=f10e73] [cursor=pointer]
+            - table "Mandates list" [ref=f10e74]:
+              - rowgroup [ref=f10e75]:
+                - row "Mandate / Seller Deal Type Status Created" [ref=f10e76]:
+                  - columnheader "Mandate / Seller" [ref=f10e77]
+                  - columnheader "Deal Type" [ref=f10e78]
+                  - columnheader "Status" [ref=f10e79]
+                  - columnheader "Created" [ref=f10e80]
+              - rowgroup [ref=f10e81]:
+                - row "Acme Manufacturing Co Industrials acquisition active Jul 4, 2026" [ref=f10e82] [cursor=pointer]:
+                  - cell "Acme Manufacturing Co Industrials" [ref=f10e83]:
+                    - generic [ref=f10e84]: Acme Manufacturing Co
+                    - generic [ref=f10e85]: Industrials
+                  - cell "acquisition" [ref=f10e86]
+                  - cell "active" [ref=f10e87]:
+                    - generic [ref=f10e88]: active
+                  - cell "Jul 4, 2026" [ref=f10e90]
+  - alert [ref=f10e91]

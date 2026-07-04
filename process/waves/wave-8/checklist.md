@@ -43,8 +43,8 @@ BUILD:
 - [x] B-6 Review — head-builder APPROVED; /review 3 CRIT fixed (PATCH-crash+draft-lock+ambiguous-disclaimer+0007, 37998bb)
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [x] C-1 PR, CI & merge — merged @ c278f7d (main), CI green 5/5
+- [ ] C-2 Deploy & verify — deploy+migrations PASS @ c278f7d; head-ci-cd verdict **REJECTED** (2 CRITICAL UI defects: detail-route hijack + create jurisdiction/seed mismatch) → REWORK B-block; API layer verified sound. Canary skipped (0 DAU).
 
 TEST:
 - [ ] T-1 Static
