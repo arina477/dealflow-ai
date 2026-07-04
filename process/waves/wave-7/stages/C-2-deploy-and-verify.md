@@ -490,3 +490,150 @@ head_signoff:
     (boots fine); no rollback needed.
   next_action: REWORK_B-block  # loosen shared companySchema createdAt/updatedAt .datetime()→.string(); add deep-screen SSR PG-wire test; then re-run C-2
 ```
+
+---
+
+## V-3 shared-timestamp re-verify (e3dd9b7)
+
+**Verdict: FAIL — deep-screen `/sourcing/companies` STILL renders empty with real data (Iron Law tripped).** The shared-timestamp fix is genuinely correct and TWO of three screens now render; but the deep screen fails on a **second, independent contract-drift defect** (a `connectionIds` strict-schema unknown-key rejection) that the timestamp fix never addressed. Returned to Build/fast-fix.
+
+### Deploy provenance (PASS)
+
+| Service | New deployment ID | Status | commitHash (Railway meta) | Notes |
+|---|---|---|---|---|
+| dealflow-web | `13a28a77-dd5b-4279-9950-16a09f615bfe` | SUCCESS | `e3dd9b7920a0bffeea497c0d5e72ecc4c0d41078` | build `pnpm --filter @dealflow/web... build` (rebuilds @dealflow/shared → shared fix ships in web bundle) |
+| dealflow-api | `83012c67-62fa-4dbd-b10e-df988fef2c05` | SUCCESS | e3dd9b7 (GIT_SHA) | boots clean; db ok |
+
+- **Token:** project-scoped `RAILWAY_TOKEN` (len 36) valid → `projectToken` returned project `ce095f75…` / env `0e84f0b6…` (production). Not a block.
+- **GIT_SHA** upserted to `e3dd9b7` on BOTH api and web (single non-destructive `variableUpsert` each; no other var touched — DATABASE_URL, AUDIT_LOG_HMAC_KEY, SUPERTOKENS_*, WEB_ORIGIN, INTERNAL_API_BASE_URL all pre-bound). The variableUpsert auto-triggered a redeploy on each service (BUILDING→DEPLOYING→SUCCESS in ~91s); no duplicate/racing deploy issued (SKIPPED-phantom avoided).
+- **/health version == e3dd9b7** — `{"status":"ok","db":"ok","version":"e3dd9b7"}` HTTP 200 on the api's OWN container domain (`dealflow-api-production-66d4.up.railway.app`), NOT the global domain. Health-check-mirage defeated; new-container-hash confirmed.
+- **Web serving e3dd9b7 confirmed via Railway deployment `meta.commitHash`** (not inferred) — `e3dd9b7920a0bffeea497c0d5e72ecc4c0d41078`, imageDigest `sha256:604b9c95…`. This rules out a stale-web-deploy explanation for the deep-screen failure.
+- Both reached SUCCESS; neither SKIPPED (phantom-skip ruled out via `deployments` GraphQL). Immutable fresh-artifact deploy; no in-place mutation.
+
+### Armed rollback path (PASS — captured pre-mutation)
+
+Prior known-good SUCCESS deployments, captured BEFORE the variableUpsert redeploy:
+- **api known-good:** `599542b3-79ab-47c5-979a-fc770452ca70` (SUCCESS, `3e2042f`)
+- **web known-good:** `e520f0a1-9795-4c97-b35a-2e6ab40bda95` (SUCCESS, `3e2042f`)
+
+Rollback NOT triggered: `e3dd9b7` boots clean, is not crash-looping, and genuinely fixes the workspace + compliance-settings. Rolling back would revert real fixes. The deep-screen defect is a latent code bug, not a crash/regression introduced by this deploy → correct remediation is a targeted code fix, not a rollback.
+
+### The fix proof — SEEDED real data
+
+- Analyst minted via web-origin invite→signup (`/auth/invite {role:analyst}` → 201 token; `/auth/signup {inviteToken,password}` → 201; `/auth/me` → 200 role:analyst). Anti-CSRF = SuperTokens VIA_CUSTOM_HEADER; mutations carry `Origin: <web-origin>` + `rid: anti-csrf`.
+- Connection `Vf-A-1783144542` (providerKey `fixture`) → **201** (createdAt `2026-07-04 05:56:00.389079+00` — PG-wire). Sync → **201 `{"ingested":5,"updated":0}`** → cross-source dedup to **4 canonical companies**.
+- **API GET /sourcing/companies → 200**, 4 companies (Acme Technologies Inc. / Bright Horizon Ventures LLC / Delta Systems Corp / Epsilon Analytics), each `createdAt = "2026-07-04 05:56:00.561699+00"` (space-separated, `+00`, microseconds — the exact PG-wire format `.datetime()` rejects).
+
+### Screen-by-screen render proof (real headless chromium, live DOM — Playwright chromium-1208, web-UI login sets cookies on web origin)
+
+| Screen | Result | Evidence |
+|---|---|---|
+| **`/sourcing` (workspace)** | **PASS — renders companies** | live DOM: `emptyState:false`; Acme/Delta/Bright Horizon/Epsilon all present; 6 company-row matches. Regression from V-1 STILL fixed. |
+| **`/sourcing/companies` (deep screen)** | **FAIL — renders empty** | live DOM: `emptyState:true`, `EMPTY_STATE_TEXT:"No companies yet"`, `CONTAINS_ACME:false`, 0 company rows — with 4 real companies in DB and returned 200 by the API. |
+| **`/compliance/settings`** | **PASS — renders rules** | compliance user minted (role:compliance); rule seeded (`approval_required`, US, → 201, createdAt `2026-07-04 05:59:30.92002+00`); live DOM: `emptyState:false`, 4 rule-type matches (approval_required + blocklist_check + disclaimer_required + jurisdiction US). The compliance-rules.ts timestamp fix WORKS. |
+
+### Root cause of the deep-screen FAIL (confirmed empirically — NOT the timestamp bug)
+
+The e3dd9b7 timestamp fix IS correct: `packages/shared/src/sourcing.ts:92` `createdAt: z.string()` / `:93` `updatedAt: z.string().nullable()` (was `.datetime()`), workspace local override dropped, compliance-rules.ts loosened. Confirmed via `git show e3dd9b7` + source read. The workspace and compliance-settings now render — proving the timestamp fix's effectiveness. **But the deep screen fails on a DIFFERENT defect:**
+
+- The live API `GET /sourcing/companies` returns each company with a **`connectionIds`** array field (`["fe2a2326-…"]`) — confirmed on the wire.
+- `apps/web/app/(app)/sourcing/companies/page.tsx:113` `fetchCompanies` parses with `companiesWithMetaResponseSchema` = `z.array(companyWithMetaSchema)`, where `companyWithMetaSchema = companySchema.extend({contactCount,sourceCount,hasPendingCandidates})` (line 103). The base `companySchema` is **`.strict()`** (`sourcing.ts:95`) and declares NO `connectionIds`; the extension adds none either.
+- **`.strict()` rejects the unknown `connectionIds` key** → `companiesWithMetaResponseSchema.safeParse` fails (`unrecognized_keys: ["connectionIds"] at companies[0]`); the plain fallback `companiesResponseSchema.safeParse` also fails (`unrecognized_keys: ["contactCount","sourceCount","connectionIds"]`) → `fetchCompanies` returns `[]` (page.tsx:133) → deep screen renders "No companies yet".
+- **Empirically reproduced** against the REAL live API payload using the EXACT deployed schema (project zod@3.25.76): both safeParse → `success:false`; `=> fetchCompanies returns [] EMPTY STATE`. Zero ambiguity.
+- `grep -rn connectionIds packages/shared/src apps/web/.../sourcing/companies` → **0 hits**: the field exists in NO shared schema and NO deep-screen parse code — pure server→client contract drift.
+
+**Why the prior V-3 missed it:** the prior deploy (`3e2042f`) fixed only the workspace's LOCAL override, so the deep screen died on the timestamp `.datetime()` first — masking the `connectionIds` strict-key defect underneath. e3dd9b7 removes the timestamp cause; the `connectionIds` cause is now the surfacing failure. Two stacked contract defects on the same route; the fix cleared one.
+
+### Remediation (routed to Build / fast-fix — head-ci-cd does NOT fix source)
+
+- Classification: `frontend` / shared-contract drift (SSR strict-schema rejects a live API field) → Build/fast-fix.
+- Two viable fixes (Build's call): (a) add `connectionIds: z.array(z.string().uuid()).optional()` to the shared `companySchema` (correct if the API contractually returns it — makes the wire shape first-class); OR (b) relax the deep-screen parse (`companyWithMetaSchema.passthrough()` / `.strip()`, or `companySchema.omit(...)`-free tolerant variant) so unknown API-added keys don't drop the whole list. Prefer (a) — the contract should match reality; then audit whether the API's `connectionIds` belongs in the shared read shape for all consumers.
+- Harden: extend the deep-screen SSR test (`apps/web/app/(app)/sourcing/companies/page.test.tsx`) to feed a payload WITH `connectionIds` (mirroring the real API) and assert rows render — the current PG-wire test added in e3dd9b7 does NOT include `connectionIds`, which is exactly why the added test passed while the live screen fails. Add a contract test that fails when the API emits a field the SSR schema rejects.
+- No DB change; DB left clean (0 connections/companies; seeded compliance rule deleted) → retry is clean.
+
+### Regression (all PASS)
+
+| Check | Result | Verdict |
+|---|---|---|
+| POST /sourcing/connections (new displayName) | **201** | PASS |
+| POST same displayName again (dup) | **409** | PASS |
+| POST unknown providerKey | **400** `Unknown provider_key "nonsense-xyz". Registered providers: FIXTURE` | PASS |
+| login (auth/me) | **200** role:analyst | PASS |
+| api /health | **200** `version:e3dd9b7`, db ok | PASS |
+| api crash? | **NO** — clean boot, db ok | PASS |
+
+### Canary — SKIPPED
+
+0 DAU < `canary_threshold_dau: 1000`. No real-user traffic to shift.
+
+### Cleanup (done)
+
+- Sourcing demo tables reset via temp Postgres TCP proxy `hayabusa.proxy.rlwy.net:44818` (id `9ffbdca2-2142-4217-b119-28e0d974d40a`, created + **DELETED** this run): `TRUNCATE raw_companies, company_provenance, companies, contacts, contact_provenance, dedupe_candidates, data_source_connections RESTART IDENTITY CASCADE` → verified 0 companies / 0 connections. Seeded test compliance rule `8087f688-…` DELETEd.
+- Local credential + cookie-jar temp files `shred`-scrubbed; proof scripts removed.
+- Test analyst + compliance users left in place (append-only audit-log immutability trigger blocks deleting an actor referenced by the hash chain — compliance control working as designed).
+- GIT_SHA left at `e3dd9b7` (correct for deployed hash); deploy left in place (boots clean, workspace + compliance-settings render).
+
+### Chronology
+
+- 2026-07-04 ~05:52:19 UTC: web+api variableUpsert(GIT_SHA=e3dd9b7) → auto-redeploy of e3dd9b7 both services; both SUCCESS by ~05:53:50 UTC (~91s build). Canary window: N/A (skipped, 0 DAU).
+- /health e3dd9b7 confirmed on api's own domain; web deployment meta.commitHash == e3dd9b7 (web not stale).
+- 05:56 UTC: seeded analyst + connection + sync → 4 companies. Workspace `/sourcing` renders (live DOM). Deep-screen `/sourcing/companies` → "No companies yet" despite 4 companies → root-caused to `connectionIds` strict-key rejection (empirical safeParse repro).
+- 05:59 UTC: seeded compliance user + rule → `/compliance/settings` renders 4 rules (timestamp fix confirmed).
+- ~06:0x UTC: DB cleanup (0/0), temp proxy deleted, creds scrubbed.
+
+### Monitor task (deploy wait — bounded, three-condition)
+
+```yaml
+platform: railway
+success_condition: deployments(first:1).edges[0].node.status == "SUCCESS"   # per-service, polled
+failure_condition: status IN ("FAILED","CRASHED","REMOVED","SKIPPED")
+timeout_budget: 900   # seconds
+poll_delay: 45
+result: BOTH_SUCCESS (web 13a28a77, api 83012c67) in ~91s — no SKIPPED
+```
+
+```yaml
+head_signoff:
+  verdict: REJECTED
+  stage: C-2
+  reverify: "V-3 shared-timestamp re-verify (e3dd9b7)"
+  reviewers: {}
+  reverify_failed_checks:
+    - "deep-screen /sourcing/companies renders companies — FAILED: live headless-chromium DOM shows 'No companies yet' (emptyState:true, 0 company rows, CONTAINS_ACME:false) with 4 real companies in DB and returned 200 by the API. Root cause is NOT the timestamp bug (that IS fixed) — it is a SECOND, independent defect: the API emits a `connectionIds` field on each company; the deep-screen SSR parse uses companySchema.extend() where base companySchema is .strict() and declares no connectionIds, so BOTH safeParse attempts reject with unrecognized_keys:['connectionIds'] → fetchCompanies returns [] → empty state. Empirically reproduced against the live payload with the exact deployed zod schema. Iron Law tripped (a sourcing screen STILL renders empty with data)."
+  reverify_passed_checks:
+    - "workspace /sourcing renders companies — STILL FIXED & PROVEN: live headless-chromium DOM emptyState:false, Acme/Delta/Bright Horizon/Epsilon present, 6 company-row matches"
+    - "compliance-settings sibling (audit fix) — FIXED & PROVEN: compliance user minted, approval_required rule seeded (201, PG-wire createdAt), /compliance/settings live DOM renders 4 rule types (approval_required/blocklist_check/disclaimer_required + US), emptyState:false — the compliance-rules.ts timestamp fix works"
+    - "shared timestamp fix landed & correct: sourcing.ts:92-93 createdAt/updatedAt z.string() (was .datetime()), workspace local override dropped, compliance-rules.ts loosened (git show e3dd9b7 + source read)"
+    - "commit-SHA provenance: /health version == e3dd9b7 on api's OWN container domain (not global); web Railway deployment meta.commitHash == e3dd9b7 (web NOT stale — rules out stale-deploy as the deep-screen cause); both services SUCCESS via variableUpsert-triggered redeploy, neither SKIPPED"
+    - "armed rollback captured pre-mutation (api 599542b3 / web e520f0a1); not needed (boots clean, real fixes present)"
+    - "regression: connection-create 201 / dup 409 / bad-key 400 / login 200 / /health 200 e3dd9b7 / no api crash — all PASS"
+    - "bounded MONITOR: success=SUCCESS / failure=IN(FAILED,CRASHED,REMOVED,SKIPPED) / timeout_budget=900s / poll=45s; immutable fresh-artifact deploy; GIT_SHA upserted non-destructively; all env pre-bound"
+    - "canary correctly skipped (0 DAU < 1000); cleanup complete (0 companies/connections, seeded rule deleted, temp proxy 9ffbdca2 deleted, creds scrubbed)"
+  rationale: >
+    I cannot rubber-stamp a green. The shared-timestamp fix (e3dd9b7) is genuinely correct and I
+    proved it: the /sourcing workspace still renders companies in a real headless-chromium DOM, and
+    the /compliance/settings sibling now renders four seeded rules (the compliance-rules.ts half of
+    the fix, confirmed live with a PG-wire-timestamped rule). Provenance is clean — /health reports
+    e3dd9b7 on the api's own container domain, and the WEB deployment's Railway meta.commitHash is
+    e3dd9b7 (not a stale web build), which specifically rules out "web didn't ship the fix" as the
+    explanation. HOWEVER the task's core proof #2 — the /sourcing/companies deep screen renders with
+    data — FAILS live: it shows "No companies yet" with four real companies in the DB. The Iron Law
+    is explicit that a sourcing screen still rendering empty with data is a FAIL + RETURN. Critically,
+    the cause is NOT the timestamp bug the fix targeted — it is a SECOND, independent contract-drift
+    defect I root-caused with certainty: the API now returns a `connectionIds` field on every company
+    object, and the deep-screen SSR parse extends a .strict() companySchema that declares no such key,
+    so both safeParse attempts reject with unrecognized_keys:['connectionIds'] and fetchCompanies
+    returns [] — I reproduced this against the exact live payload with the exact deployed zod schema,
+    and grep confirms connectionIds exists in zero shared/deep-screen code. The prior V-3 missed this
+    because the timestamp bug failed first and masked it; e3dd9b7 cleared the timestamp cause and the
+    strict-key cause surfaced. This is precisely the empty-despite-data class the wave exists to kill,
+    still alive on the deep-screen route via a different mechanism. Returned to Build/fast-fix to
+    reconcile the shared companySchema with the API's connectionIds field (or make the deep-screen
+    parse tolerant of API-added keys) and to add a deep-screen contract test that feeds the REAL API
+    shape (incl. connectionIds) so this stops slipping through. No fabricated green: every check is
+    traced to a live artifact — HTTP status, Railway GraphQL deployment status + meta.commitHash,
+    /health body, headless DOM assertion, live API JSON, or an empirical safeParse repro against the
+    real payload. Deploy left in place (boots clean, two of three screens render); DB left clean; no
+    rollback needed.
+  next_action: REWORK_B-block  # reconcile shared companySchema with API `connectionIds` (add field OR tolerant deep-screen parse); add deep-screen contract test feeding the real API shape incl. connectionIds + PG-wire timestamps; then re-run C-2
+```
