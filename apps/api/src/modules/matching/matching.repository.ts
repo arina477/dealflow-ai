@@ -206,6 +206,11 @@ export class MatchingRepository {
    * buyer_universe_id makes the second concurrent insert hit the ON CONFLICT path).
    *
    * Returns { run, isNew } — isNew=true means this call created the row.
+   *
+   * isNew is determined via xmax: xmax=0 on a true INSERT (no prior tuple version),
+   * non-zero on an UPDATE (ON CONFLICT DO UPDATE path). Drizzle's $onUpdateFn does
+   * NOT fire on the ON CONFLICT DO UPDATE SET clause so updatedAt stays null on the
+   * re-run path — do NOT use updatedAt to detect isNew (INFO-A fix).
    */
   async upsertMatchRunInTx(
     tx: Tx,
@@ -215,7 +220,7 @@ export class MatchingRepository {
       createdBy: string;
     }
   ): Promise<{ run: MatchRunRow; isNew: boolean }> {
-    let rows: MatchRunRow[];
+    let rows: Array<MatchRunRow & { xmax: string }>;
     try {
       rows = await tx
         .insert(matchRun)
@@ -229,7 +234,17 @@ export class MatchingRepository {
           // No-op update to force RETURNING the existing row.
           set: { buyerUniverseId: sql`EXCLUDED.buyer_universe_id` },
         })
-        .returning();
+        .returning({
+          id: matchRun.id,
+          mandateId: matchRun.mandateId,
+          buyerUniverseId: matchRun.buyerUniverseId,
+          createdBy: matchRun.createdBy,
+          status: matchRun.status,
+          readyForOutreach: matchRun.readyForOutreach,
+          createdAt: matchRun.createdAt,
+          updatedAt: matchRun.updatedAt,
+          xmax: sql<string>`xmax::text`,
+        });
     } catch (err: unknown) {
       const code = pgCode(err);
       // 23503 = foreign_key_violation (mandate_id, universe_id, or created_by not found)
@@ -244,10 +259,11 @@ export class MatchingRepository {
     if (!row) {
       throw new Error('MatchingRepository: UPSERT match_run returned no row');
     }
-    // isNew: updatedAt is null on a fresh insert; on ON CONFLICT DO UPDATE the
-    // $onUpdateFn fires setting it. This is best-effort (used only for audit metadata).
-    const isNew = row.updatedAt === null;
-    return { run: row, isNew };
+    // isNew: xmax=0 on a true INSERT (no prior tuple version exists);
+    // xmax is non-zero on an ON CONFLICT DO UPDATE path (existing tuple was updated).
+    const isNew = row.xmax === '0';
+    const { xmax: _xmax, ...run } = row;
+    return { run: run as MatchRunRow, isNew };
   }
 
   /**
@@ -321,6 +337,41 @@ export class MatchingRepository {
   // ---------------------------------------------------------------------------
 
   /**
+   * snapshotCandidateDispositionsByRunIdInTx — snapshots the non-'pending' dispositions
+   * for all candidates in a run, keyed by buyer_universe_candidate_id.
+   *
+   * Used by createRunAsActor before the delete/re-insert cycle to preserve advisor
+   * decisions (accepted/rejected/flagged) across re-runs (CRITICAL-1 fix).
+   * Returns a Map<buyerUniverseCandidateId, disposition>.
+   */
+  async snapshotCandidateDispositionsByRunIdInTx(
+    tx: Tx,
+    runId: string
+  ): Promise<Map<string, 'accepted' | 'rejected' | 'flagged'>> {
+    const rows = await tx
+      .select({
+        buyerUniverseCandidateId: matchCandidates.buyerUniverseCandidateId,
+        disposition: matchCandidates.disposition,
+      })
+      .from(matchCandidates)
+      .where(
+        and(eq(matchCandidates.matchRunId, runId), sql`${matchCandidates.disposition} != 'pending'`)
+      );
+
+    const snapshot = new Map<string, 'accepted' | 'rejected' | 'flagged'>();
+    for (const row of rows) {
+      if (
+        row.disposition === 'accepted' ||
+        row.disposition === 'rejected' ||
+        row.disposition === 'flagged'
+      ) {
+        snapshot.set(row.buyerUniverseCandidateId, row.disposition);
+      }
+    }
+    return snapshot;
+  }
+
+  /**
    * insertMatchCandidatesBatch — batch-inserts scored candidates for a run.
    * Called inside the createRunAsActor transaction after scoring all included candidates.
    * No ON CONFLICT needed here (the run is always fresh from upsertMatchRunInTx;
@@ -330,6 +381,9 @@ export class MatchingRepository {
    *
    * Note: for true idempotency on re-run (same universe → same run), candidates
    * are DELETE'd from the run before re-INSERT in createRunAsActor.
+   *
+   * The optional disposition field allows callers to carry forward prior non-'pending'
+   * dispositions after a re-run (CRITICAL-1: disposition-preserve reconciliation).
    */
   async insertMatchCandidatesBatch(
     tx: Tx,
@@ -338,6 +392,7 @@ export class MatchingRepository {
       buyerUniverseCandidateId: string;
       fitScore: number;
       scoreBreakdown: Record<string, unknown>;
+      disposition?: 'pending' | 'accepted' | 'rejected' | 'flagged';
     }>
   ): Promise<MatchCandidateRow[]> {
     if (candidates.length === 0) return [];
@@ -350,6 +405,7 @@ export class MatchingRepository {
             buyerUniverseCandidateId: c.buyerUniverseCandidateId,
             fitScore: c.fitScore,
             scoreBreakdown: c.scoreBreakdown,
+            ...(c.disposition !== undefined ? { disposition: c.disposition } : {}),
           }))
         )
         .returning();
@@ -415,6 +471,23 @@ export class MatchingRepository {
    */
   async countAcceptedCandidatesByRunId(runId: string): Promise<number> {
     const result = await this.db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(matchCandidates)
+      .where(
+        and(eq(matchCandidates.matchRunId, runId), eq(matchCandidates.disposition, 'accepted'))
+      );
+    return result[0]?.count ?? 0;
+  }
+
+  /**
+   * countAcceptedCandidatesByRunIdInTx — tx-aware variant of countAcceptedCandidatesByRunId.
+   *
+   * Reads within the same transaction snapshot as the surrounding handoffAsActor writes,
+   * ensuring the guard read is consistent with the ready_for_outreach flip and its audit
+   * (CRITICAL-2: escaping-read fix — the guard must share the txn snapshot).
+   */
+  async countAcceptedCandidatesByRunIdInTx(tx: Tx, runId: string): Promise<number> {
+    const result = await tx
       .select({ count: sql<number>`COUNT(*)::int` })
       .from(matchCandidates)
       .where(

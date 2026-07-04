@@ -2,9 +2,10 @@
  * MatchingService — orchestration for the match spine.
  *
  * Responsibilities:
- *   1. createRunAsActor     — score a buyer universe's included candidates in ONE txn.
+ *   1. createRunAsActor     — score a buyer universe's included candidates in ONE txn;
+ *                             PRESERVES prior non-'pending' dispositions across re-runs.
  *   2. patchDispositionAsActor — accept/reject/flag a candidate (cross-run scoped).
- *   3. handoffAsActor       — mark ready_for_outreach=true (≥1 accepted guard).
+ *   3. handoffAsActor       — mark ready_for_outreach=true (≥1 accepted guard, idempotent).
  *   4. getRun               — returns MatchRankedList (candidates ordered fit_score DESC).
  *   5. listByMandate        — returns all match runs for a mandate.
  *   6. getShortlist         — returns accepted candidates ordered fit_score DESC.
@@ -28,10 +29,14 @@
  * criteria, scores each with the pure scoreCandidate function, inserts all
  * match_candidates, sets run status='scored', audits LAST-IN-TXN.
  *
- * ── Idempotent create-run ───────────────────────────────────────────────────
+ * ── Idempotent create-run with disposition preservation ────────────────────
  * ON CONFLICT (buyer_universe_id) DO UPDATE atomically gets-or-creates the
  * match_run. On re-run (same universe), existing candidates are deleted and
  * re-scored (score data is deterministic so re-scoring is safe and idempotent).
+ * Prior non-'pending' dispositions (accepted/rejected/flagged) are snapshotted
+ * BEFORE the delete, then reconciled back after re-scoring: any candidate still
+ * in the included set gets its prior disposition restored; newly-added candidates
+ * start as 'pending'; candidates no longer included are dropped.
  *
  * ── Submit-guard (400 if universe not submitted) ─────────────────────────────
  * createRunAsActor verifies buyer_universe.status='submitted' before scoring.
@@ -40,6 +45,10 @@
  * ── Accepted-count handoff-guard ────────────────────────────────────────────
  * handoffAsActor verifies ≥1 ACCEPTED candidate (not total count — BUILD rule 6
  * semantic-predicate on accepted-count). Returns 400 if no accepted candidates.
+ * Guard read uses countAcceptedCandidatesByRunIdInTx (tx-aware) so the predicate
+ * shares the transaction snapshot (CRITICAL-2: no escaping-read on guard count).
+ * Re-handoff on an already-handed-off run returns the current state idempotently
+ * without a new audit entry (INFO-B: idempotent re-handoff).
  *
  * ── Cross-run-scoped PATCH ──────────────────────────────────────────────────
  * patchDispositionAsActor scopes the UPDATE to AND match_run_id = $runId.
@@ -106,10 +115,12 @@ export class MatchingService {
    *   3. Guard: universe.status MUST be 'submitted' (else 400).
    *   4. Acquire pg_advisory_xact_lock(hashtext($universeId)) — defense-in-depth.
    *   5. Upsert match_run (ON CONFLICT buyer_universe_id — idempotent).
-   *   6. Delete existing match_candidates (idempotent re-score).
+   *   6. Snapshot existing non-'pending' dispositions (CRITICAL-1 preservation).
+   *   6b. Delete existing match_candidates (idempotent re-score).
    *   7. Read 'included' candidates + M3 companies + contacts + criteria.
    *   8. Score each with the pure scoreCandidate function (NO LLM, NO randomness).
-   *   9. Batch-insert match_candidates (fitScore, scoreBreakdown, disposition='pending').
+   *      Reconcile: carry forward snapshotted dispositions for still-included candidates.
+   *   9. Batch-insert match_candidates (fitScore, scoreBreakdown, reconciled disposition).
    *  10. Set run status='scored'.
    *  11. AUDIT match-run-create LAST-IN-TXN (rollback on fail).
    *  12. Return ranked run (candidates ordered fit_score DESC).
@@ -149,7 +160,15 @@ export class MatchingService {
         createdBy: appUserId,
       });
 
-      // 6. Delete existing match_candidates (idempotent re-score).
+      // 6. Snapshot existing non-'pending' dispositions BEFORE delete (CRITICAL-1).
+      //    On first run this returns an empty map (no-op). On re-run, preserves
+      //    accepted/rejected/flagged decisions so they survive the re-score cycle.
+      const priorDispositions = await this.repository.snapshotCandidateDispositionsByRunIdInTx(
+        tx,
+        run.id
+      );
+
+      // Delete existing match_candidates (idempotent re-score).
       //    On first run, this is a no-op. On re-run, clears stale scores.
       await this.repository.deleteMatchCandidatesByRunIdInTx(tx, run.id);
 
@@ -181,7 +200,15 @@ export class MatchingService {
 
       // 8. Score each included candidate with the PURE scoreCandidate function.
       //    NO LLM, NO randomness, NO Date.now().
+      //    Reconcile: carry forward prior non-'pending' dispositions (CRITICAL-1).
+      let dispositionsPreserved = 0;
       const scoredCandidates = includedCandidates.map((candidate) => {
+        // Reconcile: carry forward prior disposition if one exists for this candidate.
+        const priorDisposition = priorDispositions.get(candidate.id);
+        if (priorDisposition !== undefined) {
+          dispositionsPreserved++;
+        }
+
         const company = companyMap.get(candidate.companyId);
         if (!company) {
           // Company row missing — score 0 with a breakdown note.
@@ -196,6 +223,7 @@ export class MatchingService {
               total: 0,
               notApplied: ['company data missing — company row not found in M3'],
             },
+            disposition: priorDisposition ?? ('pending' as const),
           };
         }
         const contacts = contactsByCompany.get(candidate.companyId) ?? [];
@@ -205,10 +233,11 @@ export class MatchingService {
           buyerUniverseCandidateId: candidate.id,
           fitScore: result.score,
           scoreBreakdown: result.breakdown as unknown as Record<string, unknown>,
+          disposition: priorDisposition ?? ('pending' as const),
         };
       });
 
-      // 9. Batch-insert match_candidates.
+      // 9. Batch-insert match_candidates (with reconciled dispositions).
       await this.repository.insertMatchCandidatesBatch(tx, scoredCandidates);
 
       // 10. Set run status='scored'.
@@ -221,6 +250,7 @@ export class MatchingService {
         universeId: universe.id,
         isNew,
         candidatesScored: scoredCandidates.length,
+        dispositionsPreserved,
         actorRole,
       };
       const payloadStr = JSON.stringify(eventPayload);
@@ -345,9 +375,16 @@ export class MatchingService {
         throw new NotFoundException(`Match run ${runId} not found`);
       }
 
+      // INFO-B: Idempotent re-handoff guard — if already handed off, return current
+      // state without a new audit entry (M6 handoff contract: idempotent-return).
+      if (run.readyForOutreach) {
+        return this.composeRankedListInTx(tx, runId);
+      }
+
       // Guard: ≥1 ACCEPTED candidate (BUILD rule 6 — semantic-predicate on accepted-count,
       // NOT total count). A run with no accepted candidates cannot be handed off.
-      const acceptedCount = await this.repository.countAcceptedCandidatesByRunId(runId);
+      // CRITICAL-2: use tx-aware count so the guard read shares the transaction snapshot.
+      const acceptedCount = await this.repository.countAcceptedCandidatesByRunIdInTx(tx, runId);
       if (acceptedCount === 0) {
         throw new BadRequestException(
           `Match run ${runId} cannot be handed off: no accepted candidates — accept at least one buyer before handoff`

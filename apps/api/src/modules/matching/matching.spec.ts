@@ -6,7 +6,12 @@
  *   2. createRunAsActor: persists run+candidates, ranked DESC, idempotent re-run=same run,
  *      submit-guard 400 if universe not submitted
  *   3. patchDispositionAsActor: accept/reject/flag audited, cross-run-scoped 404
- *   4. handoffAsActor: ready_for_outreach=true; ≥1-accepted guard 400; guard fires on 0 accepted
+ *   2b. re-run PRESERVES dispositions: accepted/rejected/flagged survive a re-score cycle
+ *       (CRITICAL-1: disposition-preserve regression)
+ *   3. patchDispositionAsActor: accept/reject/flag audited, cross-run-scoped 404
+ *   4. handoffAsActor: ready_for_outreach=true; ≥1-accepted guard 400; guard fires on 0 accepted;
+ *      guard uses countAcceptedCandidatesByRunIdInTx (tx-aware, CRITICAL-2);
+ *      re-handoff is idempotent — no duplicate audit (INFO-B)
  *   5. RBAC matrix: advisor 201 (create), analyst read 200 + mutate 403, anon 401
  *   6. Actor-id: app users.id used (not raw ST id)
  *   7. Audited in-txn: append called, rollback on audit fail
@@ -285,6 +290,7 @@ describe('MatchingService.createRunAsActor', () => {
       findBuyerUniverseByMandateIdInTx: vi.fn().mockResolvedValue(makeBuyerUniverse()),
       acquireUniverseAdvisoryLockInTx: vi.fn().mockResolvedValue(undefined),
       upsertMatchRunInTx: vi.fn().mockResolvedValue({ run: runRow, isNew: true }),
+      snapshotCandidateDispositionsByRunIdInTx: vi.fn().mockResolvedValue(new Map()),
       deleteMatchCandidatesByRunIdInTx: vi.fn().mockResolvedValue(undefined),
       listIncludedCandidatesInTx: vi.fn().mockResolvedValue([
         {
@@ -393,6 +399,63 @@ describe('MatchingService.createRunAsActor', () => {
     );
   });
 
+  it('CRITICAL-1: snapshotCandidateDispositionsByRunIdInTx called before delete on re-run', async () => {
+    await service.createRunAsActor(MANDATE_ID, ST_USER_ID);
+    expect(repository.snapshotCandidateDispositionsByRunIdInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      RUN_ID
+    );
+    // Snapshot must be called BEFORE delete (call order check).
+    const snapshotOrder = (
+      repository.snapshotCandidateDispositionsByRunIdInTx as ReturnType<typeof vi.fn>
+    ).mock.invocationCallOrder[0];
+    const deleteOrder = (repository.deleteMatchCandidatesByRunIdInTx as ReturnType<typeof vi.fn>)
+      .mock.invocationCallOrder[0];
+    expect(snapshotOrder).toBeLessThan(deleteOrder);
+  });
+
+  it('CRITICAL-1: re-run PRESERVES accepted disposition (accepted candidate stays accepted after re-score)', async () => {
+    // Simulate a prior snapshot where BUC_ID was accepted.
+    const priorSnapshot = new Map<string, 'accepted' | 'rejected' | 'flagged'>([
+      [BUC_ID, 'accepted'],
+    ]);
+    (
+      repository.snapshotCandidateDispositionsByRunIdInTx as ReturnType<typeof vi.fn>
+    ).mockResolvedValueOnce(priorSnapshot);
+
+    await service.createRunAsActor(MANDATE_ID, ST_USER_ID);
+
+    // insertMatchCandidatesBatch must receive 'accepted' disposition for BUC_ID.
+    const insertCall = (repository.insertMatchCandidatesBatch as ReturnType<typeof vi.fn>).mock
+      .calls[0];
+    const insertedCandidates = insertCall[1] as Array<{
+      buyerUniverseCandidateId: string;
+      disposition?: string;
+    }>;
+    const matchedCandidate = insertedCandidates.find((c) => c.buyerUniverseCandidateId === BUC_ID);
+    expect(matchedCandidate).toBeDefined();
+    expect(matchedCandidate?.disposition).toBe('accepted');
+  });
+
+  it('CRITICAL-1: newly-added candidate (no prior snapshot) gets pending disposition', async () => {
+    // Empty snapshot = no prior dispositions.
+    (
+      repository.snapshotCandidateDispositionsByRunIdInTx as ReturnType<typeof vi.fn>
+    ).mockResolvedValueOnce(new Map());
+
+    await service.createRunAsActor(MANDATE_ID, ST_USER_ID);
+
+    const insertCall = (repository.insertMatchCandidatesBatch as ReturnType<typeof vi.fn>).mock
+      .calls[0];
+    const insertedCandidates = insertCall[1] as Array<{
+      buyerUniverseCandidateId: string;
+      disposition?: string;
+    }>;
+    const matchedCandidate = insertedCandidates.find((c) => c.buyerUniverseCandidateId === BUC_ID);
+    expect(matchedCandidate).toBeDefined();
+    expect(matchedCandidate?.disposition).toBe('pending');
+  });
+
   it('audit rolls back: when AuditService.append throws, runInTransaction rejects', async () => {
     const auditError = new Error('audit fail');
     (auditService.append as ReturnType<typeof vi.fn>).mockRejectedValueOnce(auditError);
@@ -498,7 +561,7 @@ describe('MatchingService.handoffAsActor', () => {
     repository = {
       runInTransaction: vi.fn().mockImplementation((work: (tx: unknown) => unknown) => work({})),
       findMatchRunByIdInTx: vi.fn().mockResolvedValue(makeMatchRun()),
-      countAcceptedCandidatesByRunId: vi.fn().mockResolvedValue(1),
+      countAcceptedCandidatesByRunIdInTx: vi.fn().mockResolvedValue(1),
       updateMatchRunReadyForOutreachInTx: vi.fn().mockResolvedValue(updatedRun),
       listMatchCandidatesByRunIdInTx: vi
         .fn()
@@ -529,9 +592,9 @@ describe('MatchingService.handoffAsActor', () => {
   });
 
   it('throws 400 when no accepted candidates (guard: accepted-count = 0)', async () => {
-    (repository.countAcceptedCandidatesByRunId as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      0
-    );
+    (
+      repository.countAcceptedCandidatesByRunIdInTx as ReturnType<typeof vi.fn>
+    ).mockResolvedValueOnce(0);
     await expect(service.handoffAsActor(RUN_ID, ST_USER_ID)).rejects.toThrow(BadRequestException);
   });
 
@@ -543,10 +606,32 @@ describe('MatchingService.handoffAsActor', () => {
   });
 
   it('does NOT update ready_for_outreach when accepted count = 0 (guard fires first)', async () => {
-    (repository.countAcceptedCandidatesByRunId as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      0
-    );
+    (
+      repository.countAcceptedCandidatesByRunIdInTx as ReturnType<typeof vi.fn>
+    ).mockResolvedValueOnce(0);
     await expect(service.handoffAsActor(RUN_ID, ST_USER_ID)).rejects.toThrow(BadRequestException);
+    expect(repository.updateMatchRunReadyForOutreachInTx).not.toHaveBeenCalled();
+  });
+
+  it('CRITICAL-2: guard uses countAcceptedCandidatesByRunIdInTx (tx-aware), not the escaping-read variant', async () => {
+    await service.handoffAsActor(RUN_ID, ST_USER_ID);
+    expect(repository.countAcceptedCandidatesByRunIdInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      RUN_ID
+    );
+  });
+
+  it('INFO-B: re-handoff on already-handed-off run returns idempotently WITHOUT a new audit entry', async () => {
+    // Run is already handed off (readyForOutreach=true).
+    (repository.findMatchRunByIdInTx as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      makeMatchRun({ readyForOutreach: true })
+    );
+
+    await service.handoffAsActor(RUN_ID, ST_USER_ID);
+
+    // No audit entry should be emitted for an already-handed-off run.
+    expect(auditService.append).not.toHaveBeenCalled();
+    // No ready_for_outreach update should occur either.
     expect(repository.updateMatchRunReadyForOutreachInTx).not.toHaveBeenCalled();
   });
 });
@@ -646,6 +731,7 @@ describe('actor-id — app users.id is used, not raw ST id', () => {
       findBuyerUniverseByMandateIdInTx: vi.fn().mockResolvedValue(makeBuyerUniverse()),
       acquireUniverseAdvisoryLockInTx: vi.fn().mockResolvedValue(undefined),
       upsertMatchRunInTx: vi.fn().mockResolvedValue({ run: runRow, isNew: true }),
+      snapshotCandidateDispositionsByRunIdInTx: vi.fn().mockResolvedValue(new Map()),
       deleteMatchCandidatesByRunIdInTx: vi.fn().mockResolvedValue(undefined),
       listIncludedCandidatesInTx: vi.fn().mockResolvedValue([
         {
