@@ -140,3 +140,105 @@ head_signoff:
 2. `react` / data-contract — align `MandateForm.tsx` `JURISDICTIONS` values to jurisdictions with active disclaimer templates (currently `'US'`), or seed active templates for each offered jurisdiction.
 
 After fixes land + CI green → re-enter C-2 for a fresh deploy-and-verify of the UI vertical.
+
+---
+
+# UI re-verify (7b33598)
+
+**Verdict: FAIL — REWORK.** The two prior UI defects (DEFECT-1 detail-page shadowing, DEFECT-2 jurisdiction-value/seed mismatch) are **both genuinely fixed and verified live**. But the create-via-UI payoff is broken by a **NEW, independent CRITICAL client-side defect** surfaced only now that the create request finally reaches the API: `MandateForm.tsx` mis-parses the 201 create response (expects a `{ mandate: {...} }` wrapper the API never returns), so create succeeds server-side (201) yet the browser shows a red "Failed to create mandate." and never redirects to detail. A real advisor cannot complete the create → detail flow through the shipped UI. Trips the Iron Law (create fails from the UI / no redirect to detail).
+
+## 1. Deploy (PASS)
+
+| Service | Deployment ID | Status | Commit |
+|---|---|---|---|
+| dealflow-api (`dcdb4ab4-…`) | `276945ff-27c7-47fe-8aab-7528707128f9` | SUCCESS | 7b33598 |
+| dealflow-web (`06b07f19-…`) | `288949b8-493f-4f2f-be11-a8356099e54f` | SUCCESS | 7b33598 |
+
+- Token: `RAILWAY_TOKEN` (project-scoped, 36-char) validated via `{ projectToken { projectId environmentId } }` → project `ce095f75-…`, env `0e84f0b6-…`. Deploy-scoped, `Project-Access-Token` header (never `me{}`, never CLI).
+- Trigger: `variableUpsert GIT_SHA=7b33598` on api + web → Railway auto-built a fresh immutable container. Provenance verified — both deployments' `meta.commitHash = 7b33598` == target == CI-green SHA.
+- **Rollback armed pre-mutation:** known-good IDs cached before deploy — api `d9cbec93` / web `714dcfcb` (both SUCCESS @ c278f7d). New known-good after this deploy: api `276945ff`, web `288949b8`.
+- Monitor: bounded poll, `timeout_budget=900s`, `poll_delay=45s`, `success_condition = both edges[0].status=='SUCCESS'`, `failure_condition = either status IN (FAILED,CRASHED,REMOVED,SKIPPED)`. Both SUCCESS in ~90s. No SKIPPED (no phantom skip). Immutable freshly-built artifact.
+- **api /health at the deployed hash:** `{"status":"ok","db":"ok","version":"7b33598"}` HTTP 200. api boots clean, db ok. web root → `x-powered-by: Next.js` (307→/login for anon).
+
+## 2. The UI payoff — live verification (advisor + analyst minted via invite→signup; real headless chromium for post-hydration DOM)
+
+| Check | Result |
+|---|---|
+| **GET /mandates/jurisdictions — advisor** | **200** + non-empty list **including `{jurisdiction:'US'}`** ✓ (advisor-readable fix — DEFECT-3 resolved). [Extra `US-KAREN-…`/`US-VER-…`/`US-admin-…` entries are leftover test-fixture disclaimer templates from prior verify runs — cosmetic test-data residue, not a defect; load-bearing `US` present.] |
+| GET /mandates/jurisdictions — analyst / anon | **403** / **401** ✓ (RBAC correct) |
+| **/mandates/new dropdown POPULATED (browser DOM)** | `#jurisdiction` select present, options `["US", …]`, **contains `US`** ✓. NOT the empty "no jurisdictions configured" state; NOT the old `us_federal`/`uk` mismatch (DEFECT-2 resolved). |
+| **DEFECT-1 — /mandates/:id SSR page (browser DOM)** | GET /mandates/:id on WEB origin → **HTTP 200, `content-type: text/html`, `x-powered-by: Next.js`** — NOT raw `x-powered-by: Express` JSON. Page is **no longer shadowed**. DOM contains seller name + jurisdiction `US`; deferred placeholders **Buyer Engine / Ranked Candidates / Pipeline** all render. `next.config.ts` colliding `/mandates/:id` rewrite removed; only `/mandates-data` + `/mandates-data/:id` proxies remain. **DEFECT-1 resolved.** |
+| List — created mandate appears (browser DOM) | ✓ appears in `/mandates`; API `?status=draft`→1, `active`→0, `all`→1 (filter works). |
+| Active-lock (regression of B-6 fix, /mandates-data/:id PATCH) | draft→active **200**; PATCH active mandate → **409** "Active mandate is locked…" ✓ |
+| RBAC — analyst read-only | analyst GET list+detail **200**; analyst POST **403**; anon list+detail **401** ✓. In UI: analyst `/mandates/new` server-redirects to `/`. |
+| **Create via the UI — the PRIMARY payoff** | **FAIL.** Filled the real form (seller + geo + size + buyer criteria + jurisdiction=`US` + suppression + all 3 acks) → submit → **POST /mandates-data (web-origin proxy) returned 201** (create succeeded server-side; DEFECT-1 proxy path + DEFECT-2 jurisdiction both work end-to-end) — BUT the browser did **NOT** redirect to detail and surfaced a red **"Failed to create mandate."** alert. |
+| API-direct create (control) | POST /mandates (advisor, US, 3 acks, `rid:anti-csrf`) → **201**, status `draft`, `createdBy` = app users.id (actor-id translation, not ST id); derived disclaimer `fe1c504d` (active US template). API create is sound — the defect is purely client-side. |
+
+## 3. NEW CRITICAL defect — create-response shape mismatch (client-side) `[react / data-contract]`
+
+- **Symptom:** create-via-UI returns **201** but the browser shows "Failed to create mandate." and never redirects to `/mandates/:id`. A real advisor cannot complete create → detail through the shipped UI. A duplicate mandate is silently created on each retry.
+- **Root cause (confirmed by nextjs-developer):** the deployed API `POST /mandates` returns a **flat `Mandate`** (top-level keys `['id','createdBy','sellerName',…]`, verified live — NO `{ mandate }` wrapper). But `MandateForm.tsx` (lines 435-436) reads `const created = json as { mandate?: { id?: string } }; const id = created?.mandate?.id;` — expecting a **wrapped** shape. `id` is therefore always `undefined`, the `router.push('/mandates/${id}')` guard is false, and control falls through to `setSubmitError('Failed to create mandate.')` (compounded: the error path's second `res.json()` throws because the body stream was already consumed on line 433, so only the generic string surfaces). The developer conflated the create response (flat `Promise<Mandate>`) with the DETAIL/PATCH response (wrapped `Promise<MandateDetail>` = `{ mandate, buyerCriteria, complianceProfile }`).
+- **Not an API bug** — the API is correct and consistent with its declared return types (`createAsActor: Promise<Mandate>`). Pure client-side response-parsing bug, contained entirely to the web app.
+- **Sibling check (clean):** `MandateDetailClient.tsx` ConfigureForm PATCH → `/mandates-data/:id` reads the response as `MandateDetail` and the API PATCH returns exactly that wrapped shape — **no mismatch**; active-lock PATCH verified 200/409 live.
+- **Fails acceptance criterion:** "Create via the UI (the primary payoff) → 201 → redirect to the created mandate detail" — fails at the browser.
+- **Fix plan (do NOT apply here — follow-up B-cycle):** one file, two lines in `apps/web/app/(app)/mandates/_components/MandateForm.tsx` — change lines 435-436 to `const created = json as { id?: string }; const id = created?.id;`. No API change. After fix + CI green → re-enter C-2 (a thin re-verify: just create-via-UI → 201 → redirect → detail renders; the rest of the vertical is already green on 7b33598).
+
+## 4. Regression (partial)
+
+- `/health` ok. Detail SSR / list / new-form render correctly for the advisor (verified above). Login OK (both roles).
+- `/` (dashboard), `/sourcing`, `/compliance/settings`: browser navigation returned HTTP 200 but resolved to `/` with a short body in the final browser pass (session-window artifact of the automated run near access-token boundary). API-side these routes were healthy at deploy; not a deploy regression, but re-confirm on the next C-2 pass alongside the create-via-UI re-check. Not a blocker for this FAIL verdict (the FAIL is already decided by the create-via-UI defect).
+
+## 5. Canary
+**Skipped** — 0 DAU, below `canary_threshold_dau: 1000` in `project.yaml`. Blast radius = 0 real users.
+
+## 6. Cleanup (done)
+- No DELETE endpoint on mandates (rows audit-FK'd) — test mandates (`dec0e967` active, `4811fe03`/`fa3fe2f1` draft) retained per prior-C2 precedent. Advisor + analyst sessions logged out. Local secret/cookie-jar/Playwright-script files scrubbed. Test users retained (audit-immutability).
+
+## Chronological ledger
+- Deploy trigger: 2026-07-04 ~12:43 UTC (GIT_SHA=7b33598 upsert). Both SUCCESS by ~12:45 UTC (~90s), migration one-shot before boot (no new migration this cycle). Canary: N/A (skipped). Verification window: ~12:45–12:50 UTC.
+
+---
+
+```yaml
+head_signoff:
+  verdict: REJECTED
+  stage: C-2 (UI re-verify 7b33598)
+  reviewers:
+    ui_dom_verification: head-ci-cd (real headless chromium — advisor + analyst, post-hydration DOM)
+    create_defect_rootcause: nextjs-developer (create-response shape mismatch, sibling-clean confirmation)
+  failed_checks:
+    - "LIVE create via the UI → 201 + redirect to detail — MandateForm.tsx parses the 201 create response as { mandate: {id} } but the API returns a FLAT Mandate; id resolves undefined, no redirect, and a false 'Failed to create mandate.' error is shown despite the 201"
+  passed_checks:
+    - "deploy 7b33598 both services SUCCESS; /health version==7b33598 (probed at deployed hash); api boots clean db ok; rollback armed (api d9cbec93 / web 714dcfcb); immutable artifact; no SKIPPED"
+    - "DEFECT-3 (advisor jurisdictions): GET /mandates/jurisdictions advisor 200 + US present; analyst 403; anon 401"
+    - "DEFECT-2 (jurisdiction dropdown): /mandates/new dropdown populated in browser DOM, contains US, no empty-state, no us_federal/uk mismatch"
+    - "DEFECT-1 (detail shadowing): GET /mandates/:id serves Next.js SSR text/html (x-powered-by Next.js, NOT Express JSON); DOM has profile+compliance(jurisdiction/derived-disclaimer)+deferred placeholders Buyer Engine/Ranked Candidates/Pipeline"
+    - "list shows created mandate + status filter (draft/active/all); active-lock draft→active 200 + edit-active 409; RBAC analyst read-only 200 + POST 403 + anon 401; API-direct create 201 with actor-id + derived disclaimer"
+    - "canary skip justified (0 DAU); cleanup done"
+  rationale: >
+    Deploy is clean and all three previously-failed items are genuinely fixed and verified
+    live in a real headless browser: the advisor-readable jurisdictions endpoint returns 200+US
+    (analyst 403), the /mandates/new dropdown is populated with US (no empty-state, no
+    us_federal/uk mismatch), and the /mandates/:id detail page now serves the Next.js SSR page
+    (text/html, x-powered-by Next.js — NOT raw Express JSON) with the deferred Buyer Engine /
+    Ranked Candidates / Pipeline placeholders. Active-lock (409) and the full RBAC matrix hold.
+    BUT the primary wave-8 payoff — create a mandate through the real UI and land on its detail
+    page — is broken by a NEW, independent CRITICAL client-side defect exposed only now that the
+    create POST finally reaches the API on the fixed /mandates-data proxy path: MandateForm.tsx
+    parses the 201 create response as a wrapped { mandate: {id} } object, but the deployed API
+    returns a FLAT Mandate. id resolves undefined, the redirect never fires, and the advisor is
+    shown a false 'Failed to create mandate.' error despite the mandate having been created
+    (201). A real advisor therefore cannot complete create → detail through the shipped UI, and
+    each retry silently duplicates the mandate. This trips the Iron Law (create fails from the
+    UI / no redirect to detail). Root cause is fully diagnosed (nextjs-developer) with a
+    one-file, two-line fix (MandateForm.tsx 435-436: read created.id, not created.mandate?.id);
+    the PATCH/configure sibling path was checked and is clean. Not fabricating a green on a
+    passing API + three-of-four fixed UI items when the load-bearing create-via-UI vertical is
+    still dead for a real user.
+  next_action: REWORK_B_block
+```
+
+**Routing:** one triage fix owned by the B-block on RETURN:
+1. `react` / data-contract — `apps/web/app/(app)/mandates/_components/MandateForm.tsx` lines 435-436: parse the flat 201 create response (`created.id`), not the non-existent `{ mandate: {id} }` wrapper. No API change. (DEFECT-1, DEFECT-2, DEFECT-3 all already resolved on 7b33598 and need no further work.)
+
+After the fix lands + CI green → re-enter C-2 for a thin re-verify: create-via-UI → 201 → redirect → detail renders (+ re-confirm the dashboard/sourcing/compliance-settings render pass). The rest of the vertical is already verified green on 7b33598.

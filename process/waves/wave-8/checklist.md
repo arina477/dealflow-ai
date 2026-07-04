@@ -44,7 +44,7 @@ BUILD:
 
 CI/CD:
 - [x] C-1 PR, CI & merge — merged @ c278f7d (main), CI green 5/5
-- [ ] C-2 Deploy & verify — deploy+migrations PASS @ c278f7d; head-ci-cd verdict **REJECTED** (2 CRITICAL UI defects: detail-route hijack + create jurisdiction/seed mismatch) → REWORK B-block; API layer verified sound. Canary skipped (0 DAU).
+- [ ] C-2 Deploy & verify — **re-verify @ 7b33598: head-ci-cd verdict REJECTED → REWORK B-block.** Deploy+/health PASS @ 7b33598 (both services SUCCESS, rollback armed, no SKIPPED). All 3 prior UI defects FIXED+verified live (detail SSR text/html not Express JSON w/ deferred placeholders; jurisdiction dropdown populated w/ US; advisor GET /mandates/jurisdictions 200+US, analyst 403). BUT NEW CRITICAL client defect: MandateForm.tsx parses the 201 create response as {mandate:{id}} but API returns flat Mandate → create-via-UI 201 succeeds but shows false "Failed to create mandate." + no redirect (Iron Law: create fails from UI). Active-lock 409 + full RBAC matrix PASS. Canary skipped (0 DAU). Fix: MandateForm.tsx L435-436 read created.id (one file, no API change) → thin C-2 re-verify.
 
 TEST:
 - [ ] T-1 Static
