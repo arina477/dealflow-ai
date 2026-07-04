@@ -22,11 +22,11 @@ Unassigned queue at handoff: 1 (b1a0b2ac — /health spec wording; P-0 walk cand
 Deferred (founder-blocked, re-homed to M9): 345dfbc6 — first real DataSourceAdapter (vendor selection + account-issued API key + spend gate; surfaced non-blocking).
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe) — PROCEED (problem-framer + ceo-reviewer + mvp-thinner all aligned); no-prior-spec; wave opened (8)
+- [x] P-1 Decompose — PROCEED, multi-spec (3 tasks: spine+list+detail); ~3.4-4.3k LOC; design_gap_flag FALSE (designs exist → D skips)
+- [x] P-2 Spec — multi-spec (3 blocks: spine+list+detail) in seed ba0edebf
+- [x] P-3 Plan — new mandate module (3 tables migration 0006 + MandateService one-txn + API + 3 pages); reuse M1 RBAC + M2 audit/compliance; no new dep/SDK/secret
+- [x] P-4 Gate — PASSED (head-product APPROVED; karen+jenny APPROVE after D1-D6 addendum; Gemini 429; security-scope 2 iterations)
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
