@@ -46,6 +46,21 @@ const nextConfig: NextConfig = {
       // /compliance/suppression[/:id]      → API (wave-5 suppression CRUD)
       // /compliance/disclaimers[/:id]      → API (wave-5 disclaimer CRUD)
       //
+      // Wave-6: sourcing API paths (afterFiles — page routes win).
+      // /sourcing/companies is BOTH a Next.js page AND the GET data endpoint.
+      // afterFiles ensures the React page is served for GET /sourcing/companies
+      // (browser navigation) while the client's data fetches to the same path
+      // (with credentials, no html accept header) are NOT rewritten — Next.js
+      // serves the page, and the API-specific sub-paths (/:id for detail,
+      // /dedupe-candidates/:id/resolve, /connections/:id/sync) fall through to
+      // the API via these rewrite rules. The page /sourcing/companies is never
+      // hijacked because afterFiles only catches paths with NO matching page file.
+      //
+      // IMPORTANT: /sourcing/companies (exact, GET, browser nav) → Next.js page.
+      //            /sourcing/companies/:id (detail — page exists at [id]/page.tsx,
+      //            handled by Next.js; API sub-path for client data fetch also hits
+      //            this rewrite when there's no matching page sub-path).
+      //
       // The page /compliance/settings (and /compliance/audit-log) are matched by
       // Next.js BEFORE these rewrites run, so the React pages are never shadowed.
       afterFiles: [
@@ -85,6 +100,28 @@ const nextConfig: NextConfig = {
         {
           source: '/compliance/disclaimers/:id',
           destination: `${apiProxyTarget}/compliance/disclaimers/:id`,
+        },
+        // Wave-6: sourcing API rewrites.
+        // /sourcing/companies is a Next.js page — afterFiles means it is NEVER
+        // hijacked. Only sub-paths with no matching page file reach these rules.
+        // Client-side fetches from CompanyDetail to /sourcing/companies/:id are
+        // caught by the [id] page (Next.js) — the rewrite below additionally
+        // handles the case where the [id] page is not present in the build
+        // (edge deploy) or the client issues a direct API call. For safety we
+        // keep the rewrite so both paths work:
+        //   - Browser GET /sourcing/companies → Next.js page (afterFiles, wins)
+        //   - Browser GET /sourcing/companies/uuid → Next.js [id] page (afterFiles, wins)
+        //   - Client JSON fetch /sourcing/companies/uuid → Next.js [id] page OR API
+        //     (the [id] page returns HTML; client uses /sourcing API URL from env)
+        //   - POST /sourcing/dedupe-candidates/:id/resolve → API (no page, falls through)
+        //   - POST /sourcing/connections/:id/sync → API (no page, falls through)
+        {
+          source: '/sourcing/connections/:id/sync',
+          destination: `${apiProxyTarget}/sourcing/connections/:id/sync`,
+        },
+        {
+          source: '/sourcing/dedupe-candidates/:id/resolve',
+          destination: `${apiProxyTarget}/sourcing/dedupe-candidates/:id/resolve`,
         },
       ],
       beforeFiles: [],
