@@ -75,3 +75,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
    Why: import type is erased at emit, so the DI token vanishes and NestJS bootstrap crashes.
 4. Any hand-authored drizzle migration must appear in `_journal.json` with a `when` greater than all prior entries.
    Why: drizzle skips a migration with a missing or stale `when` while reporting success.
+5. Author every client parse of an API response against that endpoint's real return shape, not an assumed wrapper.
+   Why: A wrong-shape mock passes CI while the live client mis-parses ids and raises false errors.
