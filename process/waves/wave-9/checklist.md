@@ -23,11 +23,11 @@ Unassigned queue at handoff: 1 (b1a0b2ac — /health spec wording; P-0 walk cand
 Deferred (founder-blocked, re-homed to M9): 345dfbc6 — first real DataSourceAdapter (vendor selection + account-issued API key + spend gate; surfaced non-blocking).
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe) — PROCEED (all 3 reframers aligned; M4/M5 boundary clean); no-prior-spec; wave 9 opened
+- [x] P-1 Decompose — PROCEED, multi-spec (3 tasks: spine+page+enrich); ~3-4.5k LOC; design_gap_flag FALSE (design exists → D skips)
+- [x] P-2 Spec — multi-spec (3 blocks: spine+page+enrich) in seed 92a8ff3f
+- [x] P-3 Plan — new buyer-universe module (2 tables migration 0008 + BuyerUniverseService assemble/filter/enrich/submit + page); reuse M3/M4/M1/M2; no new dep/SDK/secret; M4/M5 boundary enforced
+- [x] P-4 Gate — PASSED (head-product APPROVED; karen+jenny APPROVE; Gemini 429; M4/M5 boundary policed)
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
