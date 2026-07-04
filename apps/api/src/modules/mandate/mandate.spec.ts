@@ -1,15 +1,26 @@
 /**
- * Mandate module B-2 tests — verifies all required ACs:
+ * Mandate module B-2 + B-6 regression tests — verifies all required ACs:
  *
- *   1. mandateCreateSchema parse/reject — missing acknowledgments → reject.
- *   2. RBAC matrix — advisor 201 / analyst 403 (write) / anon 401 / analyst 200 (read).
- *   3. Actor id = app users.id NOT raw ST id (regression).
- *   4. Audited in-txn — AuditService.append called with 'mandate-create' + app users.id.
- *   5. One-txn rollback — audit fail → no mandate row (rollback on audit fail).
- *   6. Disclaimer derivation — valid jurisdiction → resolved FK; no-match → 400.
- *   7. All-3-acks-required — missing/false acknowledgment → 400.
- *   8. getById 404 — mandate not found → NotFoundException.
- *   9. DrizzleError-unwrap — pgCode(err.cause.code) → proper 400/409/404 (not 500).
+ *   1.  mandateCreateSchema parse/reject — missing acknowledgments → reject.
+ *   2.  RBAC matrix — advisor 201 / analyst 403 (write) / anon 401 / analyst 200 (read).
+ *   3.  Actor id = app users.id NOT raw ST id (regression).
+ *   4.  Audited in-txn — AuditService.append called with 'mandate-create' + app users.id.
+ *   5.  One-txn rollback — audit fail → no mandate row (rollback on audit fail).
+ *   6.  Disclaimer derivation — valid jurisdiction → resolved FK; no-match → 400.
+ *   7.  All-3-acks-required — missing/false acknowledgment → 400.
+ *   8.  getById 404 — mandate not found → NotFoundException.
+ *   9.  DrizzleError-unwrap — pgCode(err.cause.code) → proper 400/409/404 (not 500).
+ *  10.  CRITICAL-1 — PATCH configureAsActor returns full MandateDetail (not bare Mandate).
+ *  11.  CRITICAL-2 — active mandate is locked: configure → 409 ConflictException.
+ *  12.  CRITICAL-2 — active → draft status transition → 409 ConflictException.
+ *  13.  CRITICAL-2 — draft mandate edit → 200 (allowed).
+ *  14.  CRITICAL-2 — draft → active transition → 200 (allowed).
+ *  15.  CRITICAL-3 — 2 active disclaimer templates for jurisdiction → ConflictException.
+ *  16.  CRITICAL-3 — 1 active disclaimer template → resolves correctly.
+ *  17.  READ-SCHEMA — mandateSchema parses payload with extra server field (passthrough).
+ *  18.  READ-SCHEMA — mandateCreateSchema REJECTS unknown field (mass-assignment guard intact).
+ *  19.  READ-SCHEMA — mandateListFilterSchema parses with extra query param (passthrough).
+ *  20.  READ-SCHEMA — mandateListFilterSchema still validates known field values.
  *
  * Mock strategy:
  *   - DB / Drizzle: mocked at the repository boundary (repository is mocked).
@@ -20,10 +31,17 @@
  */
 
 import type { Role } from '@dealflow/shared';
-import { mandateAcknowledgmentsSchema, mandateCreateSchema, rolesForRoute } from '@dealflow/shared';
+import {
+  mandateAcknowledgmentsSchema,
+  mandateCreateSchema,
+  mandateListFilterSchema,
+  mandateSchema,
+  rolesForRoute,
+} from '@dealflow/shared';
 import type { ExecutionContext } from '@nestjs/common';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
   UnauthorizedException,
@@ -459,6 +477,9 @@ function makeMockRepository(overrides: Partial<MandateRepository> = {}) {
     upsertBuyerCriteria: vi.fn().mockResolvedValue(undefined),
     findBuyerCriteriaByMandateId: vi.fn().mockResolvedValue(null),
     findComplianceProfileByMandateId: vi.fn().mockResolvedValue(null),
+    // Transaction-aware variants used by configureAsActor (CRITICAL-1)
+    findBuyerCriteriaByMandateIdInTx: vi.fn().mockResolvedValue(null),
+    findComplianceProfileByMandateIdInTx: vi.fn().mockResolvedValue(null),
     ...overrides,
   } as unknown as MandateRepository;
 }
@@ -785,5 +806,327 @@ describe('DrizzleError-unwrap — err.cause.code → proper status', () => {
         }
       )
     ).rejects.toBeInstanceOf(CEx);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. CRITICAL-1 — configureAsActor returns full MandateDetail (not bare Mandate)
+// ---------------------------------------------------------------------------
+
+const BUYER_CRITERIA_ROW = {
+  id: 'criteria-uuid-001',
+  mandateId: 'mandate-uuid-001',
+  industry: 'Technology',
+  geo: 'North America',
+  sizeBand: '$50M–$250M',
+  dealType: null,
+};
+
+const COMPLIANCE_PROFILE_ROW = {
+  id: 'profile-uuid-001',
+  mandateId: 'mandate-uuid-001',
+  jurisdiction: 'US',
+  disclaimerTemplateId: 'disclaimer-uuid-001',
+  suppressionScope: null,
+  lawfulAuthorization: true,
+  aiResultsValidated: true,
+  conflictDbsReviewed: true,
+};
+
+describe('CRITICAL-1: configureAsActor returns full MandateDetail', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('returns mandate + buyerCriteria + complianceProfile (MandateDetail shape) after configure', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository({
+      findBuyerCriteriaByMandateIdInTx: vi.fn().mockResolvedValue(BUYER_CRITERIA_ROW),
+      findComplianceProfileByMandateIdInTx: vi.fn().mockResolvedValue(COMPLIANCE_PROFILE_ROW),
+    });
+    const audit = makeMockAuditService();
+
+    const service = new MandateService(repo, audit, authRepo);
+    const result = await service.configureAsActor(
+      'mandate-uuid-001',
+      { sellerName: 'Acme Corp Updated' },
+      'st-id'
+    );
+
+    // Must have all three keys — not a bare Mandate
+    expect(result).toHaveProperty('mandate');
+    expect(result).toHaveProperty('buyerCriteria');
+    expect(result).toHaveProperty('complianceProfile');
+
+    expect(result.mandate.id).toBe('mandate-uuid-001');
+    expect(result.buyerCriteria).not.toBeNull();
+    expect(result.buyerCriteria?.geo).toBe('North America');
+    expect(result.complianceProfile).not.toBeNull();
+    expect(result.complianceProfile?.disclaimerTemplateId).toBe('disclaimer-uuid-001');
+  });
+
+  it('returns null buyerCriteria and null complianceProfile when not found in tx', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository({
+      findBuyerCriteriaByMandateIdInTx: vi.fn().mockResolvedValue(null),
+      findComplianceProfileByMandateIdInTx: vi.fn().mockResolvedValue(null),
+    });
+    const audit = makeMockAuditService();
+
+    const service = new MandateService(repo, audit, authRepo);
+    const result = await service.configureAsActor(
+      'mandate-uuid-001',
+      { sellerName: 'Acme Corp Updated' },
+      'st-id'
+    );
+
+    expect(result).toHaveProperty('mandate');
+    expect(result.buyerCriteria).toBeNull();
+    expect(result.complianceProfile).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11–14. CRITICAL-2 — state-machine enforcement (active mandate locked)
+// ---------------------------------------------------------------------------
+
+describe('CRITICAL-2: active mandate is locked — configure → 409', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('throws ConflictException (409) when configuring an active mandate (field edit)', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository({
+      // Return an 'active' mandate from findMandateByIdForUpdate
+      findMandateByIdForUpdate: vi.fn().mockResolvedValue({
+        id: 'mandate-uuid-001',
+        createdBy: 'app-user-uuid-001',
+        sellerName: 'Acme Corp',
+        sellerIndustry: null,
+        sellerGeo: null,
+        sellerSizeBand: null,
+        description: null,
+        dealType: null,
+        status: 'active',
+        createdAt: '2026-07-04 00:00:00+00',
+        updatedAt: '2026-07-04 01:00:00+00',
+      }),
+    });
+    const audit = makeMockAuditService();
+
+    const service = new MandateService(repo, audit, authRepo);
+    await expect(
+      service.configureAsActor('mandate-uuid-001', { sellerName: 'New Name' }, 'st-id')
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('throws ConflictException (409) when attempting active → draft status transition', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository({
+      findMandateByIdForUpdate: vi.fn().mockResolvedValue({
+        id: 'mandate-uuid-001',
+        createdBy: 'app-user-uuid-001',
+        sellerName: 'Acme Corp',
+        sellerIndustry: null,
+        sellerGeo: null,
+        sellerSizeBand: null,
+        description: null,
+        dealType: null,
+        status: 'active',
+        createdAt: '2026-07-04 00:00:00+00',
+        updatedAt: '2026-07-04 01:00:00+00',
+      }),
+    });
+    const audit = makeMockAuditService();
+
+    const service = new MandateService(repo, audit, authRepo);
+    // Explicitly attempt active → draft (illegal transition)
+    await expect(
+      service.configureAsActor('mandate-uuid-001', { status: 'draft' }, 'st-id')
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('allows editing a draft mandate (200)', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository({
+      // Default mock returns status:'draft' — draft is editable
+      findBuyerCriteriaByMandateIdInTx: vi.fn().mockResolvedValue(null),
+      findComplianceProfileByMandateIdInTx: vi.fn().mockResolvedValue(null),
+    });
+    const audit = makeMockAuditService();
+
+    const service = new MandateService(repo, audit, authRepo);
+    const result = await service.configureAsActor(
+      'mandate-uuid-001',
+      { sellerName: 'Acme Corp Renamed' },
+      'st-id'
+    );
+
+    // Should succeed and return MandateDetail
+    expect(result).toHaveProperty('mandate');
+    expect(result.mandate.status).toBe('active'); // mock updateMandate returns 'active' row
+  });
+
+  it('allows draft → active transition (legal advancement)', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository({
+      findBuyerCriteriaByMandateIdInTx: vi.fn().mockResolvedValue(BUYER_CRITERIA_ROW),
+      findComplianceProfileByMandateIdInTx: vi.fn().mockResolvedValue(COMPLIANCE_PROFILE_ROW),
+    });
+    const audit = makeMockAuditService();
+
+    const service = new MandateService(repo, audit, authRepo);
+    // Draft mandate (default mock) advancing to active
+    const result = await service.configureAsActor(
+      'mandate-uuid-001',
+      { status: 'active' },
+      'st-id'
+    );
+
+    expect(result).toHaveProperty('mandate');
+    expect(result).toHaveProperty('complianceProfile');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 15–16. CRITICAL-3 — disclaimer derivation: ambiguous config → ConflictException
+// ---------------------------------------------------------------------------
+
+describe('CRITICAL-3: findActiveDisclaimerByJurisdiction — ambiguity-safe', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('throws ConflictException when 2 active templates exist for a jurisdiction', async () => {
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository({
+      findActiveDisclaimerByJurisdiction: vi
+        .fn()
+        .mockRejectedValue(
+          new ConflictException(
+            'Ambiguous disclaimer configuration: 2 active disclaimer templates found for jurisdiction "US".'
+          )
+        ),
+    });
+    const audit = makeMockAuditService();
+
+    const service = new MandateService(repo, audit, authRepo);
+    await expect(service.createAsActor(VALID_CREATE_INPUT, 'st-id')).rejects.toBeInstanceOf(
+      ConflictException
+    );
+  });
+
+  it('resolves correctly when exactly 1 active template exists for a jurisdiction', async () => {
+    const disclaimerId = 'disclaimer-uuid-single';
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const repo = makeMockRepository({
+      findActiveDisclaimerByJurisdiction: vi.fn().mockResolvedValue({
+        id: disclaimerId,
+        jurisdiction: 'US',
+        body: 'Single active disclaimer',
+        version: 3,
+        active: true,
+        createdAt: '2026-01-01T00:00:00Z',
+        createdBy: null,
+      }),
+    });
+    const audit = makeMockAuditService();
+
+    const service = new MandateService(repo, audit, authRepo);
+    await service.createAsActor(VALID_CREATE_INPUT, 'st-id');
+
+    const profileCall = (repo.insertComplianceProfile as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1] as { disclaimerTemplateId: string };
+    expect(profileCall.disclaimerTemplateId).toBe(disclaimerId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 17–20. READ-SCHEMA passthrough + input-schema mass-assignment guard
+// ---------------------------------------------------------------------------
+
+describe('READ-SCHEMA: mandateSchema passthrough (extra fields forwarded)', () => {
+  it('parses a mandate payload with an extra server-added field (does NOT drop it)', () => {
+    const payload = {
+      id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+      createdBy: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      sellerName: 'Acme Corp',
+      sellerIndustry: 'Technology',
+      sellerGeo: ['US'],
+      sellerSizeBand: null,
+      description: null,
+      dealType: null,
+      status: 'draft' as const,
+      createdAt: '2026-07-04 00:00:00+00',
+      updatedAt: null,
+      // Future server-added field — must NOT cause a parse failure
+      internalPriorityScore: 42,
+    };
+
+    const result = mandateSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // passthrough: extra field is preserved in the output
+      expect((result.data as Record<string, unknown>).internalPriorityScore).toBe(42);
+    }
+  });
+});
+
+describe('READ-SCHEMA: mandateCreateSchema REJECTS unknown fields (mass-assignment guard intact)', () => {
+  it('rejects an extra field in the create input (disclaimerTemplateId injection attempt)', () => {
+    const maliciousPayload = {
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {
+          lawful_authorization: true as const,
+          ai_results_validated: true as const,
+          conflict_dbs_reviewed: true as const,
+        },
+        // Mass-assignment attempt — must be rejected by strict compliance sub-schema
+        disclaimerTemplateId: 'attacker-chosen-uuid',
+      },
+    };
+
+    const result = mandateCreateSchema.safeParse(maliciousPayload);
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an extra top-level field in the create input', () => {
+    const maliciousPayload = {
+      sellerName: 'Acme Corp',
+      compliance: {
+        jurisdiction: 'US',
+        acknowledgments: {
+          lawful_authorization: true as const,
+          ai_results_validated: true as const,
+          conflict_dbs_reviewed: true as const,
+        },
+      },
+      // Extra top-level field — must be rejected by strict top-level schema
+      createdBy: 'attacker-chosen-user-id',
+    };
+
+    const result = mandateCreateSchema.safeParse(maliciousPayload);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('READ-SCHEMA: mandateListFilterSchema passthrough (extra query params tolerated)', () => {
+  it('parses with an extra query parameter (does NOT 400)', () => {
+    // Browser or proxy may add extra query params (e.g. _t=cache-buster)
+    const result = mandateListFilterSchema.safeParse({ status: 'draft', _t: '1234567890' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.status).toBe('draft');
+    }
+  });
+
+  it('still validates known field values (invalid status → parse error)', () => {
+    const result = mandateListFilterSchema.safeParse({ status: 'invalid_status_value' });
+    expect(result.success).toBe(false);
+  });
+
+  it('defaults status to "all" when absent', () => {
+    const result = mandateListFilterSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.status).toBe('all');
+    }
   });
 });

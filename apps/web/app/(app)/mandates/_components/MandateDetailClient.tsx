@@ -264,6 +264,10 @@ function ConfigureForm({ mandateId, detail, onSaved, onCancel }: ConfigureFormPr
           >
             Status
           </label>
+          {/* The configure form is only shown for draft mandates (active are locked).
+              Only the draft → active advance is permitted; active → draft is
+              blocked server-side. The select reflects that: draft is always
+              shown, active is shown to allow the advance. No revert option. */}
           <select
             id="cfg-status"
             value={status}
@@ -271,7 +275,7 @@ function ConfigureForm({ mandateId, detail, onSaved, onCancel }: ConfigureFormPr
             style={{ ...inputStyle, maxWidth: '200px', appearance: 'none' }}
           >
             <option value="draft">Draft</option>
-            <option value="active">Active</option>
+            <option value="active">Activate (draft → active)</option>
           </select>
         </div>
 
@@ -426,8 +430,10 @@ export function MandateDetailClient({
           </div>
         </div>
 
-        {/* Configure button — advisor/admin only */}
-        {isEditor && !configuring && (
+        {/* Configure button — advisor/admin only, draft mandates only.
+            Active mandates are locked server-side (409); the button is hidden
+            client-side as a UX convenience (not the authoritative guard). */}
+        {isEditor && !configuring && mandate.status === 'draft' && (
           <button
             type="button"
             onClick={() => setConfiguring(true)}
@@ -466,6 +472,44 @@ export function MandateDetailClient({
             </svg>
             Configure
           </button>
+        )}
+        {/* Active-mandate locked badge (read-only indicator for editors) */}
+        {isEditor && !configuring && mandate.status === 'active' && (
+          <span
+            role="status"
+            aria-label="Active mandate is read-only"
+            title="Active mandates are locked and cannot be edited"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '7px 14px',
+              fontSize: '13px',
+              fontWeight: 500,
+              color: '#6B7280',
+              backgroundColor: '#F9FAFB',
+              border: '1px solid #E5E7EB',
+              borderRadius: '6px',
+              flexShrink: 0,
+            }}
+          >
+            {/* Lock icon */}
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            Locked
+          </span>
         )}
       </div>
 

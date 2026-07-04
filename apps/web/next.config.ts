@@ -151,16 +151,22 @@ const nextConfig: NextConfig = {
         // Wave-8: /mandates API rewrites (afterFiles — page routes win).
         //
         // Pages that exist (Next.js serves them for GET browser navigation):
-        //   /mandates          → app/(app)/mandates/page.tsx   (GET wins)
-        //   /mandates/new      → app/(app)/mandates/new/page.tsx (GET wins)
-        //   /mandates/:id      → app/(app)/mandates/[id]/page.tsx (GET wins)
+        //   /mandates          → app/(app)/mandates/page.tsx   (wins via afterFiles)
+        //   /mandates/new      → app/(app)/mandates/new/page.tsx (wins via afterFiles)
+        //   /mandates/:id      → app/(app)/mandates/[id]/page.tsx (wins via afterFiles)
         //
-        // These rewrites ONLY activate for methods the page cannot handle:
-        //   POST /mandates               → API (create; page handles GET only)
-        //   PATCH /mandates/:id          → API (configure; page handles GET only)
+        // IMPORTANT: Next.js rewrites are NOT method-aware. afterFiles rules
+        // only fire for paths that have NO matching page file. When a page
+        // file exists (e.g. /mandates, /mandates/:id), Next.js serves that
+        // page for ALL methods during static analysis — the rewrite fires only
+        // if the file router does NOT match the path (i.e. no page file exists
+        // at that path). The browser's GET navigation hits the page file; the
+        // client component's POST/PATCH fetches use the same path and fall
+        // through to this rewrite because the page file only serves the RSC
+        // payload for GET, leaving non-GET requests unmatched. This is a
+        // coincidence of how Next.js routes work, not a method filter.
         //
-        // afterFiles guarantees the page routes are never hijacked. No
-        // page-route-collision risk: the detail page is SSR-hydrated (server
+        // No page-route-collision risk: the detail page is SSR-hydrated (server
         // fetches via apiBase()) and the client component issues no GET fetch
         // to /mandates/:id (wave-7 lesson preserved).
         {

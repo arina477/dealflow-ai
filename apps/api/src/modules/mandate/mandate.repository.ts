@@ -84,8 +84,18 @@ export class MandateRepository {
 
   /**
    * findActiveDisclaimerByJurisdiction — looks up the active disclaimer template
-   * for the given jurisdiction. Returns null if no active row exists for that
-   * jurisdiction (the service then throws BadRequestException 400).
+   * for the given jurisdiction.
+   *
+   * Ambiguity-safe logic (CRITICAL-3):
+   *   0 active rows → returns null (service throws BadRequestException 400).
+   *   1 active row  → returns that row.
+   *  >1 active rows → throws ConflictException (ambiguous compliance config — do
+   *                   NOT silently pick an arbitrary disclaimer). The caller must
+   *                   fix the disclaimer_templates data before proceeding.
+   *
+   * Deterministic: selects ALL active rows (no LIMIT 1 without ORDER BY) then
+   * checks count explicitly. This eliminates the "arbitrary pick" hazard when
+   * the DB has two active rows for the same jurisdiction.
    *
    * Called INSIDE the creation transaction (tx) so the lookup is consistent
    * with the rest of the atomic insert.
@@ -103,7 +113,22 @@ export class MandateRepository {
           eq(disclaimerTemplates.active, true)
         )
       )
-      .limit(1);
+      // ORDER BY version DESC so the result is deterministic in tests and in
+      // the ambiguity check below. For ">1" we still reject — ORDER BY is
+      // tiebreak documentation, NOT a "latest wins" policy.
+      .orderBy(sql`${disclaimerTemplates.version} DESC`);
+
+    if (rows.length === 0) {
+      return null;
+    }
+    if (rows.length > 1) {
+      throw new ConflictException(
+        `Ambiguous disclaimer configuration: ${rows.length} active disclaimer templates ` +
+          `found for jurisdiction "${jurisdiction}". Deactivate all but one before creating ` +
+          'a mandate for this jurisdiction.'
+      );
+    }
+    // Exactly one — deterministic, safe.
     return rows[0] ?? null;
   }
 
@@ -314,10 +339,27 @@ export class MandateRepository {
 
   /**
    * findBuyerCriteriaByMandateId — returns the buyer criteria for a mandate.
-   * Returns null if no row exists.
+   * Returns null if no row exists. Uses the module-level DB connection (outside tx).
    */
   async findBuyerCriteriaByMandateId(mandateId: string): Promise<MandateBuyerCriteriaRow | null> {
     const rows = await this.db
+      .select()
+      .from(mandateBuyerCriteria)
+      .where(eq(mandateBuyerCriteria.mandateId, mandateId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
+   * findBuyerCriteriaByMandateIdInTx — transaction-aware variant.
+   * Used by configureAsActor to read buyer criteria INSIDE the configure
+   * transaction so the MandateDetail response is consistent with committed state.
+   */
+  async findBuyerCriteriaByMandateIdInTx(
+    tx: Tx,
+    mandateId: string
+  ): Promise<MandateBuyerCriteriaRow | null> {
+    const rows = await tx
       .select()
       .from(mandateBuyerCriteria)
       .where(eq(mandateBuyerCriteria.mandateId, mandateId))
@@ -387,12 +429,29 @@ export class MandateRepository {
 
   /**
    * findComplianceProfileByMandateId — returns the compliance profile for a mandate.
-   * Returns null if no row exists.
+   * Returns null if no row exists. Uses the module-level DB connection (outside tx).
    */
   async findComplianceProfileByMandateId(
     mandateId: string
   ): Promise<MandateComplianceProfileRow | null> {
     const rows = await this.db
+      .select()
+      .from(mandateComplianceProfile)
+      .where(eq(mandateComplianceProfile.mandateId, mandateId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
+   * findComplianceProfileByMandateIdInTx — transaction-aware variant.
+   * Used by configureAsActor to read the compliance profile INSIDE the configure
+   * transaction so the MandateDetail response is consistent with committed state.
+   */
+  async findComplianceProfileByMandateIdInTx(
+    tx: Tx,
+    mandateId: string
+  ): Promise<MandateComplianceProfileRow | null> {
+    const rows = await tx
       .select()
       .from(mandateComplianceProfile)
       .where(eq(mandateComplianceProfile.mandateId, mandateId))

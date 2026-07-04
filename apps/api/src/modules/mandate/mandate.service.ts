@@ -45,6 +45,7 @@ import type {
 } from '@dealflow/shared';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -190,6 +191,17 @@ export class MandateService {
   /**
    * configureAsActor — partially updates a mandate (draft → active or field update).
    *
+   * State-machine rules (authoritative, server-enforced):
+   *   - An 'active' mandate is LOCKED: profile/criteria/compliance edits are
+   *     rejected with 409 ConflictException. Any field mutation or status
+   *     revert (active → draft) on a live mandate is illegal.
+   *   - A 'draft' mandate may be freely edited. The only legal transition is
+   *     draft → active (when the mandate is complete).
+   *   - active → draft is never permitted (one-way activation gate).
+   *
+   * Returns a full MandateDetail (mandate + buyerCriteria + complianceProfile)
+   * so the client can re-render the detail page without a separate GET.
+   *
    * Audited in-tx via AuditService.append (mandate-configure).
    * Actor = app users.id (actor-id-FK lesson).
    *
@@ -201,7 +213,7 @@ export class MandateService {
     id: string,
     input: MandateConfigureInput,
     supertokensUserId: string
-  ): Promise<Mandate> {
+  ): Promise<MandateDetail> {
     // Translate SuperTokens id → app users.id.
     const actor = await this.authRepository.getUserWithRole(supertokensUserId);
     if (!actor) {
@@ -217,6 +229,22 @@ export class MandateService {
       if (!existing) {
         throw new NotFoundException(`Mandate ${id} not found`);
       }
+
+      // ── State-machine enforcement (CRITICAL-2) ──────────────────────────
+      // An 'active' mandate is locked. No field edits or status reversions
+      // are permitted once a mandate is live. This is the authoritative
+      // server-side gate — the client-side UI disables controls as a UX
+      // convenience only.
+      if (existing.status === 'active') {
+        throw new ConflictException(
+          'Active mandate is locked. Profile, criteria, and compliance fields cannot be ' +
+            'modified after activation. The active → draft transition is not permitted.'
+        );
+      }
+
+      // At this point existing.status === 'draft'.
+      // The active-mandate lock above catches all mutations on an active mandate,
+      // including active→draft attempts. Any patch on a draft proceeds below.
 
       // Update mandate row (only defined fields).
       // exactOptionalPropertyTypes: use conditional spread so no key is
@@ -267,7 +295,39 @@ export class MandateService {
 
       await this.auditService.append(auditInput, tx);
 
-      return toMandate(updated);
+      // ── Return full MandateDetail (CRITICAL-1) ──────────────────────────
+      // Read the post-update buyer criteria and compliance profile inside the
+      // same transaction so the response is consistent with the committed state.
+      const [buyerCriteria, complianceProfile] = await Promise.all([
+        this.repository.findBuyerCriteriaByMandateIdInTx(tx, id),
+        this.repository.findComplianceProfileByMandateIdInTx(tx, id),
+      ]);
+
+      return {
+        mandate: toMandate(updated),
+        buyerCriteria: buyerCriteria
+          ? {
+              id: buyerCriteria.id,
+              mandateId: buyerCriteria.mandateId,
+              industry: buyerCriteria.industry ?? null,
+              geo: buyerCriteria.geo ?? null,
+              sizeBand: buyerCriteria.sizeBand ?? null,
+              dealType: buyerCriteria.dealType ?? null,
+            }
+          : null,
+        complianceProfile: complianceProfile
+          ? {
+              id: complianceProfile.id,
+              mandateId: complianceProfile.mandateId,
+              jurisdiction: complianceProfile.jurisdiction,
+              disclaimerTemplateId: complianceProfile.disclaimerTemplateId,
+              suppressionScope: complianceProfile.suppressionScope ?? null,
+              lawfulAuthorization: complianceProfile.lawfulAuthorization,
+              aiResultsValidated: complianceProfile.aiResultsValidated,
+              conflictDbsReviewed: complianceProfile.conflictDbsReviewed,
+            }
+          : null,
+      };
     });
   }
 

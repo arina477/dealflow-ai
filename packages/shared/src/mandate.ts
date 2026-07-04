@@ -30,6 +30,11 @@ export type MandateStatus = z.infer<typeof mandateStatusEnum>;
 /**
  * mandateSchema — mirrors the mandates table row.
  * Timestamps use z.string() (PG-wire format; NOT .datetime()).
+ *
+ * READ schema: NOT .strict() — uses .passthrough() so a future server-added
+ * field does not silently drop the whole mandate from list/detail responses
+ * (the wave-7 connectionIds class). Extra fields are forwarded to the caller
+ * and ignored; they do NOT cause a parse failure.
  */
 export const mandateSchema = z
   .object({
@@ -48,13 +53,15 @@ export const mandateSchema = z
     createdAt: z.string(),
     updatedAt: z.string().nullable(),
   })
-  .strict();
+  .passthrough();
 
 export type Mandate = z.infer<typeof mandateSchema>;
 
 /**
  * mandateBuyerCriteriaSchema — mirrors the mandate_buyer_criteria table row.
  * All criteria columns are nullable (no restriction means any value accepted).
+ *
+ * READ schema: .passthrough() — extra server fields are forwarded, not dropped.
  */
 export const mandateBuyerCriteriaSchema = z
   .object({
@@ -65,7 +72,7 @@ export const mandateBuyerCriteriaSchema = z
     sizeBand: z.string().nullable(),
     dealType: z.string().nullable(),
   })
-  .strict();
+  .passthrough();
 
 export type MandateBuyerCriteria = z.infer<typeof mandateBuyerCriteriaSchema>;
 
@@ -75,6 +82,8 @@ export type MandateBuyerCriteria = z.infer<typeof mandateBuyerCriteriaSchema>;
  * disclaimerTemplateId: present on read (was derived at create time);
  *   absent from the CREATE input (D2 server-side derivation).
  * suppressionScope: unknown (JSONB — schema does not constrain the shape).
+ *
+ * READ schema: .passthrough() — extra server fields are forwarded, not dropped.
  */
 export const mandateComplianceProfileSchema = z
   .object({
@@ -92,7 +101,7 @@ export const mandateComplianceProfileSchema = z
     /** Attestation 3: conflict DBs reviewed. */
     conflictDbsReviewed: z.boolean(),
   })
-  .strict();
+  .passthrough();
 
 export type MandateComplianceProfile = z.infer<typeof mandateComplianceProfileSchema>;
 
@@ -228,12 +237,16 @@ export type MandateConfigureInput = z.infer<typeof mandateConfigureSchema>;
 /**
  * MandateListFilter — query parameters for GET /mandates.
  * status 'all' means no filter applied; absent defaults to 'all'.
+ *
+ * NOT .strict() — extra query params (e.g. from proxies or future features)
+ * are ignored rather than causing a 400. The wave-7 class: a strict filter
+ * schema 400s any unexpected query parameter passed by the browser.
  */
 export const mandateListFilterSchema = z
   .object({
     status: z.enum(['draft', 'active', 'all']).optional().default('all'),
   })
-  .strict();
+  .passthrough();
 
 export type MandateListFilter = z.infer<typeof mandateListFilterSchema>;
 
@@ -242,9 +255,12 @@ export type MandateListFilter = z.infer<typeof mandateListFilterSchema>;
 // ---------------------------------------------------------------------------
 
 /**
- * MandateDetail — GET /mandates/:id response shape.
+ * MandateDetail — GET /mandates/:id and PATCH /mandates/:id response shape.
  * Includes the mandate row + its associated buyer criteria + compliance profile.
  * buyerCriteria and complianceProfile are nullable until created.
+ *
+ * READ schema: .passthrough() — extra server envelope fields (e.g. pagination
+ * metadata added in a future wave) are forwarded, not dropped.
  */
 export const mandateDetailSchema = z
   .object({
@@ -252,6 +268,6 @@ export const mandateDetailSchema = z
     buyerCriteria: mandateBuyerCriteriaSchema.nullable(),
     complianceProfile: mandateComplianceProfileSchema.nullable(),
   })
-  .strict();
+  .passthrough();
 
 export type MandateDetail = z.infer<typeof mandateDetailSchema>;
