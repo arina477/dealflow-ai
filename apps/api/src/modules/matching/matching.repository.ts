@@ -21,6 +21,7 @@
  * HARD BOUNDARY: NO Anthropic/Claude/LLM import. NO BullMQ. PURE DATA ACCESS.
  */
 
+import type { ScoreBreakdown } from '@dealflow/shared';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
@@ -391,7 +392,7 @@ export class MatchingRepository {
       matchRunId: string;
       buyerUniverseCandidateId: string;
       fitScore: number;
-      scoreBreakdown: Record<string, unknown>;
+      scoreBreakdown: ScoreBreakdown | null;
       disposition?: 'pending' | 'accepted' | 'rejected' | 'flagged';
     }>
   ): Promise<MatchCandidateRow[]> {

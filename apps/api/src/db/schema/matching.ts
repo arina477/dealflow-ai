@@ -1,3 +1,4 @@
+import type { ScoreBreakdown } from '@dealflow/shared';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -243,10 +244,12 @@ export const matchCandidates = pgTable(
     /**
      * Structured rule-contribution breakdown.
      * Shape: { sectorMatch: number, contactCompleteness: number, tieBreak: number,
-     *          notApplied: string[] }
+     *          total: number, notApplied: string[] }
      * NOT prose — no rationale text field. The breakdown shows rule contributions.
+     * $type<ScoreBreakdown> tells Drizzle the precise TS type for this JSONB column
+     * (matches matching.scorer.ts ScoreBreakdown interface exactly).
      */
-    scoreBreakdown: jsonb('score_breakdown'),
+    scoreBreakdown: jsonb('score_breakdown').$type<ScoreBreakdown>(),
 
     /**
      * Per-candidate advisor disposition. 'pending' on scoring.

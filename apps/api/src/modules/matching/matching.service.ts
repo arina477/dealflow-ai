@@ -232,7 +232,7 @@ export class MatchingService {
           matchRunId: run.id,
           buyerUniverseCandidateId: candidate.id,
           fitScore: result.score,
-          scoreBreakdown: result.breakdown as unknown as Record<string, unknown>,
+          scoreBreakdown: result.breakdown,
           disposition: priorDisposition ?? ('pending' as const),
         };
       });
@@ -491,7 +491,7 @@ export class MatchingService {
       matchRunId: candidate.matchRunId,
       buyerUniverseCandidateId: candidate.buyerUniverseCandidateId,
       fitScore: candidate.fitScore,
-      scoreBreakdown: (candidate.scoreBreakdown as Record<string, unknown>) ?? null,
+      scoreBreakdown: candidate.scoreBreakdown ?? null,
       disposition: candidate.disposition,
       createdAt: candidate.createdAt,
     };

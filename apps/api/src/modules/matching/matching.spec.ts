@@ -808,7 +808,13 @@ describe('DrizzleError-unwrap — err.cause.code extraction', () => {
             matchRunId: RUN_ID,
             buyerUniverseCandidateId: BUC_ID,
             fitScore: 75,
-            scoreBreakdown: {},
+            scoreBreakdown: {
+              sectorMatch: 0,
+              contactCompleteness: 0,
+              tieBreak: 0,
+              total: 0,
+              notApplied: [],
+            },
           },
         ]
       )
