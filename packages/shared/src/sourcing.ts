@@ -91,6 +91,19 @@ export const companySchema = z
     // validation is wrong for the wire format the API emits.
     createdAt: z.string(),
     updatedAt: z.string().nullable(),
+    /**
+     * Distinct data_source_connection ids that sourced this company via
+     * company_provenance. Added by SourcingRepository.listCompanies (B-6 badge
+     * fix). Optional with default [] so the strict parse accepts both the plain
+     * DB row shape (no connectionIds) and the enriched API response shape.
+     */
+    connectionIds: z.array(z.string()).optional().default([]),
+    /**
+     * Number of distinct connections that contributed provenance for this
+     * company. Returned by SourcingService.listCompanies alongside connectionIds.
+     * Optional so the strict parse also accepts bare company rows without augment.
+     */
+    sourceCount: z.number().int().optional(),
   })
   .strict();
 

@@ -57,6 +57,10 @@ function meFor(role: Role) {
 
 const NOW = '2024-06-01T10:00:00.000Z';
 
+// Real connection UUIDs emitted by the API alongside company rows (B-6 badge fix).
+const CONN_UUID_1 = 'cc001111-0000-0000-0000-000000000011';
+const CONN_UUID_2 = 'cc002222-0000-0000-0000-000000000022';
+
 const COMPANY_1: Company & {
   contactCount: number;
   sourceCount: number;
@@ -71,6 +75,10 @@ const COMPANY_1: Company & {
   status: 'active',
   createdAt: NOW,
   updatedAt: null,
+  // connectionIds is now part of the real API shape (B-6 badge fix).
+  // The strict companySchema must declare it; omitting it here would hide a
+  // future schema-drift regression (the "test the REAL API shape" lesson).
+  connectionIds: [CONN_UUID_1, CONN_UUID_2],
   contactCount: 3,
   sourceCount: 2,
   hasPendingCandidates: false,
@@ -90,6 +98,7 @@ const COMPANY_2: Company & {
   status: 'active',
   createdAt: NOW,
   updatedAt: null,
+  connectionIds: [CONN_UUID_1],
   contactCount: 1,
   sourceCount: 1,
   hasPendingCandidates: true,
@@ -285,12 +294,99 @@ const COMPANY_PG_WIRE_DEEP: typeof COMPANY_1 = {
   normalizedName: 'pgwire deep corp',
   sector: 'Data',
   status: 'active',
+  // PG-wire format — the shape that actually arrives from the API.
   createdAt: PG_WIRE_TS,
   updatedAt: null,
+  // connectionIds is part of the real API shape (B-6 badge fix).
+  // Pre-fix (before this wave's companySchema change): connectionIds is an
+  // unrecognized key → strict safeParse rejects → fetchCompanies returns [] →
+  // page shows "No companies yet". Post-fix: schema accepts → company shown.
+  connectionIds: [CONN_UUID_1],
   contactCount: 0,
   sourceCount: 1,
   hasPendingCandidates: false,
 };
+
+// ── CRITICAL-2 regression: connectionIds in strict companySchema — deep screen ─
+//
+// The /sourcing/companies API now emits connectionIds:string[] on every company
+// row (added in the B-6 badge fix). The shared companySchema was .strict() and
+// did NOT declare connectionIds, so every company in the SSR parse was rejected
+// with unrecognized_keys:['connectionIds'] → fetchCompanies returned [] →
+// the deep screen rendered "No companies yet" despite real data.
+//
+// Failure path (pre-fix):
+//   fetchCompanies → safeParse companiesWithMetaResponseSchema → FAIL
+//   (companySchema strict rejects unrecognized 'connectionIds') →
+//   returns [] → page renders "No companies yet" despite 4 real companies.
+//
+// This test block MUST fail on the pre-fix companySchema (missing connectionIds)
+// and MUST pass after the fix (connectionIds declared in companySchema).
+
+describe('CRITICAL-2 regression — connectionIds in API payload accepted by deep-screen (strict companySchema)', () => {
+  beforeEach(() => {
+    mockCookies.mockResolvedValue({ toString: () => 'st-access-token=test-token' });
+    mockRedirect.mockImplementation((path: string): never => {
+      throw new Error(`REDIRECT:${path}`);
+    });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('SSR page renders company when API payload includes connectionIds (not "No companies yet")', async () => {
+    // Full real API shape: base fields + connectionIds + sourceCount + contactCount.
+    // Pre-fix: strict companySchema rejects connectionIds → returns [] → "No companies yet".
+    // Post-fix: connectionIds declared in companySchema → parse succeeds → company shown.
+    const realApiShape = {
+      id: '44444444-0000-0000-0000-000000000044',
+      name: 'ConnectionIds Corp',
+      domain: 'connids.io',
+      normalizedDomain: 'connids.io',
+      normalizedName: 'connectionids corp',
+      sector: 'FinTech',
+      status: 'active',
+      createdAt: '2026-07-04 04:42:20.996353+00',
+      updatedAt: null,
+      connectionIds: [CONN_UUID_1, CONN_UUID_2],
+      sourceCount: 2,
+      contactCount: 1,
+      hasPendingCandidates: false,
+    };
+    vi.stubGlobal('fetch', makePageFetch('analyst', [realApiShape]));
+    await renderPage();
+    // Pre-fix: safeParse rejects connectionIds → "No companies yet"
+    // Post-fix: parse succeeds → company is shown
+    expect(screen.getByText('ConnectionIds Corp')).toBeDefined();
+    expect(screen.queryByText(/no companies yet/i)).toBeNull();
+  });
+
+  it('SSR page renders all companies when API includes connectionIds on multiple rows', async () => {
+    // COMPANY_1 and COMPANY_2 fixtures now carry connectionIds — the full API shape.
+    vi.stubGlobal('fetch', makePageFetch('analyst', [COMPANY_1, COMPANY_2]));
+    await renderPage();
+    expect(screen.getByText('Nexus Data Systems')).toBeDefined();
+    expect(screen.getByText('Cipher Dynamics Inc')).toBeDefined();
+    expect(screen.queryByText(/no companies yet/i)).toBeNull();
+  });
+
+  it('SSR page shows correct record count when API payload includes connectionIds', async () => {
+    vi.stubGlobal('fetch', makePageFetch('analyst', [COMPANY_1, COMPANY_2]));
+    await renderPage();
+    // 2 companies must be parsed (not 0 due to strict rejection)
+    expect(screen.getByText(/2 records/i)).toBeDefined();
+  });
+
+  it('CompaniesClient renders company from real-API-shape payload (connectionIds present)', () => {
+    // Client component receives pre-parsed data — confirm it renders correctly
+    // even when the company object carries connectionIds.
+    render(<CompaniesClient initialCompanies={[COMPANY_1, COMPANY_2]} />);
+    expect(screen.getByText('Nexus Data Systems')).toBeDefined();
+    expect(screen.queryByText(/no companies yet/i)).toBeNull();
+  });
+});
 
 describe('CRITICAL-1 regression — PG-wire timestamp accepted by deep-screen (shared companySchema)', () => {
   beforeEach(() => {

@@ -330,6 +330,41 @@ describe('companySchema', () => {
     expect(result.updatedAt).toBe('2026-07-04 04:42:20.996353+00');
   });
 
+  it('accepts connectionIds array (real API shape — B-6 badge fix)', () => {
+    // Pre-fix: strict companySchema would throw unrecognized_keys:['connectionIds']
+    // Post-fix: connectionIds declared → parse succeeds
+    const CONN_ID = '3931b452-c7d5-43a0-9657-7e7cd1728203';
+    const result = companySchema.parse({ ...validCompany, connectionIds: [CONN_ID] });
+    expect(result.connectionIds).toEqual([CONN_ID]);
+  });
+
+  it('defaults connectionIds to [] when absent (backward-compat with bare DB rows)', () => {
+    // No connectionIds in input → schema defaults to []
+    const result = companySchema.parse(validCompany);
+    expect(result.connectionIds).toEqual([]);
+  });
+
+  it('accepts sourceCount number (real API shape)', () => {
+    const result = companySchema.parse({ ...validCompany, sourceCount: 2 });
+    expect(result.sourceCount).toBe(2);
+  });
+
+  it('accepts sourceCount: 0 (no provenance rows yet)', () => {
+    const result = companySchema.parse({ ...validCompany, sourceCount: 0 });
+    expect(result.sourceCount).toBe(0);
+  });
+
+  it('accepts the full real API payload shape (connectionIds + sourceCount together)', () => {
+    const CONN_ID = '3931b452-c7d5-43a0-9657-7e7cd1728203';
+    const result = companySchema.parse({
+      ...validCompany,
+      connectionIds: [CONN_ID],
+      sourceCount: 1,
+    });
+    expect(result.connectionIds).toEqual([CONN_ID]);
+    expect(result.sourceCount).toBe(1);
+  });
+
   it('rejects extra unknown fields (strict mode)', () => {
     expect(() => companySchema.parse({ ...validCompany, extraField: true })).toThrow();
   });
