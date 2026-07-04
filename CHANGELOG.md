@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0] — 2026-07-04 — Buyer-seller matching (M5 deterministic)
+
+### Added
+- **Deterministic buyer-seller matching** (M5 first bundle) — for a mandate whose buyer universe is submitted (ready-to-rank), an advisor runs a match: a deterministic, rule-based fit score (integer 0-100 from the mandate's buyer criteria + contact completeness, with a per-dimension score breakdown) produces a ranked buyer list at `/matches-shortlist`; the advisor accepts/rejects/flags to build a shortlist and hands it off as ready-for-outreach. Reached from the mandate detail's "Ranked Candidates" panel. Migration 0009 (match_run + match_candidates).
+- Endpoints: `POST /matches` (run; idempotent per buyer universe), `PATCH /matches/:id/candidates/:cid` (accept/reject/flag), `POST /matches/:id/handoff` (ready-for-outreach), `GET /matches`. RBAC advisor-primary; every mutation audited.
+
+### Correctness / compliance
+- The fit score is a pure deterministic function with a meaningfully-discriminating ranking; re-running a match preserves the advisor's existing accept/reject decisions; the run is guarded (a buyer universe must be submitted; a shortlist must have at least one accepted buyer before handoff); dimensions the underlying company data can't support are shown as "not applied" rather than silently scored.
+
+### Provenance (transparency)
+- The score is presented as a **rule-based fit score with a per-dimension breakdown — NOT an AI-generated rationale**. There is no LLM/AI in this bundle. The AI-assisted ranking + explainable rationale is a later, separately-gated M5 bundle. No AI-capability is claimed on the page that the system does not perform.
+
+### Boundary
+- Matching + shortlist + ready-for-outreach handoff only — this bundle does not send outreach (that is Milestone M6).
+
 ## [0.9.0] — 2026-07-04 — Buyer universe (M4 complete)
 
 ### Added

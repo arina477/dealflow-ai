@@ -63,7 +63,7 @@ TEST:
 VERIFY:
 - [x] V-1 Independent reviews (Karen + jenny, parallel) — Karen APPROVE + jenny APPROVE (0 blocking; 1 Medium F-1 fast-fix)
 - [x] V-2 Triage — 0 blocking; F-1 score_breakdown-render → fast-fix; route-label → journey
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-3 Fast-fix loop (or close) — F-1 fixed @ 57449b6: redeployed api+web (SUCCESS, neither SKIPPED; /health version=57449b6, db:ok; rollback armed to 0075a20 before mutation). LIVE F-1 PROOF (real headless-chromium, rendered drawer DOM + screenshot): Score Breakdown drawer renders REAL per-dimension values (sector 30/60, contact 30/30, tie-break 9/10, gauge 69) — ZERO NaN/blank/broken; not-applied path correct. AI-strip HOLDS (0 forbidden hits; only global product meta tagline). Matching regression green (create-run 201 + discriminates [69,62,61,61]; submit-guard 400; idempotent; disposition-accept STICKS — B-6 CRIT-1 re-verified; handoff 400/2xx/idempotent); RBAC analyst read-only + 403. Canary skipped (0 DAU). head-ci-cd APPROVED.
 
 LEARN:
 - [ ] L-1 Docs
