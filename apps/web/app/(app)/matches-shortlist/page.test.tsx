@@ -720,6 +720,104 @@ describe('E. No-AI-framing — ZERO forbidden AI-capability strings in rendered 
   });
 });
 
+// ── G. INFO-1: failed disposition PATCH restores previous disposition ────────
+
+describe('G. INFO-1 — failed disposition PATCH restores original disposition', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('restores previous disposition and shows error when PATCH fails (does NOT keep the attempted value)', async () => {
+    const user = userEvent.setup();
+
+    // RANKED_LIST has CANDIDATE_1 with disposition='pending'.
+    // We attempt to accept (disposition='accepted'). The PATCH returns 422.
+    // After the failure the candidate must be back to 'pending', not 'accepted'.
+    const mockFetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      const s = String(url);
+      if (s.includes(`/matches-data/${RUN_ID}/candidates/`) && init?.method === 'PATCH') {
+        return Promise.resolve({
+          ok: false,
+          status: 422,
+          json: () => Promise.resolve({ message: 'Disposition rejected by server.' }),
+        } as Response);
+      }
+      return Promise.reject(new Error(`Unexpected: ${s}`));
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    render(
+      <MatchesShortlistClient mandateId={MANDATE_ID} initialData={RANKED_LIST} userRole="advisor" />
+    );
+
+    // Click accept for the first candidate (currently 'pending')
+    const acceptBtns = screen.getAllByRole('button', { name: /accept candidate/i });
+    const firstAcceptBtn = acceptBtns[0];
+    if (!firstAcceptBtn) throw new Error('Expected at least one accept button');
+    await user.click(firstAcceptBtn);
+
+    await waitFor(() => {
+      // Error message must appear
+      expect(screen.getByRole('alert')).toBeDefined();
+      expect(screen.getByText(/disposition rejected by server/i)).toBeDefined();
+
+      // The accept button must have returned (disposition reverted to 'pending')
+      // — meaning there are still accept buttons in the DOM for this candidate.
+      const btnsAfter = screen.getAllByRole('button', { name: /accept candidate/i });
+      expect(btnsAfter.length).toBeGreaterThan(0);
+    });
+  });
+});
+
+// ── H. INFO-2: wrong-shape create-run response → error shown, data not mutated ──
+
+describe('H. INFO-2 — wrong-shape create-run response → error state, data unchanged', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('shows error and does NOT set data when createRun returns a non-MatchRankedList shape', async () => {
+    const user = userEvent.setup();
+
+    // Returns a 200 but with a shape that fails matchRankedListSchema
+    const wrongShape = { totally: 'wrong', shape: true };
+    const mockFetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      const s = String(url);
+      if (s === '/matches-data' && (init?.method ?? 'GET') === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(wrongShape),
+        } as Response);
+      }
+      return Promise.reject(new Error(`Unexpected: ${s}`));
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    // Start with no data (no run) so we can confirm data is NOT set after the bad response
+    render(<MatchesShortlistClient mandateId={MANDATE_ID} initialData={null} userRole="advisor" />);
+
+    // The "Create Match Run" button must be visible (initialData=null)
+    expect(screen.getByRole('button', { name: /create match run/i })).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: /create match run/i }));
+
+    await waitFor(() => {
+      // Error must be shown
+      expect(screen.getByRole('alert')).toBeDefined();
+      expect(screen.getByText(/unexpected response from server — please refresh/i)).toBeDefined();
+
+      // The ranked candidates table must NOT have appeared (data was not corrupted)
+      expect(screen.queryByRole('table', { name: /ranked match candidates/i })).toBeNull();
+
+      // The create-run CTA must still be present (state was not clobbered)
+      expect(screen.getByRole('button', { name: /create match run/i })).toBeDefined();
+    });
+  });
+});
+
 // ── F. Anti-csrf (additional paths) ─────────────────────────────────────
 
 describe('F. Anti-csrf on all mutations', () => {

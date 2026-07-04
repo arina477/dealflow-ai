@@ -1224,8 +1224,11 @@ export function MatchesShortlistClient({
         setData(parsed.data);
         setHandoffDone(parsed.data.run.readyForOutreach);
       } else {
-        // Fallback: try to use raw directly
-        setData(raw as MatchRankedList);
+        // Unexpected shape — do NOT blind-cast unvalidated data into state.
+        // The schema is .passthrough(), so a genuine MatchRankedList always parses;
+        // reaching here means the API returned a truly wrong shape. Leave existing
+        // data unchanged and surface an actionable error.
+        setError('Unexpected response from server — please refresh.');
       }
     } catch {
       setError('Network error. Please try again.');
@@ -1240,6 +1243,8 @@ export function MatchesShortlistClient({
 
   async function handleDisposition(candidateId: string, disposition: MatchCandidateDisposition) {
     if (!run) return;
+    // Capture the pre-mutation disposition so we can restore it if the PATCH fails.
+    const prevDisposition = data?.candidates.find((c) => c.id === candidateId)?.disposition;
     // Optimistic update
     setData((prev) => {
       if (!prev) return prev;
@@ -1255,16 +1260,17 @@ export function MatchesShortlistClient({
         body: JSON.stringify({ disposition }),
       });
       if (!res.ok) {
-        // Revert on failure — need to read the actual previous state; just reload
         const body = (await res.json().catch(() => ({}))) as { message?: string };
         setError(body.message ?? 'Failed to update disposition.');
-        // Revert optimistic
+        // Revert to the captured pre-mutation disposition (not the already-mutated c.disposition).
         setData((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
             candidates: prev.candidates.map((c) =>
-              c.id === candidateId ? { ...c, disposition: c.disposition } : c
+              c.id === candidateId && prevDisposition !== undefined
+                ? { ...c, disposition: prevDisposition }
+                : c
             ),
           };
         });
