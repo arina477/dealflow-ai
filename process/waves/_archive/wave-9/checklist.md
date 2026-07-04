@@ -68,6 +68,6 @@ LEARN:
 - [x] L-2 Distill — promoted BUILD rule 6 (semantic-predicate-guard; 2-wave gate met)
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M4 in_progress→done + M5 todo→in_progress + 3 backlog re-homed (BOARD 7/7 APPROVE); M5 first bundle decomposed (seed 47ed7ddd + 2 siblings)
+- [x] N-2 Seed — seed 47ed7ddd (deterministic match spine) + siblings fb82d339/f74dce45; validated (all todo/wave_id NULL/milestone=M5/siblings parent=seed); claimed_task_ids ready for wave-10 B-0
+- [x] N-3 Handoff — wave-9 archived; waves row 9 closed status='ok'; wave-10 seeded; STATUS RUNNING
