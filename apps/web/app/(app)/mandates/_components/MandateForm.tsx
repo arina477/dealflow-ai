@@ -17,7 +17,7 @@
  */
 'use client';
 
-import { mandateCreateSchema } from '@dealflow/shared';
+import { mandateCreateSchema, mandateSchema } from '@dealflow/shared';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { apiFetch } from '../../_lib/apiFetch';
@@ -431,9 +431,10 @@ export function MandateForm({
 
       if (res.status === 201) {
         const json: unknown = await res.json();
-        // The API returns { mandate: Mandate }
-        const created = json as { mandate?: { id?: string } };
-        const id = created?.mandate?.id;
+        // The API returns a FLAT Mandate (top-level id, no wrapper).
+        // Parse with mandateSchema so the shape is validated, not just cast.
+        const parseResult = mandateSchema.safeParse(json);
+        const id = parseResult.success ? parseResult.data.id : undefined;
         if (id) {
           router.push(`/mandates/${id}`);
           return;

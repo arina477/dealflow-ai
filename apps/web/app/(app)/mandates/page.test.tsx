@@ -676,13 +676,11 @@ describe('B2. MandateForm unit', () => {
     // CRITICAL-1: client create must target /mandates-data, NOT /mandates (page route).
     const user = userEvent.setup();
 
+    // Mock returns the REAL flat Mandate shape (top-level id, no wrapper) — C-2 fix.
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 201,
-      json: () =>
-        Promise.resolve({
-          mandate: { id: MANDATE_ID },
-        }),
+      json: () => Promise.resolve(MANDATE_DRAFT),
     } as Response);
     vi.stubGlobal('fetch', mockFetch);
 
@@ -714,7 +712,51 @@ describe('B2. MandateForm unit', () => {
     });
   });
 
-  it('redirects to /mandates/:id on 201 response', async () => {
+  it('redirects to /mandates/:id on 201 response — flat Mandate shape (C-2 regression)', async () => {
+    // C-2 regression test: POST /mandates returns a FLAT Mandate (top-level id).
+    // The pre-fix code read `created?.mandate?.id` (wrapped shape) so id was always
+    // undefined → no redirect + silent mandate duplication on retry.
+    // After the fix: `mandateSchema.safeParse(json).data.id` reads the flat id correctly.
+    //
+    // This test MUST FAIL on the pre-fix `created?.mandate?.id` path and PASS after.
+    const user = userEvent.setup();
+
+    // Real flat API shape — matches what POST /mandates actually returns.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve(MANDATE_DRAFT),
+      } as Response)
+    );
+
+    render(<MandateForm availableJurisdictions={AVAILABLE_JURISDICTIONS} />);
+
+    await user.type(screen.getByLabelText(/company name/i), 'Apex Analytics Inc.');
+    await user.selectOptions(screen.getByLabelText(/legal jurisdiction/i), 'US');
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    for (const cb of checkboxes) {
+      if (!(cb as HTMLInputElement).checked) await user.click(cb);
+    }
+
+    await user.click(screen.getByRole('button', { name: /create mandate/i }));
+
+    // After fix: redirects to the created mandate's detail page.
+    await waitFor(() => {
+      expect(mockRouterPush).toHaveBeenCalledWith(`/mandates/${MANDATE_ID}`);
+    });
+
+    // No error message shown — the redirect must have fired.
+    expect(screen.queryByText(/failed to create mandate/i)).toBeNull();
+  });
+
+  it('does NOT redirect on 201 with wrapped shape { mandate: { id } } (pre-fix shape — must show error)', async () => {
+    // Confirms the old wrapped shape { mandate: { id } } is NOT the real API response:
+    // mandateSchema.safeParse fails (no top-level id / sellerName / etc.) → id is undefined
+    // → form shows "Failed to create mandate." error instead of redirecting.
+    // This test documents the pre-fix failure mode so the distinction stays clear.
     const user = userEvent.setup();
 
     vi.stubGlobal(
@@ -738,8 +780,10 @@ describe('B2. MandateForm unit', () => {
 
     await user.click(screen.getByRole('button', { name: /create mandate/i }));
 
+    // The wrapped shape fails mandateSchema.safeParse → no id → no redirect → shows error.
     await waitFor(() => {
-      expect(mockRouterPush).toHaveBeenCalledWith(`/mandates/${MANDATE_ID}`);
+      expect(mockRouterPush).not.toHaveBeenCalled();
+      expect(screen.getByText(/failed to create mandate/i)).toBeDefined();
     });
   });
 
