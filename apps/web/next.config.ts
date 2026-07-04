@@ -178,6 +178,41 @@ const nextConfig: NextConfig = {
           source: '/mandates-data/:id',
           destination: `${apiProxyTarget}/mandates/:id`,
         },
+        // Wave-9: buyer-universe mutation proxy (page-route-collision fix).
+        //
+        // CRITICAL: /buyer-universe has a Next.js page file:
+        //   /buyer-universe  → app/(app)/buyer-universe/page.tsx
+        //
+        // We must NOT rewrite /buyer-universe (GET — served as the React page) or
+        // /buyer-universe/:id (the detail read is SSR server-side via apiBase()).
+        //
+        // Fix: ALL client mutations use the non-colliding /buyer-universe-data prefix.
+        // These paths have NO Next.js page file, so afterFiles always proxies them.
+        //
+        // Client callers (BuyerUniverseClient.tsx):
+        //   POST   /buyer-universe-data              → POST   /buyer-universe       (assemble)
+        //   GET    /buyer-universe-data/:id          → GET    /buyer-universe/:id   (detail reload)
+        //   POST   /buyer-universe-data/:id/filter   → POST   /buyer-universe/:id/filter
+        //   POST   /buyer-universe-data/:id/enrich   → POST   /buyer-universe/:id/enrich
+        //   GET    /buyer-universe-data/:id/gaps     → GET    /buyer-universe/:id/gaps
+        //   POST   /buyer-universe-data/:id/submit   → POST   /buyer-universe/:id/submit
+        //   PATCH  /buyer-universe-data/:id/candidates/:cid → PATCH  /buyer-universe/:id/candidates/:cid
+        {
+          source: '/buyer-universe-data',
+          destination: `${apiProxyTarget}/buyer-universe`,
+        },
+        {
+          source: '/buyer-universe-data/:id/candidates/:candidateId',
+          destination: `${apiProxyTarget}/buyer-universe/:id/candidates/:candidateId`,
+        },
+        {
+          source: '/buyer-universe-data/:id/:sub',
+          destination: `${apiProxyTarget}/buyer-universe/:id/:sub`,
+        },
+        {
+          source: '/buyer-universe-data/:id',
+          destination: `${apiProxyTarget}/buyer-universe/:id`,
+        },
       ],
       beforeFiles: [],
       fallback: [],

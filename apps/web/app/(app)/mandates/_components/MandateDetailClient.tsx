@@ -747,10 +747,60 @@ export function MandateDetailClient({
           AI Sourcing Canvas
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <DeferredPlaceholder
-            title="Buyer Engine"
-            description="The AI buyer universe and criteria tuning will appear here in a later step."
-          />
+          {/* Wave-9 B-3: Buyer Engine placeholder replaced with a live CTA link.
+              Links to /buyer-universe?mandateId=<id> — the assembled buyer universe for this mandate.
+              Ranked Candidates + Pipeline remain deferred (M5/later). */}
+          <section
+            aria-label="Buyer Engine — open buyer universe"
+            style={{
+              border: '1px solid #D1FAE5',
+              borderRadius: '8px',
+              padding: '20px 24px',
+              backgroundColor: '#ECFDF5',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#065F46',
+                  marginBottom: '4px',
+                }}
+              >
+                Buyer Engine
+              </div>
+              <div style={{ fontSize: '12px', color: '#047857' }}>
+                Assemble, filter, enrich, and submit buyers to the match engine.
+              </div>
+            </div>
+            <a
+              href={`/buyer-universe?mandateId=${mandateId}`}
+              aria-label="Open Buyer Universe for this mandate"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                fontSize: '13px',
+                fontWeight: 500,
+                color: '#FFFFFF',
+                backgroundColor: '#10B981',
+                border: 'none',
+                borderRadius: '6px',
+                textDecoration: 'none',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+            >
+              Open Buyer Universe
+            </a>
+          </section>
           <DeferredPlaceholder
             title="Ranked Candidates"
             description="Ranked AI-matched buyer candidates will appear here in a later step."

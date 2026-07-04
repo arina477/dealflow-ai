@@ -1215,7 +1215,7 @@ describe('C2. MandateDetailClient — unit', () => {
     expect(screen.getByRole('button', { name: /configure/i })).toBeDefined();
   });
 
-  it('renders 3 deferred placeholder sections (D6)', () => {
+  it('renders D6 sections: Buyer Engine live CTA + Ranked Candidates + Pipeline deferred', () => {
     vi.stubGlobal('fetch', vi.fn());
     render(
       <MandateDetailClient
@@ -1224,10 +1224,13 @@ describe('C2. MandateDetailClient — unit', () => {
         userRole="analyst"
       />
     );
-    // All 3 deferred placeholders must render (D6 — stable mount points for M4)
-    expect(
-      screen.getByRole('region', { name: /buyer engine.*coming in a later step/i })
-    ).toBeDefined();
+    // Wave-9 B-3: Buyer Engine is now a live CTA linking to /buyer-universe?mandateId=
+    // (no longer a DeferredPlaceholder — the "coming in a later step" text is gone for this section)
+    const buyerEngineLink = screen.getByRole('link', { name: /open buyer universe/i });
+    expect(buyerEngineLink).toBeDefined();
+    expect(buyerEngineLink.getAttribute('href')).toBe(`/buyer-universe?mandateId=${MANDATE_ID}`);
+
+    // Ranked Candidates + Pipeline remain deferred (M5/later)
     expect(
       screen.getByRole('region', { name: /ranked candidates.*coming in a later step/i })
     ).toBeDefined();
