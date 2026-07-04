@@ -1,0 +1,21 @@
+# Wave 9 — T-9 Verdict
+
+**Reviewer:** head-tester (fresh spawn, agentId head-tester-w9-t9)
+**Reviewed against:** process/waves/wave-9/blocks/T/review-artifacts.md + findings-aggregate.md
+**Attempt:** 1  (1 = first gate)
+
+## Verdict
+APPROVED
+
+## Rationale
+The M4 FINAL metric is genuinely delivered and proven against the live deployed artifact (937ae18), not inferred from green tests. The Playwright browser binary was present and executed a non-zero suite (chromium-1208, 14/14 scenarios, screenshots produced) — no silent-skip / missing-binary ESCALATE trigger fires; the missing-binary hard-stop does not apply. The full analyst payoff (assemble from M3 → honest partial-filter → enrich from M3 contacts → submit ready-to-rank) is live-proven at C-2 with DOM/JSON-shape assertions on exact data, defeating the layout-only false-PASS anti-pattern: the SSR-hydrated candidate `<table>` embeds the real universe id `f7155385` with 4 provenance/membership rows and Included/Excluded/Submitted labels, contrasted against a genuinely-differing negative control (no-universe mandate shows the Assemble CTA and no `<table>`). This COMPLETES M4.
+
+The M4/M5 boundary holds under strict scrutiny — a byte-level scan of the full Detail payload returns 0 occurrences of fitScore/score/rank/ranking/rationale (C-2), corroborated by T-2 unit assertions and T-6 confirming the rank column is absent from both design and implementation; name-ASC ordering is documented as presentation-only. "Ready to rank" (universeStatus → submitted) is the honest handoff, with ranking cleanly deferred to M5.
+
+Every compliance/integrity invariant is live-proven, not UI-clicked: the HMAC audit chain verifies `{ok:true, entriesChecked:153, firstBreakAt:null}` (up from wave-8 baseline 57), audit-last-in-txn with rollback on audit-fail; actor-id resolves to app users.id via getUserWithRole (not raw ST id), regression-tested; idempotent re-assemble returns the SAME universe id (the ground-truth behavioral proxy that mandate_id UNIQUE + advisory lock + onConflict is enforced live — stronger than a row-count, and correctly substituted for the unobtainable __drizzle_migrations count per Iron Law); the submit-guard chain rejects BOTH 0-included AND draft/untriaged with 400 (no submitted-empty ready-to-rank); RBAC/SoD holds (anon 401, compliance-role 403, analyst/advisor 2xx); the honest partial-filter records unsupported geo/size/deal dimensions as "not applied (M3 lacks columns)" rather than silently match-all — the wave-8 D1 gap honestly closed, with partialFilter + unsupportedDimensions written to the audit record.
+
+The W9-2 clearance is sound. The 404→401 distinction is technically decisive: a live `curl -X POST .../buyer-universe-data` returning 401 (not 404) proves the afterFiles rewrite reaches the API auth guard — a 404 would mean no route/rewrite. Combined with the correctly-ordered next.config rewrites (lines 201-214), C-2's DOM-verified proxy flow, and the test's own S1-b assembling successfully in the same run, treating the transient 404 as a deploy-propagation/harness timing artifact (not a product bug, no B route) is correct. The one residual weakness — T-5/T-6 browser-behavioral evidence of the *assembled* state is thin because both were captured against the AssembleEmptyState during the 404 propagation window — is fully backfilled by C-2's DOM-data-asserted live proof of the assembled universe. All 7 B-6 CRITICALs (SSR-hydration, response-shape, double-universe, submit-guard, enrich-tx, filter-dims, re-assemble) map to distinct C-2 live assertions confirmed first-try — no Done-Theater. The T-7 skip is legitimate (unbounded-assemble is a real INFO but correctly dispositioned to the backlog at pilot scale — 0 DAU, small fixture pool, no data-corruption or compliance risk). Dispositions (W9-2 cleared, TopBar low-polish carry-forward, perf backlog) are correctly triaged: 0 critical, 0 real blocking. No compliance invariant is untested and no false-green survives review. Carry-forward (non-blocking): re-capture the T-6 assembled-universe layout baseline on a settled deploy to lock the split-pane visual, and address the recurring TopBar-title polish defect (wave-3/4/8/9).
+
+## Footer
+- verdict_complete: true
+- rework_attempt_cap_remaining: 3
