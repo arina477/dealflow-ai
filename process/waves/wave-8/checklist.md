@@ -63,8 +63,8 @@ VERIFY:
 - [x] V-3 Fast-fix loop (or close) — CLOSE (0 blocking); redeploy e57be83 (deployed=verified; W8-2/W8-3 live)
 
 LEARN:
-- [ ] L-1 Docs
-- [ ] L-2 Distill
+- [x] L-1 Docs — CHANGELOG 0.8.0; 6 observations
+- [x] L-2 Distill — promoted BUILD rule 5 (client-parse-real-API-shape; 2-wave gate met)
 
 NEXT:
 - [ ] N-1 Survey & triggers

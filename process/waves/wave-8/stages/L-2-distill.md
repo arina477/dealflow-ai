@@ -87,5 +87,5 @@ note: "One principle promoted (head-learn one-per-wave discipline held despite t
 - [x] Candidates vetted by karen against contracts.
 - [x] Promoted candidate passed the deterministic linter first-pass.
 - [x] At most one promotion per principles file (1 to BUILD; 0 to VERIFY).
-- [ ] Promotion commit — pending (batched at gate; see gate-verdict handoff).
+- [x] Promotion commit pushed (815206b) with candidate file as audit trail.
 - [x] L-2 deliverable written; `l_stage_verdict: COMPLETE`.
