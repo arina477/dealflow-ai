@@ -148,6 +148,29 @@ const nextConfig: NextConfig = {
           source: '/sourcing/company-detail/:id',
           destination: `${apiProxyTarget}/sourcing/companies/:id`,
         },
+        // Wave-8: /mandates API rewrites (afterFiles — page routes win).
+        //
+        // Pages that exist (Next.js serves them for GET browser navigation):
+        //   /mandates          → app/(app)/mandates/page.tsx   (GET wins)
+        //   /mandates/new      → app/(app)/mandates/new/page.tsx (GET wins)
+        //   /mandates/:id      → app/(app)/mandates/[id]/page.tsx (GET wins)
+        //
+        // These rewrites ONLY activate for methods the page cannot handle:
+        //   POST /mandates               → API (create; page handles GET only)
+        //   PATCH /mandates/:id          → API (configure; page handles GET only)
+        //
+        // afterFiles guarantees the page routes are never hijacked. No
+        // page-route-collision risk: the detail page is SSR-hydrated (server
+        // fetches via apiBase()) and the client component issues no GET fetch
+        // to /mandates/:id (wave-7 lesson preserved).
+        {
+          source: '/mandates',
+          destination: `${apiProxyTarget}/mandates`,
+        },
+        {
+          source: '/mandates/:id',
+          destination: `${apiProxyTarget}/mandates/:id`,
+        },
       ],
       beforeFiles: [],
       fallback: [],

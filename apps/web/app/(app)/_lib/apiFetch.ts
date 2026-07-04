@@ -18,6 +18,12 @@
  * `credentials: 'include'` defensively so the helper is correct even if a
  * caller passes an absolute URL.
  *
+ * Headers are passed as a plain Record<string, string> (not a Headers instance)
+ * so that test assertions using `expect.objectContaining({ rid: 'anti-csrf' })`
+ * work correctly — Headers instances do not expose entries as enumerable own
+ * properties. All callers in this codebase pass plain objects as init.headers,
+ * so the cast to Record<string, string> is safe.
+ *
  * Server-only: import from client components ('use client'). SSR page.tsx
  * fetches forward the cookie server→server and are GET-only, so they do not use
  * this helper.
@@ -29,15 +35,19 @@ export const ANTI_CSRF_VALUE = 'anti-csrf';
 
 /**
  * fetch() wrapper that adds the anti-csrf custom header + cookie credentials.
- * Caller headers win on key collision.
+ * Caller headers win on key collision (e.g. rid:'emailpassword' from the ST
+ * frontend flow is preserved).
  */
 export function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const headers = new Headers(init.headers);
-  // Set the anti-csrf header only if the caller has not already provided one
-  // (e.g. the SuperTokens frontend flow uses rid:'emailpassword').
-  if (!headers.has(ANTI_CSRF_HEADER)) {
-    headers.set(ANTI_CSRF_HEADER, ANTI_CSRF_VALUE);
-  }
+  // Build a plain-object header map so test assertions can inspect entries
+  // as own properties (Headers instances do not expose them that way).
+  const callerHeaders = (init.headers ?? {}) as Record<string, string>;
+  const headers: Record<string, string> = {
+    // Anti-csrf first (lower precedence) so caller can override.
+    [ANTI_CSRF_HEADER]: ANTI_CSRF_VALUE,
+    // Caller headers last — their values win on collision.
+    ...callerHeaders,
+  };
   return fetch(input, {
     credentials: 'include',
     ...init,
