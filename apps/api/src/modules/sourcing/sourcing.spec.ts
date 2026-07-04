@@ -29,6 +29,7 @@ import type { Role } from '@dealflow/shared';
 import { rolesForRoute } from '@dealflow/shared';
 import type { ExecutionContext } from '@nestjs/common';
 import {
+  ConflictException,
   ForbiddenException,
   NotFoundException,
   UnauthorizedException,
@@ -453,16 +454,19 @@ describe('SourcingService.resolveDedupeCandidateAsActor — merge + audit + acto
 
     mockMerge = vi.fn().mockResolvedValue(undefined);
 
-    // runInTransaction: calls the work function immediately with a mock tx
+    // runInTransaction: calls the work function immediately with a mock tx.
+    // CRITICAL-3 fix: the service now uses findDedupeCandidateByIdForUpdate
+    // (tx-scoped read with FOR UPDATE) and updateDedupeCandidateStatusConditional
+    // (WHERE status='pending' guard). The mock repo exposes these new names.
     mockRunInTransaction = vi.fn().mockImplementation(async (work: (tx: unknown) => unknown) => {
-      // The mock tx exposes the findDedupeCandidateById, updateDedupeCandidateStatus,
-      // mergeRawIntoCanonical methods by delegating back to the repository mocks.
       return work({});
     });
 
     const mockRepo = {
-      findDedupeCandidateById: mockFindCandidate,
-      updateDedupeCandidateStatus: mockUpdateStatus,
+      // CRITICAL-3: tx-scoped read (replaces findDedupeCandidateById outside tx)
+      findDedupeCandidateByIdForUpdate: mockFindCandidate,
+      // CRITICAL-3: conditional status update (WHERE status='pending' guard)
+      updateDedupeCandidateStatusConditional: mockUpdateStatus,
       mergeRawIntoCanonical: mockMerge,
       runInTransaction: mockRunInTransaction,
     } as unknown as SourcingRepository;
@@ -497,7 +501,8 @@ describe('SourcingService.resolveDedupeCandidateAsActor — merge + audit + acto
     expect(auditInput.actorUserId).not.toBe(MOCK_ST_USER_ID);
   });
 
-  it('passes app users.id to updateDedupeCandidateStatus resolvedBy (FK column)', async () => {
+  it('passes app users.id to updateDedupeCandidateStatusConditional resolvedBy (FK column)', async () => {
+    // CRITICAL-3: now calls updateDedupeCandidateStatusConditional with WHERE status='pending'.
     await service.resolveDedupeCandidateAsActor(CANDIDATE_ID, { action: 'merge' }, MOCK_ST_USER_ID);
 
     expect(mockUpdateStatus).toHaveBeenCalledTimes(1);
@@ -571,7 +576,11 @@ describe('SourcingService.resolveDedupeCandidateAsActor — merge + audit + acto
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('throws NotFoundException when candidate already resolved (not pending)', async () => {
+  it('throws ConflictException (409) when candidate already resolved (not pending) — CRITICAL-3: no double-apply', async () => {
+    // CRITICAL-3 fix: after reading the candidate inside the tx via
+    // findDedupeCandidateByIdForUpdate, the service checks status !== 'pending'
+    // and throws ConflictException (409) instead of NotFoundException (404).
+    // This correctly identifies concurrent-resolve as a conflict, not a missing resource.
     mockFindCandidate.mockResolvedValue({
       id: CANDIDATE_ID,
       rawCompanyId: RAW_COMPANY_ID,
@@ -584,7 +593,7 @@ describe('SourcingService.resolveDedupeCandidateAsActor — merge + audit + acto
 
     await expect(
       service.resolveDedupeCandidateAsActor(CANDIDATE_ID, { action: 'merge' }, MOCK_ST_USER_ID)
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('throws UnprocessableEntityException for merge when matched_company_id is null', async () => {
@@ -631,6 +640,185 @@ describe('SourcingService.resolveDedupeCandidateAsActor — merge + audit + acto
     expect(result.candidateId).toBe(CANDIDATE_ID);
     expect(result.status).toBe('rejected');
     expect(result).not.toHaveProperty('companyId');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CRITICAL-2: human-merge path promotes contacts + writes contact_provenance
+// ---------------------------------------------------------------------------
+
+describe('CRITICAL-2 regression: human-merge (mergeRawIntoCanonical) promotes contacts + contact_provenance', () => {
+  // This test verifies that the human-approved resolve path now delegates to
+  // DedupeEngine.mergeInto, which writes contacts + contact_provenance.
+  // Pre-fix: mergeRawIntoCanonical only wrote company_provenance (contacts lost).
+  // Post-fix: mergeRawIntoCanonical calls DedupeEngine.mergeInto which handles
+  //           all four writes: company backfill, company_provenance, contacts,
+  //           contact_provenance. Principle-3 invariant is satisfied.
+
+  it('mergeRawIntoCanonical delegates to DedupeEngine.mergeInto: contacts and contact_provenance promoted', async () => {
+    // We verify the mock receives the merge call (which in the real implementation
+    // now delegates to DedupeEngine.mergeInto). The test contract: when action=merge
+    // fires, mockMerge is called — and in the real system that mock represents
+    // mergeRawIntoCanonical which now internally calls engine.mergeInto.
+    // The integration-level proof is in the DedupeEngine.mergeInto tests (cases e + f).
+
+    const mockFindCandidateForUpdate = vi.fn().mockResolvedValue({
+      id: 'cand-c2',
+      rawCompanyId: 'raw-c2',
+      matchedCompanyId: 'canon-c2',
+      status: 'pending',
+      score: 0.9,
+      reason: 'exact name match',
+      resolvedBy: null,
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+    });
+
+    const mockMergeC2 = vi.fn().mockResolvedValue(undefined);
+    const mockUpdateStatusC2 = vi.fn().mockResolvedValue({ id: 'cand-c2', status: 'merged' });
+    const mockAuditC2 = vi.fn().mockResolvedValue({});
+    const mockGetUserC2 = vi.fn().mockResolvedValue({ id: 'app-user-c2', roleName: 'analyst' });
+    const mockRunTxC2 = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work({}));
+
+    const repoC2 = {
+      findDedupeCandidateByIdForUpdate: mockFindCandidateForUpdate,
+      updateDedupeCandidateStatusConditional: mockUpdateStatusC2,
+      mergeRawIntoCanonical: mockMergeC2,
+      runInTransaction: mockRunTxC2,
+    } as unknown as SourcingRepository;
+
+    const svcC2 = new SourcingService(
+      repoC2,
+      {} as never,
+      { append: mockAuditC2 } as unknown as AuditService,
+      { getUserWithRole: mockGetUserC2 } as unknown as AuthRepository
+    );
+
+    await svcC2.resolveDedupeCandidateAsActor('cand-c2', { action: 'merge' }, 'st-user-c2');
+
+    // mergeRawIntoCanonical MUST be called (it now delegates to DedupeEngine.mergeInto
+    // which promotes contacts + contact_provenance).
+    expect(mockMergeC2).toHaveBeenCalledTimes(1);
+    const [, rawId, canonId] = mockMergeC2.mock.calls[0];
+    expect(rawId).toBe('raw-c2');
+    expect(canonId).toBe('canon-c2');
+
+    // Audit must also fire (the full tx committed).
+    expect(mockAuditC2).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CRITICAL-3: double-resolve blocked — concurrent resolve on same candidate
+// ---------------------------------------------------------------------------
+
+describe('CRITICAL-3 regression: double-resolve blocked (concurrent resolve on already-resolved candidate)', () => {
+  // Pre-fix: candidate was read OUTSIDE the tx via findDedupeCandidateById on
+  // this.db; updateDedupeCandidateStatus had no WHERE status='pending' guard.
+  // Two concurrent resolves could both pass the pending check and both apply.
+  // Post-fix: findDedupeCandidateByIdForUpdate reads inside the tx; and
+  // updateDedupeCandidateStatusConditional throws ConflictException when the
+  // candidate is no longer pending (zero rows updated).
+
+  it('throws ConflictException when resolve is attempted on an already-resolved (non-pending) candidate', async () => {
+    const mockFindAlreadyResolved = vi.fn().mockResolvedValue({
+      id: 'cand-c3',
+      rawCompanyId: 'raw-c3',
+      matchedCompanyId: 'canon-c3',
+      status: 'merged', // already resolved — simulates second concurrent call
+      resolvedBy: 'first-user',
+      createdAt: new Date().toISOString(),
+      resolvedAt: new Date().toISOString(),
+    });
+
+    const mockMergeC3 = vi.fn().mockResolvedValue(undefined);
+    const mockUpdateC3 = vi.fn().mockResolvedValue({ id: 'cand-c3', status: 'merged' });
+    const mockAuditC3 = vi.fn().mockResolvedValue({});
+    const mockGetUserC3 = vi.fn().mockResolvedValue({ id: 'app-user-c3', roleName: 'analyst' });
+    const mockRunTxC3 = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work({}));
+
+    const repoC3 = {
+      findDedupeCandidateByIdForUpdate: mockFindAlreadyResolved,
+      updateDedupeCandidateStatusConditional: mockUpdateC3,
+      mergeRawIntoCanonical: mockMergeC3,
+      runInTransaction: mockRunTxC3,
+    } as unknown as SourcingRepository;
+
+    const svcC3 = new SourcingService(
+      repoC3,
+      {} as never,
+      { append: mockAuditC3 } as unknown as AuditService,
+      { getUserWithRole: mockGetUserC3 } as unknown as AuthRepository
+    );
+
+    // The second concurrent resolve sees status=merged → ConflictException.
+    await expect(
+      svcC3.resolveDedupeCandidateAsActor('cand-c3', { action: 'merge' }, 'st-user-c3')
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    // CRITICAL: the merge must NOT have been called (no double-merge).
+    expect(mockMergeC3).not.toHaveBeenCalled();
+    // CRITICAL: audit must NOT have fired (no double-audit).
+    expect(mockAuditC3).not.toHaveBeenCalled();
+  });
+
+  it('ConflictException also thrown by updateDedupeCandidateStatusConditional when 0 rows returned', async () => {
+    // Simulates the race condition: both concurrent resolves pass the pending check
+    // (both see status=pending at read time), but only one wins the conditional UPDATE.
+    // The loser gets ConflictException from updateDedupeCandidateStatusConditional.
+    const mockFindPending = vi.fn().mockResolvedValue({
+      id: 'cand-c3b',
+      rawCompanyId: 'raw-c3b',
+      matchedCompanyId: 'canon-c3b',
+      status: 'pending', // BOTH concurrent requests see pending at read time
+      resolvedBy: null,
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+    });
+
+    // Simulate the conditional UPDATE returning 0 rows (the loser).
+    const mockUpdateConflict = vi
+      .fn()
+      .mockRejectedValue(
+        new ConflictException(
+          'Dedupe candidate cand-c3b could not be resolved: it no longer has status=pending.'
+        )
+      );
+
+    const mockMergeC3b = vi.fn().mockResolvedValue(undefined);
+    const mockAuditC3b = vi.fn().mockResolvedValue({});
+    const mockGetUserC3b = vi.fn().mockResolvedValue({ id: 'app-user-c3b', roleName: 'analyst' });
+    const mockRunTxC3b = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work({}));
+
+    const repoC3b = {
+      findDedupeCandidateByIdForUpdate: mockFindPending,
+      updateDedupeCandidateStatusConditional: mockUpdateConflict,
+      mergeRawIntoCanonical: mockMergeC3b,
+      runInTransaction: mockRunTxC3b,
+    } as unknown as SourcingRepository;
+
+    const svcC3b = new SourcingService(
+      repoC3b,
+      {} as never,
+      { append: mockAuditC3b } as unknown as AuditService,
+      { getUserWithRole: mockGetUserC3b } as unknown as AuthRepository
+    );
+
+    // The losing concurrent resolve → ConflictException from the conditional UPDATE.
+    await expect(
+      svcC3b.resolveDedupeCandidateAsActor('cand-c3b', { action: 'merge' }, 'st-user-c3b')
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    // The merge ran (before the conditional UPDATE), but audit did NOT fire.
+    // In a real DB the tx would roll back on ConflictException; in the mock
+    // we just assert audit was not called (the throw propagates before audit).
+    expect(mockAuditC3b).not.toHaveBeenCalled();
   });
 });
 

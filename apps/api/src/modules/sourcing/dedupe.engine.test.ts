@@ -1088,13 +1088,96 @@ describe('(g) candidate-path idempotent — second promoteStaging does NOT add a
 });
 
 // ---------------------------------------------------------------------------
-// Edge case: name-only match (no domain) → auto-merge
+// CRITICAL-1 fix regression: "Acme Co" vs "Acme Inc" — two DIFFERENT companies
+// that previously both normalized to "acme" (via the "co" suffix strip) and
+// were falsely auto-merged. Post-fix: "co" is not stripped, so they normalize
+// to different names and each gets its own canonical.
 // ---------------------------------------------------------------------------
 
-describe('edge case: exact name match, no domain conflict → auto-merge', () => {
-  it('merges into existing canonical by name', async () => {
+describe('CRITICAL-1 regression: "Acme Co" vs "Acme Inc" (no domains) → 2 SEPARATE canonicals, NOT auto-merged', () => {
+  it('produces 2 separate canonical companies (false-positive merge prevented)', async () => {
     _idCounter = 800;
 
+    // Two raw records: no shared domain, different legal suffixes.
+    // Pre-fix: normalizeName("Acme Co") → "acme", normalizeName("Acme Inc") → "acme"
+    //          → Priority-2 auto-merge → 1 canonical (FALSE POSITIVE).
+    // Post-fix: "co" is NOT stripped, so:
+    //          normalizeName("Acme Co") → "acme co"
+    //          normalizeName("Acme Inc") → "acme" (inc IS stripped)
+    //          → no exact name match → each gets its own canonical (or review queue).
+    const raw1 = makeRaw({
+      id: 'raw-81',
+      connectionId: 'conn-1',
+      sourceRecordId: 'src-81',
+      name: 'Acme Co',
+      domain: null,
+      normalizedDomain: null,
+      raw: { contacts: [] },
+    });
+    const raw2 = makeRaw({
+      id: 'raw-82',
+      connectionId: 'conn-1',
+      sourceRecordId: 'src-82',
+      name: 'Acme Inc',
+      domain: null,
+      normalizedDomain: null,
+      raw: { contacts: [] },
+    });
+
+    const store: InMemoryStore = {
+      rawCompanies: [raw1, raw2],
+      companies: [],
+      contacts: [],
+      companyProvenance: [],
+      contactProvenance: [],
+      dedupeCandidates: [],
+    };
+
+    const engine = new DedupeEngine();
+    const tx = buildMockTx(store);
+    const result = await engine.promoteStaging(tx);
+
+    // "Acme Co" normalizes to "acme co"; "Acme Inc" normalizes to "acme".
+    // No domain match, no exact name match between them → 2 separate canonicals.
+    // (If one becomes a candidate matching the other via token-overlap, that is
+    //  also acceptable — the key invariant is NO auto-merge into a single canonical.)
+    const totalDecisions = result.promoted + result.merged + result.candidates;
+    expect(totalDecisions).toBe(2); // both rows processed
+
+    // CRITICAL ASSERTION: must NOT have auto-merged both into 1 canonical.
+    // Either 2 canonicals (both new) OR 1 canonical + 1 candidate (ambiguous)
+    // — both are acceptable. What is NOT acceptable: merged=2 with 1 canonical.
+    if (result.merged > 0) {
+      // One merged into the other — this only happens if token-overlap fires
+      // (e.g. "acme" ⊂ "acme co" → ambiguous). Even then, merged=0 because
+      // token-overlap produces a candidate, not a merge.
+      // If we see merged > 0, the false-positive is still present → fail test.
+      expect(result.merged).toBe(0); // no auto-merge allowed on name-only signal
+    }
+
+    // No auto-merge: neither record should have been merged into the other.
+    expect(result.merged).toBe(0);
+
+    // Verify name normalization: "Acme Co" must NOT normalize to "acme"
+    // (the "co" suffix must be preserved).
+    expect(normalizeName('Acme Co')).toBe('acme co');
+    expect(normalizeName('Acme Inc')).toBe('acme');
+    // These are different normalized names → no false-positive merge.
+    expect(normalizeName('Acme Co')).not.toBe(normalizeName('Acme Inc'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CRITICAL-1 fix: name-only match (no domain on either side) → review queue
+// (NOT auto-merge). This replaces the old "exact name match → auto-merge"
+// behaviour for the name-only (no domain) case.
+// ---------------------------------------------------------------------------
+
+describe('CRITICAL-1 safe posture: exact name match, NO domain on either side → review queue (pending candidate)', () => {
+  it('routes to review queue when name matches but no domain evidence exists', async () => {
+    _idCounter = 820;
+
+    // Existing canonical: "zeta systems" (no domain).
     const existingCanonical = makeCanonical({
       id: 'canon-zeta',
       normalizedDomain: null,
@@ -1103,6 +1186,8 @@ describe('edge case: exact name match, no domain conflict → auto-merge', () =>
       name: 'Zeta Systems',
     });
 
+    // Raw: "Zeta Systems, Inc." → normalizes to "zeta systems" (inc stripped).
+    // No domain on either side → name-only signal → review queue.
     const rawRow = makeRaw({
       id: 'raw-80',
       connectionId: 'conn-1',
@@ -1126,14 +1211,120 @@ describe('edge case: exact name match, no domain conflict → auto-merge', () =>
     const tx = buildMockTx(store);
     const result = await engine.promoteStaging(tx);
 
-    // Still 1 canonical company (merged, not new)
-    expect(store.companies).toHaveLength(1);
-    expect(result.merged).toBe(1);
+    // CRITICAL-1 safe posture: name-only match → review queue, NOT auto-merge.
+    expect(result.merged).toBe(0);
     expect(result.promoted).toBe(0);
+    expect(result.candidates).toBe(1);
 
-    // company_provenance written for the merged raw row
-    expect(store.companyProvenance).toHaveLength(1);
-    expect(store.companyProvenance[0]['rawCompanyId']).toBe('raw-80');
-    expect(store.companyProvenance[0]['companyId']).toBe('canon-zeta');
+    // A pending dedupe_candidate must be written pointing to the existing canonical.
+    expect(store.dedupeCandidates).toHaveLength(1);
+    expect(store.dedupeCandidates[0]['status']).toBe('pending');
+    expect(store.dedupeCandidates[0]['rawCompanyId']).toBe('raw-80');
+    expect(store.dedupeCandidates[0]['matchedCompanyId']).toBe('canon-zeta');
+
+    // Canonical universe unchanged — no new canonical created, no merge applied.
+    expect(store.companies).toHaveLength(1);
+    expect(store.companyProvenance).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CRITICAL-4 regression: same-name + conflicting-domain → pending candidate
+// (NOT silently a new canonical via Priority 4).
+//
+// Pre-fix: isAmbiguousNameMatch returns false for exact names, so
+// findAmbiguousCandidate found nothing → fell to Priority 4 → new canonical.
+// Post-fix: name-match + domain-conflict is intercepted at Priority 2 and
+// explicitly routes to review queue before the ambiguous scan.
+// ---------------------------------------------------------------------------
+
+describe('CRITICAL-4 regression: exact name match + conflicting domains → pending candidate (NOT new canonical)', () => {
+  it('inserts a pending candidate and does NOT create a new canonical', async () => {
+    _idCounter = 850;
+
+    // Existing canonical: "acme" with domain acme.com
+    const existingCanonical = makeCanonical({
+      id: 'canon-acme-c4',
+      normalizedDomain: 'acme.com',
+      domain: 'acme.com',
+      normalizedName: 'acme',
+      name: 'Acme',
+    });
+
+    // Raw: same normalized name "acme" (via "Acme Inc" → strip inc → "acme")
+    // but DIFFERENT domain → domain conflict.
+    const rawRow = makeRaw({
+      id: 'raw-85',
+      connectionId: 'conn-1',
+      sourceRecordId: 'src-85',
+      name: 'Acme Inc',
+      domain: 'acme-different.com',
+      normalizedDomain: 'acme-different.com',
+      raw: { contacts: [] },
+    });
+
+    const store: InMemoryStore = {
+      rawCompanies: [rawRow],
+      companies: [existingCanonical],
+      contacts: [],
+      companyProvenance: [],
+      contactProvenance: [],
+      dedupeCandidates: [],
+    };
+
+    const engine = new DedupeEngine();
+    const tx = buildMockTx(store);
+    const result = await engine.promoteStaging(tx);
+
+    // CRITICAL-4: must produce a pending candidate, NOT a new canonical.
+    expect(result.candidates).toBe(1);
+    expect(result.promoted).toBe(0);
+    expect(result.merged).toBe(0);
+
+    // Pending candidate written
+    expect(store.dedupeCandidates).toHaveLength(1);
+    expect(store.dedupeCandidates[0]['status']).toBe('pending');
+    expect(store.dedupeCandidates[0]['rawCompanyId']).toBe('raw-85');
+    expect(store.dedupeCandidates[0]['matchedCompanyId']).toBe('canon-acme-c4');
+
+    // Canonical universe unchanged — no new canonical silently created.
+    expect(store.companies).toHaveLength(1);
+    expect(store.companyProvenance).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// INFO: normalizeDomain — trailing FQDN dot and port stripping
+// ---------------------------------------------------------------------------
+
+describe('normalizeDomain INFO: trailing dot (FQDN) and port stripping', () => {
+  it('strips trailing FQDN dot: "acme.com." → "acme.com"', () => {
+    expect(normalizeDomain('acme.com.')).toBe('acme.com');
+  });
+
+  it('strips trailing FQDN dot with protocol and www: "https://www.acme.com." → "acme.com"', () => {
+    expect(normalizeDomain('https://www.acme.com.')).toBe('acme.com');
+  });
+
+  it('strips port suffix: "acme.com:443" → "acme.com"', () => {
+    expect(normalizeDomain('acme.com:443')).toBe('acme.com');
+  });
+
+  it('strips port suffix: "acme.com:8080" → "acme.com"', () => {
+    expect(normalizeDomain('acme.com:8080')).toBe('acme.com');
+  });
+
+  it('strips both port and trailing dot: "acme.com.:443" → impossible (dot before colon; strips dot last)', () => {
+    // In practice FQDN dot appears at end; port appears before path.
+    // "acme.com.:443" is not a real URL; test individual combinations only.
+    expect(normalizeDomain('https://www.acme.com:443/path')).toBe('acme.com');
+  });
+
+  it('two distinct domains differing only by trailing dot fold to same canonical', () => {
+    expect(normalizeDomain('acme.com')).toBe(normalizeDomain('acme.com.'));
+  });
+
+  it('two domains differing only by port fold to same canonical', () => {
+    expect(normalizeDomain('acme.com:443')).toBe(normalizeDomain('acme.com'));
   });
 });

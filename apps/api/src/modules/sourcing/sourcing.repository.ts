@@ -16,7 +16,7 @@
  */
 
 import type { CompaniesListFilter } from '@dealflow/shared';
-import { Inject, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { and, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
@@ -28,6 +28,7 @@ import {
   dedupeCandidates,
   rawCompanies,
 } from '../../db/schema/sourcing';
+import { DedupeEngine, normalizeDomain, normalizeName } from './dedupe.engine';
 
 export type ConnectionRow = typeof dataSourceConnections.$inferSelect;
 export type CompanyRow = typeof companies.$inferSelect;
@@ -227,11 +228,16 @@ export class SourcingRepository {
 
   /**
    * mergeRawIntoCanonical — promotes the raw record into the matched canonical
-   * company: backfills null canonical fields and writes company_provenance.
-   * Called on dedupe-resolve action='merge'.
+   * company: backfills null canonical fields, writes company_provenance, and
+   * promotes contacts + contact_provenance.
    *
-   * Uses ON CONFLICT DO NOTHING on company_provenance to be safe against
-   * duplicate provenance from a retry.
+   * CRITICAL-2 fix: previously this method only wrote company_provenance and
+   * never promoted contacts, violating principle-3 ("every canonical contact
+   * has ≥1 contact_provenance"). Now it delegates to DedupeEngine.mergeInto
+   * so the auto-merge path and the human-resolve path share ONE implementation
+   * with no drift.
+   *
+   * Called on dedupe-resolve action='merge' (human-approved path).
    */
   async mergeRawIntoCanonical(
     tx: Tx,
@@ -262,33 +268,78 @@ export class SourcingRepository {
       );
     }
 
-    // Backfill null canonical fields from raw (first-writer-wins for non-null fields)
-    const contributed: Record<string, boolean> = {};
-    const updates: Partial<typeof companies.$inferInsert> = {};
+    // Delegate to DedupeEngine.mergeInto which writes:
+    //   1. UPDATE companies (backfill nulls only)
+    //   2. company_provenance (idempotent: ON CONFLICT DO NOTHING)
+    //   3. contacts upserted by normalized_email (idempotent)
+    //   4. contact_provenance for every contact (idempotent: ON CONFLICT DO NOTHING)
+    // This is the SAME implementation used by the auto-merge path, ensuring no
+    // drift between machine-promoted and human-approved merges.
+    const engine = new DedupeEngine();
+    const normDomain = normalizeDomain(raw.domain);
+    const normName = normalizeName(raw.name);
+    await engine.mergeInto(tx, raw, canon, normDomain, normName);
+  }
 
-    if (canon.domain === null && raw.domain !== null) {
-      updates.domain = raw.domain;
-      contributed.domain = true;
-    }
-    if (canon.normalizedDomain === null && raw.normalizedDomain !== null) {
-      updates.normalizedDomain = raw.normalizedDomain;
-      contributed.normalizedDomain = true;
-    }
+  /**
+   * findDedupeCandidateByIdForUpdate — reads a dedupe_candidate inside a
+   * transaction with a SELECT ... FOR UPDATE lock.
+   *
+   * CRITICAL-3 fix: the candidate read in resolveDedupeCandidate must occur
+   * INSIDE the transaction (not on this.db before the tx opens). Using FOR UPDATE
+   * ensures that two concurrent resolves on the same candidate serialize at the
+   * DB level — the second waits until the first commits, then sees the updated
+   * status and throws ConflictException.
+   *
+   * MUST be called within the caller's transaction (tx).
+   */
+  async findDedupeCandidateByIdForUpdate(tx: Tx, id: string): Promise<DedupeCandidateRow | null> {
+    const rows = await tx
+      .select()
+      .from(dedupeCandidates)
+      .where(eq(dedupeCandidates.id, id))
+      .for('update')
+      .limit(1);
+    return rows[0] ?? null;
+  }
 
-    if (Object.keys(updates).length > 0) {
-      await tx.update(companies).set(updates).where(eq(companies.id, canonicalCompanyId));
-    }
-
-    // Write company_provenance (idempotent: ON CONFLICT DO NOTHING)
-    await tx
-      .insert(companyProvenance)
-      .values({
-        companyId: canonicalCompanyId,
-        rawCompanyId,
-        connectionId: raw.connectionId,
-        contributedFields: Object.keys(contributed).length > 0 ? contributed : null,
+  /**
+   * updateDedupeCandidateStatusConditional — atomically transitions a candidate
+   * from pending → merged|rejected, but ONLY if it is still pending.
+   *
+   * CRITICAL-3 fix: the WHERE status='pending' guard makes this a single-winner
+   * operation. If two concurrent resolves both pass the read check, only one will
+   * win this UPDATE (the first to commit). The loser gets 0 rows returned →
+   * ConflictException is thrown, preventing double-merge + double-audit.
+   *
+   * MUST be called within the caller's transaction (tx) for atomicity with audit.
+   */
+  async updateDedupeCandidateStatusConditional(
+    tx: Tx,
+    candidateId: string,
+    status: 'merged' | 'rejected',
+    resolvedBy: string
+  ): Promise<DedupeCandidateRow> {
+    const rows = await tx
+      .update(dedupeCandidates)
+      .set({
+        status,
+        resolvedBy,
+        resolvedAt: sql`now()`,
       })
-      .onConflictDoNothing();
+      .where(and(eq(dedupeCandidates.id, candidateId), eq(dedupeCandidates.status, 'pending')))
+      .returning();
+    const row = rows[0];
+    if (!row) {
+      // Zero rows updated: either the candidate doesn't exist OR it was already
+      // resolved by a concurrent request. In both cases, throw ConflictException
+      // so the caller does not proceed with audit (no double-merge).
+      throw new ConflictException(
+        `Dedupe candidate ${candidateId} could not be resolved: it no longer has status=pending. ` +
+          'A concurrent resolve may have already processed it.'
+      );
+    }
+    return row;
   }
 
   /** Expose the db handle for opening transactions in SourcingService. */

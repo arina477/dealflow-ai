@@ -34,6 +34,7 @@ import type {
   SyncSummary,
 } from '@dealflow/shared';
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -184,14 +185,25 @@ export class SourcingService {
     actorRole: string
   ): Promise<{ candidateId: string; status: 'merged' | 'rejected'; companyId?: string }> {
     return this.repository.runInTransaction(async (tx: Tx) => {
-      // Load + validate candidate
-      const candidate = await this.repository.findDedupeCandidateById(candidateId);
+      // CRITICAL-3 fix: read the candidate INSIDE the transaction with a
+      // conditional-update guard so that two concurrent resolves cannot both
+      // see "pending" and both apply the merge + audit.
+      //
+      // The pattern: read inside tx (so the read participates in the tx snapshot),
+      // then make the status transition atomic+single-winner via the conditional
+      // UPDATE in updateDedupeCandidateStatus (WHERE status='pending' guard).
+      // If two concurrent requests both read pending, only one will win the
+      // UPDATE (the loser gets 0 rows returned → ConflictException).
+      const candidate = await this.repository.findDedupeCandidateByIdForUpdate(tx, candidateId);
       if (!candidate) {
         throw new NotFoundException(`Dedupe candidate ${candidateId} not found`);
       }
       if (candidate.status !== 'pending') {
-        // Already resolved — 404/409 per spec (no double-apply)
-        throw new NotFoundException(
+        // Already resolved — report as conflict (no double-apply).
+        // Using ConflictException (409) for the concurrent-resolve case, which is
+        // more semantically accurate than 404 here. The outer resolveDedupeCandidateAsActor
+        // retains NotFoundException for the "candidate already resolved at read time" case.
+        throw new ConflictException(
           `Dedupe candidate ${candidateId} is already resolved (status=${candidate.status})`
         );
       }
@@ -207,7 +219,7 @@ export class SourcingService {
           );
         }
 
-        // Perform the merge: raw → canonical + provenance
+        // Perform the merge: raw → canonical + provenance + contacts + contact_provenance
         await this.repository.mergeRawIntoCanonical(
           tx,
           candidate.rawCompanyId,
@@ -221,8 +233,9 @@ export class SourcingService {
       // on a future dedupe pass that uses different thresholds, or it stays as
       // a staging-only record. No action taken on the raw row here.
 
-      // Update candidate status (merge or reject)
-      await this.repository.updateDedupeCandidateStatus(
+      // Update candidate status with WHERE status='pending' guard (single-winner).
+      // If ZERO rows returned → another concurrent resolve already won → throw.
+      await this.repository.updateDedupeCandidateStatusConditional(
         tx,
         candidateId,
         input.action === 'merge' ? 'merged' : 'rejected',

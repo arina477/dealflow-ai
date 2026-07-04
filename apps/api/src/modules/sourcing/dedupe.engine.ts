@@ -22,14 +22,21 @@
  *   2. Strip protocol prefix (http://, https://, ftp://).
  *   3. Strip leading www.
  *   4. Strip path/query/fragment (keep only the host part).
- *   5. Trim whitespace.
+ *   5. Strip trailing FQDN dot (e.g. "acme.com." → "acme.com").
+ *   6. Strip port suffix (e.g. "acme.com:443" → "acme.com").
+ *   7. Trim whitespace.
  *   Returns null if the result is empty.
  *
  * normalizeName(name):
  *   1. Lowercase, trim.
  *   2. Collapse internal whitespace to single space.
- *   3. Strip common corporate suffixes: inc, llc, ltd, corp, co, plc, gmbh,
- *      limited, incorporated (word-boundary match, trailing punctuation stripped).
+ *   3. Strip common corporate suffixes: inc, llc, ltd, corp, plc, gmbh,
+ *      limited, incorporated, lp, llp, sa, ag, bv, nv
+ *      (word-boundary match, trailing punctuation stripped).
+ *      NOTE: "co" is deliberately NOT in this list — it is too ambiguous
+ *      (means both "company" and appears as a common word ending). Keeping
+ *      "co" would cause "Acme Co" and "Acme Inc" to both normalize to "acme"
+ *      and trigger a false-positive auto-merge.
  *   4. Strip remaining punctuation (non-alphanumeric, non-space).
  *   5. Trim again.
  *   Returns null if the result is empty.
@@ -46,16 +53,27 @@
  *     non-null canonical fields). Write company_provenance + contact_provenance.
  *     Do NOT create a second canonical company.
  *
- * Priority 2 — NAME MATCH (auto-merge, medium-confidence):
- *   normalized name (both non-null) is an exact string match AND no conflicting
- *   domain (i.e., neither record has a domain OR both have the same domain).
- *   → Auto-merge (same semantics as domain match).
+ * Priority 2 — NAME MATCH + DOMAIN AGREEMENT (auto-merge, medium-confidence):
+ *   normalized name (both non-null) is an exact string match AND the domains
+ *   AGREE (both null, or both non-null and equal). Domain agreement is required
+ *   for auto-merge; a name-only match (no domain on either record) is NOT
+ *   sufficient — it routes to the review queue (Priority 3a below).
  *
- * Priority 3 — AMBIGUOUS (below auto-merge threshold → review queue):
- *   Raw has a normalized name that partially overlaps with a canonical name
- *   (token-overlap heuristic below the exact-match bar), OR name matches but
- *   domains conflict. → INSERT dedupe_candidate (status=pending). Do NOT
- *   auto-merge. Do NOT create a new canonical.
+ *   SAFETY RATIONALE: "co" is not a stripped suffix (see normalizeName), but
+ *   even with correct suffix-stripping a name-only signal is insufficient for
+ *   auto-merge: two completely different companies can share a base token. A
+ *   domain match (Priority 1) or domain+name agreement (Priority 2) is the only
+ *   high-confidence auto-merge path.
+ *
+ * Priority 3 — REVIEW QUEUE (below auto-merge threshold → pending candidate):
+ *   3a. Exact name match with NO domain on either record (name-only signal,
+ *       no domain evidence to confirm). → INSERT dedupe_candidate (pending).
+ *       Do NOT auto-merge. Do NOT create a new canonical.
+ *   3b. Exact name match but domains CONFLICT. → INSERT dedupe_candidate
+ *       (pending). Do NOT auto-merge. Do NOT create a new canonical.
+ *   3c. Raw has a normalized name that partially overlaps with a canonical name
+ *       (token-overlap heuristic below the exact-match bar). → INSERT
+ *       dedupe_candidate (status=pending).
  *   The partial-token ambiguity check uses: normalized name token set overlap
  *   (all tokens of the shorter name appear in the longer name) but is NOT an
  *   exact match → ambiguous.
@@ -149,6 +167,10 @@ export function normalizeDomain(raw: string | null | undefined): string | null {
   if (queryIdx !== -1) d = d.slice(0, queryIdx);
   const fragIdx = d.indexOf('#');
   if (fragIdx !== -1) d = d.slice(0, fragIdx);
+  // Strip port suffix (e.g. "acme.com:443" → "acme.com")
+  d = d.replace(/:[0-9]+$/, '');
+  // Strip trailing FQDN dot (e.g. "acme.com." → "acme.com")
+  d = d.replace(/\.$/, '');
   d = d.trim();
   return d.length > 0 ? d : null;
 }
@@ -162,6 +184,10 @@ export function normalizeDomain(raw: string | null | undefined): string | null {
  *   Pass 1: remove punctuation (commas, dots, etc.) so "Corp, Inc." →
  *           "Corp Inc" before suffix matching (handles "Acme Corp, Inc.").
  *   Pass 2: strip corporate suffixes from end, repeatedly until stable.
+ *           "co" is NOT in the suffix set — it is dangerously ambiguous
+ *           (common word ending AND abbreviation for "company"). Stripping it
+ *           would merge "Acme Co" with "Acme Inc" (two different companies)
+ *           after both normalize to "acme" (CRITICAL-1 false-positive fix).
  *   Pass 3: strip any remaining non-alphanumeric/space chars + re-collapse.
  */
 export function normalizeName(raw: string | null | undefined): string | null {
@@ -177,8 +203,12 @@ export function normalizeName(raw: string | null | undefined): string | null {
   // Matches either a space-prefixed suffix or (for standalone single-word inputs)
   // the full string being just a suffix.
   // Word-boundary match at end of string (after punctuation is already removed).
+  // NOTE: "co" is intentionally excluded from this set — it is dangerously
+  // ambiguous (appears as both a corporate suffix AND a common word ending).
+  // Including "co" caused "Acme Co" and "Acme Inc" to both normalize to "acme",
+  // producing false-positive auto-merges of two different companies (CRITICAL-1).
   const CORP_SUFFIX_RE =
-    /(?:^|\s)(inc|llc|ltd|corp|co|plc|gmbh|limited|incorporated|lp|llp|sa|ag|bv|nv)$/;
+    /(?:^|\s)(inc|llc|ltd|corp|plc|gmbh|limited|incorporated|lp|llp|sa|ag|bv|nv)$/;
   let prev = '';
   while (prev !== n) {
     prev = n;
@@ -361,25 +391,74 @@ export class DedupeEngine {
       }
     }
 
-    // ── Priority 2: Name match (exact, no conflicting domain) ─────────────
+    // ── Priority 2: Name match — only auto-merge when domains AGREE ──────
+    //
+    // SAFETY RULE: name-only signal (no domain on either record) is NOT
+    // sufficient for auto-merge — route to review queue (Priority 3a).
+    // Domain conflict also routes to review queue (Priority 3b).
+    // Only when BOTH records have non-null domains AND those domains match
+    // (or BOTH records have null domains AND we have domain agreement via
+    // the domain-match path already handled at Priority 1) do we auto-merge.
+    //
+    // In practice: if we reach Priority 2, the raw record has no domain match
+    // at Priority 1 (either raw has no domain, or no canonical shares its
+    // domain). So the only safe auto-merge case here is when BOTH the raw
+    // record AND the name-matched canonical have null domains AND we decide
+    // that domain-evidence is not available — but we now require domain
+    // agreement, which means both-null does NOT satisfy "domains agree" for
+    // auto-merge purposes (we cannot confirm they are the same company).
+    //
+    // Therefore: exact name match → always review queue unless domain evidence
+    // positively confirms the match (i.e. both have the same non-null domain,
+    // which would have been caught at Priority 1 already). Since Priority 1
+    // already handles domain-match auto-merge, any name-match reaching here
+    // is a name-only or name+domain-conflict case → review queue.
     if (normName !== null) {
       const nameMatch = await this.findCanonicalByName(tx, normName);
       if (nameMatch !== null) {
-        // Verify no domain conflict: if both have domains, they must match
+        // Compute domain relationship for the candidate reason string.
         const canonNormDomain = normalizeDomain(nameMatch.domain);
         const domainConflict =
           normDomain !== null && canonNormDomain !== null && normDomain !== canonNormDomain;
+        const bothHaveDomains = normDomain !== null && canonNormDomain !== null;
+        const domainsAgree = bothHaveDomains && normDomain === canonNormDomain;
 
-        if (!domainConflict) {
-          // Exact name match, no conflicting domain → auto-merge
+        if (domainsAgree) {
+          // Both records have the same non-null domain — domains positively agree.
+          // This supplements Priority 1 for cases where the canonical's
+          // normalized_domain column was null but its domain field normalizes to match.
           await this.mergeInto(tx, raw, nameMatch, normDomain, normName);
           return { kind: 'merged', companyId: nameMatch.id };
         }
-        // Domain conflict → ambiguous → fall through to candidate check
+
+        // Name match but domains do NOT positively agree (name-only OR conflict)
+        // → route to review queue immediately. Do NOT fall through to the
+        // token-overlap scan (Priority 3c) — exact name match IS the evidence;
+        // the token-overlap scan is for non-exact partial matches only.
+        //
+        // CRITICAL-1 fix: name-only (no domain) → review queue, not auto-merge.
+        // CRITICAL-4 fix: name match + domain conflict → review queue (was
+        //   silently falling to Priority 4 new-canonical because
+        //   isAmbiguousNameMatch returns false for exact names).
+        const reason = domainConflict
+          ? `Exact name match but conflicting domains: "${normName}" raw=${normDomain ?? 'none'} canonical=${canonNormDomain ?? 'none'}`
+          : `Exact name match with no domain evidence to confirm: "${normName}" (name-only signal — requires human review)`;
+
+        const candidateId = await this.insertDedupeCandidate(
+          tx,
+          raw.id,
+          nameMatch.id,
+          domainConflict ? 0.5 : 0.7,
+          reason
+        );
+        return { kind: 'candidate', candidateId };
       }
     }
 
     // ── Priority 3: Ambiguous (token-overlap heuristic) ───────────────────
+    // Only reached when there is NO exact name match in the canonical tier.
+    // isAmbiguousNameMatch returns false for exact matches, so this correctly
+    // handles partial-overlap only (e.g. "Acme" vs "Acme Holdings").
     if (normName !== null) {
       const candidate = await this.findAmbiguousCandidate(tx, normName);
       if (candidate !== null) {
@@ -453,11 +532,17 @@ export class DedupeEngine {
   }
 
   // ---------------------------------------------------------------------------
-  // Internal: merge into existing canonical
+  // Merge into existing canonical (public so the human-resolve path can delegate)
   // ---------------------------------------------------------------------------
 
   /**
    * mergeInto — merges a raw row into an existing canonical company.
+   *
+   * Exposed as public so that SourcingRepository.mergeRawIntoCanonical (the
+   * human-approved dedupe-resolve path) delegates here rather than re-implementing
+   * the merge logic. This ensures both auto-merge and human-merge share ONE
+   * implementation (no drift), satisfying principle-3 (every canonical contact
+   * has ≥1 contact_provenance) for the human-merge path (CRITICAL-2 fix).
    *
    * Merge semantics:
    *   - Canonical keeps its identity (id stable).
@@ -470,7 +555,7 @@ export class DedupeEngine {
    *   2. company_provenance row (idempotent: ON CONFLICT DO NOTHING).
    *   3. For each contact in raw.raw.contacts: upsert contact + contact_provenance.
    */
-  private async mergeInto(
+  async mergeInto(
     tx: Tx,
     raw: RawRow,
     canonical: CanonicalCompany,
@@ -726,10 +811,22 @@ export class DedupeEngine {
 
     // Conflict fired: a pending candidate for this (raw, canonical) pair already exists.
     // Re-read it to return its id (the caller records the candidateId in PromotionResult).
+    // Scope the re-read to the partial-unique predicate:
+    //   UNIQUE(raw_company_id, matched_company_id) WHERE status='pending'
+    // so we retrieve the specific pending candidate for this (raw, canonical) pair,
+    // not just any candidate for this rawCompanyId (which could be a different pair).
     const existing = await tx
       .select({ id: dedupeCandidates.id })
       .from(dedupeCandidates)
-      .where(eq(dedupeCandidates.rawCompanyId, rawCompanyId))
+      .where(
+        and(
+          eq(dedupeCandidates.rawCompanyId, rawCompanyId),
+          matchedCompanyId !== null
+            ? eq(dedupeCandidates.matchedCompanyId, matchedCompanyId)
+            : sql`${dedupeCandidates.matchedCompanyId} IS NULL`,
+          eq(dedupeCandidates.status, 'pending')
+        )
+      )
       .limit(1);
 
     if (existing.length > 0 && existing[0] !== undefined) {
