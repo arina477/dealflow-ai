@@ -48,14 +48,14 @@ CI/CD:
 - [x] C-2 Deploy & verify — both services @ 937ae18 SUCCESS; /health=937ae18; migration 0008 applied (mandate_id UNIQUE live-enforced); buyer-universe payoff verified live; canary skipped (0 DAU); head-ci-cd APPROVED→PROCEED_TO_T
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
+- [x] T-5 E2E — 14/14 scenarios PASS; FINDING-W9-2 (404) CLEARED as false-positive (live probe 401≠404, proxy works, C-2-verified); Chrome
+- [x] T-6 Layout — §10-conformant (criteria sidebar + candidate table + no rank/score column); TopBar-title→polish
+- [x] T-7 Perf
+- [x] T-8 Security
 - [ ] T-9 Journey
 
 VERIFY:

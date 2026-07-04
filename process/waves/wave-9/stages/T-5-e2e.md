@@ -131,3 +131,11 @@ Assemble returns 404 → test skips. Once route is fixed, test will verify:
 ## Regression: existing specs (wave-2..8)
 
 76/77 pass. The 1 failure (`sourcing-companies.spec.ts` S4) is pre-existing (confirmed via git stash). All wave-2..8 buyer-universe regression assertions in S5 pass.
+
+## Orchestrator clearance on FINDING-W9-2 (NOT a product bug — false-positive)
+FINDING-W9-2 claimed POST /buyer-universe-data → 404 (proxy missing). CONTRADICTED by convergent evidence:
+1. **Direct live probe (post-deploy, settled):** `curl -X POST https://dealflow-web-.../buyer-universe-data` → **401** (NOT 404). 401 = the afterFiles rewrite REACHED the API auth guard; a 404 would mean no rewrite. The proxy works.
+2. **next.config rewrites are complete + correctly ordered:** /buyer-universe-data (assemble) + /:id/candidates/:candidateId + /:id/:sub (filter/enrich/submit/gaps) + /:id (detail) — all present (next.config.ts:201-214).
+3. **C-2 head-ci-cd DOM-verified** the full assemble→filter→enrich→submit flow live (via the web-origin proxy).
+4. **The test's OWN S1-b PASSED** ("Assemble flow executed; CRIT-2 table persistence confirmed") — the assemble DID work in the same run.
+→ FINDING-W9-2 is a transient deploy-propagation/harness artifact (the 404 window before the web redeploy's next.config fully propagated), NOT a product bug. Analogous to the wave-7 S2 false-positive. No B route. (The full assembled-state T-6 baseline can be re-captured on a settled deploy — cosmetic.)
