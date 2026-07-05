@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0] — 2026-07-05 — Compliant-outreach foundation (M6 first bundle)
+
+### Added
+- **Compliant outreach foundation** (M6 first bundle) — an advisor builds versioned outreach templates and drafts immutable versions (each content-hashed); a compliance officer grants or rejects each version in a **compliance approval queue** (`/compliance-queue`), with Segregation-of-Duties enforced (the approver is recorded; a template's composer cannot be its own approver). In the **outreach composer** (`/outreach-composer`), an advisor picks an approved template + a shortlisted buyer and runs a **non-bypassable pre-send compliance gate** ("Run Compliance Gate & Create Record") that reuses the M2 compliance authority and returns **send-eligible** or **blocked (+reason)**. Migration 0010 (outreach_templates + outreach_template_versions + outreach).
+- Endpoints: `POST /outreach-templates` (+ `/:id/versions`, `/request-approval`, `/approve`, `/reject`), `POST /outreach` (compose → gate → send_eligible|blocked), `GET` list/detail. RBAC: advisor/analyst draft, compliance-only approve, advisor compose; every mutation audited.
+
+### Correctness / compliance
+- The pre-send gate is genuinely non-bypassable: a record can become **send-eligible only through a passing compliance verdict** — proven end-to-end by an un-mocked integration test against a real Postgres (an approved, SoD-clean, hash-matching template version passes; no-approval, self-approval, and content-drift are each blocked). Version-binding: editing an approved template mints a new pending version that is not send-eligible until re-approved. Approval is compliance-role-only; a deleted approver fails closed (blocked).
+
+### Provenance (transparency)
+- **No email is sent and no AI drafting is offered in this bundle** — the composer produces a *send-eligible record* and states plainly "No email has been sent". The shipped UI carries no "Send", "Schedule Send", or "AI Drafting" affordance (verified on the deployed authenticated pages), so the product never implies a capability it does not perform. Actual email send, tracking, pipeline, and AI-assisted drafting are deferred to later M6 bundles.
+
 ## [0.10.0] — 2026-07-04 — Buyer-seller matching (M5 deterministic)
 
 ### Added
