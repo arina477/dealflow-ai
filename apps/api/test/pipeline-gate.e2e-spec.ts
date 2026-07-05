@@ -1,0 +1,599 @@
+/**
+ * Pipeline Gate Integration Tests — B-6 REWORK mandatory real-DB rollback proofs.
+ *
+ * WHY THIS FILE EXISTS (the headline finding):
+ *   pipeline.spec.ts test #15 asserts "audit throws mid-txn → no orphan pipeline/
+ *   pipeline_events row" with a vi.fn() passthrough runInTransaction. That mock
+ *   bypasses the real db.transaction() ROLLBACK path entirely — the pipeline row
+ *   was never inserted in the real DB, so the "no orphan" assertion proved nothing
+ *   about the real transaction boundary.
+ *
+ * WHAT THIS SUITE PROVES (real services, real DB):
+ *   1. enroll rollback: AuditService.append throws inside the real transaction →
+ *      NO pipeline row AND NO pipeline_events row persists (real ROLLBACK).
+ *   2. addNote rollback: AuditService.append throws inside the real transaction →
+ *      NO 'note' pipeline_events row persists (the exactly-one-or-none invariant
+ *      against the real txn — zero orphan events without an audit entry).
+ *   3. Happy path (real txn commit): enroll an eligible deal → 1 pipeline row +
+ *      1 enrolled event + 1 audit row; transition → 1 stage_changed event + 1
+ *      audit; addNote → 1 note event + 1 audit. Audit_log_entries count matches.
+ *   4. Idempotent enroll: 2nd enroll of the same deal → ConflictException (409),
+ *      no 2nd pipeline row (real partial-unique fires).
+ *
+ * AUDIT-THROW MECHANISM:
+ *   AuditService is instantiated with the real AuditKeyring + AuditRepository but
+ *   its append() method is spied on AFTER construction so the spy can throw for
+ *   rollback tests and delegate to the real implementation for happy-path tests.
+ *   Because append() is called INSIDE repository.runInTransaction (= the real
+ *   db.transaction()), throwing from the spy causes the real Postgres transaction
+ *   to ROLLBACK — proving the business writes (INSERT pipeline, INSERT
+ *   pipeline_events) are NOT committed when the audit fails.
+ *
+ * GUARD: suite is skipped when TEST_DATABASE_URL is unset or DB unreachable.
+ * All lazy imports are inside beforeAll so vitest collection succeeds without a
+ * live DB.
+ *
+ * ISOLATION: unique UUID namespaces per test prevent cross-test interference.
+ *   Rollback tests self-clean (no rows committed). Happy-path and idempotent
+ *   tests insert real rows; afterAll deletes them via CASCADE on users deletion
+ *   (pipeline rows ON DELETE RESTRICT on created_by, so we delete pipeline rows
+ *   first, then the user/mandate chain).
+ */
+
+import path from 'node:path';
+import { sql } from 'drizzle-orm';
+import { Pool } from 'pg';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
+// ── Guard ───────────────────────────────────────────────────────────────────
+const TEST_DB_URL = process.env.TEST_DATABASE_URL;
+const shouldSkip = !TEST_DB_URL || TEST_DB_URL.trim() === '';
+
+if (shouldSkip) {
+  console.info(
+    '[pipeline-gate integration] TEST_DATABASE_URL is not set — suite SKIPPED. ' +
+      'Set TEST_DATABASE_URL to a reachable Postgres instance with migrations applied.'
+  );
+}
+
+async function isDbReachable(url: string): Promise<boolean> {
+  const pool = new Pool({ connectionString: url, connectionTimeoutMillis: 3000 });
+  try {
+    await pool.query('SELECT 1');
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await pool.end();
+  }
+}
+
+// ── Module-level lazy handles (populated in beforeAll) ─────────────────────
+// biome-ignore lint/suspicious/noExplicitAny: lazy DB handle populated in beforeAll
+let db: any;
+let dbReachable = false;
+
+// ── UUID namespaces — unique per suite file to avoid cross-suite conflicts ──
+//
+// Pattern: <suite-prefix>-<role-slot>-<sequence>. All IDs are fixed so we can
+// reliably delete them in afterAll.
+//
+// Suite prefix: 'e2e-pg-' (pipeline gate e2e).
+const ADVISOR_ID = 'e2e0pg00-0000-0000-0001-000000000001';
+const ST_ADVISOR_ID = 'st_e2e0pg00_advisor';
+
+const MANDATE_ID = 'e2e0pg00-0000-0000-0002-000000000001';
+const DISCLAIMER_ID = 'e2e0pg00-dddd-0000-0003-000000000001';
+const TEMPLATE_ID = 'e2e0pg00-0000-0000-0004-000000000001';
+const VERSION_ID = 'e2e0pg00-0000-0000-0005-000000000001';
+const BUYER_UNIVERSE_COMPANY_ID = 'e2e0pg00-0000-0000-0006-000000000001'; // companies.id
+const BUYER_UNIVERSE_ID = 'e2e0pg00-0000-0000-0007-000000000001';
+const BUYER_UNIVERSE_CANDIDATE_ID = 'e2e0pg00-0000-0000-0008-000000000001';
+const MATCH_RUN_ID = 'e2e0pg00-0000-0000-0009-000000000001';
+const MATCH_CANDIDATE_ID = 'e2e0pg00-0000-0000-000a-000000000001';
+const _OUTREACH_TEMPLATE_VERSION_ID = 'e2e0pg00-0000-0000-000b-000000000001'; // same as VERSION_ID alias (kept for documentation)
+const OUTREACH_ID = 'e2e0pg00-0000-0000-000c-000000000001';
+
+describe.skipIf(shouldSkip)(
+  'Pipeline Gate Integration — REAL PipelineService + real-DB rollback proofs',
+  () => {
+    // biome-ignore lint/suspicious/noExplicitAny: real service instances
+    let pipelineRepo: any;
+    // biome-ignore lint/suspicious/noExplicitAny: real service instance
+    let auditService: any;
+    // biome-ignore lint/suspicious/noExplicitAny: real service instance
+    let authRepo: any;
+    // biome-ignore lint/suspicious/noExplicitAny: real PipelineService wired to real repos
+    let pipelineService: any;
+
+    beforeAll(async () => {
+      if (!TEST_DB_URL) return;
+      dbReachable = await isDbReachable(TEST_DB_URL);
+      if (!dbReachable) {
+        console.info('[pipeline-gate integration] Postgres unreachable — tests will be skipped.');
+        return;
+      }
+
+      // ── 1. Point the API at the test DB BEFORE importing any module ─────────
+      process.env.DATABASE_URL = TEST_DB_URL;
+      process.env.AUDIT_LOG_HMAC_KEY = 'pipeline-gate-e2e-hmac-key-do-not-use';
+      process.env.AUDIT_LOG_HMAC_KEY_VERSION = '1';
+
+      const dbIndex = await import('../src/db/index');
+      db = dbIndex.db;
+
+      // ── 2. Self-migrate (safe no-op on already-migrated DB) ────────────────
+      const { migrate } = await import('drizzle-orm/node-postgres/migrator');
+      const migrationsFolder = path.resolve(__dirname, '../src/db/migrations');
+      await migrate(db, { migrationsFolder });
+
+      // ── 3. Instantiate real services (AuditKeyring FIRST — wave-11 lesson) ──
+      const { AuditKeyring } = await import('../src/modules/audit/audit.keyring');
+      const { AuditRepository } = await import('../src/modules/audit/audit.repository');
+      const { AuditService } = await import('../src/modules/audit/audit.service');
+      const { PipelineRepository } = await import('../src/modules/pipeline/pipeline.repository');
+      const { PipelineService } = await import('../src/modules/pipeline/pipeline.service');
+      const { AuthRepository } = await import('../src/modules/auth/auth.repository');
+
+      const keyring = new AuditKeyring({
+        AUDIT_LOG_HMAC_KEY: process.env.AUDIT_LOG_HMAC_KEY ?? '',
+        AUDIT_LOG_HMAC_KEY_VERSION: process.env.AUDIT_LOG_HMAC_KEY_VERSION,
+      });
+      const auditRepo = new AuditRepository(db);
+      // KEYRING FIRST, REPOSITORY SECOND — the wave-11 ctor-order lesson.
+      auditService = new AuditService(keyring, auditRepo);
+      pipelineRepo = new PipelineRepository(db);
+      authRepo = new AuthRepository(db);
+
+      // PipelineService constructor: (repository, auditService, authRepository)
+      pipelineService = new PipelineService(pipelineRepo, auditService, authRepo);
+
+      // ── 4. Seed shared fixtures (all tests share this base state) ───────────
+      await seedFixtures();
+    }, 30_000);
+
+    afterAll(async () => {
+      if (!dbReachable) return;
+      // Clean up in dependency order. pipeline ON DELETE RESTRICT on created_by
+      // means we must remove pipeline rows BEFORE the user. The mandate CASCADE
+      // handles pipeline rows (pipeline ON DELETE CASCADE from mandate), so
+      // deleting the mandate removes pipeline + pipeline_events via cascade.
+      // Then we remove the outreach-spine fixtures, then user/mandate.
+      await db.execute(sql`DELETE FROM outreach WHERE id = ${OUTREACH_ID}`);
+      await db.execute(sql`DELETE FROM outreach_template_versions WHERE id = ${VERSION_ID}`);
+      await db.execute(sql`DELETE FROM outreach_templates WHERE id = ${TEMPLATE_ID}`);
+      await db.execute(sql`DELETE FROM match_candidates WHERE id = ${MATCH_CANDIDATE_ID}`);
+      await db.execute(sql`DELETE FROM match_run WHERE id = ${MATCH_RUN_ID}`);
+      await db.execute(
+        sql`DELETE FROM buyer_universe_candidates WHERE id = ${BUYER_UNIVERSE_CANDIDATE_ID}`
+      );
+      await db.execute(sql`DELETE FROM buyer_universe WHERE id = ${BUYER_UNIVERSE_ID}`);
+      await db.execute(sql`DELETE FROM disclaimer_templates WHERE id = ${DISCLAIMER_ID}`);
+      // Mandate cascade removes pipeline + pipeline_events.
+      await db.execute(sql`DELETE FROM mandates WHERE id = ${MANDATE_ID}`);
+      // Companies row (sourcing table).
+      await db.execute(sql`DELETE FROM companies WHERE id = ${BUYER_UNIVERSE_COMPANY_ID}`);
+      // User last (pipeline rows already removed by cascade).
+      await db.execute(sql`DELETE FROM users WHERE id = ${ADVISOR_ID}`);
+    }, 15_000);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Fixture seeding helper
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Seed the full fixture chain for an outreach source type enroll:
+     *   roles + users (advisor) → mandates → disclaimer_templates →
+     *   outreach_templates + outreach_template_versions →
+     *   companies → buyer_universe + buyer_universe_candidates →
+     *   match_run + match_candidates →
+     *   outreach (status='send_eligible')
+     *
+     * Uses ON CONFLICT DO NOTHING so re-running (e.g. after a test crash) is safe.
+     * All UUIDs are the fixed constants above — afterAll cleans them up.
+     *
+     * sql`` tag binding (NOT positional params) — the wave-11 drizzle lesson.
+     */
+    async function seedFixtures(): Promise<void> {
+      // roles (seeded by migration; ON CONFLICT DO NOTHING is safe)
+      await db.execute(
+        sql`INSERT INTO roles (id, name) VALUES (gen_random_uuid(), 'advisor') ON CONFLICT (name) DO NOTHING`
+      );
+      const roleRow = await db.execute(sql`SELECT id FROM roles WHERE name = 'advisor' LIMIT 1`);
+      const roleId = roleRow.rows?.[0]?.id;
+      if (!roleId) throw new Error('advisor role not found after seed');
+
+      // users (advisor)
+      await db.execute(
+        sql`INSERT INTO users (id, email, role_id, supertokens_user_id)
+            VALUES (${ADVISOR_ID}, ${'e2e-pipeline-advisor@test.invalid'}, ${roleId}, ${ST_ADVISOR_ID})
+            ON CONFLICT (id) DO NOTHING`
+      );
+
+      // mandates (requires created_by → users.id)
+      await db.execute(
+        sql`INSERT INTO mandates (id, created_by, seller_name, status)
+            VALUES (${MANDATE_ID}, ${ADVISOR_ID}, ${'E2E Pipeline Test Mandate'}, 'active')
+            ON CONFLICT (id) DO NOTHING`
+      );
+
+      // disclaimer_templates (active=false — not needed for pipeline tests, but
+      // required as FK for outreach_template_versions)
+      await db.execute(
+        sql`INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active)
+            VALUES (${DISCLAIMER_ID}, ${'US'}, ${'E2E pipeline test disclaimer body.'}, 1, false)
+            ON CONFLICT (id) DO NOTHING`
+      );
+
+      // outreach_templates
+      await db.execute(
+        sql`INSERT INTO outreach_templates (id, name, owner_id)
+            VALUES (${TEMPLATE_ID}, ${'E2E Pipeline Test Template'}, ${ADVISOR_ID})
+            ON CONFLICT (id) DO NOTHING`
+      );
+
+      // outreach_template_versions (approved — needed so outreach status=send_eligible is valid)
+      const CONTENT_HASH = 'e2e_pipeline_gate_content_hash_0000000000000000000000000000000a';
+      await db.execute(
+        sql`INSERT INTO outreach_template_versions
+              (id, template_id, version_number, subject, body, disclaimer_template_id,
+               content_hash, approval_status, approved_content_hash, approved_by)
+            VALUES
+              (${VERSION_ID}, ${TEMPLATE_ID}, 1,
+               ${'E2E pipeline subject'}, ${'E2E pipeline body content.'},
+               ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'approved', ${CONTENT_HASH}, ${ADVISOR_ID})
+            ON CONFLICT (id) DO NOTHING`
+      );
+
+      // companies (required FK for buyer_universe_candidates)
+      await db.execute(
+        sql`INSERT INTO companies (id, name)
+            VALUES (${BUYER_UNIVERSE_COMPANY_ID}, ${'E2E Pipeline Test Company'})
+            ON CONFLICT (id) DO NOTHING`
+      );
+
+      // buyer_universe (requires mandate_id + created_by)
+      await db.execute(
+        sql`INSERT INTO buyer_universe (id, mandate_id, created_by, status)
+            VALUES (${BUYER_UNIVERSE_ID}, ${MANDATE_ID}, ${ADVISOR_ID}, 'draft')
+            ON CONFLICT (id) DO NOTHING`
+      );
+
+      // buyer_universe_candidates
+      await db.execute(
+        sql`INSERT INTO buyer_universe_candidates
+              (id, buyer_universe_id, company_id, membership_status)
+            VALUES (${BUYER_UNIVERSE_CANDIDATE_ID}, ${BUYER_UNIVERSE_ID},
+                    ${BUYER_UNIVERSE_COMPANY_ID}, 'included')
+            ON CONFLICT (id) DO NOTHING`
+      );
+
+      // match_run (requires mandate_id + buyer_universe_id + created_by)
+      await db.execute(
+        sql`INSERT INTO match_run
+              (id, mandate_id, buyer_universe_id, created_by, status, ready_for_outreach)
+            VALUES (${MATCH_RUN_ID}, ${MANDATE_ID}, ${BUYER_UNIVERSE_ID},
+                    ${ADVISOR_ID}, 'scored', true)
+            ON CONFLICT (id) DO NOTHING`
+      );
+
+      // match_candidates (requires match_run_id + buyer_universe_candidate_id)
+      await db.execute(
+        sql`INSERT INTO match_candidates
+              (id, match_run_id, buyer_universe_candidate_id, fit_score, score_breakdown, disposition)
+            VALUES (${MATCH_CANDIDATE_ID}, ${MATCH_RUN_ID}, ${BUYER_UNIVERSE_CANDIDATE_ID},
+                    80,
+                    ${'{"sectorMatch":40,"contactCompleteness":30,"tieBreak":10,"total":80,"notApplied":[]}'}::jsonb,
+                    'accepted')
+            ON CONFLICT (id) DO NOTHING`
+      );
+
+      // outreach row with status='send_eligible' — the eligible source for enroll tests
+      await db.execute(
+        sql`INSERT INTO outreach
+              (id, mandate_id, match_candidate_id, template_version_id,
+               gate_verdict, status, created_by)
+            VALUES
+              (${OUTREACH_ID}, ${MANDATE_ID}, ${MATCH_CANDIDATE_ID}, ${VERSION_ID},
+               ${'{"allowed":true,"blocks":[],"requiredDisclaimers":[]}'}::jsonb,
+               'send_eligible', ${ADVISOR_ID})
+            ON CONFLICT (id) DO NOTHING`
+      );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Row count helpers (read outside the service's own tx to check committed state)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    async function pipelineRowCount(): Promise<number> {
+      const result = await db.execute(
+        sql`SELECT COUNT(*)::int AS cnt FROM pipeline WHERE mandate_id = ${MANDATE_ID}`
+      );
+      return result.rows?.[0]?.cnt ?? 0;
+    }
+
+    async function pipelineEventCount(eventType: string): Promise<number> {
+      const result = await db.execute(
+        sql`SELECT COUNT(*)::int AS cnt FROM pipeline_events pe
+            JOIN pipeline p ON pe.pipeline_id = p.id
+            WHERE p.mandate_id = ${MANDATE_ID}
+            AND pe.event_type = ${eventType}`
+      );
+      return result.rows?.[0]?.cnt ?? 0;
+    }
+
+    async function auditEntryCount(action: string): Promise<number> {
+      const result = await db.execute(
+        sql`SELECT COUNT(*)::int AS cnt FROM audit_log_entries WHERE action = ${action}`
+      );
+      return result.rows?.[0]?.cnt ?? 0;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Auth stub helper
+    //
+    // authRepository.getUserWithRole is called OUTSIDE the service's own
+    // transaction. We spy on it to return the seeded ADVISOR_ID without a
+    // full supertokens round-trip. The spy is scoped to each test call.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function stubAuthAsAdvisor(): void {
+      vi.spyOn(authRepo, 'getUserWithRole').mockResolvedValue({
+        id: ADVISOR_ID,
+        roleName: 'advisor',
+      });
+    }
+
+    function restoreAuth(): void {
+      vi.restoreAllMocks();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 1. enroll rollback: audit throws → NO pipeline row AND NO enrolled event
+    //
+    // THE COMPLIANCE INVARIANT:
+    //   PipelineService.enrollAsActor runs ONE db.transaction():
+    //     INSERT pipeline → INSERT pipeline_events(enrolled) → AuditService.append
+    //   If AuditService.append throws inside that transaction, Drizzle's
+    //   db.transaction() catches the rejection and issues ROLLBACK. No pipeline row
+    //   and no enrolled event should exist in the real DB after the failed call.
+    //
+    // MECHANISM: spy on auditService.append to throw on the first call (which is
+    // the pipeline-enroll append inside the transaction). The real db.transaction()
+    // rolls back because the rejected promise propagates out of its callback.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    it('1. enroll rollback: audit throws inside txn → NO pipeline row, NO enrolled event (real ROLLBACK)', async () => {
+      if (!dbReachable) return;
+
+      const countBefore = await pipelineRowCount();
+      const eventsBefore = await pipelineEventCount('enrolled');
+
+      stubAuthAsAdvisor();
+      // Force audit append to throw. This runs inside the real db.transaction()
+      // callback, so the throw propagates and causes a real Postgres ROLLBACK.
+      const appendSpy = vi
+        .spyOn(auditService, 'append')
+        .mockRejectedValueOnce(new Error('e2e-audit-rollback-force: enroll'));
+
+      try {
+        await expect(
+          pipelineService.enrollAsActor(
+            { sourceType: 'outreach', sourceId: OUTREACH_ID, mandateId: MANDATE_ID },
+            ST_ADVISOR_ID
+          )
+        ).rejects.toThrow('e2e-audit-rollback-force: enroll');
+      } finally {
+        restoreAuth();
+        appendSpy.mockRestore();
+      }
+
+      // After rollback: pipeline and pipeline_events counts are UNCHANGED.
+      const countAfter = await pipelineRowCount();
+      const eventsAfter = await pipelineEventCount('enrolled');
+
+      expect(countAfter).toBe(countBefore);
+      expect(eventsAfter).toBe(eventsBefore);
+    }, 15_000);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2. addNote rollback: audit throws → NO 'note' event persists
+    //
+    // PipelineService.addNoteAsActor runs ONE db.transaction():
+    //   (verify pipeline exists) → INSERT pipeline_events(note) → AuditService.append
+    // If audit throws inside that transaction, the note INSERT rolls back too.
+    // This test seeds a real pipeline row first (via a prior successful enroll with
+    // audit NOT spied), then asserts that a later addNote with audit-throw leaves
+    // zero note events.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    it('2. addNote rollback: audit throws inside txn → NO note event persists (real ROLLBACK)', async () => {
+      if (!dbReachable) return;
+
+      // First: enroll successfully (no spy on audit) to get a real pipeline row.
+      stubAuthAsAdvisor();
+      let enrolledPipelineId: string;
+      try {
+        const result = await pipelineService.enrollAsActor(
+          { sourceType: 'outreach', sourceId: OUTREACH_ID, mandateId: MANDATE_ID },
+          ST_ADVISOR_ID
+        );
+        enrolledPipelineId = result.id;
+      } finally {
+        restoreAuth();
+      }
+
+      // Verify the enroll committed.
+      const notesBeforeRollback = await pipelineEventCount('note');
+
+      // Now: addNote with audit forced to throw.
+      stubAuthAsAdvisor();
+      const appendSpy = vi
+        .spyOn(auditService, 'append')
+        .mockRejectedValueOnce(new Error('e2e-audit-rollback-force: addNote'));
+
+      try {
+        await expect(
+          pipelineService.addNoteAsActor(enrolledPipelineId, 'rollback-proof note', ST_ADVISOR_ID)
+        ).rejects.toThrow('e2e-audit-rollback-force: addNote');
+      } finally {
+        restoreAuth();
+        appendSpy.mockRestore();
+      }
+
+      // After rollback: note event count is unchanged (zero new note rows).
+      const notesAfterRollback = await pipelineEventCount('note');
+      expect(notesAfterRollback).toBe(notesBeforeRollback);
+
+      // Clean up the successfully-enrolled pipeline row so later tests start clean.
+      // (deleteForTest is safe because the mandate cascade covers events too.)
+      await db.execute(sql`DELETE FROM pipeline_events WHERE pipeline_id = ${enrolledPipelineId}`);
+      await db.execute(sql`DELETE FROM pipeline WHERE id = ${enrolledPipelineId}`);
+    }, 20_000);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 3. Happy path (real txn commit): enroll → transition → addNote
+    //
+    //   - enroll: 1 pipeline row at stage='shortlisted' + 1 enrolled event + 1 audit.
+    //   - transition to 'contacted': 1 stage_changed event + 1 audit.
+    //   - addNote: 1 note event + 1 audit.
+    //   - audit_log_entries count increments by 3 across the three mutations.
+    //
+    // All real: no spy on audit, no mock on repository, real DB commit.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    it('3. happy path: enroll + transition + addNote all commit — correct pipeline/event/audit rows', async () => {
+      if (!dbReachable) return;
+
+      const auditBeforeEnroll = await auditEntryCount('pipeline-enroll');
+      const auditBeforeTransition = await auditEntryCount('pipeline-transition');
+      const auditBeforeNote = await auditEntryCount('pipeline-note');
+
+      // enroll
+      stubAuthAsAdvisor();
+      let pipelineId: string;
+      try {
+        const row = await pipelineService.enrollAsActor(
+          { sourceType: 'outreach', sourceId: OUTREACH_ID, mandateId: MANDATE_ID },
+          ST_ADVISOR_ID
+        );
+        pipelineId = row.id;
+        expect(row.stage).toBe('shortlisted');
+        expect(row.mandateId).toBe(MANDATE_ID);
+        expect(row.createdBy).toBe(ADVISOR_ID);
+      } finally {
+        restoreAuth();
+      }
+
+      // Verify: 1 enrolled event + 1 pipeline-enroll audit entry committed.
+      const enrolledEvents = await db.execute(
+        sql`SELECT COUNT(*)::int AS cnt FROM pipeline_events
+            WHERE pipeline_id = ${pipelineId} AND event_type = 'enrolled'`
+      );
+      expect(enrolledEvents.rows?.[0]?.cnt).toBe(1);
+      const auditAfterEnroll = await auditEntryCount('pipeline-enroll');
+      expect(auditAfterEnroll).toBe(auditBeforeEnroll + 1);
+
+      // transition to 'contacted'
+      stubAuthAsAdvisor();
+      try {
+        const updated = await pipelineService.transitionStageAsActor(
+          pipelineId,
+          'contacted',
+          ST_ADVISOR_ID
+        );
+        expect(updated.stage).toBe('contacted');
+      } finally {
+        restoreAuth();
+      }
+
+      // Verify: 1 stage_changed event + 1 pipeline-transition audit entry.
+      const stageEvents = await db.execute(
+        sql`SELECT COUNT(*)::int AS cnt FROM pipeline_events
+            WHERE pipeline_id = ${pipelineId} AND event_type = 'stage_changed'`
+      );
+      expect(stageEvents.rows?.[0]?.cnt).toBe(1);
+      const auditAfterTransition = await auditEntryCount('pipeline-transition');
+      expect(auditAfterTransition).toBe(auditBeforeTransition + 1);
+
+      // addNote
+      stubAuthAsAdvisor();
+      try {
+        const noteEvent = await pipelineService.addNoteAsActor(
+          pipelineId,
+          'Happy-path integration note',
+          ST_ADVISOR_ID
+        );
+        expect(noteEvent.eventType).toBe('note');
+        expect(noteEvent.note).toBe('Happy-path integration note');
+        expect(noteEvent.pipelineId).toBe(pipelineId);
+      } finally {
+        restoreAuth();
+      }
+
+      // Verify: 1 note event + 1 pipeline-note audit entry.
+      const noteEvents = await db.execute(
+        sql`SELECT COUNT(*)::int AS cnt FROM pipeline_events
+            WHERE pipeline_id = ${pipelineId} AND event_type = 'note'`
+      );
+      expect(noteEvents.rows?.[0]?.cnt).toBe(1);
+      const auditAfterNote = await auditEntryCount('pipeline-note');
+      expect(auditAfterNote).toBe(auditBeforeNote + 1);
+
+      // Clean up the happy-path pipeline row so test 4 starts clean.
+      await db.execute(sql`DELETE FROM pipeline_events WHERE pipeline_id = ${pipelineId}`);
+      await db.execute(sql`DELETE FROM pipeline WHERE id = ${pipelineId}`);
+    }, 25_000);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 4. Idempotent enroll: 2nd enroll of same deal → ConflictException (409)
+    //
+    // The real partial-unique index (pipeline_outreach_id_unique_idx WHERE
+    // outreach_id IS NOT NULL) fires on the 2nd INSERT. PipelineRepository
+    // catches 23505 and throws ConflictException. The service surfaces it as-is.
+    // Asserts no 2nd pipeline row after the 409 rejection.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    it('4. idempotent enroll: 2nd enroll of same outreach → ConflictException, no 2nd pipeline row', async () => {
+      if (!dbReachable) return;
+
+      const { ConflictException } = await import('@nestjs/common');
+
+      // First enroll — must succeed.
+      stubAuthAsAdvisor();
+      let firstPipelineId: string;
+      try {
+        const row = await pipelineService.enrollAsActor(
+          { sourceType: 'outreach', sourceId: OUTREACH_ID, mandateId: MANDATE_ID },
+          ST_ADVISOR_ID
+        );
+        firstPipelineId = row.id;
+      } finally {
+        restoreAuth();
+      }
+
+      const countAfterFirst = await pipelineRowCount();
+
+      // Second enroll — must be rejected with ConflictException.
+      stubAuthAsAdvisor();
+      try {
+        await expect(
+          pipelineService.enrollAsActor(
+            { sourceType: 'outreach', sourceId: OUTREACH_ID, mandateId: MANDATE_ID },
+            ST_ADVISOR_ID
+          )
+        ).rejects.toBeInstanceOf(ConflictException);
+      } finally {
+        restoreAuth();
+      }
+
+      // Pipeline row count must be unchanged (no 2nd row created).
+      const countAfterSecond = await pipelineRowCount();
+      expect(countAfterSecond).toBe(countAfterFirst);
+
+      // Clean up.
+      await db.execute(sql`DELETE FROM pipeline_events WHERE pipeline_id = ${firstPipelineId}`);
+      await db.execute(sql`DELETE FROM pipeline WHERE id = ${firstPipelineId}`);
+    }, 20_000);
+  }
+);
