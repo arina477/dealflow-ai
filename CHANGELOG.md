@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0] — 2026-07-05 — Pipeline / deal-stage tracking (M6 pipeline)
+
+### Added
+- **Deal-pipeline tracking** (M6 pipeline half) — an advisor enrolls an eligible deal (a send-eligible outreach or an accepted match) into a fixed-stage pipeline and moves it through the stages on a stage-columned board at `/pipeline`: **shortlisted → contacted → engaged → diligence → offer → closed → withdrawn** (fixed for now; configurable stages deferred). Each deal carries a per-deal event timeline — enrollment, every stage transition, and advisor free-text notes — as an immutable, chronological record. Migration 0011 (pipeline + pipeline_events).
+- Endpoints: `GET /pipeline` (board, grouped by stage), `POST /pipeline` (enroll), `PATCH /pipeline/:id/stage` (transition), `POST /pipeline/:id/notes` (add note), `GET /pipeline/:id/events` (timeline). RBAC: advisor moves deals; advisor + compliance read and add notes; every mutation audited.
+
+### Correctness / compliance
+- Every enroll, stage transition, and note is written to the immutable audit log **last in its transaction** — if the audit write fails, the whole change rolls back, so a pipeline record can never exist without its audit entry (proven end-to-end against a real database). Enrolling the same deal twice is refused; illegal stage moves and unauthorized roles are rejected on the server; a deal can only be enrolled under the mandate it actually belongs to (no mis-attributed deals); pipeline notes are append-only (no edit or delete).
+
+### Provenance (transparency)
+- The pipeline is **tracking only** — no email is sent and no AI drafting is offered here (the board carries no "Send" or "AI" affordance). Automated stage advancement from replies/opens, actual email send, and AI-assisted drafting remain deferred to later M6 bundles.
+
 ## [0.11.0] — 2026-07-05 — Compliant-outreach foundation (M6 first bundle)
 
 ### Added
