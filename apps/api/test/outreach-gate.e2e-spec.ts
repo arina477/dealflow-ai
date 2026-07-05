@@ -28,6 +28,7 @@
  * to force rollback, so no test data ever persists to the DB.
  */
 
+import path from 'node:path';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -81,6 +82,14 @@ describe.skipIf(shouldSkip)(
 
       const dbIndex = await import('../src/db/index');
       db = dbIndex.db;
+
+      // Self-apply all drizzle migrations to the test DB so this suite is
+      // CI-infrastructure-independent (no external migrate step needed in ci.yml).
+      // drizzle's migrator tracks applied migrations via its internal journal table,
+      // so re-running against an already-migrated DB is a safe no-op.
+      const { migrate } = await import('drizzle-orm/node-postgres/migrator');
+      const migrationsFolder = path.resolve(__dirname, '../src/db/migrations');
+      await migrate(db, { migrationsFolder });
 
       const contentHashModule = await import('../src/modules/compliance-gate/content-hash');
       computeContentHash = contentHashModule.computeContentHash;
