@@ -140,3 +140,16 @@ The following pages/flows are now DEPLOYED and functional (M6 first bundle):
 Entry: Templates library (`/outreach-templates`) → draft version → request approval → Compliance queue (`/compliance-queue`, compliance grants, SoD) → Outreach composer (`/outreach-composer`, advisor composes → pre-send gate → send-eligible record). Produces a send-ELIGIBLE record only; actual send is a later bundle.
 
 Verified: CI real-DB e2e (gate reaches send_eligible only via a passing evaluate; blocks no-approval/SoD/content-drift) + C-2 deployed-authed (RBAC, AC-STRIP on authed HTML, tables live). Deferred (later M6 bundles): actual email send-path + tracking + pipeline; AI-assisted drafting (founder LLM-spend gate).
+
+
+---
+
+## Wave-12 delivered — M6 pipeline / deal-stage tracking (LIVE @ 989fae9)
+
+- **Pipeline board** (`/pipeline`) — advisor/compliance view; a stage-columned board with the 7 FIXED stages (shortlisted → contacted → engaged → diligence → offer → closed → withdrawn, product-decision #137). Enrolled deals (from send-eligible outreach or accepted matches) show under mandate + buyer identity; an advisor moves a deal to a valid stage (server-side illegal-transition + role rejection). Every enroll/transition is an append-only HMAC-audited event (M2 audit log). NO email send, NO AI — pipeline tracking only.
+- **Per-deal event timeline** (on the `/pipeline` deal view) — chronological history: enrollment + each stage transition (from→to) + advisor free-text notes, each with actor + timestamp. Notes append-only, audited last-in-txn. This is the compliance recordkeeping surface.
+
+### F17 — Track a deal through the pipeline (Advisor + Compliance)
+Entry: Pipeline board (`/pipeline`) → enroll an eligible deal (send-eligible outreach / accepted match) → move it through the 7 fixed stages → per-deal timeline records every transition + note (audited). No email/send; pipeline advance is human-driven (automated reply/open-driven advance stays deferred with the send/webhook bundle).
+
+Verified: CI real-DB e2e (audit-throw → real ROLLBACK → zero orphan; happy-path exactly-one-event+audit; idempotent-409) + C-2 deployed-authed (7 fixed columns render, RBAC, no send/AI, migration 0011 live). Deferred (founder-gated later M6 bundles): actual email send + webhook tracking; AI-assisted drafting.

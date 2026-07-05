@@ -39,18 +39,18 @@ BUILD:
 
 CI/CD:
 - [x] C-1 PR/CI/merge — direct-push-to-main; ALL 5 CI jobs GREEN (6b62762); pipeline-gate e2e audit-rollback proof PASSED live (2 test-infra fix-forwards)
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [x] C-2 Deploy & verify — both services SUCCESS @ 989fae9 (immutable serviceInstanceDeployV2, neither SKIPPED); /health 200 {ok,db:ok,989fae9} own-domain; migration 0011 live-confirmed (GET /pipeline 200 grouped-by-stage, no relation-missing 500; enroll 404-guarded not 500); pipeline RBAC live (anon 401, analyst enroll 403, advisor read 200); AC-STRIP holds on deployed authed HTML (0 send/email/AI-draft, 7 fixed columns render); canary skipped (0 DAU < 1000). head-ci-cd APPROVED.
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
-- [ ] T-9 Journey
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
+- [x] T-5 E2E
+- [x] T-6 Layout
+- [x] T-7 Perf
+- [x] T-8 Security
+- [x] T-9 Journey
 
 VERIFY:
 - [ ] V-1 Independent reviews (Karen + jenny, parallel)
