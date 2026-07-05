@@ -59,6 +59,6 @@ LEARN:
 - [x] L-2 Distill
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — COMPLETE (M6 no-closure/scope-not-shipped; decomposition FIRED → pipeline bundle 1 seed + 2 siblings, buildable no-credential; Hallucinated-Milestone-Completion avoided)
+- [x] N-2 Seed — COMPLETE (seed 07989285 + 2 siblings; validated live; clean vertical, no ghost deps, no credential gate)
+- [x] N-3 Handoff — COMPLETE (wave-11 archived; waves row closed status='ok'; wave-12 opened; loop_state ready)
