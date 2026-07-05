@@ -62,6 +62,6 @@ LEARN:
 - [x] L-2 Distill
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers
+- [x] N-2 Seed
+- [x] N-3 Handoff
