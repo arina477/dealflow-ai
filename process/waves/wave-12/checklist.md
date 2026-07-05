@@ -38,7 +38,7 @@ BUILD:
 - [x] B-6 — APPROVED (2-phase; H-1 cross-mandate compliance defect caught by /review + fixed + re-verified) Review
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
+- [x] C-1 PR/CI/merge — direct-push-to-main; ALL 5 CI jobs GREEN (6b62762); pipeline-gate e2e audit-rollback proof PASSED live (2 test-infra fix-forwards)
 - [ ] C-2 Deploy & verify (canary armed when real users > 1000)
 
 TEST:
