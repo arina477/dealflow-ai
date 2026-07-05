@@ -34,10 +34,18 @@
  * live DB.
  *
  * ISOLATION: unique UUID namespaces per test prevent cross-test interference.
- *   Rollback tests self-clean (no rows committed). Happy-path and idempotent
- *   tests insert real rows; afterAll deletes them via CASCADE on users deletion
- *   (pipeline rows ON DELETE RESTRICT on created_by, so we delete pipeline rows
- *   first, then the user/mandate chain).
+ *   Rollback tests self-clean (no rows committed). Happy-path (test 3) and
+ *   idempotent (test 4) tests insert pipeline/pipeline_events rows and delete
+ *   them in-body (those tables are NOT referenced by audit_log_entries).
+ *
+ * TEARDOWN: Test fixtures (users, mandate, outreach spine) are retained — NOT
+ *   hard-deleted — because the happy-path test commits real audit_log_entries
+ *   rows with actor_user_id = ADVISOR_ID. Deleting that user would trigger the
+ *   ON DELETE SET NULL FK on audit_log_entries.actor_user_id, which fires an
+ *   UPDATE on an immutable table and raises P0001 from audit_log_block_mutation().
+ *   Retaining fixtures is safe: all rows use ON CONFLICT (id) DO NOTHING so
+ *   re-runs are idempotent, and the 00000012-* UUID namespace is distinct from
+ *   outreach-gate (10000000-60000000 prefix) and pipeline.spec.ts (00000000 prefix).
  */
 
 import { sql } from 'drizzle-orm';
@@ -154,29 +162,21 @@ describe.skipIf(shouldSkip)(
     }, 30_000);
 
     afterAll(async () => {
-      if (!dbReachable) return;
-      // Clean up in dependency order. pipeline ON DELETE RESTRICT on created_by
-      // means we must remove pipeline rows BEFORE the user. The mandate CASCADE
-      // handles pipeline rows (pipeline ON DELETE CASCADE from mandate), so
-      // deleting the mandate removes pipeline + pipeline_events via cascade.
-      // Then we remove the outreach-spine fixtures, then user/mandate.
-      await db.execute(sql`DELETE FROM outreach WHERE id = ${OUTREACH_ID}`);
-      await db.execute(sql`DELETE FROM outreach_template_versions WHERE id = ${VERSION_ID}`);
-      await db.execute(sql`DELETE FROM outreach_templates WHERE id = ${TEMPLATE_ID}`);
-      await db.execute(sql`DELETE FROM match_candidates WHERE id = ${MATCH_CANDIDATE_ID}`);
-      await db.execute(sql`DELETE FROM match_run WHERE id = ${MATCH_RUN_ID}`);
-      await db.execute(
-        sql`DELETE FROM buyer_universe_candidates WHERE id = ${BUYER_UNIVERSE_CANDIDATE_ID}`
-      );
-      await db.execute(sql`DELETE FROM buyer_universe WHERE id = ${BUYER_UNIVERSE_ID}`);
-      await db.execute(sql`DELETE FROM disclaimer_templates WHERE id = ${DISCLAIMER_ID}`);
-      // Mandate cascade removes pipeline + pipeline_events.
-      await db.execute(sql`DELETE FROM mandates WHERE id = ${MANDATE_ID}`);
-      // Companies row (sourcing table).
-      await db.execute(sql`DELETE FROM companies WHERE id = ${BUYER_UNIVERSE_COMPANY_ID}`);
-      // User last (pipeline rows already removed by cascade).
-      await db.execute(sql`DELETE FROM users WHERE id = ${ADVISOR_ID}`);
-    }, 15_000);
+      // Test users retained; no hard-delete; isolated fixtures.
+      //
+      // WHY: the happy-path test (test 3) commits real audit_log_entries rows with
+      // actor_user_id = ADVISOR_ID. Deleting that user fires the ON DELETE SET NULL
+      // FK on audit_log_entries.actor_user_id, which issues UPDATE ONLY
+      // audit_log_entries SET actor_user_id = NULL — the immutability trigger
+      // audit_log_block_mutation() blocks this with P0001 (audit log is append-only).
+      //
+      // All fixture rows use ON CONFLICT (id) DO NOTHING in seedFixtures(), so
+      // leaving them is safe across re-runs. The 00000012-* UUID namespace is
+      // distinct from every other test suite; there are no cross-suite collisions.
+      //
+      // Per-test pipeline / pipeline_events cleanup (NOT audit-referenced) is done
+      // in-body by tests 2, 3, and 4. Test 1's rollback commits no rows.
+    });
 
     // ─────────────────────────────────────────────────────────────────────────
     // Fixture seeding helper
@@ -191,7 +191,7 @@ describe.skipIf(shouldSkip)(
      *   outreach (status='send_eligible')
      *
      * Uses ON CONFLICT DO NOTHING so re-running (e.g. after a test crash) is safe.
-     * All UUIDs are the fixed constants above — afterAll cleans them up.
+     * All UUIDs are fixed constants above — retained after the suite (see TEARDOWN).
      *
      * sql`` tag binding (NOT positional params) — the wave-11 drizzle lesson.
      */
