@@ -154,6 +154,27 @@ export const auditActionEnum = z.enum([
    * (allowed:true) | blocked (allowed:false). Audited LAST-IN-TXN.
    */
   'outreach-compose',
+  // --- Wave-12 pipeline actions (additive; serialization order preserved) ---
+  /**
+   * A pipeline row was created (enrolled) from an eligible source.
+   * The source must be: outreach with status='send_eligible', OR an accepted
+   * match_candidate under a match_run with ready_for_outreach=true.
+   * Audited LAST-IN-TXN; idempotent enroll — a 2nd call returns 409.
+   */
+  'pipeline-enroll',
+  /**
+   * A pipeline row's stage was changed from one fixed stage to another.
+   * A stage_changed pipeline_events row is written in the same txn.
+   * Audited LAST-IN-TXN (rollback on audit fail).
+   */
+  'pipeline-transition',
+  /**
+   * A free-text note was appended to a pipeline deal's event timeline.
+   * A note pipeline_events row is written in the same txn.
+   * Append-only — no edit or delete path.
+   * Audited LAST-IN-TXN (rollback on audit fail).
+   */
+  'pipeline-note',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;

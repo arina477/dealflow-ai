@@ -148,8 +148,10 @@ describe('rolesForRoute — exact routes', () => {
     expect([...roles].sort()).toEqual(['admin', 'advisor']);
   });
 
-  it('/pipeline → advisor only', () => {
-    expect(rolesForRoute('/pipeline')).toContain('advisor');
+  it('/pipeline → advisor + compliance (wave-12: compliance read-only visibility added)', () => {
+    const roles = rolesForRoute('/pipeline');
+    expect(roles).toContain('advisor');
+    expect(roles).toContain('compliance');
   });
 
   it('unknown route returns empty array (default-deny)', () => {
@@ -537,7 +539,7 @@ describe('roleRoutes — completeness against pinned matrix', () => {
     ['/mandates/:id/buyers', ['advisor', 'admin', 'analyst']],
     ['/mandates/:id/outreach', ['advisor', 'admin', 'analyst']],
     ['/mandates/:id/matches', ['advisor', 'admin']],
-    ['/pipeline', ['advisor']],
+    ['/pipeline', ['advisor', 'compliance']],
     ['/sourcing', ['analyst']],
     // Wave-6: /companies repointed to /sourcing/companies; new sourcing API routes added.
     ['/sourcing/companies', ['analyst']],

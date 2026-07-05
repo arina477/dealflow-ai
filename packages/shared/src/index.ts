@@ -204,6 +204,28 @@ export {
   templateCreateInputSchema,
   versionDraftInputSchema,
 } from './outreach';
+export type {
+  AddNoteInput,
+  EnrollInput,
+  Pipeline,
+  PipelineBoard,
+  PipelineEvent,
+  PipelineEventType,
+  PipelineEventsResponse,
+  PipelineStage,
+  TransitionInput,
+} from './pipeline';
+export {
+  addNoteInputSchema,
+  enrollInputSchema,
+  pipelineBoardSchema,
+  pipelineEventSchema,
+  pipelineEventTypeEnum,
+  pipelineEventsResponseSchema,
+  pipelineSchema,
+  pipelineStageEnum,
+  transitionInputSchema,
+} from './pipeline';
 export type { NavGroup, NavItem, RouteEntry } from './rbac';
 export {
   ALL_NAV_ITEMS,

@@ -181,6 +181,19 @@ const NAV_OUTREACH: NavItem = {
   allowedRoles: ['advisor', 'compliance'],
 };
 
+// Wave-12: Pipeline nav item (advisor primary — enroll + transition; compliance read-only).
+// advisor is the primary pipeline persona (enroll from outreach + move stages).
+// compliance may view the pipeline board and event timeline (read-only visibility).
+// nav⊆RBAC: NAV_PIPELINE.allowedRoles references the same array as the
+// /pipeline route entry below.
+const NAV_PIPELINE: NavItem = {
+  label: 'Pipeline',
+  route: '/pipeline',
+  icon: 'kanban',
+  group: 'workspace',
+  allowedRoles: ['advisor', 'compliance'],
+};
+
 // ---------- Route entries (the canonical role → route matrix) ----------
 
 export const roleRoutes: ReadonlyArray<RouteEntry> = [
@@ -238,9 +251,45 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     pattern: '/mandates/:id/matches',
     allowedRoles: ['advisor', 'admin'],
   },
+  // --- Pipeline group (wave-12) ---
+  // advisor: enroll + transition + note (all mutations).
+  // compliance: read-only visibility (board + events).
+  // nav⊆RBAC invariant holds: NAV_PIPELINE.allowedRoles references the same
+  // set as the /pipeline route entry below.
   {
     pattern: '/pipeline',
+    allowedRoles: ['advisor', 'compliance'],
+    navItem: NAV_PIPELINE,
+  },
+  {
+    // POST /pipeline (enroll) — advisor only.
+    pattern: '/pipeline/new',
     allowedRoles: ['advisor'],
+  },
+  {
+    // PATCH /pipeline/:id/stage (transition) — advisor only.
+    // GET /pipeline/:id/events (timeline read) — advisor + compliance.
+    // POST /pipeline/:id/notes (addNote) — advisor + compliance.
+    // Note: /pipeline/:id sub-routes share this pattern entry for list/detail;
+    // write-only guards are enforced in the controller via @Roles derivation.
+    pattern: '/pipeline/:id',
+    allowedRoles: ['advisor', 'compliance'],
+  },
+  {
+    // PATCH /pipeline/:id/stage (stage transition) — advisor only.
+    pattern: '/pipeline/:id/stage',
+    allowedRoles: ['advisor'],
+  },
+  {
+    // POST /pipeline/:id/notes (add note) — advisor + compliance.
+    // GET /pipeline/:id/events (event timeline) — advisor + compliance.
+    pattern: '/pipeline/:id/notes',
+    allowedRoles: ['advisor', 'compliance'],
+  },
+  {
+    // GET /pipeline/:id/events — ordered event timeline.
+    pattern: '/pipeline/:id/events',
+    allowedRoles: ['advisor', 'compliance'],
   },
 
   // --- Matches group (wave-10) ---
@@ -613,6 +662,7 @@ export const ALL_NAV_ITEMS: ReadonlyArray<NavItem> = [
   NAV_BUYER_UNIVERSE,
   NAV_OUTREACH_TEMPLATES,
   NAV_OUTREACH,
+  NAV_PIPELINE,
   NAV_SOURCING,
   NAV_COMPLIANCE,
   NAV_AUDIT_LOG,
