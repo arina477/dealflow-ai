@@ -250,6 +250,73 @@ const nextConfig: NextConfig = {
           source: '/matches-data/:id',
           destination: `${apiProxyTarget}/matches/:id`,
         },
+        // Wave-11: outreach-templates mutation proxy (page-route-collision fix).
+        //
+        // CRITICAL: /outreach-templates has a Next.js page file:
+        //   /outreach-templates → app/(app)/outreach-templates/page.tsx
+        //
+        // We must NOT rewrite /outreach-templates (GET — served as the React page).
+        // All client mutations use the non-colliding /outreach-templates-data prefix.
+        // These paths have NO Next.js page file, so afterFiles always proxies them.
+        //
+        // Route-ordering: multi-segment paths before /:id before bare root.
+        //   /outreach-templates-data/:id/versions/:vid/approve  → most specific first
+        //   /outreach-templates-data/:id/versions/:vid/reject
+        //   /outreach-templates-data/:id/versions/:vid/request-approval
+        //   /outreach-templates-data/:id/versions              (POST new version)
+        //   /outreach-templates-data/:id                       (GET detail / PUT)
+        //   /outreach-templates-data                           (POST create)
+        //
+        // Client callers (TemplatesLibraryClient / ComplianceQueueClient):
+        //   POST  /outreach-templates-data                                  → POST   /outreach-templates
+        //   GET   /outreach-templates-data/:id                              → GET    /outreach-templates/:id
+        //   POST  /outreach-templates-data/:id/versions                     → POST   /outreach-templates/:id/versions
+        //   POST  /outreach-templates-data/:id/versions/:vid/approve        → POST   /outreach-templates/:id/versions/:vid/approve
+        //   POST  /outreach-templates-data/:id/versions/:vid/reject         → POST   /outreach-templates/:id/versions/:vid/reject
+        //   POST  /outreach-templates-data/:id/versions/:vid/request-approval → POST /outreach-templates/:id/versions/:vid/request-approval
+        {
+          source: '/outreach-templates-data/:id/versions/:vid/approve',
+          destination: `${apiProxyTarget}/outreach-templates/:id/versions/:vid/approve`,
+        },
+        {
+          source: '/outreach-templates-data/:id/versions/:vid/reject',
+          destination: `${apiProxyTarget}/outreach-templates/:id/versions/:vid/reject`,
+        },
+        {
+          source: '/outreach-templates-data/:id/versions/:vid/request-approval',
+          destination: `${apiProxyTarget}/outreach-templates/:id/versions/:vid/request-approval`,
+        },
+        {
+          source: '/outreach-templates-data/:id/versions',
+          destination: `${apiProxyTarget}/outreach-templates/:id/versions`,
+        },
+        {
+          source: '/outreach-templates-data/:id',
+          destination: `${apiProxyTarget}/outreach-templates/:id`,
+        },
+        {
+          source: '/outreach-templates-data',
+          destination: `${apiProxyTarget}/outreach-templates`,
+        },
+        // Wave-11: outreach compose proxy (page-route-collision fix).
+        //
+        // CRITICAL: /outreach-composer has a Next.js page file:
+        //   /outreach-composer → app/(app)/outreach-composer/page.tsx
+        //
+        // We must NOT rewrite /outreach-composer (served as the React page).
+        // Client compose mutations use /outreach-data (non-colliding).
+        // GET /outreach/:id is SSR server-side via apiBase() — no proxy needed for reads.
+        //
+        // Client callers (OutreachComposerClient):
+        //   POST /outreach-data → POST /outreach (compose → gate → send_eligible|blocked)
+        {
+          source: '/outreach-data/:id',
+          destination: `${apiProxyTarget}/outreach/:id`,
+        },
+        {
+          source: '/outreach-data',
+          destination: `${apiProxyTarget}/outreach`,
+        },
       ],
       beforeFiles: [],
       fallback: [],
