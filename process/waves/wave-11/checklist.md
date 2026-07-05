@@ -29,9 +29,9 @@ BUILD:
 - [x] B-0 Branch & schema — branch wave-11-outreach-foundation; 3 tasks claimed; schema 0010 (backend-developer)
 - [x] B-1 Contracts
 - [x] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
-- [ ] B-5 Verify
+- [x] B-3 Frontend — 3 outreach pages (templates/composer/compliance-queue); AC-STRIP (send-eligible NOT send); full-repo-test green (0eb1028)
+- [x] B-4 Wiring — repo typecheck+build PASS; 3 outreach routes compile
+- [x] B-5 Verify — lint 0, FULL pnpm -r test green (~1482), build pass; gate-called + AC-STRIP tested; runtime→C-2
 - [ ] B-6 Review
 
 CI/CD:

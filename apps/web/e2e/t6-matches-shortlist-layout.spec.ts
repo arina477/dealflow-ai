@@ -250,10 +250,9 @@ async function assertAppShellChrome(
   await expect(nav, `[${pageName}] Sidebar nav must be present`).toBeVisible({ timeout: 10_000 });
 
   const navBg = await nav.evaluate((el) => window.getComputedStyle(el).backgroundColor);
-  expect(
-    navBg,
-    `[${pageName}] Sidebar bg must be zinc-900 (rgb(17, 24, 39)); got "${navBg}"`
-  ).toBe('rgb(17, 24, 39)');
+  expect(navBg, `[${pageName}] Sidebar bg must be zinc-900 (rgb(17, 24, 39)); got "${navBg}"`).toBe(
+    'rgb(17, 24, 39)'
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -306,9 +305,7 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
     const topbarRegion = page.locator('header').first();
     const topbarH1s = await topbarRegion.locator('h1, h2').allTextContents();
     const topBarTitleTexts = topbarH1s.map((t) => t.trim());
-    const hasDashboardInTopBar = topBarTitleTexts.some((t) =>
-      t.toLowerCase() === 'dashboard'
-    );
+    const hasDashboardInTopBar = topBarTitleTexts.some((t) => t.toLowerCase() === 'dashboard');
     if (hasDashboardInTopBar) {
       console.warn(
         '[FINDING-W10-TOPBAR] TopBar shows "Dashboard" on /matches-shortlist page. ' +
@@ -361,13 +358,17 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
       }
     }
     if (!aiFramingFound) {
-      console.info('[T6 PASS] AI-framing STRIPPED confirmed — all forbidden phrases absent from page.');
+      console.info(
+        '[T6 PASS] AI-framing STRIPPED confirmed — all forbidden phrases absent from page.'
+      );
     }
 
     // ── Palette check: no off-palette colors ─────────────────────────────────
     // The design system forbids indigo/sky/purple/rose/orange in the main workspace.
     // The page background should be zinc-25 (#FCFCFD) or white (#FFFFFF).
-    const bodyBg = await page.locator('body').evaluate((el) => window.getComputedStyle(el).backgroundColor);
+    const bodyBg = await page
+      .locator('body')
+      .evaluate((el) => window.getComputedStyle(el).backgroundColor);
     // Accept: rgb(252,252,253) = zinc-25 / rgb(255,255,255) = white
     const bodyBgIsValid =
       bodyBg === 'rgb(252, 252, 253)' ||
@@ -386,7 +387,7 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
     const rankedTable = page.locator('table[aria-label="Ranked match candidates"]');
     const tableCount = await rankedTable.count();
 
-    if (tableCount > 0 && await rankedTable.isVisible().catch(() => false)) {
+    if (tableCount > 0 && (await rankedTable.isVisible().catch(() => false))) {
       // Assert: table header columns present and correct
       const headers = await page
         .locator('table[aria-label="Ranked match candidates"] th')
@@ -406,10 +407,11 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
       }
 
       // Assert: NO AI-named column
-      const aiColumns = flatHeaders.filter((h) =>
-        h.toLowerCase().includes('ai') ||
-        h.toLowerCase().includes('rationale') ||
-        h.toLowerCase().includes('explainability')
+      const aiColumns = flatHeaders.filter(
+        (h) =>
+          h.toLowerCase().includes('ai') ||
+          h.toLowerCase().includes('rationale') ||
+          h.toLowerCase().includes('explainability')
       );
       expect(
         aiColumns.length,
@@ -428,7 +430,9 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
         );
       } else {
         // Gauges may use text fallback — check for score numbers in cells
-        console.info('[T6] FitScoreGauge aria-label not found — may use text fallback for score display.');
+        console.info(
+          '[T6] FitScoreGauge aria-label not found — may use text fallback for score display.'
+        );
       }
 
       // Assert: "ordered by rule-based fit score" utility bar text
@@ -447,10 +451,9 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
 
       // ── Check Shortlist sidebar ────────────────────────────────────────────
       const shortlistSidebar = page.getByRole('complementary', { name: 'Shortlist' });
-      await expect(
-        shortlistSidebar,
-        '[T6] Shortlist sidebar must be present'
-      ).toBeVisible({ timeout: 5_000 });
+      await expect(shortlistSidebar, '[T6] Shortlist sidebar must be present').toBeVisible({
+        timeout: 5_000,
+      });
 
       // Check sidebar background and border
       const sidebarBg = await shortlistSidebar.evaluate(
@@ -458,8 +461,7 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
       );
       // Accept white or zinc-50
       const sidebarBgValid =
-        sidebarBg === 'rgb(255, 255, 255)' ||
-        sidebarBg === 'rgb(249, 250, 251)';
+        sidebarBg === 'rgb(255, 255, 255)' || sidebarBg === 'rgb(249, 250, 251)';
       if (!sidebarBgValid) {
         console.warn(
           `[T6] Shortlist sidebar background is "${sidebarBg}" — expected white or zinc-50. ` +
@@ -471,7 +473,9 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
 
       // ── Score Breakdown modal test ─────────────────────────────────────────
       // Click the first "View score breakdown" button to trigger the modal
-      const breakdownBtns = page.getByRole('button', { name: /View score breakdown for candidate/i });
+      const breakdownBtns = page.getByRole('button', {
+        name: /View score breakdown for candidate/i,
+      });
       const breakdownCount = await breakdownBtns.count();
       if (breakdownCount > 0) {
         await breakdownBtns.first().click();
@@ -485,7 +489,7 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
         ).toBeVisible({ timeout: 5_000 });
 
         // Assert: dialog contains "Rule-based fit score" badge (NOT "AI Match Analysis")
-        const dialogText = await dialog.textContent() ?? '';
+        const dialogText = (await dialog.textContent()) ?? '';
         const dialogTextLower = dialogText.toLowerCase();
 
         // Correct framing: "Rule-based fit score" badge
@@ -498,8 +502,7 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
         ).toBe(true);
 
         // Correct title: "Score breakdown"
-        const hasScoreBreakdownTitle =
-          dialogTextLower.includes('score breakdown');
+        const hasScoreBreakdownTitle = dialogTextLower.includes('score breakdown');
         expect(
           hasScoreBreakdownTitle,
           '[T6] Score breakdown dialog title must say "Score breakdown" (not "AI Match Analysis")'
@@ -519,7 +522,9 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
           ).toBe(false);
         }
 
-        console.info('[T6 PASS] Score breakdown dialog: "Rule-based fit score" badge + "Score breakdown" title confirmed; no AI-framing.');
+        console.info(
+          '[T6 PASS] Score breakdown dialog: "Rule-based fit score" badge + "Score breakdown" title confirmed; no AI-framing.'
+        );
 
         // Screenshot with dialog open
         await page.screenshot({
@@ -545,7 +550,9 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
         );
       }
 
-      console.info('[T6 PASS] Ranked table structure verified: correct columns, no AI columns, gauges present.');
+      console.info(
+        '[T6 PASS] Ranked table structure verified: correct columns, no AI columns, gauges present.'
+      );
     } else {
       // No run — verify the empty state layout
       console.info(
@@ -617,7 +624,7 @@ test.describe('T-6 Layout — matches-shortlist visual baseline (wave-10)', () =
       '[T6-b] NoMandateId error state must render (role="alert" present)'
     ).toBeVisible({ timeout: 10_000 });
 
-    const alertText = await realAlerts.first().textContent() ?? '';
+    const alertText = (await realAlerts.first().textContent()) ?? '';
     expect(
       alertText.toLowerCase(),
       '[T6-b] NoMandateId alert must mention "no mandate selected" or "mandate context"'

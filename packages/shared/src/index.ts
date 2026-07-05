@@ -176,6 +176,9 @@ export {
   shortlistSchema,
 } from './matching';
 export type {
+  ApprovalGrantInput,
+  ApprovalRejectInput,
+  ApprovalRequestInput,
   GateVerdictRecord,
   Outreach,
   OutreachApprovalStatus,
@@ -185,9 +188,6 @@ export type {
   OutreachTemplateVersion,
   TemplateCreateInput,
   VersionDraftInput,
-  ApprovalRequestInput,
-  ApprovalGrantInput,
-  ApprovalRejectInput,
 } from './outreach';
 export {
   approvalGrantInputSchema,

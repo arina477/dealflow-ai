@@ -5,9 +5,9 @@
 | B-0 | stages/B-0-branch-and-schema.md | done | branch + 3 tasks + migration 0010 (journal when>0009; distinct enum + down.sql) |
 | B-1 | stages/B-1-contracts.md | done | shared outreach Zod + rbac + NAV + audit actions |
 | B-2 | stages/B-2-backend.md | done | TemplateService version-binding + OutreachService non-bypassable-gate-reuses-M2 + SoD; full-repo-test green |
-| B-3 | stages/B-3-frontend.md | pending | templates-library + outreach-composer + compliance-queue pages; STRIP send/AI-draft affordances (nextjs-developer) |
-| B-4 | stages/B-4-wiring.md | pending | repo typecheck + build |
-| B-5 | stages/B-5-verify.md | pending | lint+unit+build (gate-called structural test) |
+| B-3 | stages/B-3-frontend.md | done | 3 outreach pages; AC-STRIP (send-eligible NOT send); full-repo-test green (0eb1028) |
+| B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS; 3 routes compile |
+| B-5 | stages/B-5-verify.md | done | lint 0, FULL pnpm -r test green (~1482); gate-called+AC-STRIP; runtime→C-2 |
 | B-6 | stages/B-6-review.md | pending | head-builder gate (compliance invariants + AC-STRIP grep + gate-called) + /review |
 ## Block-specific context
 - **Spec:** seed 102a2f00 (multi-spec, 3 blocks + P-4 karen/jenny notes: enum-name, gate-called, AC-STRIP). Branch wave-11-outreach-foundation.

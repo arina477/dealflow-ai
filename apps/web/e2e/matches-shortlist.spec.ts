@@ -218,9 +218,7 @@ async function seedM3Companies(page: import('@playwright/test').Page): Promise<s
         data: {},
       });
     if (!syncRes.ok()) {
-      console.warn(
-        `[seedM3Companies] sync → ${syncRes.status()} — M3 sync may be incomplete.`
-      );
+      console.warn(`[seedM3Companies] sync → ${syncRes.status()} — M3 sync may be incomplete.`);
     }
     return connectionId;
   } catch (err) {
@@ -322,7 +320,9 @@ async function setupFullMatchChain(
         }
       }
     } else {
-      console.warn('[setupFullMatchChain] No candidates returned from list — M3 seed may be empty.');
+      console.warn(
+        '[setupFullMatchChain] No candidates returned from list — M3 seed may be empty.'
+      );
     }
   }
 
@@ -356,7 +356,9 @@ async function setupFullMatchChain(
   const runBody = (await runRes.json()) as { run?: { id: string }; id?: string };
   const runId = runBody?.run?.id ?? runBody?.id ?? '';
   if (!runId) {
-    console.warn('[setupFullMatchChain] No runId from POST /matches-data — chain may have succeeded; checking list.');
+    console.warn(
+      '[setupFullMatchChain] No runId from POST /matches-data — chain may have succeeded; checking list.'
+    );
     // Try to discover the run ID from the list
     const listRunsRes = await page
       .context()
@@ -450,7 +452,8 @@ test.describe('S1: advisor runs matching + builds shortlist (M5 payoff)', () => 
 
     // If chain failed or produced no run, we may see the "Create Match Run" empty state.
     const createRunBtn = page.getByRole('button', { name: 'Create Match Run' });
-    const hasCreateRunBtn = (await createRunBtn.count()) > 0 && await createRunBtn.isVisible().catch(() => false);
+    const hasCreateRunBtn =
+      (await createRunBtn.count()) > 0 && (await createRunBtn.isVisible().catch(() => false));
 
     if (hasCreateRunBtn) {
       // Chain setup may have failed or the run was not picked up by SSR. Create the run via UI.
@@ -479,7 +482,8 @@ test.describe('S1: advisor runs matching + builds shortlist (M5 payoff)', () => 
       } else {
         console.warn(
           '[FINDING-W10-1] Ranked table not visible and no error alert — page may be in loading or empty state. ' +
-            'Chain completion: ' + (chain ? `universeId=${chain.universeId} runId=${chain.runId}` : 'chain failed')
+            'Chain completion: ' +
+            (chain ? `universeId=${chain.universeId} runId=${chain.runId}` : 'chain failed')
         );
       }
       await page.screenshot({
@@ -489,10 +493,9 @@ test.describe('S1: advisor runs matching + builds shortlist (M5 payoff)', () => 
       // Do not hard-fail — record the finding; S2 (no AI framing) can still run on this page
     } else {
       // ── Assert: ranked table is visible ────────────────────────────────────
-      await expect(
-        rankedTable,
-        '[S1] Ranked match candidates table must be present'
-      ).toBeVisible({ timeout: 10_000 });
+      await expect(rankedTable, '[S1] Ranked match candidates table must be present').toBeVisible({
+        timeout: 10_000,
+      });
 
       // ── Assert: table has expected columns: Fit Score, Candidate, Disposition, Score Breakdown, Actions ──
       const headers = await page
@@ -504,9 +507,10 @@ test.describe('S1: advisor runs matching + builds shortlist (M5 payoff)', () => 
       const hasScoreBreakdown = flatHeaders.some(
         (h) => h.includes('score breakdown') || h.includes('breakdown')
       );
-      expect(hasFitScore, `[S1] Table must have "Fit Score" column. Headers: [${flatHeaders.join(', ')}]`).toBe(
-        true
-      );
+      expect(
+        hasFitScore,
+        `[S1] Table must have "Fit Score" column. Headers: [${flatHeaders.join(', ')}]`
+      ).toBe(true);
       expect(
         hasDisposition,
         `[S1] Table must have "Disposition" column. Headers: [${flatHeaders.join(', ')}]`
@@ -526,18 +530,14 @@ test.describe('S1: advisor runs matching + builds shortlist (M5 payoff)', () => 
       ).toBe(false);
 
       // ── Assert: candidates are ranked by rule-based fit score ─────────────
-      const rows = await page
-        .locator('table[aria-label="Ranked match candidates"] tbody tr')
-        .all();
+      const rows = await page.locator('table[aria-label="Ranked match candidates"] tbody tr').all();
 
       if (rows.length >= 2) {
         // Extract fit scores from the FitScoreGauge aria-labels: "Rule-based fit score: N"
         const gauges = await page
           .locator('[aria-label^="Rule-based fit score:"]')
           .allTextContents();
-        const scores = gauges
-          .map((g) => Number(g.trim()))
-          .filter((s) => !Number.isNaN(s));
+        const scores = gauges.map((g) => Number(g.trim())).filter((s) => !Number.isNaN(s));
 
         if (scores.length >= 2) {
           // Verify descending order (scores may have ties but should not be ascending-only)
@@ -585,14 +585,18 @@ test.describe('S1: advisor runs matching + builds shortlist (M5 payoff)', () => 
           // Assert: the accepted state is reflected (either badge or optimistic update)
           // The AcceptedBadge has role="status" aria-label="Accepted"
           const acceptedStatus = page.getByRole('status', { name: 'Accepted' });
-          const hasAcceptedStatus = (await acceptedStatus.count()) > 0 && await acceptedStatus.isVisible().catch(() => false);
+          const hasAcceptedStatus =
+            (await acceptedStatus.count()) > 0 &&
+            (await acceptedStatus.isVisible().catch(() => false));
 
           if (hasAcceptedStatus) {
             await expect(
               acceptedStatus,
               '[S1] Accepted status badge must appear after clicking Accept'
             ).toBeVisible({ timeout: 5_000 });
-            console.info('[S1 PASS] Accept disposition confirmed — "Accepted" status badge visible.');
+            console.info(
+              '[S1 PASS] Accept disposition confirmed — "Accepted" status badge visible.'
+            );
           } else {
             // Check for the disposition badge via text
             const acceptedBadge = page.locator('span', { hasText: /^Accepted$/i });
@@ -648,9 +652,11 @@ test.describe('S1: advisor runs matching + builds shortlist (M5 payoff)', () => 
           }
 
           // ── Handoff CTA: submit shortlist to outreach ──────────────────────
-          const handoffBtn = page.locator('[data-testid="handoff-button"], [aria-label="Submit shortlist to outreach"]');
+          const handoffBtn = page.locator(
+            '[data-testid="handoff-button"], [aria-label="Submit shortlist to outreach"]'
+          );
           const handoffCount = await handoffBtn.count();
-          if (handoffCount > 0 && await handoffBtn.isVisible().catch(() => false)) {
+          if (handoffCount > 0 && (await handoffBtn.isVisible().catch(() => false))) {
             const isDisabled = await handoffBtn.getAttribute('disabled');
             if (isDisabled === null) {
               await handoffBtn.click();
@@ -690,7 +696,8 @@ test.describe('S1: advisor runs matching + builds shortlist (M5 payoff)', () => 
         } else {
           console.warn(
             '[S1] No "Accept candidate" buttons found — table may have 0 candidates or advisor cannot mutate. ' +
-              'Chain: ' + (chain ? `universeId=${chain.universeId} runId=${chain.runId}` : 'chain failed')
+              'Chain: ' +
+              (chain ? `universeId=${chain.universeId} runId=${chain.runId}` : 'chain failed')
           );
         }
       } else if (rows.length === 0) {
@@ -756,7 +763,8 @@ test.describe('S2: NO AI-framing DOM check (karen MANDATORY + CODE-OF-CONDUCT)',
       } else {
         // Try the UI Create Match Run button
         const createRunBtn = page.getByRole('button', { name: 'Create Match Run' });
-        const hasCreateBtn = (await createRunBtn.count()) > 0 && await createRunBtn.isVisible().catch(() => false);
+        const hasCreateBtn =
+          (await createRunBtn.count()) > 0 && (await createRunBtn.isVisible().catch(() => false));
         if (hasCreateBtn) {
           await createRunBtn.click();
           await page.waitForTimeout(5_000);
@@ -765,7 +773,7 @@ test.describe('S2: NO AI-framing DOM check (karen MANDATORY + CODE-OF-CONDUCT)',
     }
 
     // ── Get full page text content for AI-framing audit ──────────────────────
-    const pageText = await page.locator('body').textContent() ?? '';
+    const pageText = (await page.locator('body').textContent()) ?? '';
     const pageTextLower = pageText.toLowerCase();
 
     // ── Assert: NO forbidden AI-framing strings ───────────────────────────────
@@ -822,13 +830,12 @@ test.describe('S2: NO AI-framing DOM check (karen MANDATORY + CODE-OF-CONDUCT)',
     ];
 
     for (const [phrase, message] of htmlForbiddenPhrases) {
-      expect(
-        pageHTMLLower.includes(phrase),
-        `[S2 NO-AI-FRAMING HTML] ${message}`
-      ).toBe(false);
+      expect(pageHTMLLower.includes(phrase), `[S2 NO-AI-FRAMING HTML] ${message}`).toBe(false);
     }
 
-    console.info('[S2 PASS] NO AI-framing confirmed on /matches-shortlist page — all forbidden phrases absent.');
+    console.info(
+      '[S2 PASS] NO AI-framing confirmed on /matches-shortlist page — all forbidden phrases absent.'
+    );
 
     await page.screenshot({
       path: path.join(SCREENSHOT_DIR, 'w10-s2-no-ai-framing.png'),
@@ -872,7 +879,8 @@ test.describe('S3: RBAC — analyst read-only; non-allowed roles redirected; una
     // Assert: "Create Match Run" button is NOT present for analyst (canMutate=false)
     const createRunBtn = page.getByRole('button', { name: 'Create Match Run' });
     const createRunCount = await createRunBtn.count();
-    const createRunVisible = createRunCount > 0 && await createRunBtn.isVisible().catch(() => false);
+    const createRunVisible =
+      createRunCount > 0 && (await createRunBtn.isVisible().catch(() => false));
 
     expect(
       createRunVisible,
@@ -882,23 +890,19 @@ test.describe('S3: RBAC — analyst read-only; non-allowed roles redirected; una
     // Assert: "Accept candidate" button is NOT present for analyst
     const acceptBtns = page.getByRole('button', { name: 'Accept candidate' });
     const acceptCount = await acceptBtns.count();
-    expect(
-      acceptCount,
-      '[S3-a] Analyst must NOT see Accept candidate buttons (read-only)'
-    ).toBe(0);
+    expect(acceptCount, '[S3-a] Analyst must NOT see Accept candidate buttons (read-only)').toBe(0);
 
     // Assert: "Reject candidate" button is NOT present for analyst
     const rejectBtns = page.getByRole('button', { name: 'Reject candidate' });
     const rejectCount = await rejectBtns.count();
-    expect(
-      rejectCount,
-      '[S3-a] Analyst must NOT see Reject candidate buttons (read-only)'
-    ).toBe(0);
+    expect(rejectCount, '[S3-a] Analyst must NOT see Reject candidate buttons (read-only)').toBe(0);
 
     // Assert: Submit to Outreach / handoff button is NOT present for analyst
-    const handoffBtn = page.locator('[data-testid="handoff-button"], [aria-label="Submit shortlist to outreach"]');
+    const handoffBtn = page.locator(
+      '[data-testid="handoff-button"], [aria-label="Submit shortlist to outreach"]'
+    );
     const handoffCount = await handoffBtn.count();
-    const handoffVisible = handoffCount > 0 && await handoffBtn.isVisible().catch(() => false);
+    const handoffVisible = handoffCount > 0 && (await handoffBtn.isVisible().catch(() => false));
     // The handoff button may be rendered but disabled — either not visible OR disabled is acceptable
     if (handoffVisible) {
       const isDisabled = await handoffBtn.getAttribute('disabled');
@@ -908,7 +912,9 @@ test.describe('S3: RBAC — analyst read-only; non-allowed roles redirected; una
       ).not.toBeNull();
     }
 
-    console.info('[S3-a PASS] Analyst sees /matches-shortlist read-only (no Create/Accept/Reject controls).');
+    console.info(
+      '[S3-a PASS] Analyst sees /matches-shortlist read-only (no Create/Accept/Reject controls).'
+    );
 
     await page.screenshot({
       path: path.join(SCREENSHOT_DIR, 'w10-s3a-analyst-readonly.png'),
@@ -1093,8 +1099,8 @@ test.describe('S4: wave-2..9 regression guard', () => {
     expect(page.url()).not.toMatch(/\/login/);
 
     // Should show NoMandateId error state
-    await expect(
-      page.locator('[role="alert"]:not(#__next-route-announcer__)').first()
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)').first()).toBeVisible(
+      { timeout: 10_000 }
+    );
   });
 });
