@@ -44,3 +44,48 @@ B-block cascade rules (apply where the rework stage is the trigger):
 ## Footer
 - verdict_complete: true
 - rework_attempt_cap_remaining: 2
+
+---
+
+# Wave 12 — B-6 Verdict (attempt 2)
+
+**Reviewer:** head-builder (fresh spawn, agentId head-builder-b6-w12-a2)
+**Reviewed against:** commit 9d0bc82 / 3b34324 (test-only rework), attempt-1 REWORK instructions (B-5 scope)
+**Attempt:** 2  (post-rework re-gate)
+
+## Verdict
+APPROVED
+
+## Rationale
+The single load-bearing gap from attempt-1 is genuinely closed. Attempt-1 REWORK was scoped to B-5 ONLY: the audit-rollback compliance invariant ("audit append throws mid-txn → whole mutation rolls back, no orphan pipeline/pipeline_events row") was asserted against a mocked `runInTransaction` (`vi.fn` passthrough calling `work({})`), so the real `db.transaction()` ROLLBACK path had zero coverage — hollow-test theater on exactly the invariant this gate protects. The rework adds `apps/api/test/pipeline-gate.e2e-spec.ts` (599 lines), a self-migrating real-DB e2e mirroring the proven wave-11 outreach-gate pattern, and it closes the gap for real, not cosmetically. **Real transaction, not mocked:** the suite instantiates the REAL `PipelineRepository` + REAL `PipelineService` + REAL `AuditService` (keyring→repository ctor order, the wave-11 lesson) against `TEST_DATABASE_URL`; `runInTransaction` is never spied — it delegates directly to `this.db.transaction(work)` (repository:103-104), and `appendAudit` awaits `auditService.append(input, tx)` as the LAST write inside the `runInTransaction` block on all three paths (enroll:174, transition:259, note:327), with no try/catch swallow. The tests spy ONLY `auditService.append` with `mockRejectedValueOnce`, so the rejection propagates out of Drizzle's transaction callback → a real Postgres ROLLBACK. **The 4 proofs are genuine** (independently confirmed by postgres-pro, no false-green path given the seeded `send_eligible` fixture): (1) enroll audit-throw → pipeline + enrolled-event counts unchanged, read AFTER via a separate autocommit `db.execute` (isolation-safe, reads only committed state); (2) addNote audit-throw → zero new note events after a real prior commit; (3) happy-path enroll+transition+addNote → exactly 1 enrolled/stage_changed/note event and `audit_log_entries` +1 per action, all asserted against committed rows (values from `.returning()`, not tautological); (4) idempotent 2nd enroll → the real partial-unique index raises 23505 → `ConflictException` with unchanged row count. **It will actually RUN (no Ghost Green):** the `test/**/*.{spec,test,e2e-spec}.ts` vitest glob (vitest.config.ts:20) collects the file — the wave-11 uncollected-test lesson held via the `.e2e-spec.ts` suffix; locally `TEST_DATABASE_URL` is unset so `describe.skipIf` skips clean (4 tests / 4 skipped, api 635 pass + 11 skipped); in CI, ci.yml creates `dealflow_test` and sets `TEST_DATABASE_URL`, and `beforeAll` self-migrates via the drizzle migrator against `src/db/migrations` before executing all 4 against real Postgres. **No implementation drift:** `git diff 9d0bc82^..3b34324` touched only the e2e-spec and this gate-verdict — zero changes under `apps/api/src/modules/pipeline/**` — so the attempt-1 code APPROVAL stands untouched. Attempt-1 invariants re-confirmed on a light pass: actor identity resolved via `getUserWithRole` (raw SuperTokens id never persisted as actor), eligible-source guard (`send_eligible` else 400), fixed-enum transition re-guarded against `pipelineStageEnum.options`, pipeline_events append-only (no update/delete path), boundaries clean (no Anthropic/LLM, no email SDK, no webhook/send). The compliance invariant the B-gate exists to protect — no orphan business row without its audit entry — is now proven against the real transaction boundary in CI. Nothing hollow remains.
+
+## Rework instructions  (only if REWORK)
+- N/A
+
+## Escalation  (only if ESCALATE)
+- N/A
+
+## Footer
+- verdict_complete: true
+- rework_attempt_cap_remaining: 2
+
+---
+
+# Wave 12 — B-6 Verdict (Phase 2 — /review code-reviewer)
+**Attempt:** 1 (Phase 2)
+## Verdict: REWORK (1 HIGH + 2 MEDIUM; clean at CRITICAL)
+- **H-1 (HIGH — compliance provenance):** enroll input carries caller-supplied mandateId, but the eligible-source guard (pipeline.service.ts:130-197 + repository findOutreachByIdInTx/findMatchCandidateEligibilityInTx) NEVER verifies the source (outreach/match_candidate) belongs to that mandateId. Advisor can enroll a mandate-A source under mandate B → false mandate association in the pipeline row + every downstream pipeline_events + audit_log_entries row. Single-mandate fixtures hid it. FIX: select the source's mandate_id in the guard (outreach.mandateId / matchRun.mandateId via the existing join) + reject 400 if != input.mandateId, IN-TX before insertPipeline; + a divergent-mandate spec test (source mandate A, enroll mandate B → 400, no row).
+- **M-1 (MEDIUM):** the 5 new /pipeline sub-routes (/pipeline/new, /:id, /:id/stage, /:id/notes, /:id/events) are NOT in the pinned rbac.test matrix (subset assertion, no length-equality) → the write-vs-read RBAC split unpinned. FIX: add the 5 patterns + exact roles to matrixRows.
+- **M-2 (MEDIUM):** board SSR fetch (page.tsx:120-137) collapses any non-OK/parse-fail to an empty 7-column board — a real board-shape regression renders as benign-empty (the wave-8/9/10/11 drift class). Events path is fine (surfaces errors). FIX: distinguish fetch-error from empty-board in the SSR path (error flag → distinct client state).
+- LOW (no action, consistent w/ codebase): L-1 getEvents 2-query non-tx read (harmless append-only), L-2 single-level cause unwrap, L-3 local boardResponseSchema dup.
+## Clean (verified): audit-last-in-txn (3 paths, real rollback), idempotent-enroll race (DB partial-unique+409), actor-id, fixed-enum+append-only, SQL-safety (sql-tag fixtures), migration 0011 additive+distinct-enums+journal, response-shape (SSR+proxy), RBAC+provenance (no send/AI).
+## Footer
+```yaml
+verdict_complete: true
+phase1_head_builder: APPROVED (attempt 2)
+phase2_review: REWORK
+criticals: 0
+highs: [H-1-cross-mandate-enrollment]
+routed: [backend-developer (H-1 mandate-consistency + M-1 rbac-matrix-pin), nextjs-developer (M-2 board-error-state)]
+rework_attempt_cap_remaining: 2
+```
