@@ -36,18 +36,18 @@ BUILD:
 
 CI/CD:
 - [x] C-1 PR/CI/merge — direct-push-to-main; ALL 5 CI jobs GREEN (8d7ed8b); outreach-gate e2e PROVES send_eligible live (3 test-infra fix-forwards)
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [x] C-2 Deploy & verify — both svcs SUCCESS @ af5b5d9 (immutable serviceInstanceDeployV2, neither SKIPPED); /health 200 version=af5b5d9 own-domain; migration 0010 tables live (200, no relation-missing); compose advisor-only RBAC + always-gate (send_eligible unreached w/o approved refs; non-bypass relies on C-1 e2e 6/6 @ af5b5d9); AC-STRIP holds on deployed authed HTML (self-grepped web-origin); rollback armed to wave-10 57449b68; canary skipped (0 DAU)
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
-- [ ] T-9 Journey
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
+- [x] T-5 E2E
+- [x] T-6 Layout
+- [x] T-7 Perf
+- [x] T-8 Security
+- [x] T-9 Journey
 
 VERIFY:
 - [ ] V-1 Independent reviews (Karen + jenny, parallel)

@@ -124,3 +124,19 @@ Detailed product descriptions live in `command-center/product/per-page-pd/<page>
 - Every MVP feature (#1–#19 in feature-list.md) maps to ≥1 page above. ✓
 - Every page connects to ≥1 flow. ✓
 - H2/H3 pages (pilot-partner workspace, CRM-integration screens, analytics, multi-tenant) are deferred — not in this MVP inventory.
+
+
+---
+
+## Wave-11 delivered — Compliant-outreach foundation (LIVE @ af5b5d9)
+
+The following pages/flows are now DEPLOYED and functional (M6 first bundle):
+
+- **Templates library** (`/outreach-templates`) — advisor/analyst author outreach templates, draft immutable versions (content-hash), request compliance approval. Version-binding badge: send-eligible only for an approved + hash-matching version.
+- **Outreach composer** (`/outreach-composer`) — advisor selects an approved template + a shortlist recipient → **"Run Compliance Gate & Create Record"** → the NON-BYPASSABLE pre-send compliance gate (reuses the M2 ComplianceGateService, now binding compliance_approvals) evaluates version-binding + SoD (composer≠approver) + disclaimer + suppression + content-hash → verdict **send_eligible** ("Send-eligible record created" + "No email has been sent") or **blocked** (+ reason). NO email is sent, NO AI drafting — deferred bundles (honest provenance per CODE-OF-CONDUCT).
+- **Compliance queue** (`/compliance-queue`) — compliance-role grants/rejects pending template versions; SoD enforced (grant sets approved_content_hash + approved_by; a version the compliance user did not author).
+
+### F16 — Compliant outreach: template → approval → compose → send-eligible (Advisor + Compliance)
+Entry: Templates library (`/outreach-templates`) → draft version → request approval → Compliance queue (`/compliance-queue`, compliance grants, SoD) → Outreach composer (`/outreach-composer`, advisor composes → pre-send gate → send-eligible record). Produces a send-ELIGIBLE record only; actual send is a later bundle.
+
+Verified: CI real-DB e2e (gate reaches send_eligible only via a passing evaluate; blocks no-approval/SoD/content-drift) + C-2 deployed-authed (RBAC, AC-STRIP on authed HTML, tables live). Deferred (later M6 bundles): actual email send-path + tracking + pipeline; AI-assisted drafting (founder LLM-spend gate).
