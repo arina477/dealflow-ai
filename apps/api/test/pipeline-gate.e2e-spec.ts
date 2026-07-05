@@ -40,10 +40,10 @@
  *   first, then the user/mandate chain).
  */
 
-import path from 'node:path';
 import { sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { apiMigrationsFolder, ensureMigrated } from './_helpers/ensure-migrated';
 
 // ── Guard ───────────────────────────────────────────────────────────────────
 const TEST_DB_URL = process.env.TEST_DATABASE_URL;
@@ -75,24 +75,25 @@ let dbReachable = false;
 
 // ── UUID namespaces — unique per suite file to avoid cross-suite conflicts ──
 //
-// Pattern: <suite-prefix>-<role-slot>-<sequence>. All IDs are fixed so we can
-// reliably delete them in afterAll.
-//
-// Suite prefix: 'e2e-pg-' (pipeline gate e2e).
-const ADVISOR_ID = 'e2e0pg00-0000-0000-0001-000000000001';
-const ST_ADVISOR_ID = 'st_e2e0pg00_advisor';
+// Pattern: 00000012-<role-slot>-4000-8000-<sequence>. All IDs use valid hex
+// characters only (0-9a-f) and the correct 8-4-4-4-12 UUID shape.
+// Prefix '00000012' is the wave-12 pipeline-gate namespace — distinct from
+// the outreach-gate suites (which use '10000000'-'60000000' prefixes) and
+// from the pipeline.spec.ts unit fixtures (which use '00000000' prefix).
+const ADVISOR_ID = '00000012-0001-4000-8000-000000000001';
+const ST_ADVISOR_ID = 'st_e2e_pipeline_gate_advisor';
 
-const MANDATE_ID = 'e2e0pg00-0000-0000-0002-000000000001';
-const DISCLAIMER_ID = 'e2e0pg00-dddd-0000-0003-000000000001';
-const TEMPLATE_ID = 'e2e0pg00-0000-0000-0004-000000000001';
-const VERSION_ID = 'e2e0pg00-0000-0000-0005-000000000001';
-const BUYER_UNIVERSE_COMPANY_ID = 'e2e0pg00-0000-0000-0006-000000000001'; // companies.id
-const BUYER_UNIVERSE_ID = 'e2e0pg00-0000-0000-0007-000000000001';
-const BUYER_UNIVERSE_CANDIDATE_ID = 'e2e0pg00-0000-0000-0008-000000000001';
-const MATCH_RUN_ID = 'e2e0pg00-0000-0000-0009-000000000001';
-const MATCH_CANDIDATE_ID = 'e2e0pg00-0000-0000-000a-000000000001';
-const _OUTREACH_TEMPLATE_VERSION_ID = 'e2e0pg00-0000-0000-000b-000000000001'; // same as VERSION_ID alias (kept for documentation)
-const OUTREACH_ID = 'e2e0pg00-0000-0000-000c-000000000001';
+const MANDATE_ID = '00000012-0002-4000-8000-000000000001';
+const DISCLAIMER_ID = '00000012-0003-4000-8000-000000000001';
+const TEMPLATE_ID = '00000012-0004-4000-8000-000000000001';
+const VERSION_ID = '00000012-0005-4000-8000-000000000001';
+const BUYER_UNIVERSE_COMPANY_ID = '00000012-0006-4000-8000-000000000001'; // companies.id
+const BUYER_UNIVERSE_ID = '00000012-0007-4000-8000-000000000001';
+const BUYER_UNIVERSE_CANDIDATE_ID = '00000012-0008-4000-8000-000000000001';
+const MATCH_RUN_ID = '00000012-0009-4000-8000-000000000001';
+const MATCH_CANDIDATE_ID = '00000012-000a-4000-8000-000000000001';
+const _OUTREACH_TEMPLATE_VERSION_ID = '00000012-000b-4000-8000-000000000001'; // same as VERSION_ID alias (kept for documentation)
+const OUTREACH_ID = '00000012-000c-4000-8000-000000000001';
 
 describe.skipIf(shouldSkip)(
   'Pipeline Gate Integration — REAL PipelineService + real-DB rollback proofs',
@@ -122,10 +123,10 @@ describe.skipIf(shouldSkip)(
       const dbIndex = await import('../src/db/index');
       db = dbIndex.db;
 
-      // ── 2. Self-migrate (safe no-op on already-migrated DB) ────────────────
-      const { migrate } = await import('drizzle-orm/node-postgres/migrator');
-      const migrationsFolder = path.resolve(__dirname, '../src/db/migrations');
-      await migrate(db, { migrationsFolder });
+      // ── 2. Self-migrate via shared race-safe helper ────────────────────────
+      // Serialises concurrent vitest workers via a Postgres advisory lock and
+      // tolerates already-applied / duplicate-object errors from parallel runs.
+      await ensureMigrated(db, apiMigrationsFolder(__dirname));
 
       // ── 3. Instantiate real services (AuditKeyring FIRST — wave-11 lesson) ──
       const { AuditKeyring } = await import('../src/modules/audit/audit.keyring');

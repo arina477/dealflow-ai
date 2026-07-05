@@ -63,6 +63,7 @@
 import {
   addNoteInputSchema,
   enrollInputSchema,
+  isPublicRoute,
   rolesForRoute,
   transitionInputSchema,
 } from '@dealflow/shared';
@@ -602,7 +603,8 @@ describe('RBAC matrix — pipeline roleRoutes', () => {
 
   it('26. anon → 401 (no session — verified via RBAC route check: no public bypass)', () => {
     // /pipeline is not in the public allowlist.
-    const { isPublicRoute } = require('@dealflow/shared');
+    // isPublicRoute is imported at the top of this file from '@dealflow/shared'
+    // (the aliased source path — no /dist/ dependency required in CI).
     expect(isPublicRoute('/pipeline')).toBe(false);
     // The board route requires roles — empty role set means default-deny.
     const roles = rolesForRoute('/pipeline');

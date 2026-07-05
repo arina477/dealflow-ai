@@ -28,10 +28,10 @@
  * to force rollback, so no test data ever persists to the DB.
  */
 
-import path from 'node:path';
 import { sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { apiMigrationsFolder, ensureMigrated } from './_helpers/ensure-migrated';
 
 // ── Guard ───────────────────────────────────────────────────────────────────
 const TEST_DB_URL = process.env.TEST_DATABASE_URL;
@@ -84,13 +84,10 @@ describe.skipIf(shouldSkip)(
       const dbIndex = await import('../src/db/index');
       db = dbIndex.db;
 
-      // Self-apply all drizzle migrations to the test DB so this suite is
-      // CI-infrastructure-independent (no external migrate step needed in ci.yml).
-      // drizzle's migrator tracks applied migrations via its internal journal table,
-      // so re-running against an already-migrated DB is a safe no-op.
-      const { migrate } = await import('drizzle-orm/node-postgres/migrator');
-      const migrationsFolder = path.resolve(__dirname, '../src/db/migrations');
-      await migrate(db, { migrationsFolder });
+      // Self-apply all drizzle migrations to the test DB via the shared race-safe
+      // helper — serialises concurrent vitest workers via a Postgres advisory lock
+      // and tolerates already-applied / duplicate-object errors from parallel runs.
+      await ensureMigrated(db, apiMigrationsFolder(__dirname));
 
       const contentHashModule = await import('../src/modules/compliance-gate/content-hash');
       computeContentHash = contentHashModule.computeContentHash;
