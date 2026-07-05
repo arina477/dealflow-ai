@@ -317,6 +317,42 @@ const nextConfig: NextConfig = {
           source: '/outreach-data',
           destination: `${apiProxyTarget}/outreach`,
         },
+        // Wave-12: pipeline mutation + events proxy (page-route-collision fix).
+        //
+        // CRITICAL: /pipeline has a Next.js page file:
+        //   /pipeline → app/(app)/pipeline/page.tsx
+        //
+        // We must NOT rewrite /pipeline (GET — served as the React page). All
+        // client mutations AND the events/notes sub-path reads use the
+        // non-colliding /pipeline-data prefix. These paths have NO Next.js page
+        // file, so afterFiles always proxies them to the API.
+        //
+        // Route-ordering: most-specific paths first (wave-9 lesson).
+        //   /pipeline-data/:id/notes   → POST /pipeline/:id/notes
+        //   /pipeline-data/:id/events  → GET  /pipeline/:id/events
+        //   /pipeline-data/:id/stage   → PATCH /pipeline/:id/stage
+        //   /pipeline-data/:id         → GET /pipeline/:id (detail)
+        //
+        // Client callers (DealTimelinePanel + StageMoveSelect):
+        //   PATCH /pipeline-data/:id/stage  → PATCH /pipeline/:id/stage (transition)
+        //   POST  /pipeline-data/:id/notes  → POST  /pipeline/:id/notes (add note)
+        //   GET   /pipeline-data/:id/events → GET   /pipeline/:id/events (timeline)
+        {
+          source: '/pipeline-data/:id/notes',
+          destination: `${apiProxyTarget}/pipeline/:id/notes`,
+        },
+        {
+          source: '/pipeline-data/:id/events',
+          destination: `${apiProxyTarget}/pipeline/:id/events`,
+        },
+        {
+          source: '/pipeline-data/:id/stage',
+          destination: `${apiProxyTarget}/pipeline/:id/stage`,
+        },
+        {
+          source: '/pipeline-data/:id',
+          destination: `${apiProxyTarget}/pipeline/:id`,
+        },
       ],
       beforeFiles: [],
       fallback: [],
