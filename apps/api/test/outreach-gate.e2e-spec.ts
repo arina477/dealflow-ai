@@ -29,6 +29,7 @@
  */
 
 import path from 'node:path';
+import { sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -101,30 +102,39 @@ describe.skipIf(shouldSkip)(
 
     // ─────────────────────────────────────────────────────────────────────────
     // SQL fixture helpers (run inside the rollback-isolated tx handle)
+    //
+    // FIX: All raw SQL uses drizzle's sql`` tag for safe parametrized binding.
+    // tx.execute(sqlString, [params]) does NOT bind positional params in
+    // drizzle-orm/node-postgres — the $1 placeholder reaches Postgres unbound
+    // (PG code 42P02). sql`...${value}...` is the correct binding mechanism:
+    // drizzle converts each interpolation to a positional param internally.
     // ─────────────────────────────────────────────────────────────────────────
 
     // biome-ignore lint/suspicious/noExplicitAny: drizzle tx handle
     async function insertTestUser(tx: any, userId: string, roleName: string): Promise<void> {
+      // roles are seeded by migration 0001 (advisor/analyst/compliance/admin).
+      // ON CONFLICT DO NOTHING is safe for re-entrancy within the rollback tx.
       await tx.execute(
-        `INSERT INTO roles (id, name) VALUES (gen_random_uuid(), $1) ON CONFLICT (name) DO NOTHING`,
-        [roleName]
+        sql`INSERT INTO roles (id, name) VALUES (gen_random_uuid(), ${roleName}) ON CONFLICT (name) DO NOTHING`
       );
-      const roleRow = await tx.execute(`SELECT id FROM roles WHERE name = $1 LIMIT 1`, [roleName]);
+      const roleRow = await tx.execute(sql`SELECT id FROM roles WHERE name = ${roleName} LIMIT 1`);
       const roleId = roleRow.rows?.[0]?.id;
       if (!roleId) throw new Error(`Role ${roleName} not found after insert`);
+      // supertokens_user_id is NOT NULL UNIQUE — supply a synthetic value per user.
+      const stUserId = `st_${userId}`;
       await tx.execute(
-        `INSERT INTO users (id, email, role_id) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-        [userId, `${userId}@test.invalid`, roleId]
+        sql`INSERT INTO users (id, email, role_id, supertokens_user_id)
+            VALUES (${userId}, ${`${userId}@test.invalid`}, ${roleId}, ${stUserId})
+            ON CONFLICT (id) DO NOTHING`
       );
     }
 
     // biome-ignore lint/suspicious/noExplicitAny: drizzle tx handle
     async function insertTestDisclaimer(tx: any, disclaimerId: string): Promise<void> {
       await tx.execute(
-        `INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active)
-         VALUES ($1, $2, $3, 1, true)
-         ON CONFLICT (id) DO NOTHING`,
-        [disclaimerId, TEST_JURISDICTION, 'Test disclaimer body for integration tests.']
+        sql`INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active)
+            VALUES (${disclaimerId}, ${TEST_JURISDICTION}, ${'Test disclaimer body for integration tests.'}, 1, true)
+            ON CONFLICT (id) DO NOTHING`
       );
     }
 
@@ -181,28 +191,24 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            `INSERT INTO outreach_templates (id, name, owner_id) VALUES ($1, 'Integration Template', $2)`,
-            [TEMPLATE_ID, ADVISOR_ID]
+            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'Integration Template'}, ${ADVISOR_ID})`
           );
           await t.execute(
-            `INSERT INTO outreach_template_versions
+            sql`INSERT INTO outreach_template_versions
                (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES ($1, $2, 1, $3, $4, $5, $6, 'pending')`,
-            [VERSION_ID, TEMPLATE_ID, SUBJECT, BODY, DISCLAIMER_ID, CONTENT_HASH]
+               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${SUBJECT}, ${BODY}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'pending')`
           );
 
           // C-1 FIX: this row is what grantApproval now inserts (bridging to M2 gate).
           await t.execute(
-            `INSERT INTO compliance_approvals
+            sql`INSERT INTO compliance_approvals
                (resource_type, resource_id, content_hash, approver_user_id, approver_role, status)
-               VALUES ('outreach-template-version', $1, $2, $3, 'compliance', 'approved')`,
-            [VERSION_ID, CONTENT_HASH, COMPLIANCE_ID]
+               VALUES ('outreach-template-version', ${VERSION_ID}, ${CONTENT_HASH}, ${COMPLIANCE_ID}, 'compliance', 'approved')`
           );
           await t.execute(
-            `UPDATE outreach_template_versions
-               SET approval_status='approved', approved_content_hash=$1, approved_by=$2
-               WHERE id=$3`,
-            [CONTENT_HASH, COMPLIANCE_ID, VERSION_ID]
+            sql`UPDATE outreach_template_versions
+               SET approval_status='approved', approved_content_hash=${CONTENT_HASH}, approved_by=${COMPLIANCE_ID}
+               WHERE id=${VERSION_ID}`
           );
 
           // Instantiate the REAL gate (uses the tx so it reads our inserted rows).
@@ -256,14 +262,12 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            `INSERT INTO outreach_templates (id, name, owner_id) VALUES ($1, 'Not-approved', $2)`,
-            [TEMPLATE_ID, ADVISOR_ID]
+            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'Not-approved'}, ${ADVISOR_ID})`
           );
           await t.execute(
-            `INSERT INTO outreach_template_versions
+            sql`INSERT INTO outreach_template_versions
                (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES ($1, $2, 1, 'Not-approved subject', 'Not-approved body.', $3, $4, 'pending')`,
-            [VERSION_ID, TEMPLATE_ID, DISCLAIMER_ID, CONTENT_HASH]
+               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${'Not-approved subject'}, ${'Not-approved body.'}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'pending')`
           );
           // Deliberately no compliance_approvals row.
 
@@ -315,21 +319,18 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            `INSERT INTO outreach_templates (id, name, owner_id) VALUES ($1, 'SoD template', $2)`,
-            [TEMPLATE_ID, USER_ID]
+            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'SoD template'}, ${USER_ID})`
           );
           await t.execute(
-            `INSERT INTO outreach_template_versions
+            sql`INSERT INTO outreach_template_versions
                (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES ($1, $2, 1, 'SoD-violation subject', 'SoD-violation body.', $3, $4, 'approved')`,
-            [VERSION_ID, TEMPLATE_ID, DISCLAIMER_ID, CONTENT_HASH]
+               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${'SoD-violation subject'}, ${'SoD-violation body.'}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'approved')`
           );
           // Approval row where approver === sender (same USER_ID).
           await t.execute(
-            `INSERT INTO compliance_approvals
+            sql`INSERT INTO compliance_approvals
                (resource_type, resource_id, content_hash, approver_user_id, approver_role, status)
-               VALUES ('outreach-template-version', $1, $2, $3, 'compliance', 'approved')`,
-            [VERSION_ID, CONTENT_HASH, USER_ID]
+               VALUES ('outreach-template-version', ${VERSION_ID}, ${CONTENT_HASH}, ${USER_ID}, 'compliance', 'approved')`
           );
 
           const gateSvc = await buildGateService();
@@ -391,28 +392,24 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            `INSERT INTO outreach_templates (id, name, owner_id) VALUES ($1, 'Drift template', $2)`,
-            [TEMPLATE_ID, ADVISOR_ID]
+            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'Drift template'}, ${ADVISOR_ID})`
           );
           // v1: approved with compliance_approvals row.
           await t.execute(
-            `INSERT INTO outreach_template_versions
+            sql`INSERT INTO outreach_template_versions
                (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES ($1, $2, 1, 'Original subject v1', 'Original body v1.', $3, $4, 'approved')`,
-            [VERSION1_ID, TEMPLATE_ID, DISCLAIMER_ID, HASH1]
+               VALUES (${VERSION1_ID}, ${TEMPLATE_ID}, 1, ${'Original subject v1'}, ${'Original body v1.'}, ${DISCLAIMER_ID}, ${HASH1}, 'approved')`
           );
           await t.execute(
-            `INSERT INTO compliance_approvals
+            sql`INSERT INTO compliance_approvals
                (resource_type, resource_id, content_hash, approver_user_id, approver_role, status)
-               VALUES ('outreach-template-version', $1, $2, $3, 'compliance', 'approved')`,
-            [VERSION1_ID, HASH1, COMPLIANCE_ID]
+               VALUES ('outreach-template-version', ${VERSION1_ID}, ${HASH1}, ${COMPLIANCE_ID}, 'compliance', 'approved')`
           );
           // v2: new draft — NO compliance_approvals row.
           await t.execute(
-            `INSERT INTO outreach_template_versions
+            sql`INSERT INTO outreach_template_versions
                (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES ($1, $2, 2, 'Revised subject v2', 'Revised body v2.', $3, $4, 'pending')`,
-            [VERSION2_ID, TEMPLATE_ID, DISCLAIMER_ID, HASH2]
+               VALUES (${VERSION2_ID}, ${TEMPLATE_ID}, 2, ${'Revised subject v2'}, ${'Revised body v2.'}, ${DISCLAIMER_ID}, ${HASH2}, 'pending')`
           );
 
           const gateSvc = await buildGateService();
@@ -466,17 +463,15 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            `INSERT INTO outreach_templates (id, name, owner_id) VALUES ($1, 'Double-approve template', $2)`,
-            [TEMPLATE_ID, ADVISOR_ID]
+            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'Double-approve template'}, ${ADVISOR_ID})`
           );
           // Version starts as 'approved' (already processed).
           await t.execute(
-            `INSERT INTO outreach_template_versions
+            sql`INSERT INTO outreach_template_versions
                (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash,
                 approval_status, approved_content_hash, approved_by)
-               VALUES ($1, $2, 1, 'Double-approve subject', 'Double-approve body.', $3, $4,
-                       'approved', $4, $5)`,
-            [VERSION_ID, TEMPLATE_ID, DISCLAIMER_ID, CONTENT_HASH, COMPLIANCE_ID]
+               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${'Double-approve subject'}, ${'Double-approve body.'}, ${DISCLAIMER_ID}, ${CONTENT_HASH},
+                       'approved', ${CONTENT_HASH}, ${COMPLIANCE_ID})`
           );
 
           const { OutreachRepository } = await import(
@@ -506,6 +501,10 @@ describe.skipIf(shouldSkip)(
 
     // ─────────────────────────────────────────────────────────────────────────
     // C-2. listTemplatesWithVersions embeds versions array
+    //
+    // FIX: construct OutreachRepository with the tx handle (not the pool-level
+    // db singleton) so listTemplatesWithVersions reads within the open transaction
+    // and sees the fixture rows before they are rolled back.
     // ─────────────────────────────────────────────────────────────────────────
 
     it('C-2. listTemplatesWithVersions returns templates with embedded versions; pending version visible', async () => {
@@ -525,20 +524,21 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            `INSERT INTO outreach_templates (id, name, owner_id) VALUES ($1, 'ListTemplates template', $2)`,
-            [TEMPLATE_ID, ADVISOR_ID]
+            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'ListTemplates template'}, ${ADVISOR_ID})`
           );
           await t.execute(
-            `INSERT INTO outreach_template_versions
+            sql`INSERT INTO outreach_template_versions
                (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES ($1, $2, 1, 'ListTemplates subject', 'ListTemplates body.', $3, $4, 'pending')`,
-            [VERSION_ID, TEMPLATE_ID, DISCLAIMER_ID, CONTENT_HASH]
+               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${'ListTemplates subject'}, ${'ListTemplates body.'}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'pending')`
           );
 
           const { OutreachRepository } = await import(
             '../src/modules/outreach/outreach.repository'
           );
-          const outreachRepo = new OutreachRepository(db);
+          // Pass tx as the db so listTemplatesWithVersions (which uses this.db) reads
+          // within the open transaction and sees the uncommitted fixture rows.
+          // biome-ignore lint/suspicious/noExplicitAny: tx satisfies Database query interface at runtime
+          const outreachRepo = new OutreachRepository(tx as any);
 
           const results = await outreachRepo.listTemplatesWithVersions();
           const template = results.find((tmpl: { id: string }) => tmpl.id === TEMPLATE_ID);
