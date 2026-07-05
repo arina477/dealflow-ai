@@ -41,3 +41,32 @@ rework_attempt_cap_remaining: 2
 criticals: [C-1-gate-reads-compliance_approvals-not-outreach-version, C-2-listTemplates-no-versions, C-3-shortlist-accepted-shape]
 routed: [backend-developer (C-1+C-2+M-1+M-2+L-1+integration-test), nextjs-developer (C-3+M-3)]
 ```
+
+---
+
+# Wave 11 — B-6 Verdict (Phase 2 rework RE-VERIFY)
+**Reviewer:** code-reviewer (fresh re-review of fix commits 42cc080 + 70421b3)
+**Attempt:** 2 (post-rework)
+## Verdict
+CONFIRMED-RESOLVED → **B-6 APPROVED (overall)**
+All 3 CRITICALs resolved in code:
+- **C-1 RESOLVED** — compliance_approvals column mapping verified EXACTLY right vs real M2 schema (resource_type/resource_id/content_hash/approver_user_id/approver_role/approval_status enum ['approved','revoked']); resource key ('outreach-template-version', versionId) matches loadApproval; approverRole='compliance' satisfies SoD; self-approval trap holds (approverUserId===sender→block); hash provenance binds (grant writes version.contentHash = computeContentHash(subject\nbody), evaluator recomputes same); compliance_approvals insert same-tx + audit-last-in-txn; version-binding invariant holds (draftNewVersion → new versionId, no compliance_approvals row → gate blocks). Integration test logic real (instantiates REAL ComplianceGateService+Repository).
+- **C-2 RESOLVED** — listTemplatesWithVersions LEFT JOIN, versions:[] for zero-version templates, web parse matches.
+- **C-3 RESOLVED** — composer parses {run,accepted} matching getShortlist; M-3 mandate-scoped; useRef guard preserves SSR hydration.
+No new CRITICAL. L-1 enum additive (no regression); structural no-bypass tests intact (44/44); 593 api + 458 shared + 431 web green.
+## HIGH found + FIXED at re-gate:
+- Integration test file was never collected by vitest (glob *.{spec,test,e2e-spec}.ts vs '-spec' suffix). RENAMED outreach-gate.integration-spec.ts → outreach-gate.e2e-spec.ts (commit above). Now collected: 6 tests, 6 SKIPPED w/o TEST_DATABASE_URL. **C-1's true end-to-end proof (send_eligible reachable for a genuinely-approved template) is DEFERRED to C-2 live-verify** (real Railway app DB) AND runs in CI when TEST_DATABASE_URL is provisioned.
+## C-2 MUST-VERIFY (carried into C-block gate):
+1. Set TEST_DATABASE_URL in the api CI test job (Postgres service + migrations) so outreach-gate.e2e-spec runs green in CI — OR prove equivalently at C-2 live.
+2. C-2 live: create template → request-approval → grant (compliance role) → compose → assert status='send_eligible' (NOT blocked) against the deployed Railway app DB. This is the definitive proof C-1's compliance_approvals bridge works end-to-end. Also assert a not-approved/SoD-violation compose → blocked.
+## Footer
+```yaml
+verdict_complete: true
+verdict: APPROVED
+phase1_head_builder: APPROVED
+phase2_review: REWORK→CONFIRMED-RESOLVED
+rework_attempts_used: 1
+c1_live_proof: deferred-to-C-2 (integration test CI-ready; compliance_approvals column mapping code-verified)
+c2_must_verify: [TEST_DATABASE_URL-in-CI-or-C2-live, live-compose-approved-template-asserts-send_eligible]
+open_founder_surface: L-3-tenant-scoping-on-list-reads (tenancy model question — non-blocking)
+```

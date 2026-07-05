@@ -1,5 +1,5 @@
 # Wave 11 — B-block review artifacts
-**Block:** B (Build) · **Wave topic:** Compliant-outreach foundation: versioned templates + non-bypassable pre-send gate + SoD (M6 first) · **Gate:** B-6 · **Status:** in-progress
+**Block:** B (Build) · **Wave topic:** Compliant-outreach foundation: versioned templates + non-bypassable pre-send gate + SoD (M6 first) · **Gate:** B-6 · **Status:** complete
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
 | B-0 | stages/B-0-branch-and-schema.md | done | branch + 3 tasks + migration 0010 (journal when>0009; distinct enum + down.sql) |
@@ -8,7 +8,7 @@
 | B-3 | stages/B-3-frontend.md | done | 3 outreach pages; AC-STRIP (send-eligible NOT send); full-repo-test green (0eb1028) |
 | B-4 | stages/B-4-wiring.md | done | repo typecheck+build PASS; 3 routes compile |
 | B-5 | stages/B-5-verify.md | done | lint 0, FULL pnpm -r test green (~1482); gate-called+AC-STRIP; runtime→C-2 |
-| B-6 | stages/B-6-review.md | pending | head-builder gate (compliance invariants + AC-STRIP grep + gate-called) + /review |
+| B-6 | stages/B-6-review.md | done — APPROVED (Phase-1 head-builder + Phase-2 /review REWORK→resolved; 3 CRITICAL integration defects caught+fixed; C-1 live-proof→C-2) | head-builder gate (compliance invariants + AC-STRIP grep + gate-called) + /review |
 ## Block-specific context
 - **Spec:** seed 102a2f00 (multi-spec, 3 blocks + P-4 karen/jenny notes: enum-name, gate-called, AC-STRIP). Branch wave-11-outreach-foundation.
 - **claimed_task_ids:** [102a2f00 (template spine), e90a4a99 (composer+gate), 2601ba33 (SoD)]

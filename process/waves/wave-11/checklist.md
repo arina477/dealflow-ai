@@ -32,7 +32,7 @@ BUILD:
 - [x] B-3 Frontend — 3 outreach pages (templates/composer/compliance-queue); AC-STRIP (send-eligible NOT send); full-repo-test green (0eb1028)
 - [x] B-4 Wiring — repo typecheck+build PASS; 3 outreach routes compile
 - [x] B-5 Verify — lint 0, FULL pnpm -r test green (~1482), build pass; gate-called + AC-STRIP tested; runtime→C-2
-- [ ] B-6 Review
+- [x] B-6 Review — APPROVED (2-phase; 3 CRITICAL integration defects caught by /review, fixed, re-verified; C-1 proof→C-2)
 
 CI/CD:
 - [ ] C-1 PR, CI & merge
