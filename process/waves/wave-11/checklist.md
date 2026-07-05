@@ -35,7 +35,7 @@ BUILD:
 - [x] B-6 Review — APPROVED (2-phase; 3 CRITICAL integration defects caught by /review, fixed, re-verified; C-1 proof→C-2)
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
+- [x] C-1 PR/CI/merge — direct-push-to-main; ALL 5 CI jobs GREEN (8d7ed8b); outreach-gate e2e PROVES send_eligible live (3 test-infra fix-forwards)
 - [ ] C-2 Deploy & verify (canary armed when real users > 1000)
 
 TEST:
