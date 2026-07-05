@@ -14,6 +14,7 @@ export const blockReasonEnum = z.enum([
   'content-hash-mismatch',
   'missing-disclaimer',
   'no-approval',
+  'version-binding',
 ]);
 
 export type BlockReasonCode = z.infer<typeof blockReasonEnum>;
@@ -85,6 +86,23 @@ export const noApprovalBlockSchema = z
   .strict();
 
 /**
+ * versionBindingBlockSchema — emitted by OutreachService.composeAsActor's
+ * version-binding pre-check (L-1 fix). Distinct from 'no-approval' (emitted by
+ * sodEvaluator when no compliance_approvals row exists). This code fires when the
+ * template version itself is not usable: either approvalStatus !== 'approved', or
+ * approvedContentHash !== contentHash (content drifted after approval).
+ * A compliance reviewer reading gate_verdict can now distinguish:
+ *   'no-approval'     → no compliance_approvals row for this resource
+ *   'version-binding' → version-level state blocked (not approved / content drift)
+ */
+export const versionBindingBlockSchema = z
+  .object({
+    code: z.literal('version-binding'),
+    message: z.string().min(1),
+  })
+  .strict();
+
+/**
  * A discriminated union of every block a gate evaluator can emit.
  * Discriminated on `code` so callers can exhaustively switch/match.
  */
@@ -94,6 +112,7 @@ export const blockReasonSchema = z.discriminatedUnion('code', [
   contentHashMismatchBlockSchema,
   missingDisclaimerBlockSchema,
   noApprovalBlockSchema,
+  versionBindingBlockSchema,
 ]);
 
 export type BlockReason = z.infer<typeof blockReasonSchema>;

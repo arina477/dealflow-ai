@@ -101,6 +101,19 @@ export class ApprovalService {
         approvedBy: appUserId,
       });
 
+      // C-1 FIX: INSERT compliance_approvals row so the M2 gate can resolve the
+      // approval via ComplianceGateRepository.loadApproval(tx, resourceType, resourceId).
+      // Without this row the sodEvaluator always returns 'no-approval' and
+      // composeAsActor can never reach verdict.allowed=true → send_eligible is unreachable.
+      // This row is written in the SAME tx as the version update — atomic commit/rollback.
+      await this.repository.insertComplianceApproval(tx, {
+        resourceType: 'outreach-template-version',
+        resourceId: versionId,
+        contentHash: version.contentHash,
+        approverUserId: appUserId,
+        approverRole: COMPLIANCE_ROLE,
+      });
+
       // AUDIT in-tx (template-approval-grant).
       const eventPayload = {
         versionId,
@@ -175,6 +188,12 @@ export class ApprovalService {
       const updated = await this.repository.updateVersionApproval(tx, versionId, {
         approvalStatus: 'rejected',
       });
+
+      // C-1 FIX: Revoke the compliance_approvals row (status='revoked') so the M2
+      // gate correctly sees no valid approval for this version going forward.
+      // If no compliance_approvals row exists (never approved before reject),
+      // this is a no-op — the gate would find no row anyway.
+      await this.repository.revokeComplianceApproval(tx, 'outreach-template-version', versionId);
 
       // AUDIT in-tx (template-approval-reject).
       const eventPayload = {

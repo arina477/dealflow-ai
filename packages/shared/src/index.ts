@@ -89,6 +89,7 @@ export {
   noApprovalBlockSchema,
   sodBlockSchema,
   suppressionBlockSchema,
+  versionBindingBlockSchema,
 } from './compliance-gate';
 export type {
   ApprovalCreate,

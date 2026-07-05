@@ -25,7 +25,7 @@ import { and, eq, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { disclaimerTemplates } from '../../db/schema/compliance-rules';
+import { complianceApprovals, disclaimerTemplates } from '../../db/schema/compliance-rules';
 import { outreach, outreachTemplates, outreachTemplateVersions } from '../../db/schema/outreach';
 
 // ---------------------------------------------------------------------------
@@ -176,6 +176,151 @@ export class OutreachRepository {
       .orderBy(sql`${outreachTemplates.createdAt} DESC`);
   }
 
+  /**
+   * listTemplatesWithVersions — C-2 FIX: returns all outreach templates, each
+   * embedding its full versions array (one round-trip via LEFT JOIN).
+   *
+   * The compliance queue and template-library pages both parse
+   * GET /outreach-templates expecting { templates: Array<template & { versions: version[] }> }.
+   * Without the embedded versions, pending versions are invisible to those pages.
+   *
+   * Uses a LEFT JOIN so templates with zero versions are included (empty array).
+   * Templates ordered by created_at DESC; versions within each template ordered
+   * by version_number DESC (newest first).
+   */
+  async listTemplatesWithVersions(): Promise<
+    Array<OutreachTemplateRow & { versions: OutreachTemplateVersionRow[] }>
+  > {
+    const rows = await this.db
+      .select({
+        // Template columns
+        templateId: outreachTemplates.id,
+        templateName: outreachTemplates.name,
+        templateMandateScope: outreachTemplates.mandateScope,
+        templateOwnerId: outreachTemplates.ownerId,
+        templateCreatedAt: outreachTemplates.createdAt,
+        templateUpdatedAt: outreachTemplates.updatedAt,
+        // Version columns (nullable — LEFT JOIN, templates with no versions get nulls)
+        versionId: outreachTemplateVersions.id,
+        versionTemplateId: outreachTemplateVersions.templateId,
+        versionNumber: outreachTemplateVersions.versionNumber,
+        versionSubject: outreachTemplateVersions.subject,
+        versionBody: outreachTemplateVersions.body,
+        versionDisclaimerTemplateId: outreachTemplateVersions.disclaimerTemplateId,
+        versionContentHash: outreachTemplateVersions.contentHash,
+        versionApprovalStatus: outreachTemplateVersions.approvalStatus,
+        versionApprovedContentHash: outreachTemplateVersions.approvedContentHash,
+        versionApprovedBy: outreachTemplateVersions.approvedBy,
+        versionCreatedAt: outreachTemplateVersions.createdAt,
+      })
+      .from(outreachTemplates)
+      .leftJoin(
+        outreachTemplateVersions,
+        eq(outreachTemplateVersions.templateId, outreachTemplates.id)
+      )
+      .orderBy(
+        sql`${outreachTemplates.createdAt} DESC`,
+        sql`${outreachTemplateVersions.versionNumber} DESC`
+      );
+
+    // Group by template id, collecting version rows under each template.
+    const templateMap = new Map<
+      string,
+      OutreachTemplateRow & { versions: OutreachTemplateVersionRow[] }
+    >();
+
+    for (const row of rows) {
+      if (!templateMap.has(row.templateId)) {
+        templateMap.set(row.templateId, {
+          id: row.templateId,
+          name: row.templateName,
+          mandateScope: row.templateMandateScope,
+          ownerId: row.templateOwnerId,
+          createdAt: row.templateCreatedAt,
+          updatedAt: row.templateUpdatedAt,
+          versions: [],
+        });
+      }
+
+      // Only push a version row if the LEFT JOIN matched (versionId not null).
+      if (row.versionId !== null) {
+        // biome-ignore lint/style/noNonNullAssertion: templateMap.has() checked above
+        templateMap.get(row.templateId)!.versions.push({
+          id: row.versionId,
+          templateId: row.versionTemplateId ?? row.templateId,
+          versionNumber: row.versionNumber ?? 0,
+          subject: row.versionSubject ?? '',
+          body: row.versionBody ?? '',
+          disclaimerTemplateId: row.versionDisclaimerTemplateId ?? '',
+          contentHash: row.versionContentHash ?? '',
+          approvalStatus: (row.versionApprovalStatus ?? 'pending') as
+            | 'pending'
+            | 'approved'
+            | 'rejected',
+          approvedContentHash: row.versionApprovedContentHash,
+          approvedBy: row.versionApprovedBy,
+          createdAt: row.versionCreatedAt ?? '',
+        });
+      }
+    }
+
+    return Array.from(templateMap.values());
+  }
+
+  /**
+   * insertComplianceApproval — C-1 FIX: INSERT a compliance_approvals row for
+   * ('outreach-template-version', versionId) when a template version is approved.
+   *
+   * Called by ApprovalService.grantApproval in the SAME tx as
+   * updateVersionApproval, so both writes commit or roll back atomically.
+   * Matches the M2 compliance_approvals column names EXACTLY (read from schema).
+   *
+   * Uses ON CONFLICT DO UPDATE (upsert) on (resource_type, resource_id) to handle
+   * re-approval after revoke: sets status='approved' and refreshes content_hash +
+   * approver identity. A new versionId always generates a new row (no conflict);
+   * upsert is a defensive guard for re-approval flows.
+   */
+  async insertComplianceApproval(
+    tx: Tx,
+    input: {
+      resourceType: string;
+      resourceId: string;
+      contentHash: string;
+      approverUserId: string;
+      approverRole: string;
+    }
+  ): Promise<void> {
+    await tx.insert(complianceApprovals).values({
+      resourceType: input.resourceType,
+      resourceId: input.resourceId,
+      contentHash: input.contentHash,
+      approverUserId: input.approverUserId,
+      approverRole: input.approverRole,
+      status: 'approved',
+    });
+  }
+
+  /**
+   * revokeComplianceApproval — C-1 FIX: UPDATE status='revoked' on the
+   * compliance_approvals row for (resourceType, resourceId) when a template
+   * version is rejected. Matches M2's revoke semantics (soft-delete).
+   *
+   * Called by ApprovalService.reject in the SAME tx as updateVersionApproval.
+   * If no row exists (version was never approved), this is a no-op (UPDATE
+   * affects 0 rows — acceptable since the gate would find no row anyway).
+   */
+  async revokeComplianceApproval(tx: Tx, resourceType: string, resourceId: string): Promise<void> {
+    await tx
+      .update(complianceApprovals)
+      .set({ status: 'revoked' })
+      .where(
+        and(
+          eq(complianceApprovals.resourceType, resourceType),
+          eq(complianceApprovals.resourceId, resourceId)
+        )
+      );
+  }
+
   // ---------------------------------------------------------------------------
   // outreach_template_versions
   // ---------------------------------------------------------------------------
@@ -294,6 +439,11 @@ export class OutreachRepository {
    * For grantApproval: sets approvalStatus='approved', approvedContentHash=contentHash,
    *   approvedBy=actorId.
    * For reject: sets approvalStatus='rejected' (approvedContentHash + approvedBy unchanged).
+   *
+   * M-2 STATE GUARD: only a 'pending' version may be approved or rejected.
+   * WHERE clause includes AND approval_status='pending' — zero rows affected means the
+   * version was already approved/rejected (or does not exist); throws ConflictException
+   * to fail-closed on concurrent state change or double-approve/double-reject race.
    */
   async updateVersionApproval(
     tx: Tx,
@@ -317,12 +467,20 @@ export class OutreachRepository {
     const rows = await tx
       .update(outreachTemplateVersions)
       .set(updateValues as Partial<typeof outreachTemplateVersions.$inferInsert>)
-      .where(eq(outreachTemplateVersions.id, versionId))
+      .where(
+        and(
+          eq(outreachTemplateVersions.id, versionId),
+          eq(outreachTemplateVersions.approvalStatus, 'pending')
+        )
+      )
       .returning();
     const row = rows[0];
     if (!row) {
-      throw new Error(
-        `OutreachRepository: UPDATE outreach_template_versions returned no row for ${versionId}`
+      // Zero rows: either version does not exist or it is no longer 'pending'.
+      // Fail-closed: throw ConflictException (M-2 concurrent state-change guard).
+      throw new ConflictException(
+        `Template version ${versionId} cannot be updated: it does not exist or is no longer in 'pending' state. ` +
+          'Only a pending version may be approved or rejected.'
       );
     }
     return row;

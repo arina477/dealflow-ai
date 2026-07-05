@@ -63,7 +63,6 @@ import { AuditService } from '../audit/audit.service';
 import { AuthRepository } from '../auth/auth.repository';
 // biome-ignore lint/style/useImportType: NestJS DI needs the runtime value (emitDecoratorMetadata)
 import { ComplianceGateService } from '../compliance-gate/compliance-gate.service';
-import { computeContentHash } from '../compliance-gate/content-hash';
 import type { OutreachRow, Tx } from './outreach.repository';
 // biome-ignore lint/style/useImportType: NestJS DI needs the runtime value (emitDecoratorMetadata)
 import { OutreachRepository } from './outreach.repository';
@@ -122,11 +121,16 @@ export class OutreachService {
       // approvedContentHash === contentHash. If false, the version is not
       // usable — block immediately with a synthetic verdict.
       if (!this.templateService.isUsableForSend(version)) {
+        // L-1 FIX: use 'version-binding' code (distinct from the SoD evaluator's
+        // 'no-approval' code) so a compliance reviewer reading gate_verdict can
+        // distinguish "no approval row exists" from "approved but content drifted /
+        // never approved (pending/rejected)". Using 'no-approval' here (the M2 SoD
+        // evaluator's code) made the two cases indistinguishable in audit records.
         const syntheticVerdict: GateVerdict = {
           allowed: false,
           blocks: [
             {
-              code: 'no-approval' as const,
+              code: 'version-binding' as const,
               message:
                 'Template version is not usable for send: either not approved, or the content ' +
                 'has changed since approval (version-binding invariant). Re-approval required.',
@@ -243,7 +247,16 @@ export class OutreachService {
       // CRITICAL: this is the ONLY place that sets status='send_eligible'.
       // status='send_eligible' ← ONLY when verdict.allowed === true.
       const versionContent = `${version.subject}\n${version.body}`;
-      const contentHash = computeContentHash(versionContent);
+
+      // M-1 FIX: use the STORED content_hash from the version row rather than
+      // recomputing here. The stored hash was computed by the same computeContentHash
+      // function at insert time and is what ApprovalService stored in
+      // compliance_approvals.content_hash. Using the stored value ensures that
+      // isUsableForSend's hash comparison and the gate's content-hash evaluator
+      // both operate on the same provenance (stored-at-approval vs stored-at-insert).
+      // The contentHashEvaluator recomputes from ctx.content server-side and
+      // compares to the stored approval hash — the stored hash is the right anchor.
+      const contentHash = version.contentHash;
 
       const gateContext: GateContext = {
         senderUserId: appUserId,

@@ -315,10 +315,16 @@ export class TemplateService {
   // ---------------------------------------------------------------------------
 
   /**
-   * listTemplates — returns all outreach templates.
+   * listTemplates — C-2 FIX: returns all outreach templates, each embedding its
+   * full versions array. The compliance-queue, template-library, and composer pages
+   * all parse GET /outreach-templates expecting
+   *   { templates: Array<OutreachTemplate & { versions: OutreachTemplateVersion[] }> }
+   * Versions are fetched via a single LEFT JOIN round-trip (one query, not N+1).
    */
-  async listTemplates(): Promise<{ templates: OutreachTemplateRow[] }> {
-    const templates = await this.repository.listTemplates();
+  async listTemplates(): Promise<{
+    templates: Array<OutreachTemplateRow & { versions: OutreachTemplateVersionRow[] }>;
+  }> {
+    const templates = await this.repository.listTemplatesWithVersions();
     return { templates };
   }
 

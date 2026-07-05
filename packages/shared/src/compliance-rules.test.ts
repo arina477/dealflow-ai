@@ -273,17 +273,18 @@ describe('blockReasonSchema — discriminated union', () => {
 });
 
 // ---------------------------------------------------------------------------
-// blockReasonEnum — all 5 codes accepted
+// blockReasonEnum — all 6 codes accepted
 // ---------------------------------------------------------------------------
 
 describe('blockReasonEnum', () => {
-  it('accepts all five block codes', () => {
+  it('accepts all six block codes', () => {
     const codes = [
       'suppression',
       'sod',
       'content-hash-mismatch',
       'missing-disclaimer',
       'no-approval',
+      'version-binding',
     ] as const;
     for (const code of codes) {
       expect(blockReasonEnum.parse(code)).toBe(code);

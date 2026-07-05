@@ -186,6 +186,9 @@ function makeMockRepo(overrides: Partial<OutreachRepository> = {}): OutreachRepo
     findOutreachById: vi.fn().mockResolvedValue(null),
     listOutreach: vi.fn().mockResolvedValue([]),
     listPendingVersions: vi.fn().mockResolvedValue([]),
+    listTemplatesWithVersions: vi.fn().mockResolvedValue([]),
+    insertComplianceApproval: vi.fn().mockResolvedValue(undefined),
+    revokeComplianceApproval: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as OutreachRepository;
 }
@@ -466,7 +469,7 @@ describe('ApprovalService.grantApproval — SoD compliance-only', () => {
     await expect(service.grantApproval(VERSION_ID, ST_USER_ID)).rejects.toThrow(ForbiddenException);
   });
 
-  it('succeeds for compliance role — sets approvedContentHash + approvedBy', async () => {
+  it('succeeds for compliance role — sets approvedContentHash + approvedBy + inserts compliance_approvals', async () => {
     const auth = makeMockAuth('compliance', COMPLIANCE_USER_ID);
     const audit = makeMockAudit();
     const updatedVersion = makeVersionRow({
@@ -476,6 +479,7 @@ describe('ApprovalService.grantApproval — SoD compliance-only', () => {
     });
     const repo = makeMockRepo({
       updateVersionApproval: vi.fn().mockResolvedValue(updatedVersion),
+      insertComplianceApproval: vi.fn().mockResolvedValue(undefined),
     });
     const service = new ApprovalService(repo, audit, auth);
 
@@ -491,6 +495,17 @@ describe('ApprovalService.grantApproval — SoD compliance-only', () => {
         approvalStatus: 'approved',
         approvedContentHash: CONTENT_HASH,
         approvedBy: COMPLIANCE_USER_ID,
+      })
+    );
+    // C-1 FIX: compliance_approvals row must be inserted so the M2 gate resolves it.
+    expect(vi.mocked(repo.insertComplianceApproval)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        resourceType: 'outreach-template-version',
+        resourceId: VERSION_ID,
+        contentHash: CONTENT_HASH,
+        approverUserId: COMPLIANCE_USER_ID,
+        approverRole: 'compliance',
       })
     );
     expect(vi.mocked(audit.append)).toHaveBeenCalledWith(
@@ -510,18 +525,25 @@ describe('ApprovalService.reject — SoD compliance-only', () => {
     );
   });
 
-  it('succeeds for compliance — sets approvalStatus=rejected', async () => {
+  it('succeeds for compliance — sets approvalStatus=rejected + revokes compliance_approvals', async () => {
     const auth = makeMockAuth('compliance', COMPLIANCE_USER_ID);
     const audit = makeMockAudit();
     const rejectedVersion = makeVersionRow({ approvalStatus: 'rejected' });
     const repo = makeMockRepo({
       updateVersionApproval: vi.fn().mockResolvedValue(rejectedVersion),
+      revokeComplianceApproval: vi.fn().mockResolvedValue(undefined),
     });
     const service = new ApprovalService(repo, audit, auth);
 
     const result = await service.reject(VERSION_ID, 'Not suitable', ST_USER_ID);
 
     expect(result.approvalStatus).toBe('rejected');
+    // C-1 FIX: compliance_approvals row must be revoked on rejection.
+    expect(vi.mocked(repo.revokeComplianceApproval)).toHaveBeenCalledWith(
+      expect.anything(),
+      'outreach-template-version',
+      VERSION_ID
+    );
     expect(vi.mocked(audit.append)).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'template-approval-reject' }),
       expect.anything()
@@ -549,7 +571,8 @@ describe('OutreachService.composeAsActor — gate-called structural tests', () =
         status: 'blocked',
         gateVerdict: {
           allowed: false,
-          blocks: [{ code: 'no-approval', message: '' }],
+          // L-1 FIX: pre-check uses 'version-binding' code (distinct from 'no-approval')
+          blocks: [{ code: 'version-binding', message: '' }],
           requiredDisclaimers: [],
         },
         mandateId: MANDATE_ID,
