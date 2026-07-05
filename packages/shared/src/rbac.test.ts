@@ -540,6 +540,12 @@ describe('roleRoutes — completeness against pinned matrix', () => {
     ['/mandates/:id/outreach', ['advisor', 'admin', 'analyst']],
     ['/mandates/:id/matches', ['advisor', 'admin']],
     ['/pipeline', ['advisor', 'compliance']],
+    // Wave-12: pipeline sub-routes — write-vs-read RBAC split pinned (M-1 fix).
+    ['/pipeline/new', ['advisor']],
+    ['/pipeline/:id', ['advisor', 'compliance']],
+    ['/pipeline/:id/stage', ['advisor']],
+    ['/pipeline/:id/notes', ['advisor', 'compliance']],
+    ['/pipeline/:id/events', ['advisor', 'compliance']],
     ['/sourcing', ['analyst']],
     // Wave-6: /companies repointed to /sourcing/companies; new sourcing API routes added.
     ['/sourcing/companies', ['analyst']],

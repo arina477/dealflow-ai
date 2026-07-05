@@ -83,6 +83,8 @@ function pgCode(err: unknown): string | undefined {
 export interface OutreachEligibilityRow {
   id: string;
   status: string;
+  /** The mandate this outreach belongs to — used by enrollAsActor to validate provenance. */
+  mandateId: string;
 }
 
 export interface MatchCandidateEligibilityRow {
@@ -90,6 +92,8 @@ export interface MatchCandidateEligibilityRow {
   disposition: string;
   matchRunId: string;
   readyForOutreach: boolean;
+  /** The mandate the match_run belongs to — used by enrollAsActor to validate provenance. */
+  mandateId: string;
 }
 
 @Injectable()
@@ -115,7 +119,7 @@ export class PipelineRepository {
    */
   async findOutreachByIdInTx(tx: Tx, outreachId: string): Promise<OutreachEligibilityRow | null> {
     const rows = await tx
-      .select({ id: outreach.id, status: outreach.status })
+      .select({ id: outreach.id, status: outreach.status, mandateId: outreach.mandateId })
       .from(outreach)
       .where(eq(outreach.id, outreachId))
       .limit(1);
@@ -140,6 +144,7 @@ export class PipelineRepository {
         disposition: matchCandidates.disposition,
         matchRunId: matchCandidates.matchRunId,
         readyForOutreach: matchRun.readyForOutreach,
+        mandateId: matchRun.mandateId,
       })
       .from(matchCandidates)
       .innerJoin(matchRun, eq(matchRun.id, matchCandidates.matchRunId))

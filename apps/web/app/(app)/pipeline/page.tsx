@@ -78,9 +78,20 @@ async function fetchMe(cookie: string): Promise<MeShape | null> {
 // ---------------------------------------------------------------------------
 // Board fetch  (GET /pipeline)
 //
-// Returns a NormalisedBoard guaranteed to contain all 7 fixed stage keys —
-// even if the server returns a partial map we normalise here so the client
-// always receives a complete 7-column board.
+// Returns a discriminated result so the page can distinguish a real fetch /
+// parse failure from a genuinely-empty board.  Callers must NOT collapse the
+// two cases — a shape-drift regression (the wave-8/9/10/11 class) would
+// otherwise silently render as an empty board and pass a green smoke test.
+//
+// Success path: { ok: true, board: NormalisedBoard }
+//   board is guaranteed to contain all 7 fixed stage keys.
+//   board.byStage[stage] === [] when the server returned no deals for that
+//   stage — the 7-column structure is always complete.
+//
+// Error path: { ok: false, status: number }
+//   Covers: non-2xx HTTP status (e.g. 500, 403 after mid-session role change)
+//   OR safeParse shape-mismatch (response body does not match boardResponseSchema).
+//   status = HTTP status code for non-OK responses; 0 for network / parse errors.
 // ---------------------------------------------------------------------------
 
 const boardResponseSchema = z
@@ -89,11 +100,12 @@ const boardResponseSchema = z
   })
   .passthrough();
 
-function normaliseBoard(raw: PipelineBoard | null): NormalisedBoard {
+type BoardResult = { ok: true; board: NormalisedBoard } | { ok: false; status: number };
+
+function normaliseBoard(raw: PipelineBoard): NormalisedBoard {
   const empty = Object.fromEntries(
     PIPELINE_STAGES.map((s) => [s, [] as PipelineRowWithJoins[]])
   ) as NormalisedBoard['byStage'];
-  if (!raw) return { byStage: empty };
   // Merge raw byStage into the empty map — fills missing stages with [].
   return {
     byStage: {
@@ -107,7 +119,7 @@ function normaliseBoard(raw: PipelineBoard | null): NormalisedBoard {
   };
 }
 
-async function fetchBoard(cookie: string, mandateId?: string): Promise<NormalisedBoard> {
+async function fetchBoard(cookie: string, mandateId?: string): Promise<BoardResult> {
   try {
     const url = mandateId
       ? `${apiBase()}/pipeline?mandateId=${encodeURIComponent(mandateId)}`
@@ -116,14 +128,17 @@ async function fetchBoard(cookie: string, mandateId?: string): Promise<Normalise
       headers: { cookie },
       cache: 'no-store',
     });
-    if (!res.ok) return normaliseBoard(null);
+    if (!res.ok) return { ok: false, status: res.status };
     const raw: unknown = await res.json();
     const parsed = boardResponseSchema.safeParse(raw);
-    if (!parsed.success) return normaliseBoard(null);
+    // Shape-mismatch: treat as parse error, not empty board.
+    // status 0 distinguishes "response arrived but body was malformed" from an
+    // HTTP error where the status code is meaningful.
+    if (!parsed.success) return { ok: false, status: 0 };
     // Cast — boardResponseSchema validates the shape matches PipelineBoard
-    return normaliseBoard(parsed.data as PipelineBoard);
+    return { ok: true, board: normaliseBoard(parsed.data as PipelineBoard) };
   } catch {
-    return normaliseBoard(null);
+    return { ok: false, status: 0 };
   }
 }
 
@@ -146,9 +161,24 @@ export default async function PipelinePage({ searchParams }: PipelinePageProps) 
   const params = (await searchParams) ?? {};
   const mandateId = typeof params.mandateId === 'string' ? params.mandateId : undefined;
 
-  const board = await fetchBoard(cookieHeader, mandateId);
+  const boardResult = await fetchBoard(cookieHeader, mandateId);
+
+  if (!boardResult.ok) {
+    return (
+      <PipelineBoardClient
+        initialBoard={null}
+        boardError={{ status: boardResult.status }}
+        userRole={me.role as Role}
+        mandateId={mandateId}
+      />
+    );
+  }
 
   return (
-    <PipelineBoardClient initialBoard={board} userRole={me.role as Role} mandateId={mandateId} />
+    <PipelineBoardClient
+      initialBoard={boardResult.board}
+      userRole={me.role as Role}
+      mandateId={mandateId}
+    />
   );
 }

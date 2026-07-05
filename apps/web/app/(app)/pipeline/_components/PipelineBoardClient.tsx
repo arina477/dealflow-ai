@@ -33,8 +33,22 @@ import { DealTimelinePanel } from './DealTimelinePanel';
 // Props
 // ---------------------------------------------------------------------------
 
+/** Passed by the page when the SSR board fetch fails (non-OK or parse error). */
+export interface BoardError {
+  /** HTTP status code from a non-OK response, or 0 for network/parse errors. */
+  status: number;
+}
+
 interface PipelineBoardClientProps {
-  initialBoard: NormalisedBoard;
+  /**
+   * null iff boardError is set — the page SSR fetch failed and we must render
+   * the error state rather than an empty board.  The client never falls back to
+   * null silently: when boardError is absent, initialBoard is always a full
+   * NormalisedBoard (possibly with zero deals in every stage).
+   */
+  initialBoard: NormalisedBoard | null;
+  /** Set when the SSR board fetch returned non-OK or a shape-mismatch. */
+  boardError?: BoardError | undefined;
   userRole: Role;
   mandateId?: string | undefined;
 }
@@ -426,10 +440,19 @@ function StageColumn({ stage, deals, userRole, index, onMove, onOpenTimeline }: 
 
 export function PipelineBoardClient({
   initialBoard,
+  boardError,
   userRole,
   mandateId: _mandateId,
 }: PipelineBoardClientProps) {
-  const [board, setBoard] = useState<NormalisedBoard>(initialBoard);
+  // Build the empty board once for the error/fallback case so useState always
+  // receives a NormalisedBoard regardless of whether boardError is set.
+  const emptyBoard: NormalisedBoard = {
+    byStage: Object.fromEntries(
+      PIPELINE_STAGES.map((s) => [s, [] as PipelineRowWithJoins[]])
+    ) as NormalisedBoard['byStage'],
+  };
+
+  const [board, setBoard] = useState<NormalisedBoard>(initialBoard ?? emptyBoard);
   const [activeTimelineDeal, setActiveTimelineDeal] = useState<PipelineRowWithJoins | null>(null);
 
   // Stage transition: move deal from its current column to the new stage.
@@ -540,37 +563,119 @@ export function PipelineBoardClient({
           </span>
         </div>
 
-        {/* Kanban board — horizontal scroll */}
-        <div
-          style={{
-            flex: 1,
-            overflowX: 'auto',
-            overflowY: 'hidden',
-          }}
-        >
+        {/* Board fetch error — distinct from empty board (M-2 observability).
+            Matches the pattern DealTimelinePanel uses for its error surface. */}
+        {boardError ? (
           <div
+            role="alert"
+            aria-label="Pipeline board load error"
             style={{
+              flex: 1,
               display: 'flex',
-              gap: '20px',
-              height: '100%',
-              alignItems: 'flex-start',
-              minWidth: 'max-content',
-              paddingBottom: '16px',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            {PIPELINE_STAGES.map((stage, index) => (
-              <StageColumn
-                key={stage}
-                stage={stage}
-                deals={board.byStage[stage]}
-                userRole={userRole}
-                index={index}
-                onMove={handleMove}
-                onOpenTimeline={handleOpenTimeline}
-              />
-            ))}
+            <div
+              style={{
+                maxWidth: '400px',
+                width: '100%',
+                padding: '20px 24px',
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#dc2626"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v4M12 16h.01" />
+                </svg>
+                <span
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: '#dc2626',
+                  }}
+                >
+                  Couldn&apos;t load the pipeline
+                  {boardError.status > 0 ? ` (status ${boardError.status})` : ''}
+                </span>
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '13px',
+                  color: '#991b1b',
+                  lineHeight: '20px',
+                }}
+              >
+                The board data could not be retrieved. This is not an empty pipeline — refresh the
+                page to retry. If the problem persists, contact support.
+              </p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                style={{
+                  alignSelf: 'flex-start',
+                  padding: '6px 14px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#fff',
+                  backgroundColor: '#dc2626',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                }}
+              >
+                Retry
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Kanban board — horizontal scroll */
+          <div
+            style={{
+              flex: 1,
+              overflowX: 'auto',
+              overflowY: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                gap: '20px',
+                height: '100%',
+                alignItems: 'flex-start',
+                minWidth: 'max-content',
+                paddingBottom: '16px',
+              }}
+            >
+              {PIPELINE_STAGES.map((stage, index) => (
+                <StageColumn
+                  key={stage}
+                  stage={stage}
+                  deals={board.byStage[stage]}
+                  userRole={userRole}
+                  index={index}
+                  onMove={handleMove}
+                  onOpenTimeline={handleOpenTimeline}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Deal timeline panel (slide-in on card click) */}

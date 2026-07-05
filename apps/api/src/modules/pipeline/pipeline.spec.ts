@@ -126,17 +126,22 @@ function makePipelineEventRow(overrides: Partial<PipelineEventRow> = {}): Pipeli
   };
 }
 
+const MANDATE_B_ID = '00000000-0000-0000-0000-000000000011'; // a DIFFERENT mandate (cross-mandate attack)
+
 function makeMockRepo(overrides: Partial<PipelineRepository> = {}): PipelineRepository {
   return {
     runInTransaction: vi
       .fn()
       .mockImplementation((work: (tx: Tx) => Promise<unknown>) => work({} as Tx)),
-    findOutreachByIdInTx: vi.fn().mockResolvedValue({ id: OUTREACH_ID, status: 'send_eligible' }),
+    findOutreachByIdInTx: vi
+      .fn()
+      .mockResolvedValue({ id: OUTREACH_ID, status: 'send_eligible', mandateId: MANDATE_ID }),
     findMatchCandidateEligibilityInTx: vi.fn().mockResolvedValue({
       id: MATCH_CANDIDATE_ID,
       disposition: 'accepted',
       matchRunId: MATCH_RUN_ID,
       readyForOutreach: true,
+      mandateId: MANDATE_ID,
     }),
     insertPipeline: vi.fn().mockResolvedValue(makePipelineRow()),
     findPipelineByIdInTx: vi.fn().mockResolvedValue(makePipelineRow()),
@@ -168,7 +173,9 @@ function makeMockAuth(role = 'advisor', userId = APP_USER_ID): AuthRepository {
 describe('PipelineService.enrollAsActor — eligible-source guard', () => {
   it('1. outreach status=send_eligible → success', async () => {
     const repo = makeMockRepo({
-      findOutreachByIdInTx: vi.fn().mockResolvedValue({ id: OUTREACH_ID, status: 'send_eligible' }),
+      findOutreachByIdInTx: vi
+        .fn()
+        .mockResolvedValue({ id: OUTREACH_ID, status: 'send_eligible', mandateId: MANDATE_ID }),
     });
     const service = new PipelineService(repo, makeMockAudit(), makeMockAuth());
 
@@ -218,6 +225,7 @@ describe('PipelineService.enrollAsActor — eligible-source guard', () => {
         disposition: 'accepted',
         matchRunId: MATCH_RUN_ID,
         readyForOutreach: true,
+        mandateId: MANDATE_ID,
       }),
       insertPipeline: vi.fn().mockResolvedValue(
         makePipelineRow({
@@ -796,5 +804,71 @@ describe('addNoteInputSchema — strict validation', () => {
 
   it('rejects unknown keys (strict)', () => {
     expect(addNoteInputSchema.safeParse({ text: 'note', extra: true }).success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 33-34. H-1 — Mandate-provenance guard (cross-mandate enrollment rejection)
+//
+// Verifies that enrollAsActor rejects a call where the source's actual mandate_id
+// (returned by the tx-scoped eligible-source read) does NOT match input.mandateId.
+// This prevents cross-mandate provenance defects in the pipeline row, pipeline_events,
+// and audit_log_entries (compliance M&A audit trail integrity).
+//
+// Also verifies that NO pipeline row is inserted when the mandate diverges —
+// confirming the guard fires BEFORE insertPipeline.
+// ---------------------------------------------------------------------------
+
+describe('PipelineService.enrollAsActor — H-1 mandate-provenance guard', () => {
+  it('33. outreach belongs to mandate A, enroll called with mandate B → 400, no pipeline row inserted', async () => {
+    // The outreach row's mandateId is MANDATE_ID (mandate A).
+    // The caller passes MANDATE_B_ID (mandate B) — a cross-mandate attack.
+    const repo = makeMockRepo({
+      findOutreachByIdInTx: vi.fn().mockResolvedValue({
+        id: OUTREACH_ID,
+        status: 'send_eligible',
+        mandateId: MANDATE_ID, // source belongs to mandate A
+      }),
+    });
+    const service = new PipelineService(repo, makeMockAudit(), makeMockAuth());
+
+    await expect(
+      service.enrollAsActor(
+        { sourceType: 'outreach', sourceId: OUTREACH_ID, mandateId: MANDATE_B_ID }, // caller says mandate B
+        ST_USER_ID
+      )
+    ).rejects.toThrow(BadRequestException);
+
+    // Guard must fire BEFORE insertPipeline — no pipeline row with the wrong mandate.
+    expect(vi.mocked(repo.insertPipeline)).not.toHaveBeenCalled();
+  });
+
+  it('34. match_candidate belongs to mandate A (via its match_run), enroll called with mandate B → 400, no pipeline row inserted', async () => {
+    // The match_run's mandateId is MANDATE_ID (mandate A).
+    // The caller passes MANDATE_B_ID (mandate B) — cross-mandate attack via match_candidate path.
+    const repo = makeMockRepo({
+      findMatchCandidateEligibilityInTx: vi.fn().mockResolvedValue({
+        id: MATCH_CANDIDATE_ID,
+        disposition: 'accepted',
+        matchRunId: MATCH_RUN_ID,
+        readyForOutreach: true,
+        mandateId: MANDATE_ID, // match_run belongs to mandate A
+      }),
+    });
+    const service = new PipelineService(repo, makeMockAudit(), makeMockAuth());
+
+    await expect(
+      service.enrollAsActor(
+        {
+          sourceType: 'match_candidate',
+          sourceId: MATCH_CANDIDATE_ID,
+          mandateId: MANDATE_B_ID, // caller says mandate B
+        },
+        ST_USER_ID
+      )
+    ).rejects.toThrow(BadRequestException);
+
+    // Guard must fire BEFORE insertPipeline — no pipeline row with the wrong mandate.
+    expect(vi.mocked(repo.insertPipeline)).not.toHaveBeenCalled();
   });
 });

@@ -508,6 +508,117 @@ describe('D. Timeline panel — enrolled + stage_changed + note events', () => {
   });
 });
 
+// ── F. Board fetch-error vs genuinely-empty (M-2 observability) ────────────
+//
+// These two cases MUST be visually distinct:
+//   • Non-OK HTTP response or safeParse failure → boardError set → error banner
+//     (NOT the empty 7-column board)
+//   • OK response with zero deals → initialBoard set, all stages empty → 7 columns
+//
+// This is the regression guard for the wave-8/9/10/11 response-shape-drift class.
+
+describe('F. Board fetch-error vs genuinely-empty board (M-2 observability)', () => {
+  beforeEach(() => {
+    mockCookies.mockResolvedValue({ toString: () => 'st-access-token=test' });
+    mockRedirect.mockImplementation((path: string): never => {
+      throw new Error(`REDIRECT:${path}`);
+    });
+  });
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('non-OK board fetch (500) → renders error banner, NOT the empty 7-column board', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const s = String(url);
+        if (s.includes('/auth/me')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve(meFor('advisor')),
+          } as Response);
+        }
+        if (s.includes('/pipeline')) {
+          // Simulate a 500 from the board endpoint
+          return Promise.resolve({
+            ok: false,
+            status: 500,
+            json: () => Promise.resolve({ message: 'Internal Server Error' }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected fetch: ${s}`));
+      })
+    );
+
+    const { redirected } = await renderPage('advisor', undefined, true);
+    expect(redirected).toBe(false);
+
+    // Error banner must be present
+    expect(screen.getByRole('alert', { name: /pipeline board load error/i })).toBeDefined();
+    // Must show the status code
+    expect(screen.getByText(/status 500/i)).toBeDefined();
+    // Must NOT show the 7-column stage headers (would indicate empty board rendered)
+    expect(screen.queryByText('Shortlisted')).toBeNull();
+    expect(screen.queryByText('Contacted')).toBeNull();
+  });
+
+  it('non-OK board fetch (403) → renders error banner, NOT the empty 7-column board', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const s = String(url);
+        if (s.includes('/auth/me')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve(meFor('advisor')),
+          } as Response);
+        }
+        if (s.includes('/pipeline')) {
+          return Promise.resolve({
+            ok: false,
+            status: 403,
+            json: () => Promise.resolve({ message: 'Forbidden' }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected fetch: ${s}`));
+      })
+    );
+
+    const { redirected } = await renderPage('advisor', undefined, true);
+    expect(redirected).toBe(false);
+
+    expect(screen.getByRole('alert', { name: /pipeline board load error/i })).toBeDefined();
+    expect(screen.getByText(/status 403/i)).toBeDefined();
+    // Stage columns must NOT be rendered
+    expect(screen.queryByText('Shortlisted')).toBeNull();
+  });
+
+  it('OK board fetch with zero deals → renders 7 empty stage columns (NOT error state)', async () => {
+    // makePageFetch with no deal → returns ok:true + empty byStage
+    const { redirected } = await renderPage('advisor', undefined, false);
+    expect(redirected).toBe(false);
+
+    // No error banner
+    expect(screen.queryByRole('alert', { name: /pipeline board load error/i })).toBeNull();
+    // All 7 stage column labels must be present
+    for (const label of [
+      'Shortlisted',
+      'Contacted',
+      'Engaged',
+      'Diligence',
+      'Offer',
+      'Closed',
+      'Withdrawn',
+    ]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+  });
+});
+
 // ── E. Absent affordances (P-4 karen flag — HARD BOUNDARY) ─────────────────
 
 describe('E. Absent affordances — NO send/AI/schedule (P-4 karen MANDATORY)', () => {

@@ -15,6 +15,21 @@
  *     AND its match_run.ready_for_outreach MUST be true (else 400).
  * Ineligible source is rejected with 400 BadRequestException.
  *
+ * ── MANDATE-PROVENANCE GUARD (H-1) ──────────────────────────────────────────
+ * enrollAsActor validates that the source (outreach or match_candidate via its
+ * match_run) BELONGS to the caller-supplied mandateId. The source's mandate_id
+ * is selected in the same tx-scoped read as the eligibility fields and compared
+ * to input.mandateId BEFORE insertPipeline. A mismatch is rejected with 400
+ * ("source does not belong to mandate"). This prevents a caller from enrolling
+ * a source from mandate A while passing mandateId=B — which would record a false
+ * mandate association across the pipeline row, pipeline_events, and audit_log_entries.
+ *
+ * Design choice: we keep input.mandateId in the call signature (the web enroll
+ * call passes it) but treat the source's actual mandate_id as ground truth and
+ * reject any divergence rather than silently overriding the caller's value. If
+ * the source's mandate equals input.mandateId the pipeline row is written with
+ * that value. If they differ the call is rejected before any write.
+ *
  * ── IDEMPOTENT ENROLL ────────────────────────────────────────────────────────
  * The DB partial UNIQUE index prevents duplicate pipeline rows per deal target.
  * PipelineRepository.insertPipeline catches 23505 (unique_violation) and throws
@@ -85,10 +100,13 @@ export class PipelineService {
    *
    * Steps (all in ONE tx):
    *   1. Translate ST id → app users.id (actor-id-FK lesson).
-   *   2. Eligible-source guard (tx-scoped read — BUILD rule 7):
+   *   2. Eligible-source guard + mandate-provenance guard (tx-scoped read — BUILD rule 7):
    *      - sourceType='outreach' → outreach.status MUST be 'send_eligible'.
+   *        outreach.mandate_id MUST equal input.mandateId (H-1 provenance guard).
    *      - sourceType='match_candidate' → disposition MUST be 'accepted' AND
    *        match_run.ready_for_outreach MUST be true.
+   *        match_run.mandate_id MUST equal input.mandateId (H-1 provenance guard).
+   *      Mismatch rejected with 400 BadRequestException BEFORE any INSERT.
    *   3. INSERT pipeline row at stage 'shortlisted'.
    *      DB UNIQUE constraint rejects duplicate enrolls (23505 → 409).
    *   4. INSERT pipeline_events row (type='enrolled').
@@ -112,7 +130,9 @@ export class PipelineService {
     const actorRole = actor.roleName;
 
     return this.repository.runInTransaction(async (tx: Tx) => {
-      // 2. Eligible-source guard (tx-scoped reads — BUILD rule 7).
+      // 2. Eligible-source guard + mandate-provenance guard (tx-scoped reads — BUILD rule 7).
+      //    For each source type: verify eligibility first, then verify the source's mandate_id
+      //    matches input.mandateId (H-1 fix: reject cross-mandate enrollment before any INSERT).
       if (input.sourceType === 'outreach') {
         const outreachRow = await this.repository.findOutreachByIdInTx(tx, input.sourceId);
         if (!outreachRow) {
@@ -123,6 +143,16 @@ export class PipelineService {
             `Outreach ${input.sourceId} is not eligible for pipeline enrollment: ` +
               `status is '${outreachRow.status}' (must be 'send_eligible'). ` +
               'The outreach must pass the pre-send gate before it can be enrolled.'
+          );
+        }
+        // H-1 mandate-provenance guard: the outreach must belong to the declared mandate.
+        // Prevents a caller from recording a false mandate association on the pipeline row,
+        // pipeline_events, and audit_log_entries (compliance provenance defect).
+        if (outreachRow.mandateId !== input.mandateId) {
+          throw new BadRequestException(
+            `Source does not belong to mandate: outreach ${input.sourceId} belongs to mandate ` +
+              `${outreachRow.mandateId}, not ${input.mandateId}. ` +
+              'Enroll using the mandate that owns this outreach record.'
           );
         }
       } else {
@@ -146,6 +176,15 @@ export class PipelineService {
             `Match candidate ${input.sourceId} is not eligible for pipeline enrollment: ` +
               'the match run has not been handed off (ready_for_outreach is false). ' +
               'Hand off the match run before enrolling candidates from it.'
+          );
+        }
+        // H-1 mandate-provenance guard: the match_run (and therefore this candidate) must
+        // belong to the declared mandate. Prevents cross-mandate provenance defect.
+        if (candidateRow.mandateId !== input.mandateId) {
+          throw new BadRequestException(
+            `Source does not belong to mandate: match candidate ${input.sourceId} belongs to ` +
+              `mandate ${candidateRow.mandateId} (via its match run), not ${input.mandateId}. ` +
+              'Enroll using the mandate that owns this match candidate.'
           );
         }
       }
