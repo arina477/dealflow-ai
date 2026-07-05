@@ -89,3 +89,34 @@ highs: [H-1-cross-mandate-enrollment]
 routed: [backend-developer (H-1 mandate-consistency + M-1 rbac-matrix-pin), nextjs-developer (M-2 board-error-state)]
 rework_attempt_cap_remaining: 2
 ```
+
+---
+
+# Wave 12 — B-6 Verdict (Phase 2 REWORK RE-VERIFY) → APPROVED
+**Reviewer:** code-reviewer (fresh re-review of fix commits 438579d + 2e9475b)
+**Attempt:** 2 (post-rework)
+## Verdict: CONFIRMED-RESOLVED → **B-6 APPROVED (overall)**
+- **H-1 RESOLVED** — findOutreachByIdInTx + findMatchCandidateEligibilityInTx now project the source mandate_id (outreach.mandate_id; match_run.mandate_id via join); enrollAsActor compares source.mandateId !== input.mandateId → 400 IN-TX before insertPipeline, for BOTH source types. Un-bypassable: insertPipeline has exactly ONE call site, reachable only after both guards. 2 divergent-mandate spec tests genuine (mandate A source + mandate B enroll → 400 + insertPipeline not-called), both paths.
+- **M-1 RESOLVED** — 5 /pipeline sub-routes pinned in rbac.test matrixRows with exact roles; completeness loop toEqual would FAIL CI on any role-widening.
+- **M-2 RESOLVED** — fetchBoard returns discriminated BoardResult; non-OK/parse-fail → error banner (role=alert + retry), mutually exclusive with the 7-column render; 3 genuine tests (500/403 → alert + no columns; OK+empty → 7 columns + no alert).
+No regressions (e2e enroll happy-path passes matching mandate; select-projection change additive; attempt-1 invariants intact). No new CRITICAL/HIGH. Suites green: pipeline.spec 44, rbac.test 240, page.test 22; full repo 463+637+453.
+Minor (non-blocking, build hygiene): apps/api/dist/ has stale compiled output — source authoritative, dist gitignored.
+## Footer
+```yaml
+verdict_complete: true
+verdict: APPROVED
+phase1_head_builder: APPROVED
+phase2_review: REWORK→CONFIRMED-RESOLVED
+rework_attempts_used: 1
+gate: PASSED
+```
+
+---
+## B-block exit
+```yaml
+build_block_status: complete
+branch: wave-12-pipeline-tracking
+review_verdict: APPROVE
+last_commit_sha: 4531a9f
+ready_for_ci: true
+```
