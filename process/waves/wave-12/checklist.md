@@ -29,12 +29,12 @@ DESIGN (skip block if non-UI wave):
 - [ ] D-3 Review & adopt
 
 BUILD:
-- [ ] B-0 Branch & schema
-- [ ] B-1 Contracts
-- [ ] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
-- [ ] B-5 Verify
+- [x] B-0 — pipeline spine migration 0011 (efbcfad; journal-when fixed) Branch & schema
+- [x] B-1 Contracts
+- [x] B-2 Backend
+- [x] B-3 Frontend
+- [x] B-4 Wiring
+- [x] B-5 Verify
 - [ ] B-6 Review
 
 CI/CD:
