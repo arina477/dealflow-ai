@@ -1,0 +1,17 @@
+# Wave 12 — P-0 Frame
+
+## Discover
+- wave_db_id: b2dde436-226e-40e4-87ec-d70c2df49527 (wave_number 12)
+- Prior-work: wave 11 (outreach foundation) is the immediate predecessor; this wave adds the pipeline/tracking layer over send-eligible outreach + accepted matches. No overlap-redo.
+- Roadmap milestone: M6 — Compliant outreach & pipeline (a068dc3d, in_progress, Class=product-feature). wave.milestone_id backfilled.
+- Spec-contract short-circuit: **no-prior-spec** (seed 07989285 has prose ## What/## Why, no fenced YAML head) → full P-1..P-3.
+- Product decisions: fixed-stage enum settled by product-decisions #137 (fixed for MVP, configurable H2-deferred). No new Tier-3 signal (no money/security/LLM — the founder-gated slices [email-send, AI-drafting] are correctly OUT of this wave).
+
+## Reframe
+- Original framing: 3-task M6 pipeline bundle — seed 07989285 (pipeline+pipeline_events spine + PipelineService: enroll + fixed-stage transitions shortlisted→contacted→engaged→diligence→offer→closed/withdrawn, audited), sibling d1940142 (board API + RBAC + interactive page), sibling 45b259e1 (per-deal audited event timeline + notes).
+- **problem-framer: PROCEED** — frames M6's cause (durable audited human-driven pipeline model, fixed enum), enrolls on real accepted-match/send-eligible progression state (exists today, no send needed), correctly defers configurable stages + automated advancement; coherent vertical; no antipattern.
+- **ceo-reviewer: PROCEED (HOLD-SCOPE)** — right-sized ambition; NOT a generic CRM-kanban clone because every stage transition is an append-only HMAC-chained audit event = the compliance-first wedge; fixed-vs-configurable settled by #137; traces to M6 success metric + compliance-first-wedge bet. No expansion.
+- **mvp-thinner: THIN** — proposed splitting sibling 45b259e1 (event timeline) into 2 future siblings (notes + rendered panel); BUT self-flagged floor-marginality: residual ~2400-2500 LOC/2 specs sits AT the multi-spec floor; "head-product/P-1 must confirm the residual clears floor before executing the split, else re-emit OK/floor-blocked".
+- **Mediation (mvp-thinner THIN vs the split's own floor-caveat + ceo-reviewer's wedge framing):** SPLIT REJECTED. Rationale: (1) ceo-reviewer — the strategic/ambition authority — explicitly identifies the audited event timeline as the compliance-first DIFFERENTIATOR (the recordkeeping/audit trail is the M&A-compliance value), so removing it weakens the wave's wedge; (2) mvp-thinner's OWN floor-caveat says the split leaves a borderline-thin 2-spec wave AT the floor; (3) head-next validated the 3-task bundle as a coherent ~3200 LOC vertical (a healthy, not bloated, wave). Keeping the bundle whole preserves the differentiator AND clears the floor comfortably. mvp-thinner precedence does not win here: M6's mvp-critical scope ("advance a buyer through pipeline stages, AUDITED, end-to-end") includes the audit/recordkeeping surface the timeline provides.
+- **Disposition: PROCEED** with the original 3-task framing.
+- Final framing: build the M6 pipeline/deal-stage tracking vertical — DB spine (pipeline + pipeline_events) + PipelineService (enroll send-eligible/accepted deals; fixed-stage transitions; append-only audited events via M2) + board API/RBAC/interactive page + per-deal audited event timeline (notes + transition history). No email-send, no AI, no configurable stages (all deferred). Compliance-first: every transition audited (HMAC chain).

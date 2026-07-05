@@ -17,11 +17,11 @@ Pending ritual outcomes / carry-forwards affecting P-0:
   - Carry-forward from L-2 (wave-11 observations.md): OBS-W11-1 (reused-authority store-binding) pre-authored as format-validated BUILD #8 candidate, flagged priority — a wave-12 recurrence promotes on sight. OBS-W11-3 (Ghost-Green uncollected-test sub-class) → future CI-guard, not a principle.
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe)
+- [x] P-1 Decompose
+- [x] P-2 Spec
+- [x] P-3 Plan
+- [x] P-4 — PASSED (head-product + karen + jenny APPROVE; Gemini 429-degraded) Gate
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
