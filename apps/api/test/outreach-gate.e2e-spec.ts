@@ -129,11 +129,16 @@ describe.skipIf(shouldSkip)(
       );
     }
 
+    // Insert a disclaimer row to satisfy the FK on outreach_template_versions.disclaimer_template_id,
+    // but mark it active=FALSE so the disclaimerEvaluator (which queries WHERE active=true) returns
+    // null → no missing-disclaimer block. These tests prove SoD/approval gate behaviour, not
+    // disclaimer enforcement — an active disclaimer with body text not present in the outreach
+    // content would fire missing-disclaimer and mask the SoD/approval assertions.
     // biome-ignore lint/suspicious/noExplicitAny: drizzle tx handle
     async function insertTestDisclaimer(tx: any, disclaimerId: string): Promise<void> {
       await tx.execute(
         sql`INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active)
-            VALUES (${disclaimerId}, ${TEST_JURISDICTION}, ${'Test disclaimer body for integration tests.'}, 1, true)
+            VALUES (${disclaimerId}, ${TEST_JURISDICTION}, ${'Test disclaimer body for integration tests.'}, 1, false)
             ON CONFLICT (id) DO NOTHING`
       );
     }
@@ -154,9 +159,18 @@ describe.skipIf(shouldSkip)(
         '../src/modules/compliance-gate/compliance-gate.service'
       );
 
-      const keyring = new AuditKeyring();
+      // Pass explicit env config to AuditKeyring — matches the proven pattern in
+      // audit.service.spec.ts (new AuditKeyring({ AUDIT_LOG_HMAC_KEY: ..., ... }))
+      // and is robust regardless of process.env mutation order in test runs.
+      // AUDIT_LOG_HMAC_KEY / AUDIT_LOG_HMAC_KEY_VERSION are set in beforeAll above.
+      const keyring = new AuditKeyring({
+        AUDIT_LOG_HMAC_KEY: process.env.AUDIT_LOG_HMAC_KEY ?? '',
+        AUDIT_LOG_HMAC_KEY_VERSION: process.env.AUDIT_LOG_HMAC_KEY_VERSION,
+      });
       const auditRepo = new AuditRepository(db);
-      const auditSvc = new AuditService(auditRepo, keyring);
+      // FIX: real AuditService constructor is (keyring: AuditKeyring, repository: AuditRepository)
+      // — KEYRING FIRST, REPOSITORY SECOND. Prior code had args swapped.
+      const auditSvc = new AuditService(keyring, auditRepo);
       const complianceRepo = new ComplianceGateRepository(db);
       return new ComplianceGateService(auditSvc, complianceRepo);
     }
