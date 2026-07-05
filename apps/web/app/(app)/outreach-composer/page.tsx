@@ -21,7 +21,11 @@
  */
 
 import type { Role } from '@dealflow/shared';
-import { outreachTemplateVersionSchema } from '@dealflow/shared';
+import {
+  matchCandidateSchema,
+  matchRunSchema,
+  outreachTemplateVersionSchema,
+} from '@dealflow/shared';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -129,33 +133,30 @@ async function fetchApprovedVersions(cookie: string): Promise<TemplateVersionWit
 // Accepted match candidates fetch (shortlist — accepted disposition)
 // ---------------------------------------------------------------------------
 
-const matchCandidateSchema = z
-  .object({
-    id: z.string().uuid(),
-    matchRunId: z.string().uuid(),
-    buyerUniverseCandidateId: z.string().uuid(),
-    fitScore: z.number(),
-    disposition: z.string(),
-    createdAt: z.string(),
-  })
-  .passthrough();
-
+// matchCandidateSchema is imported from @dealflow/shared (mirrors match_candidates row).
+// Re-export the inferred type so _components/OutreachComposerClient can reference it.
 export type MatchCandidate = z.infer<typeof matchCandidateSchema>;
 
 /**
- * Fetches shortlisted (accepted) match candidates.
- * Queries GET /matches?mandateId= if provided, otherwise lists all runs
- * and returns accepted candidates from the first run.
+ * Fetches shortlisted (accepted) match candidates for a specific mandate.
+ *
+ * M-3 fix: mandateId is REQUIRED — GET /matches returns { runs: [] } without one
+ * (by design; see matching.controller.ts listMatchRuns). Always pass the selected
+ * (or first-available) mandate's id.
+ *
+ * C-3 fix: GET /matches/:id/shortlist returns { run, accepted: [...] } — the real
+ * shape from MatchingService.getShortlist (matching.service.ts). The accepted array
+ * is already server-filtered to disposition==='accepted'; no client-side filter needed.
  *
  * Returns an empty array on any error.
  */
 async function fetchAcceptedCandidates(
   cookie: string,
-  mandateId?: string
+  mandateId: string
 ): Promise<MatchCandidate[]> {
   try {
-    const url = mandateId ? `${apiBase()}/matches?mandateId=${mandateId}` : `${apiBase()}/matches`;
-    const listRes = await fetch(url, {
+    // M-3: always scope the run lookup to the given mandateId.
+    const listRes = await fetch(`${apiBase()}/matches?mandateId=${mandateId}`, {
       headers: { cookie },
       cache: 'no-store',
     });
@@ -170,24 +171,24 @@ async function fetchAcceptedCandidates(
     const runId = listParsed.data.runs[0]?.id;
     if (!runId) return [];
 
-    // Fetch the shortlist for this run
+    // Fetch the shortlist for this run.
     const shortlistRes = await fetch(`${apiBase()}/matches/${runId}/shortlist`, {
       headers: { cookie },
       cache: 'no-store',
     });
     if (!shortlistRes.ok) return [];
     const shortlistRaw: unknown = await shortlistRes.json();
-    // shortlist endpoint returns { candidates: [...] } or bare array
-    const shortlistSchema = z.union([
-      z.object({ candidates: z.array(matchCandidateSchema) }),
-      z.array(matchCandidateSchema),
-    ]);
+
+    // C-3 fix: real shape is { run: matchRunSchema, accepted: z.array(matchCandidateSchema) }
+    // (MatchingService.getShortlist → Shortlist type in @dealflow/shared).
+    // The `accepted` array is server-filtered to disposition==='accepted'; no client filter.
+    const shortlistSchema = z.object({
+      run: matchRunSchema,
+      accepted: z.array(matchCandidateSchema),
+    });
     const shortlistParsed = shortlistSchema.safeParse(shortlistRaw);
     if (!shortlistParsed.success) return [];
-    const all = Array.isArray(shortlistParsed.data)
-      ? shortlistParsed.data
-      : shortlistParsed.data.candidates;
-    return all.filter((c) => c.disposition === 'accepted');
+    return shortlistParsed.data.accepted;
   } catch {
     return [];
   }
@@ -283,10 +284,14 @@ export default async function OutreachComposerPage() {
     fetchMandates(cookieHeader),
   ]);
 
-  // Accepted candidates fetched without a mandateId (list all, take first run)
-  // The composer UI lets the user select a mandate, which then filters this on
-  // the client side (all accepted candidates loaded SSR for simplicity).
-  const acceptedCandidates = await fetchAcceptedCandidates(cookieHeader);
+  // M-3 fix: scope the accepted-candidates load to the first available mandate.
+  // GET /matches without mandateId returns { runs: [] } by design (controller);
+  // a mandateId is required to retrieve any runs. The client component re-fetches
+  // when the advisor selects a different mandate (mandate-scoped recipient list).
+  const firstMandateId = mandates[0]?.id;
+  const acceptedCandidates = firstMandateId
+    ? await fetchAcceptedCandidates(cookieHeader, firstMandateId)
+    : [];
 
   const initialData: ComposerInitialData = {
     approvedVersions,

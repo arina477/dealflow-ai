@@ -24,8 +24,14 @@
  */
 
 import type { GateVerdictRecord, Outreach, OutreachStatus, Role } from '@dealflow/shared';
-import { gateVerdictRecordSchema, outreachSchema } from '@dealflow/shared';
-import { useState } from 'react';
+import {
+  gateVerdictRecordSchema,
+  matchCandidateSchema,
+  matchRunSchema,
+  outreachSchema,
+} from '@dealflow/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { z } from 'zod';
 import { apiFetch } from '../../_lib/apiFetch';
 import type {
   ComposerInitialData,
@@ -323,20 +329,85 @@ interface ComposerFormProps {
   onResult: (outreach: Outreach, verdict: GateVerdictRecord) => void;
 }
 
+// ---------------------------------------------------------------------------
+// Mandate-scoped candidate fetch (C-3 real shape + M-3 mandate-scoping)
+// ---------------------------------------------------------------------------
+
+const runsListSchema = z.object({
+  runs: z.array(z.object({ id: z.string().uuid() }).passthrough()),
+});
+const shortlistShape = z.object({
+  run: matchRunSchema,
+  accepted: z.array(matchCandidateSchema),
+});
+
+async function fetchCandidatesForMandate(mandateId: string): Promise<MatchCandidate[]> {
+  try {
+    // Use the existing /matches-data proxy (next.config.ts wave-10 rewrites).
+    // GET /matches-data?mandateId=X → GET /matches?mandateId=X on the API.
+    // GET /matches-data/:id/shortlist → GET /matches/:id/shortlist (via /:id/:sub rule).
+    const listRes = await fetch(`/matches-data?mandateId=${mandateId}`, {
+      headers: { rid: 'anti-csrf' },
+      cache: 'no-store',
+    });
+    if (!listRes.ok) return [];
+    const listParsed = runsListSchema.safeParse(await listRes.json());
+    if (!listParsed.success || listParsed.data.runs.length === 0) return [];
+    const runId = listParsed.data.runs[0]?.id;
+    if (!runId) return [];
+    // C-3 fix (client path): parse real { run, accepted } shape from the shortlist endpoint.
+    const shortlistRes = await fetch(`/matches-data/${runId}/shortlist`, {
+      headers: { rid: 'anti-csrf' },
+      cache: 'no-store',
+    });
+    if (!shortlistRes.ok) return [];
+    const shortlistParsed = shortlistShape.safeParse(await shortlistRes.json());
+    if (!shortlistParsed.success) return [];
+    return shortlistParsed.data.accepted;
+  } catch {
+    return [];
+  }
+}
+
 function ComposerForm({
   approvedVersions,
-  acceptedCandidates,
+  acceptedCandidates: initialCandidates,
   disclaimers,
   mandates,
   onResult,
 }: ComposerFormProps) {
   const [mandateId, setMandateId] = useState(mandates[0]?.id ?? '');
-  const [matchCandidateId, setMatchCandidateId] = useState(acceptedCandidates[0]?.id ?? '');
+  const [acceptedCandidates, setAcceptedCandidates] = useState<MatchCandidate[]>(initialCandidates);
+  const [matchCandidateId, setMatchCandidateId] = useState(initialCandidates[0]?.id ?? '');
   const [templateVersionId, setTemplateVersionId] = useState(approvedVersions[0]?.id ?? '');
   const [recipients, setRecipients] = useState('');
   const [jurisdiction, setJurisdiction] = useState(disclaimers[0]?.jurisdiction ?? '');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // M-3: re-fetch candidates scoped to the selected mandate whenever it changes.
+  const reloadCandidates = useCallback(async (id: string) => {
+    if (!id) {
+      setAcceptedCandidates([]);
+      setMatchCandidateId('');
+      return;
+    }
+    const candidates = await fetchCandidatesForMandate(id);
+    setAcceptedCandidates(candidates);
+    setMatchCandidateId(candidates[0]?.id ?? '');
+  }, []);
+
+  // M-3: re-fetch candidates when mandateId changes — skip the initial mount
+  // (SSR already hydrated the initial list; a ref avoids triggering a re-render
+  // on the first-mount guard, which would cause a spurious second effect run).
+  const isMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
+    void reloadCandidates(mandateId);
+  }, [mandateId, reloadCandidates]);
 
   async function handleCompose(e: React.FormEvent) {
     e.preventDefault();

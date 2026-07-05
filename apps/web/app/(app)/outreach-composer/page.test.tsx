@@ -97,7 +97,9 @@ const CANDIDATE = {
   matchRunId: '22222222-0000-0000-0000-000000000020',
   buyerUniverseCandidateId: '33333333-0000-0000-0000-000000000020',
   fitScore: 88,
-  disposition: 'accepted',
+  // scoreBreakdown required by shared matchCandidateSchema (C-3 fix: now imported from @dealflow/shared)
+  scoreBreakdown: null,
+  disposition: 'accepted' as const,
   createdAt: '2026-07-04T00:00:00.000Z',
 };
 
