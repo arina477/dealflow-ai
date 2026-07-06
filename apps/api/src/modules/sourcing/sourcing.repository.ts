@@ -197,8 +197,10 @@ export class SourcingRepository {
     // source filter — companies that have provenance from the specified connection
     if (filter.source) {
       const sourceConnectionId = filter.source;
-      // Subquery: company ids that have provenance from this connection
-      const provenanceSubquery = this.db
+      // Subquery: company ids that have provenance from this connection.
+      // Finding #3 (B-6 rework2): use getDb(this.db) — company_provenance is a
+      // tenant table under FORCE RLS; this.db (singleton) has no GUC set → 0 rows.
+      const provenanceSubquery = getDb(this.db)
         .selectDistinct({ companyId: companyProvenance.companyId })
         .from(companyProvenance)
         .where(eq(companyProvenance.connectionId, sourceConnectionId));
@@ -215,15 +217,18 @@ export class SourcingRepository {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     const companyRows = await getDb(this.db).select().from(companies).where(whereClause);
 
-    // Augment with contact count, source count, and connectionIds
+    // Augment with contact count, source count, and connectionIds.
+    // Finding #3 (B-6 rework2): contacts and company_provenance are tenant tables under
+    // FORCE RLS — must use getDb(this.db) so the ALS-stored GUC-set handle is used.
+    // this.db is the module-level singleton (no GUC set) → 0 rows on all three queries.
     const result = await Promise.all(
       companyRows.map(async (company) => {
         const [contactCountRow, sourceCountRow, connectionIdRows] = await Promise.all([
-          this.db
+          getDb(this.db)
             .select({ count: sql<number>`cast(count(*) as int)` })
             .from(contacts)
             .where(eq(contacts.companyId, company.id)),
-          this.db
+          getDb(this.db)
             .select({
               count: sql<number>`cast(count(distinct ${companyProvenance.connectionId}) as int)`,
             })
@@ -231,7 +236,7 @@ export class SourcingRepository {
             .where(eq(companyProvenance.companyId, company.id)),
           // CRITICAL-1 fix: return distinct connection ids that sourced this
           // company so the web ResultsMatrix can render per-company source badges.
-          this.db
+          getDb(this.db)
             .selectDistinct({ connectionId: companyProvenance.connectionId })
             .from(companyProvenance)
             .where(eq(companyProvenance.companyId, company.id)),

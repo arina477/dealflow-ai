@@ -54,6 +54,24 @@ export class WorkspaceInterceptor implements NestInterceptor {
     // Checkout + resolver as an Observable. Using from() converts the Promise.
     return from(this.setupClient(stUserId)).pipe(
       switchMap(({ client, clientDb, workspaceId }) => {
+        // Finding #4 (B-6 rework2): fail-closed — an authenticated session MUST resolve
+        // to a valid workspace. If stUserId is set but workspaceId is null (no users row
+        // for this SuperTokens id, or resolve_user_workspace returned no row), we MUST
+        // deny rather than store '' and silently produce invalid workspace placements.
+        // Storing '' propagates through getWorkspaceId() as '' (non-null, non-undefined),
+        // bypasses the ?? fallback, and causes INSERT workspace_id='' → invalid-uuid 500
+        // or a cross-workspace DEFAULT placement. Throw fail-closed instead.
+        if (stUserId && workspaceId === null) {
+          // Release the client before throwing — the finalize block will not run because
+          // the Observable never emits (we throw synchronously here in switchMap).
+          client.release();
+          throw new Error(
+            `[WorkspaceInterceptor] Authenticated session has no workspace — ` +
+              `stUserId=${stUserId} resolved to no users row. Denying request (fail-closed).`
+          );
+        }
+        // workspaceId is non-null here: either null was not possible (unauthenticated,
+        // stUserId undefined) or it is a valid UUID string. Never store ''.
         const ctx = { db: clientDb, workspaceId: workspaceId ?? '' };
 
         // Wrap the handler Observable inside workspaceAls.run so that every

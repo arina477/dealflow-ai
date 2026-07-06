@@ -58,9 +58,25 @@ export function getDb(fallback: Database): Database {
 
 /**
  * getWorkspaceId — returns the current request's workspace id from ALS.
- * Returns null when called outside a request context.
- * Used by INSERT sites to set workspaceId via ALS rather than current_setting.
+ *
+ * Returns null when called outside a request context (no ALS store set) OR
+ * when the stored workspaceId is an empty string. An empty-string workspaceId
+ * indicates the interceptor ran for an unauthenticated request (stUserId was
+ * undefined, so no workspace was resolved — the store gets '' as a sentinel).
+ *
+ * Finding #4 (B-6 rework2): previously this returned '' for unauthenticated paths
+ * because the interceptor stored `workspaceId ?? ''`. The nullish-coalescing operator
+ * ?? only replaces null/undefined, NOT ''. So `getWorkspaceId() ?? DEFAULT_WORKSPACE_ID`
+ * was returning '' (not DEFAULT_WORKSPACE_ID), causing INSERT workspace_id='' →
+ * invalid-uuid 500 or cross-workspace DEFAULT placement.
+ *
+ * Fix: normalise '' → null here, so that all callers that do
+ *   `getWorkspaceId() ?? fallback` get the intended fallback for the no-workspace case.
+ * Combined with the interceptor now throwing for authenticated-but-no-workspace sessions,
+ * this makes '' unreachable at INSERT sites under a real authenticated session.
  */
 export function getWorkspaceId(): string | null {
-  return workspaceAls.getStore()?.workspaceId ?? null;
+  const id = workspaceAls.getStore()?.workspaceId;
+  // Treat '' (unauthenticated sentinel stored by the interceptor) as null.
+  return id !== undefined && id !== '' ? id : null;
 }
