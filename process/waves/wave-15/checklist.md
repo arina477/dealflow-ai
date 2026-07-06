@@ -39,7 +39,7 @@ BUILD:
 - [x] B-6 — APPROVED (2-phase; security clean at CRIT/HIGH; hollow-concurrency-test + M1/M2 caught+fixed) Review
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
+- [x] C-1 PR/CI/merge — direct-push-to-main; ALL 5 CI jobs GREEN (596a78d); admin-concurrency e2e proves write-skew guard + credential-security (1 test-infra fix-forward)
 - [ ] C-2 Deploy & verify (canary armed when real users > 1000)
 
 TEST:
