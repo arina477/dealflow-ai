@@ -37,9 +37,13 @@
  * delivered without its audit row (exactly-one-or-none invariant).
  *
  * ── DETERMINISTIC EXPORT ────────────────────────────────────────────────────
- * Same scope → byte-identical package EXCEPT manifest generatedAt/generatingActor.
- * Entries are read in sequence_number ASC (stable order). All hashes come from
- * the immutable DB; none are recomputed here.
+ * Same scope → deterministic scoped entries (sequence_number ASC, stable order).
+ * Manifest fields scope/chainRoot/tailHash/entryCount are deterministic for the
+ * same scope; generatedAt and generatingActor vary per call. The full-chain
+ * verifyResult.entriesChecked reflects live chain length at export time (it grows
+ * as new entries are appended) — this is NOT a determinism bug: verify is full-
+ * chain by design and proves the entire unbroken chain, not just the scoped slice.
+ * All hashes come from the immutable DB; none are recomputed here.
  *
  * ── ACTOR IDENTITY (wave-5 lesson) ──────────────────────────────────────────
  * actor = AuthRepository.getUserWithRole(supertokensUserId) → app users.id UUID.
@@ -174,10 +178,13 @@ export class RecordkeepingService {
    *   (the exception propagates to the controller → 500).
    *
    * Determinism:
-   *   Entries are read in sequence_number ASC (stable order from the immutable
-   *   chain). Hashes are read from the DB (never recomputed here). manifest
-   *   generatedAt and generatingActor vary per call; all other fields are
-   *   deterministic for the same scope.
+   *   Scoped entries are read in sequence_number ASC (stable order from the
+   *   immutable chain). Hashes are read from the DB (never recomputed here).
+   *   manifest.generatedAt and manifest.generatingActor vary per call. Manifest
+   *   scope/chainRoot/tailHash/entryCount are deterministic for the same scope.
+   *   verifyResult.entriesChecked is NOT deterministic — it reflects the live
+   *   full chain length at export time, which grows as entries are appended.
+   *   This is by design: verify proves the full unbroken chain at export time.
    */
   async exportAsActor(scope: ExportScope, stUserId: string): Promise<ExportPackage> {
     const actor = await this.authRepository.getUserWithRole(stUserId);

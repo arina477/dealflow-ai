@@ -17,8 +17,18 @@
  *   'match_candidate'          → JOIN match_candidates→match_run WHERE match_run.mandate_id = ?
  *   'buyer_universe'           → JOIN buyer_universe ON id WHERE buyer_universe.mandate_id = ?
  *   'buyer_universe_candidate' → JOIN buyer_universe_candidates→buyer_universe WHERE mandate_id = ?
+ *   'audit-log-export'         → resource_id IS the mandate UUID (direct match on
+ *                                 prior export events for this mandate's records)
  * Org-wide entries (compliance_rule, suppression_entry, etc.) have no mandate FK —
  * they are intentionally excluded from mandate-scoped queries.
+ *
+ * gate-evaluate rows are intentionally excluded from the mandate-scope derivation.
+ * Gate-evaluate entries are written with resource_type='outreach-template-version'
+ * (keyed to the reusable template version, which is cross-mandate). Adding an
+ * outreach-template-version→mandate branch would over-capture gate decisions that
+ * belong to other mandates that share the same template version. Gate-evaluate
+ * entries are available in time-range or full-chain exports and are provable via
+ * verifyChain; they are NOT mandate-attributable via this derivation.
  *
  * Advisor scope:
  * When advisorUserId is provided (role='advisor'), only entries whose resource_id
@@ -26,10 +36,14 @@
  *   resource_type = 'outreach' AND resource_id IN (
  *     SELECT id::text FROM outreach WHERE created_by = advisorUserId
  *   )
- * This captures all audit entries about the advisor's own outreach records (e.g.
- * gate-evaluate entries written by the compliance gate for the advisor's outreach),
- * not just entries the advisor themselves appended. The role-scope is exclusive:
- * advisor only gets outreach entries (no pipeline, match, etc.).
+ * This captures audit entries keyed directly to the advisor's own outreach records
+ * (e.g. outreach-compose, outreach-send). The role-scope is exclusive: advisor only
+ * gets outreach entries (no pipeline, match, etc.).
+ *
+ * When mandateId is ALSO provided alongside advisorUserId, the mandate is ANDed
+ * into the outreach subquery so the advisor scope narrows to outreach belonging to
+ * that specific mandate only (not all of the advisor's own-outreach across every
+ * mandate).
  *
  * Error unwrap: DrizzleError.cause.code / err.code (wave-6 lesson).
  *
@@ -220,12 +234,20 @@ export class RecordkeepingRepository {
       simpleConditions.push(lte(auditLogEntries.createdAt, filter.to));
     }
 
-    // Advisor scope: restrict to own-outreach entries
+    // Advisor scope: restrict to own-outreach entries.
+    // When mandateId is also provided, AND it into the outreach subquery so the
+    // advisor scope is narrowed to that specific mandate's outreach records only.
+    // Without this narrowing an advisor filtering by mandateId would see ALL their
+    // own-outreach entries across every mandate — L3 correctness fix.
     if (filter.advisorUserId) {
+      const mandateClause = filter.mandateId
+        ? sql` AND mandate_id = ${filter.mandateId}::uuid`
+        : sql``;
+
       const advisorFragment = sql`(
         ${auditLogEntries.resourceType} = 'outreach'
         AND ${auditLogEntries.resourceId} IN (
-          SELECT id::text FROM outreach WHERE created_by = ${filter.advisorUserId}::uuid
+          SELECT id::text FROM outreach WHERE created_by = ${filter.advisorUserId}::uuid${mandateClause}
         )
       )`;
       // Combine with simpleConditions via AND
@@ -239,6 +261,12 @@ export class RecordkeepingRepository {
     }
 
     // Mandate-scope derivation (per resource_type)
+    //
+    // gate-evaluate is intentionally ABSENT from this derivation: gate-evaluate
+    // rows use resource_type='outreach-template-version' (cross-mandate; attributing
+    // one template version's gate decision to a single mandate would over-capture
+    // other mandates' compliance decisions). Use time-range or full-chain export
+    // to obtain gate-evaluate entries; they are in the immutable chain.
     if (filter.mandateId) {
       const mid = filter.mandateId;
       const mandateFragment = sql`(
@@ -270,6 +298,7 @@ export class RecordkeepingRepository {
           JOIN buyer_universe bu ON bu.id = buc.buyer_universe_id
           WHERE bu.mandate_id = ${mid}::uuid
         ))
+        OR (${auditLogEntries.resourceType} = 'audit-log-export' AND ${auditLogEntries.resourceId} = ${mid})
       )`;
       return { mandateFragment, simpleConditions };
     }

@@ -26,18 +26,19 @@
  * AuditVerifier.verifyChain()). Tests exercise this handler directly via the
  * class prototype — not through the NestJS HTTP layer.
  *
- * ── READ-PASSTHROUGH ─────────────────────────────────────────────────────────
- * The read endpoint passes the filter query params directly to the service
- * without re-validating field semantics in the controller. Invalid filter values
- * (bad UUID, bad date) are handled by the service/repository (400 from Zod parse
- * or query error).
+ * ── READ VALIDATION ──────────────────────────────────────────────────────────
+ * The list endpoint parses the filter query params through listFilterSchema
+ * (imported from @dealflow/shared) before forwarding to the service. Invalid
+ * values (non-UUID mandateId/actor, non-numeric limit, limit > 200) produce a
+ * 400 BadRequestException before reaching the repository — mirroring the export
+ * path's exportScopeSchema.safeParse pattern.
  *
  * ── HARD BOUNDARY ────────────────────────────────────────────────────────────
  * NO email send, NO Anthropic/LLM import, NO new external SDK.
  */
 
 import type { AuditVerifyResponse, ExportScope, Role } from '@dealflow/shared';
-import { exportScopeSchema, rolesForRoute } from '@dealflow/shared';
+import { exportScopeSchema, listFilterSchema, rolesForRoute } from '@dealflow/shared';
 import {
   BadRequestException,
   Body,
@@ -210,16 +211,26 @@ export class RecordkeepingController {
       throw new Error('RecordkeepingController: session not present after SessionGuard');
     }
 
+    // Parse and validate query params through listFilterSchema.
+    // Rejects: non-UUID mandateId/actor → 400; limit > 200 → 400;
+    // non-numeric limit → 400. Mirrors the export path's safeParse pattern.
+    const parsed = listFilterSchema.safeParse(query);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        (parsed.error as ZodError).issues.map((i) => i.message).join('; ')
+      );
+    }
+
     // exactOptionalPropertyTypes: true — conditionally include fields to avoid
     // assigning `undefined` to optional properties (which is disallowed).
     const filter: import('./recordkeeping.repository').RecordkeepingFilter = {
-      ...(query.mandateId !== undefined && { mandateId: query.mandateId }),
-      ...(query.type !== undefined && { type: query.type }),
-      ...(query.actor !== undefined && { actor: query.actor }),
-      ...(query.from !== undefined && { from: query.from }),
-      ...(query.to !== undefined && { to: query.to }),
-      ...(query.limit !== undefined && { limit: Number(query.limit) }),
-      ...(query.offset !== undefined && { offset: Number(query.offset) }),
+      ...(parsed.data.mandateId !== undefined && { mandateId: parsed.data.mandateId }),
+      ...(parsed.data.type !== undefined && { type: parsed.data.type }),
+      ...(parsed.data.actor !== undefined && { actor: parsed.data.actor }),
+      ...(parsed.data.from !== undefined && { from: parsed.data.from }),
+      ...(parsed.data.to !== undefined && { to: parsed.data.to }),
+      ...(parsed.data.limit !== undefined && { limit: parsed.data.limit }),
+      ...(parsed.data.offset !== undefined && { offset: parsed.data.offset }),
     };
 
     return this.recordkeepingService.listAsActor(filter, session.getUserId());

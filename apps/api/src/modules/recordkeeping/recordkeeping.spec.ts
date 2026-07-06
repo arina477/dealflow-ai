@@ -37,7 +37,12 @@ import { createHash } from 'node:crypto';
 
 import type { AuditVerifyResponse, ExportScope, Role } from '@dealflow/shared';
 import { GENESIS_PREV_HASH } from '@dealflow/shared';
-import { type ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  type ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -47,6 +52,7 @@ import type { AuditVerifier } from '../audit/audit.verifier';
 import type { AuthRepository } from '../auth/auth.repository';
 import { ROLES_KEY, RolesGuard } from '../auth/guards/roles.guard';
 import { RecordkeepingController } from './recordkeeping.controller';
+import type { RecordkeepingFilter } from './recordkeeping.repository';
 import { pgCode, RecordkeepingRepository } from './recordkeeping.repository';
 import { RecordkeepingService } from './recordkeeping.service';
 
@@ -700,5 +706,196 @@ describe('recordkeeping module — hard boundary (no external SDK)', () => {
     const hash = createHash('sha256').update(JSON.stringify({})).digest('hex');
     expect(hash).toHaveLength(64);
     expect(/^[0-9a-f]{64}$/.test(hash)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M2. INPUT VALIDATION — listFilterSchema guards the list endpoint
+// ---------------------------------------------------------------------------
+
+describe('RecordkeepingController.list — M2 input validation (listFilterSchema)', () => {
+  function makeReqWithSession(): RequestWithSession {
+    return {
+      session: { getUserId: () => MOCK_ST_USER_ID },
+    } as unknown as RequestWithSession;
+  }
+
+  function makeCtrl(): RecordkeepingController {
+    // Validation fires before the service is called; compliance mock is fine.
+    return new RecordkeepingController(
+      makeService({ authRepo: makeAuthRepoMock(MOCK_COMPLIANCE_USER) })
+    );
+  }
+
+  it('400 for mandateId that is not a valid UUID', async () => {
+    await expect(
+      makeCtrl().list({ mandateId: 'not-a-uuid' }, makeReqWithSession())
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('400 for actor that is not a valid UUID', async () => {
+    await expect(
+      makeCtrl().list({ actor: 'not-a-uuid' }, makeReqWithSession())
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('400 for limit exceeding max 200', async () => {
+    await expect(
+      makeCtrl().list({ limit: '100000000' }, makeReqWithSession())
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('400 for non-numeric limit', async () => {
+    await expect(makeCtrl().list({ limit: 'abc' }, makeReqWithSession())).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+  });
+
+  it('valid empty query passes validation and returns entries', async () => {
+    const repo = makeRepoMock(MOCK_ENTRIES);
+    const ctrl = new RecordkeepingController(
+      makeService({ repo, authRepo: makeAuthRepoMock(MOCK_COMPLIANCE_USER) })
+    );
+
+    const result = await ctrl.list({}, makeReqWithSession());
+
+    expect(result).toEqual(MOCK_ENTRIES);
+    expect(repo.findFiltered).toHaveBeenCalled();
+  });
+
+  it('valid limit=200 passes validation', async () => {
+    const repo = makeRepoMock(MOCK_ENTRIES);
+    const ctrl = new RecordkeepingController(
+      makeService({ repo, authRepo: makeAuthRepoMock(MOCK_COMPLIANCE_USER) })
+    );
+
+    const result = await ctrl.list({ limit: '200' }, makeReqWithSession());
+
+    expect(result).toEqual(MOCK_ENTRIES);
+    // limit is coerced and clamped by schema; repo receives a numeric limit
+    expect(repo.findFiltered).toHaveBeenCalledWith(expect.objectContaining({ limit: 200 }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helper — extract string content from a Drizzle SQL object without
+// triggering the circular-reference error that JSON.stringify hits on
+// Column objects (PgTable → PgBigInt53 → PgTable).
+//
+// Actual Drizzle queryChunks structure (verified against installed version):
+//   { value: string[] }  — SQL literal chunk (template string parts),
+//                          e.g. { value: [" = 'audit-log-export' AND "] }
+//   raw string           — interpolated scalar param value (e.g. "mandate-uuid")
+//   SQL<T>               — nested sql`...` with queryChunks property
+//   Column               — column ref with many DB-schema keys (name, table, ...);
+//                          value is undefined — skip (circular refs via .table)
+//
+// This helper extracts SQL literal strings (value arrays) + scalar string params.
+// Sufficient to assert literal branches ('audit-log-export', 'mandate_id') and
+// bound UUID values appear in the fragment.
+// ---------------------------------------------------------------------------
+
+function extractSqlText(node: unknown): string {
+  if (node === null || node === undefined) return '';
+  if (typeof node === 'string') return node; // raw string scalar param
+  if (typeof node !== 'object') return '';
+
+  const obj = node as Record<string, unknown>;
+
+  // Nested SQL<T> — has queryChunks array → recurse
+  if (Array.isArray(obj.queryChunks)) {
+    return (obj.queryChunks as unknown[]).map(extractSqlText).join('');
+  }
+
+  // SQL literal chunk — { value: string[] } (template string parts)
+  if ('value' in obj && Array.isArray(obj.value)) {
+    return (obj.value as unknown[]).filter((s) => typeof s === 'string').join('');
+  }
+
+  // Column reference or other complex object (value undefined or not array) — skip
+  return '';
+}
+
+// ---------------------------------------------------------------------------
+// L3. ADVISOR + MANDATE NARROWING — buildConditions narrows outreach to mandate
+// ---------------------------------------------------------------------------
+
+describe('RecordkeepingRepository — L3 advisor mandate narrowing', () => {
+  const mockDb = { select: vi.fn(), transaction: vi.fn() };
+
+  it('advisor + mandateId produces a different SQL fragment than advisor-only', () => {
+    const repo = new RecordkeepingRepository(mockDb as unknown as never);
+
+    // Cast to access the private buildConditions helper (test-only)
+    type BC = (f: RecordkeepingFilter) => { mandateFragment: unknown; simpleConditions: unknown[] };
+    const bc = (repo as unknown as { buildConditions: BC }).buildConditions.bind(repo);
+
+    const withMandate = bc({ advisorUserId: 'adv-uuid', mandateId: 'mid-uuid' });
+    const withoutMandate = bc({ advisorUserId: 'adv-uuid' });
+
+    expect(withMandate.mandateFragment).not.toBeNull();
+    expect(withoutMandate.mandateFragment).not.toBeNull();
+    // The fragments must differ — the mandate-narrowed one is more restrictive
+    const withStr = extractSqlText(withMandate.mandateFragment);
+    const withoutStr = extractSqlText(withoutMandate.mandateFragment);
+    expect(withStr).not.toEqual(withoutStr);
+  });
+
+  it('advisor + mandateId: the mandateId value appears in the SQL (ANDed into subquery)', () => {
+    const repo = new RecordkeepingRepository(mockDb as unknown as never);
+    type BC = (f: RecordkeepingFilter) => { mandateFragment: unknown; simpleConditions: unknown[] };
+    const bc = (repo as unknown as { buildConditions: BC }).buildConditions.bind(repo);
+
+    const result = bc({ advisorUserId: 'adv-uuid', mandateId: 'test-mandate-id' });
+
+    // The mandateId value is embedded as a parameter in the SQL fragment
+    expect(extractSqlText(result.mandateFragment)).toContain('test-mandate-id');
+  });
+
+  it('advisor without mandateId: advisorUserId is in the fragment, no mandate literal', () => {
+    const repo = new RecordkeepingRepository(mockDb as unknown as never);
+    type BC = (f: RecordkeepingFilter) => { mandateFragment: unknown; simpleConditions: unknown[] };
+    const bc = (repo as unknown as { buildConditions: BC }).buildConditions.bind(repo);
+
+    const result = bc({ advisorUserId: 'adv-only-uuid' });
+
+    expect(result.mandateFragment).not.toBeNull();
+    const sqlText = extractSqlText(result.mandateFragment);
+    expect(sqlText).toContain('adv-only-uuid');
+    // Without mandateId no mandate_id clause is added
+    expect(sqlText).not.toContain('mandate_id');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// L4. AUDIT-LOG-EXPORT IN MANDATE DERIVATION — prior export events included
+// ---------------------------------------------------------------------------
+
+describe('RecordkeepingRepository — L4 audit-log-export branch in mandate derivation', () => {
+  const mockDb = { select: vi.fn(), transaction: vi.fn() };
+
+  it('mandate derivation SQL includes the audit-log-export resource_type branch', () => {
+    const repo = new RecordkeepingRepository(mockDb as unknown as never);
+    type BC = (f: RecordkeepingFilter) => { mandateFragment: unknown; simpleConditions: unknown[] };
+    const bc = (repo as unknown as { buildConditions: BC }).buildConditions.bind(repo);
+
+    const result = bc({ mandateId: 'test-mandate-uuid' });
+
+    expect(result.mandateFragment).not.toBeNull();
+    // The SQL string chunks include the audit-log-export literal (L4 branch)
+    expect(extractSqlText(result.mandateFragment)).toContain('audit-log-export');
+  });
+
+  it('mandate derivation for audit-log-export: mandateId is the direct resource_id match', () => {
+    const repo = new RecordkeepingRepository(mockDb as unknown as never);
+    type BC = (f: RecordkeepingFilter) => { mandateFragment: unknown; simpleConditions: unknown[] };
+    const bc = (repo as unknown as { buildConditions: BC }).buildConditions.bind(repo);
+
+    const result = bc({ mandateId: 'specific-mandate-uuid' });
+
+    // The mandateId value appears as a parameter alongside the audit-log-export literal
+    const sqlText = extractSqlText(result.mandateFragment);
+    expect(sqlText).toContain('audit-log-export');
+    expect(sqlText).toContain('specific-mandate-uuid');
   });
 });
