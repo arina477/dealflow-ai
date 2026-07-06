@@ -53,6 +53,7 @@ function makeRepo(overrides: Partial<AuthRepository> = {}): AuthRepository {
     findRoleIdByName: vi.fn(),
     createInvite: vi.fn(),
     getInviteEmail: vi.fn(),
+    resolveRoleRlsExempt: vi.fn(),
     resolveRoleBySupertokensUserId: vi.fn(),
     findUserBySupertokensUserId: vi.fn(),
     consumeInviteAndCreateUser: vi.fn(),

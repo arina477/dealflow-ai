@@ -3,14 +3,12 @@ import 'reflect-metadata';
 import { parseEnv } from '@dealflow/shared';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { eq } from 'drizzle-orm';
 import supertokens from 'supertokens-node';
 import { errorHandler, middleware } from 'supertokens-node/framework/express';
 import { z } from 'zod';
 
 import { AppModule } from './app.module';
-import { assertNonSuperuserConnection, db } from './db';
-import { roles, users } from './db/schema';
+import { assertNonSuperuserConnection, pool } from './db';
 import { initSupertokens } from './modules/auth/supertokens.config';
 import { loadSupertokensEnv } from './modules/auth/supertokens.env';
 
@@ -60,20 +58,27 @@ async function bootstrap(): Promise<void> {
   //      app.init() (via the CORS-before-init fix), so the Nest router sat
   //      ahead of it and returned 404 on every browser real-auth call.
   //
-  // The createNewSession role-claim override uses the module-singleton Drizzle
-  // client (src/db/index.ts) directly rather than an injected AuthRepository.
-  // This decouples SuperTokens init from the Nest DI container lifecycle —
-  // no OnModuleInit hook needed in AuthModule.
+  // The createNewSession role-claim override uses the module-singleton pool
+  // directly (src/db/index.ts) via resolve_user_workspace (SECURITY DEFINER,
+  // RLS-exempt) rather than an injected AuthRepository.
+  //
+  // B-6 rework3 — RLS-exempt path (P0 fix):
+  // This callback runs at signin/refresh — BEFORE any session or WorkspaceInterceptor
+  // context exists. Under dealflow_app (NOSUPERUSER FORCE RLS), a direct Drizzle
+  // users SELECT returns 0 rows (no GUC set → NULL = uuid → false) → null role →
+  // claim silently dropped → subsequent guard checks resolve null again → 403.
+  // Fix: call resolve_user_workspace(st_user_id) via pool.query — same SECURITY
+  // DEFINER pattern as getInviteEmail; bypasses FORCE RLS; EXECUTE already granted
+  // to dealflow_app (migration 0016 step 5). stUserId is the SERVER-VERIFIED
+  // SuperTokens session subject (never client-supplied).
   initSupertokens({
     env: stEnv,
     resolveRole: async (supertokensUserId: string): Promise<string | null> => {
-      const rows = await db
-        .select({ roleName: roles.name })
-        .from(users)
-        .innerJoin(roles, eq(users.roleId, roles.id))
-        .where(eq(users.supertokensUserId, supertokensUserId))
-        .limit(1);
-      return rows[0]?.roleName ?? null;
+      const result = await pool.query<{ role_name: string }>(
+        'SELECT role_name FROM resolve_user_workspace($1)',
+        [supertokensUserId]
+      );
+      return result.rows[0]?.role_name ?? null;
     },
   });
 

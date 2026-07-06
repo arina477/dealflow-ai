@@ -677,6 +677,7 @@ describe('RBAC matrix — MatchingController via RolesGuard', () => {
     const reflector = new Reflector();
     vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue([] as Role[]);
     const authRepoMock = {
+      resolveRoleRlsExempt: vi.fn().mockResolvedValue('advisor'),
       resolveRoleBySupertokensUserId: vi.fn().mockResolvedValue('advisor'),
     };
     const guard = new RolesGuard(reflector, authRepoMock as unknown as AuthRepository);
@@ -688,6 +689,7 @@ describe('RBAC matrix — MatchingController via RolesGuard', () => {
     const reflector = new Reflector();
     vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['advisor'] as Role[]);
     const authRepoMock = {
+      resolveRoleRlsExempt: vi.fn(),
       resolveRoleBySupertokensUserId: vi.fn(),
     };
     const guard = new RolesGuard(reflector, authRepoMock as unknown as AuthRepository);
@@ -699,6 +701,7 @@ describe('RBAC matrix — MatchingController via RolesGuard', () => {
     const reflector = new Reflector();
     vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['advisor', 'admin'] as Role[]);
     const authRepoMock = {
+      resolveRoleRlsExempt: vi.fn().mockResolvedValue('analyst'),
       resolveRoleBySupertokensUserId: vi.fn().mockResolvedValue('analyst'),
     };
     const guard = new RolesGuard(reflector, authRepoMock as unknown as AuthRepository);
@@ -710,6 +713,7 @@ describe('RBAC matrix — MatchingController via RolesGuard', () => {
     const reflector = new Reflector();
     vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['advisor', 'admin'] as Role[]);
     const authRepoMock = {
+      resolveRoleRlsExempt: vi.fn().mockResolvedValue('advisor'),
       resolveRoleBySupertokensUserId: vi.fn().mockResolvedValue('advisor'),
     };
     const guard = new RolesGuard(reflector, authRepoMock as unknown as AuthRepository);

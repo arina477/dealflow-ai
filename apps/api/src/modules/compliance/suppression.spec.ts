@@ -51,6 +51,7 @@ function contextFor(handler: unknown, claimRole: Role | undefined): ExecutionCon
 
 function guardWithDbRole(dbRole: Role | null): RolesGuard {
   const repo = {
+    resolveRoleRlsExempt: vi.fn().mockResolvedValue(dbRole),
     resolveRoleBySupertokensUserId: vi.fn().mockResolvedValue(dbRole),
   } as unknown as AuthRepository;
   return new RolesGuard(new Reflector(), repo);

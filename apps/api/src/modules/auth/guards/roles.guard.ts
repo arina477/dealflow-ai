@@ -29,17 +29,22 @@
  * controller (COMPLIANCE_SUMMARY_ROLES non-empty check) so drift also fails at
  * boot, not just at request time.
  *
- * ── DB-AUTHORITATIVE role (B-6 CRITICAL-1 fix) ──────────────────────────────
+ * ── DB-AUTHORITATIVE role (B-6 CRITICAL-1 fix; RLS-exempt path B-6 rework3) ──
  * The session role CLAIM is a MIRROR of app-DB users.role, minted at login and
  * NEVER re-verified until token rotation. A user whose DB role is downgraded
  * would keep the stale claim role on guarded routes until their token rotates.
  * We close that window: the guard re-resolves the role from the app-DB users
  * row (by SuperTokens user id — the SAME authoritative source GET /auth/me
- * uses, via AuthRepository.resolveRoleBySupertokensUserId) and authorizes off
- * the DB value, not the claim. This costs one extra DB read per guarded request
- * — accepted: correctness > micro-perf on the RBAC path, and guarded routes are
- * few. (A future architecture could instead revoke sessions on role change; the
- * per-request DB re-verify closes the window today with minimal change.)
+ * uses) and authorizes off the DB value, not the claim.
+ *
+ * B-6 rework3 — RLS-exempt path (P0 fix):
+ * NestJS runs GUARDS BEFORE INTERCEPTORS. The WorkspaceInterceptor (APP_INTERCEPTOR)
+ * has NOT yet run when canActivate fires → ALS empty → no app.workspace_id GUC →
+ * under dealflow_app (NOSUPERUSER FORCE RLS) the direct users SELECT returns 0
+ * rows → null role → ForbiddenException → 403-EVERYTHING. Fix: use
+ * AuthRepository.resolveRoleRlsExempt (→ SECURITY DEFINER resolve_user_workspace
+ * via pool.query) instead of resolveRoleBySupertokensUserId (→ getDb Drizzle query).
+ * EXECUTE already granted to dealflow_app (migration 0016 step 5).
  */
 
 import type { Role } from '@dealflow/shared';
@@ -108,12 +113,18 @@ export class RolesGuard implements CanActivate {
       throw new UnauthorizedException();
     }
 
-    // DB-AUTHORITATIVE role: re-verify against the app-DB users row (same source
-    // GET /auth/me uses) rather than trusting the possibly-stale session claim.
-    // A DB role change takes effect on the NEXT guarded request, not only after
-    // token rotation.
+    // DB-AUTHORITATIVE role (B-6 rework3): re-verify against the app-DB users row
+    // via the RLS-EXEMPT SECURITY DEFINER path (resolveRoleRlsExempt →
+    // resolve_user_workspace). This guard runs BEFORE the WorkspaceInterceptor
+    // (NestJS guard-before-interceptor ordering), so the app.workspace_id GUC is
+    // NOT yet set. Under dealflow_app (NOSUPERUSER NOBYPASSRLS FORCE RLS), a
+    // direct Drizzle users SELECT returns 0 rows → null → 403-everything.
+    // resolveRoleRlsExempt calls the SECURITY DEFINER fn via pool.query (same
+    // pattern as getInviteEmail) — bypasses FORCE RLS, EXECUTE already granted.
+    // A DB role change still takes effect on the NEXT guarded request (not only
+    // after token rotation) — DB-authoritative property is preserved.
     const supertokensUserId = session.getUserId();
-    const role = (await this.authRepository.resolveRoleBySupertokensUserId(
+    const role = (await this.authRepository.resolveRoleRlsExempt(
       supertokensUserId
     )) as Role | null;
 

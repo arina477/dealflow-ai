@@ -524,8 +524,9 @@ describe('RecordkeepingService.exportAsActor — advisor 403', () => {
 // ---------------------------------------------------------------------------
 // 10. RBAC MATRIX — guard-level assertions (RolesGuard + @Roles)
 //
-// RolesGuard is DB-authoritative (wave-6 B-6 fix): reads role from
-// AuthRepository.resolveRoleBySupertokensUserId, NOT from the token claim.
+// RolesGuard is DB-authoritative (B-6 rework3): reads role from
+// AuthRepository.resolveRoleRlsExempt (SECURITY DEFINER RLS-exempt path),
+// NOT from the token claim and NOT the RLS-gated resolveRoleBySupertokensUserId.
 // guardFor(dbRole) mocks this lookup; ctxFor(handler, hasSession) supplies
 // a session when hasSession is true (presence of req.session).
 // ---------------------------------------------------------------------------
@@ -533,6 +534,7 @@ describe('RecordkeepingService.exportAsActor — advisor 403', () => {
 /** Build a minimal RolesGuard with a fixed DB role response. */
 function guardFor(dbRole: Role | null): RolesGuard {
   return new RolesGuard(new Reflector(), {
+    resolveRoleRlsExempt: vi.fn().mockResolvedValue(dbRole),
     resolveRoleBySupertokensUserId: vi.fn().mockResolvedValue(dbRole),
   } as unknown as AuthRepository);
 }

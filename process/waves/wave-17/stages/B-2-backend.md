@@ -213,3 +213,24 @@ B-6 phase-2 adversarial review found 4 defects (2 P0 isolation-critical). All 4 
 - `pnpm --filter @dealflow/api test --run`: 772 passed, 52 skipped (e2e DB-gated), 0 failed.
 - No local DB available in dev container; e2e assertions (ISO-1..ISO-5, INV-1..INV-5) will run in CI with `TEST_DATABASE_URL` set.
 - Commits: `b247d24` (finding #2), `f7cdb70` (finding #1), `90c1b67` (findings #3/#4).
+
+## B-6 rework3 resolution
+
+**P0 (new finding, exposed by non-superuser-role fix from rework2)**: RolesGuard + main.ts resolveRole read `users` via RLS-gated path pre-interceptor → 403-everything under dealflow_app.
+
+**Root cause**: NestJS runs GUARDS BEFORE INTERCEPTORS. `RolesGuard.canActivate` called `authRepository.resolveRoleBySupertokensUserId` (→ `getDb(this.db)` → Drizzle SELECT on `users`) BEFORE `WorkspaceInterceptor` (APP_INTERCEPTOR) ran — ALS empty, no `app.workspace_id` GUC set. Under `dealflow_app` (NOSUPERUSER NOBYPASSRLS FORCE RLS), `workspace_id = current_setting(..., true)::uuid` evaluates `NULL = uuid → false` → 0 rows → `null` role → `ForbiddenException` → every `@Roles()`-guarded endpoint returns 403 for all users. Same defect in `main.ts` `resolveRole` SuperTokens callback (runs at signin/refresh, no session ALS).
+
+**Fix**:
+- Added `resolveRoleRlsExempt(stUserId)` to `AuthRepository` (`apps/api/src/modules/auth/auth.repository.ts`): calls `SELECT role_name FROM resolve_user_workspace($1)` via `pool.query` — identical pattern to `getInviteEmail`. `resolve_user_workspace` is SECURITY DEFINER (migration 0014 step 7), EXECUTE already granted to `dealflow_app` (migration 0016 step 5). No new migration needed.
+- `RolesGuard.canActivate` (`apps/api/src/modules/auth/guards/roles.guard.ts`): replaced `resolveRoleBySupertokensUserId` call with `resolveRoleRlsExempt`. DB-authoritative property preserved (re-resolves per request from DB, not JWT claim).
+- `main.ts` `resolveRole` closure: replaced RLS-gated Drizzle query (`db.select().from(users)...`) with `pool.query('SELECT role_name FROM resolve_user_workspace($1)', [stUserId])`. Removed unused `eq`, `roles`, `users` imports; changed `db` import to `pool`.
+
+**Grep result for other pre-interceptor RLS-gated reads**: only one guard file with DB access (`roles.guard.ts`) — fixed. `session.guard.ts` has no DB access. No middleware, background jobs, schedulers, or other bootstrap paths with pre-interceptor RLS-gated tenant reads found.
+
+**Fault-killing test**: `compliance.rbac.spec.ts` CRITICAL-1b describe block (3 tests) added. Proves:
+1. `canActivate` calls `resolveRoleRlsExempt` (NOT `resolveRoleBySupertokensUserId`) — test fails if guard regresses to the RLS-gated path.
+2. The resolved value from `resolveRoleRlsExempt` drives allow/deny (not the session claim).
+3. `@Roles()`-guarded route: correct role → allow, wrong role → 403 (NOT 403-for-all).
+Updated `mockRepo` in all 11 spec files to expose `resolveRoleRlsExempt` alongside `resolveRoleBySupertokensUserId`.
+
+**Verification**: `pnpm -w typecheck`: 4 tasks successful, 0 errors. `pnpm --filter @dealflow/api test`: 775 passed (3 new tests), 52 skipped (e2e DB-gated), 0 failed.

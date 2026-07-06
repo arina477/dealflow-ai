@@ -158,6 +158,12 @@ export class AuthRepository {
    * Resolve the role NAME for a SuperTokens user id via the app-DB users row.
    * This is the authoritative source for the session `role` claim. Returns null
    * when no users row exists for the id (claim is then omitted).
+   *
+   * NOTE: uses getDb(this.db) — RLS-gated. Call this ONLY from within a request
+   * context where the WorkspaceInterceptor has already set the ALS GUC. Calling
+   * this pre-interceptor (e.g. from a guard or SuperTokens callback) returns 0
+   * rows under dealflow_app (FORCE RLS, no GUC set) → null → 403-everything.
+   * Use resolveRoleRlsExempt() instead for pre-interceptor callers.
    */
   async resolveRoleBySupertokensUserId(supertokensUserId: string): Promise<string | null> {
     const rows = await getDb(this.db)
@@ -167,6 +173,38 @@ export class AuthRepository {
       .where(eq(users.supertokensUserId, supertokensUserId))
       .limit(1);
     return rows[0]?.roleName ?? null;
+  }
+
+  /**
+   * RLS-EXEMPT role resolver for PRE-INTERCEPTOR callers (B-6 rework3).
+   *
+   * Problem: RolesGuard.canActivate and the SuperTokens session-claim callback
+   * (main.ts resolveRole) both run BEFORE the WorkspaceInterceptor sets the
+   * app.workspace_id GUC on a dedicated ALS connection. Under dealflow_app
+   * (NOSUPERUSER, FORCE RLS), a users SELECT with no GUC returns 0 rows →
+   * null role → 403 for every @Roles()-guarded endpoint.
+   *
+   * Fix: call the SECURITY DEFINER function resolve_user_workspace(st_user_id)
+   * (migration 0014 step 7) via pool.query — identical pattern to getInviteEmail.
+   * The function runs as its DEFINER (table owner) → bypasses FORCE RLS → returns
+   * the user's (workspace_id, role_name) regardless of GUC state.
+   * EXECUTE is already granted to dealflow_app (migration 0016 step 5).
+   *
+   * SECURITY properties (same as resolve_user_workspace design):
+   *   • Accepts only the SERVER-VERIFIED SuperTokens session subject (never
+   *     client-supplied). The guard obtains it from session.getUserId() after
+   *     Session.getSession() — server-verified on every guarded request.
+   *   • Returns ONLY the caller's own role_name (minimal surface).
+   *   • DB-authoritative: re-resolves per request, NOT from the stale JWT claim.
+   *
+   * Returns null when no users row exists for the id (guard then denies 403).
+   */
+  async resolveRoleRlsExempt(supertokensUserId: string): Promise<string | null> {
+    const result = await pool.query<{ role_name: string }>(
+      'SELECT role_name FROM resolve_user_workspace($1)',
+      [supertokensUserId]
+    );
+    return result.rows[0]?.role_name ?? null;
   }
 
   /** Look up a user + role by SuperTokens user id (used by GET /auth/me). */

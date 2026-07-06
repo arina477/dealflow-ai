@@ -283,6 +283,7 @@ function contextFor(handler: unknown, claimRole: Role | undefined): ExecutionCon
 
 function mockAuthRepo(dbRole: Role | null): AuthRepository {
   return {
+    resolveRoleRlsExempt: vi.fn().mockResolvedValue(dbRole),
     resolveRoleBySupertokensUserId: vi.fn().mockResolvedValue(dbRole),
   } as unknown as AuthRepository;
 }

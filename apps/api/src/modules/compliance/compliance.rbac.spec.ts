@@ -7,10 +7,19 @@
  *
  * ── B-6 hardening under test ────────────────────────────────────────────────
  *   CRITICAL-1 (DB-authoritative role): the guard authorizes off the app-DB
- *   users row (AuthRepository.resolveRoleBySupertokensUserId — the SAME source
- *   GET /auth/me uses), NOT the session claim. Tests inject a mock repo and
+ *   users row via the RLS-EXEMPT path (AuthRepository.resolveRoleRlsExempt →
+ *   resolve_user_workspace SECURITY DEFINER fn), NOT the session claim and NOT
+ *   the RLS-gated resolveRoleBySupertokensUserId. Tests inject a mock repo and
  *   assert the DB value decides — including the case where the DB role DIFFERS
  *   from the stale claim (DB wins).
+ *
+ *   CRITICAL-1b (B-6 rework3, P0): the guard MUST call resolveRoleRlsExempt,
+ *   NOT resolveRoleBySupertokensUserId. The guard runs PRE-INTERCEPTOR (NestJS
+ *   guard-before-interceptor ordering) → ALS empty → no GUC set → under
+ *   dealflow_app (NOSUPERUSER FORCE RLS) the direct Drizzle users SELECT
+ *   returns 0 rows → null → 403-EVERYTHING. The fault-killing test below
+ *   proves the guard calls the RLS-exempt path and FAILS if it regresses to
+ *   the RLS-gated resolveRoleBySupertokensUserId.
  *
  *   CRITICAL-2 (fail-closed empty-@Roles): a route with @Roles() PRESENT but
  *   EMPTY denies (403); a route with NO @Roles() decorator at all passes
@@ -83,9 +92,17 @@ function contextFor(handler: unknown, claimRole: Role | undefined): ExecutionCon
   } as unknown as ExecutionContext;
 }
 
-/** A mock AuthRepository whose resolveRoleBySupertokensUserId returns `dbRole`. */
+/**
+ * Mock AuthRepository for guard tests (B-6 rework3).
+ *
+ * resolveRoleRlsExempt is the method the guard MUST call (RLS-exempt path,
+ * pre-interceptor safe). resolveRoleBySupertokensUserId is the RLS-gated path
+ * that must NOT be called by the guard — its spy is used in the fault-killing
+ * test to assert it is never reached.
+ */
 function mockRepo(dbRole: Role | null): AuthRepository {
   return {
+    resolveRoleRlsExempt: vi.fn().mockResolvedValue(dbRole),
     resolveRoleBySupertokensUserId: vi.fn().mockResolvedValue(dbRole),
   } as unknown as AuthRepository;
 }
@@ -191,7 +208,81 @@ describe('CRITICAL-1 — guard uses DB role, not the stale session claim', () =>
     const repo = mockRepo('compliance');
     const guard = new RolesGuard(new Reflector(), repo);
     await guard.canActivate(contextFor(complianceSummaryHandler, 'admin'));
-    expect(repo.resolveRoleBySupertokensUserId).toHaveBeenCalledWith(TEST_USER_ID);
+    // B-6 rework3: must call the RLS-EXEMPT path (resolveRoleRlsExempt), not the
+    // RLS-gated resolveRoleBySupertokensUserId. Fails if guard regresses.
+    expect(repo.resolveRoleRlsExempt).toHaveBeenCalledWith(TEST_USER_ID);
+    expect(repo.resolveRoleBySupertokensUserId).not.toHaveBeenCalled();
+  });
+});
+
+// ── CRITICAL-1b (B-6 rework3, P0): guard calls RLS-EXEMPT path, not RLS-gated ─
+//
+// FAULT-KILLING: this test fails if the guard regresses to calling
+// resolveRoleBySupertokensUserId (the RLS-gated Drizzle path). Under
+// dealflow_app (NOSUPERUSER FORCE RLS, pre-interceptor / ALS empty / no GUC),
+// the RLS-gated path returns 0 rows → null role → 403-everything.
+// The fix routes through resolveRoleRlsExempt → SECURITY DEFINER
+// resolve_user_workspace → bypasses FORCE RLS.
+
+describe('CRITICAL-1b (B-6 rework3) — guard calls RLS-exempt path pre-interceptor', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('calls resolveRoleRlsExempt (not resolveRoleBySupertokensUserId) for the role lookup', async () => {
+    // FAULT-KILLING: fails if the guard regresses to the RLS-gated path.
+    const repo = mockRepo('compliance');
+    const guard = new RolesGuard(new Reflector(), repo);
+    await guard.canActivate(contextFor(complianceSummaryHandler, 'compliance'));
+
+    expect(repo.resolveRoleRlsExempt).toHaveBeenCalledOnce();
+    expect(repo.resolveRoleRlsExempt).toHaveBeenCalledWith(TEST_USER_ID);
+    // The RLS-gated path must NOT be called (would 403-everything under dealflow_app).
+    expect(repo.resolveRoleBySupertokensUserId).not.toHaveBeenCalled();
+  });
+
+  it('resolveRoleRlsExempt result drives allow/deny (not the session claim or getDb path)', async () => {
+    // Verify the resolved value from resolveRoleRlsExempt is what the guard
+    // actually authorizes off — not a stale claim or a secondary lookup.
+    const repoCompliance = mockRepo('compliance');
+    await expect(
+      new RolesGuard(new Reflector(), repoCompliance).canActivate(
+        contextFor(complianceSummaryHandler, 'advisor') // stale claim = advisor
+      )
+    ).resolves.toBe(true); // RLS-exempt resolver returned 'compliance' → allow
+
+    const repoAdvisor = mockRepo('advisor');
+    await expect(
+      new RolesGuard(new Reflector(), repoAdvisor).canActivate(
+        contextFor(complianceSummaryHandler, 'compliance') // stale claim = compliance
+      )
+    ).rejects.toBeInstanceOf(ForbiddenException); // RLS-exempt resolver returned 'advisor' → deny
+  });
+
+  it('@Roles()-guarded route allows correct role and denies wrong role under the RLS-exempt path', async () => {
+    // Simulate what happens under dealflow_app after the fix:
+    // correct role → 200; wrong role → 403 (NOT 403-for-all).
+    const allowed: Role[] = ['admin', 'compliance'];
+    const denied: Role[] = ['advisor', 'analyst'];
+
+    for (const role of allowed) {
+      const repo = mockRepo(role);
+      await expect(
+        new RolesGuard(new Reflector(), repo).canActivate(
+          contextFor(complianceSummaryHandler, role)
+        )
+      ).resolves.toBe(true);
+      // Must use RLS-exempt path.
+      expect(repo.resolveRoleRlsExempt).toHaveBeenCalledWith(TEST_USER_ID);
+      expect(repo.resolveRoleBySupertokensUserId).not.toHaveBeenCalled();
+    }
+
+    for (const role of denied) {
+      const repo = mockRepo(role);
+      await expect(
+        new RolesGuard(new Reflector(), repo).canActivate(
+          contextFor(complianceSummaryHandler, role)
+        )
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    }
   });
 });
 
