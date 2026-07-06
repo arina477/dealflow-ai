@@ -1,0 +1,30 @@
+# Wave 17 — V-3 Verdict
+
+**Reviewer:** head-verifier (fresh spawn)
+**Reviewed against:** process/waves/wave-17/blocks/V/review-artifacts.md
+**Attempt:** 1  (first gate)
+**Deployed:** LIVE @ `591b3f8bb5877db0357b629f3e88c53bb2a36843` (api `f3b96634…`, web `cdc512b3…`, both Railway SUCCESS, commit-verified). Working tree == 591b3f8 (verified `git rev-parse HEAD`).
+
+## Verdict
+APPROVED
+
+## Rationale
+
+The V-block clears on proof, not inference. I independently read the crux source (`apps/api/src/db/index.ts:51-79` + `apps/api/src/main.ts:31-33,115-118`) rather than trusting the reviewers' summaries, and the [RLS-GUARD]-as-proof-of-non-superuser chain is genuinely fail-closed: `assertNonSuperuserConnection()` throws on an indeterminate role (no row), on `is_superuser==='on'`, and on `rolbypassrls` — three denial branches with no swallow, no default-allow, no early return; the only fall-through is a genuinely non-superuser NOBYPASSRLS role. The guard is `await`ed inside `bootstrap()` under `NODE_ENV !== 'test'` (prod is `production`) BEFORE `NestFactory.create()` and `app.listen()` bind a port, and a throw propagates to `bootstrap().catch(() => process.exit(1))` — so a superuser/BYPASSRLS connection CANNOT reach a listening server. Therefore the live `GET /health → 200 {status:ok,db:ok,version:591b3f8}` is POSITIVE observable proof that the prod runtime is the non-superuser `dealflow_app` role and FORCE RLS is actually enforced — the isolation is real, not vacuous. This is the load-bearing verification of the whole wave and it is sound.
+
+Both reviewers are credible. Karen confirmed 7/7 load-bearing claims (files/migrations 0014-0017 journaled 0013→0017/interceptor set_config/RLS-exempt roles-guard/RBAC-registered-not-403-for-all/audit-chain/CI-non-vacuous), with the CI isolation suite proven non-vacuous by `SET ROLE dealflow_app` + an ISO-2 positive control (>0 same-tenant) — the false-green guard is honored. jenny confirmed 0 spec-drift across all four spec blocks + the P-4 F1-F4 rework, with 5 forward-looking spec-GAPS. Critically, BOTH honestly disclosed that the only DB they can reach is the brain control-plane (not the prod app DB on Railway private networking, whose migration proxy was deleted post-run), so DB-internal state (27 FORCE-RLS tables, 328 backfilled rows, verifyChain ok:true) rests on C-2's OWNER-verified assertions + deployed source + live API — not a fabricated re-query. This is the correct disclosure (Done-Theater avoided), and it is not a material gap: the C-2 gate is an APPROVED head-ci-cd verdict with per-service commit-hash verification and owner-side post-backfill verifyChain, and the load-bearing crux (non-superuser runtime) is proven by the live /health + the fail-closed guard I read in source — which does NOT depend on any prod-app-DB re-query.
+
+V-2 triage quality is sound: 0 blocking, fast-fix queue empty, 3 non-blocking tasks correctly filed under M8, 3 items correctly suppressed as noise (GAP-1 already handled by the 0017 NULLIF cast; GAP-3 SET-ROLE semantically equivalent; T-block info). I pressure-tested the most notable gap, GAP-2 (`getWorkspaceId() ?? DEFAULT_WORKSPACE_ID` on the write path), and CORRECT the reviewer record on scope: this pattern is NOT confined to 2 settings services — it is the repo-wide write convention (14+ sites across pipeline/sourcing/buyer-universe/audit/outreach/dedupe/admin/compliance, grep-confirmed). That makes GAP-2 a MORE important H3-tracked item, but it does NOT flip the non-blocking-now verdict, for structural reasons that hold identically at every site: (1) only ONE workspace exists in prod and `DEFAULT_WORKSPACE_ID` IS the pilot firm's workspace — a mis-placed write lands in the only firm that exists, so cross-firm leakage is topologically impossible until a 2nd workspace is provisioned (explicitly deferred to H3); (2) read-side containment is absolute regardless of write placement (FORCE RLS deny-by-default via the request-scoped GUC — even a mis-placed row has no cross-firm reader); (3) the fallback is a documented bootstrap/background/test-path pattern (`getWorkspaceId()` returns null only outside a request; the interceptor throws for authenticated-but-no-workspace, making `''` unreachable at INSERT under a real session); (4) on the audit path specifically, `workspaceId` is HMAC-EXCLUDED from the preimage, so no write placement can truncate the chain (`verifyChain ok:true, 328 rows, 0 breaks`). GAP-2 is genuinely non-blocking for the single-firm pilot and correctly tracked for H3.
+
+Compliance / credential / audit / isolation bypass sweep — nothing missed on this security-scope-tightened wave: RBAC is live (401 unauth / 200 authed-compliance, not 403-for-all); the audit log is append-only (WORM trigger, ISO-5 asserts SQLSTATE P0001 on UPDATE) with a globally verifiable hash chain (workspace_id HMAC-excluded, ok:true/328); no test-mode or conditional isolation bypass exists in the deployed code; the `dealflow_app` password was `openssl rand`-generated, lives only in Railway's encrypted `DATABASE_URL`, and is never echoed or committed (git status shows no secret/.env in the change set); and CI is green on the EXACT deployed SHA (intermediate migration-fix commits were RED — no Ghost Green). Deferral is honest: M8 stays in_progress, the 5 gaps route to next-wave P-2, scope is ONE pilot firm (not H3 multi-tenant SaaS). Every V-3 stage-exit checkbox is ticked from a concrete observable deployed-state artifact. APPROVED.
+
+## Footer
+- verdict_complete: true
+- rework_attempt_cap_remaining: 3
+- phase2_fast_fix: skipped (V-2 fast_fix_queue empty)
+- karen_verdict: APPROVE
+- jenny_verdict: APPROVE
+- crux_independently_verified: true  # read index.ts:51-79 + main.ts:31-33,115-118 in source; fail-closed chain confirmed
+- reviewer_disclosure_sound: true    # brain-DB-only reach honestly disclosed; crux proof does not depend on prod-app-DB re-query
+- gap2_scope_correction: "repo-wide write convention (14+ sites), not 2 services — still non-blocking for single-firm pilot, correctly tracked for H3"
+- bypass_found: none

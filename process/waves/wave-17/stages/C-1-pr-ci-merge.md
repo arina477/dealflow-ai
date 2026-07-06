@@ -93,3 +93,9 @@ merge_commit_sha: ec9e4808bc589ef2c54279231f2d1533e61b891d
 rebase_cycles: 0
 note: "direct-push-to-main; isolation enforced as non-superuser dealflow_app; migrations 0014/0015/0016 (+0017 fail-closed NULLIF fix). Ghost-Green guard applied: neutralized [skip ci] docs HEAD 0513248 by pushing CI-triggering tip. 3 backend-developer fix-forward cycles (vacuous-skip + NOT-NULL regression + seed schema-mismatch + real RLS empty-string-cast defect + audit identity-seq resync). Queryable conclusion verified per wave-16 lesson (watch exit 0 was misleading on the 3 failed runs)."
 ```
+
+
+## C-1 RE-RUN (post C-2-HOLD migration fix) — GREEN
+main advanced ec9e480 → 58c1498 (0014 audit-backfill WORM trigger-wrap + populated-DB test AMP-1..5) → dfcda74 (AMP-4 scope attempt) → **591b3f8 (AMP-4 per-row hash-exclusion — main GREEN)**.
+CI run 28824525244 @ 591b3f8: **all 5 jobs SUCCESS** (lint/typecheck/audit/build/test). The populated-DB migration test AMP-1/2/3/4/5 GREEN (0014 applies against seeded audit rows without the WORM collision; AMP-4 proves workspace_id hash-exclusion per-row; AMP-5 fault-killing). Isolation suites (ISO/INV/GUC/RBAC) still green as dealflow_app. 2 fix-forward cycles on the re-run (58c1498 migration trigger-wrap, 591b3f8 AMP-4 shared-DB per-row hash).
+final_commit_sha: 591b3f8 (main GREEN)

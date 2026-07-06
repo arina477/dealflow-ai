@@ -59,7 +59,7 @@ l_stage_verdict: COMPLETE
 verdict_evidence:
   - "CHANGELOG.md:3-18"
   - "milestones row: 9ed98c3c-8cb8-4736-8337-22dc0dae48d4 — NO UPDATE (open_count=4>0, stays in_progress)"
-  - "commit SHA: <filled post-commit>"
+  - "commit SHA: 252c738 (pushed to main, 591b3f8..252c738)"
 changelog_entry_added: true
 roadmap_milestones_progressed:
   - milestone: "M8 (9ed98c3c-8cb8-4736-8337-22dc0dae48d4)"

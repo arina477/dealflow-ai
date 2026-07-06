@@ -63,7 +63,7 @@ VERIFY:
 
 LEARN:
 - [x] L-1 Docs — CHANGELOG 0.17.0 (CHANGELOG.md:3-18); M8 stays in_progress (4 done this wave, 4 open: 3 H3 hardening todos + 1 stale blocked TRIAGE for L-2 to reconcile); founder-TBD quantitative metric; README skipped
-- [ ] L-2 Distill
+- [x] L-2 Distill
 
 NEXT:
 - [ ] N-1 Survey & triggers
