@@ -36,6 +36,9 @@ const auditKeyringProvider: Provider = {
 
 @Module({
   providers: [dbProvider, auditKeyringProvider, AuditRepository, AuditService, AuditVerifier],
-  exports: [AuditService, AuditVerifier],
+  // AuditRepository exported so the admin-activity module can call the READ-ONLY
+  // findAdminActivity / countAdminActivity methods (P-4 Finding 3, task 8bb0a22f).
+  // AuditService and AuditVerifier are the pre-existing exports.
+  exports: [AuditService, AuditVerifier, AuditRepository],
 })
 export class AuditModule {}

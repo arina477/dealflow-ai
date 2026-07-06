@@ -10,7 +10,7 @@
  */
 
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lte, lt, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
@@ -137,6 +137,96 @@ export class AuditRepository {
    */
   async readChainAscending(): Promise<StoredAuditEntry[]> {
     return this.db.select().from(auditLogEntries).orderBy(asc(auditLogEntries.sequenceNumber));
+  }
+
+  /**
+   * Filtered + paginated read over audit_log_entries for the admin-activity surface.
+   *
+   * READ-ONLY: this method NEVER writes to audit_log_entries.
+   * Mirrors the RecordkeepingRepository.findFiltered pattern for the admin-activity
+   * read surface (task 8bb0a22f — P-4 Finding 3).
+   *
+   * Filters:
+   *   - actions: restrict to an explicit set of action values (IN clause).
+   *   - action: optional single-action filter within the set above.
+   *   - since / until: ISO datetime bounds (inclusive).
+   *   - cursor: sequence_number of the last item on the prior page (exclusive upper bound).
+   *   - limit: page size (max 200, default 50).
+   *
+   * Returns entries newest-first (sequence_number DESC).
+   */
+  async findAdminActivity(filter: {
+    actions: string[];
+    action?: string;
+    since?: string;
+    until?: string;
+    cursor?: number;
+    limit?: number;
+  }): Promise<StoredAuditEntry[]> {
+    const limit = Math.min(filter.limit ?? 50, 200);
+    const conditions: ReturnType<typeof eq>[] = [];
+
+    // Restrict to the closed admin-action set (always applied).
+    conditions.push(inArray(auditLogEntries.action, filter.actions));
+
+    // Optional single-action filter within the set.
+    if (filter.action) {
+      conditions.push(eq(auditLogEntries.action, filter.action));
+    }
+
+    // Datetime bounds.
+    if (filter.since) {
+      conditions.push(gte(auditLogEntries.createdAt, filter.since));
+    }
+    if (filter.until) {
+      conditions.push(lte(auditLogEntries.createdAt, filter.until));
+    }
+
+    // Cursor-based pagination: fetch entries older than (sequence_number < cursor).
+    if (filter.cursor !== undefined) {
+      conditions.push(lt(auditLogEntries.sequenceNumber, filter.cursor));
+    }
+
+    return this.db
+      .select()
+      .from(auditLogEntries)
+      .where(and(...conditions))
+      .orderBy(sql`${auditLogEntries.sequenceNumber} DESC`)
+      .limit(limit);
+  }
+
+  /**
+   * Count matching admin-activity entries (for total pagination metadata).
+   * Uses the same filter set as findAdminActivity (without cursor/limit).
+   *
+   * READ-ONLY.
+   */
+  async countAdminActivity(filter: {
+    actions: string[];
+    action?: string;
+    since?: string;
+    until?: string;
+  }): Promise<number> {
+    const conditions: ReturnType<typeof eq>[] = [];
+
+    conditions.push(inArray(auditLogEntries.action, filter.actions));
+
+    if (filter.action) {
+      conditions.push(eq(auditLogEntries.action, filter.action));
+    }
+    if (filter.since) {
+      conditions.push(gte(auditLogEntries.createdAt, filter.since));
+    }
+    if (filter.until) {
+      conditions.push(lte(auditLogEntries.createdAt, filter.until));
+    }
+
+    const result = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(auditLogEntries)
+      .where(and(...conditions));
+
+    return result[0]?.count ?? 0;
   }
 
   /** Expose the db handle so the service can open a standalone tx (helper path). */

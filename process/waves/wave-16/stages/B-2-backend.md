@@ -117,3 +117,46 @@ No regressions from the `jurisdiction` optional change.
 ### Deviations
 
 None. All ACs from task 904a3c25 implemented as specified. Pre-existing TypeScript errors in `admin-activity` and `user-management` modules are from other incomplete B-2 tasks (not regressions).
+
+---
+
+## Admin-activity (8bb0a22f)
+
+**Agent:** backend-developer
+**Task:** 8bb0a22f — admin-activity read endpoint (P-4 Finding 3)
+**Branch:** wave-16-admin-hardening
+
+### Files created
+
+- `apps/api/src/modules/admin-activity/admin-activity.service.ts` — read-only service; reuses AuditRepository.findAdminActivity; explicit whitelist projection; ZERO audit appends
+- `apps/api/src/modules/admin-activity/admin-activity.controller.ts` — GET /admin/activity-data; SessionGuard + RolesGuard; fail-closed boot guard; Zod query validation
+- `apps/api/src/modules/admin-activity/admin-activity.module.ts` — imports AuthModule + AuditModule; no exports (self-contained)
+- `apps/api/src/modules/admin-activity/admin-activity.spec.ts` — 10 unit tests (mocked DB): row shape, hash/credential absence, target resolution, pagination, empty state
+- `apps/api/src/modules/admin-activity/admin-activity.di-boot.spec.ts` — 2 DI-boot tests: module wiring + RBAC fail-closed boot guard
+- `apps/api/test/admin-activity.e2e-spec.ts` — 6 real-service tests (skipIf no TEST_DATABASE_URL): ACT-1 through ACT-6
+
+### Files modified
+
+- `apps/api/src/modules/audit/audit.repository.ts` — added `findAdminActivity()` + `countAdminActivity()` READ-ONLY methods (mirrors recordkeeping.repository.findFiltered pattern)
+- `apps/api/src/modules/audit/audit.module.ts` — added `AuditRepository` to exports (BUILD rule 2: guard-injected repo exported by consuming module)
+- `apps/api/src/app.module.ts` — registered `AdminActivityModule`
+
+### Security invariants confirmed
+
+**Reuses audit.repository read path (not forked):** `findAdminActivity` and `countAdminActivity` are added to the EXISTING `AuditRepository`. The service imports `AuditRepository` from the exported `AuditModule`. No second audit reader was created.
+
+**Row shape carries NO hash/credential:** `AdminActivityService.getActivity` maps StoredAuditEntry to AdminActivityRow via an explicit whitelist at the map step. Fields structurally absent from output: `payloadHash`, `contentHash`, `entryHash`, `prevHash`, `chainVersion`, `actorRole`, `resourceType`, `resourceId`, `mandateId`. Unit test A-2 asserts serialized response does not contain any of these field names. Unit test A-3 asserts actual hash string values do not appear.
+
+**Read appends 0 audit rows (read-only invariant):** `AdminActivityService` calls only `AuditRepository.findAdminActivity` and `countAdminActivity` (SELECT-only). No `AuditService.append` call exists anywhere in the admin-activity module. Real-service test ACT-4 counts rows before/after three `getActivity()` calls and asserts count is unchanged.
+
+**RBAC 403/401:** `AdminActivityController` uses `@UseGuards(SessionGuard, RolesGuard)` with `@Roles(...ADMIN_ACTIVITY_ROLES)`. `ADMIN_ACTIVITY_ROLES` derives from `rolesForRoute('/admin/activity-data')` which resolves to `['admin']`. Fail-closed boot guard throws if that resolves to `[]`. DI-boot test (ACT-6) proves `RolesGuard` + `SessionGuard` resolve.
+
+**Single-tenant (no firm_id):** No firm-scope filter or firm_id column referenced anywhere in the module.
+
+### Test results
+
+765 passed, 41 skipped (real-DB suites require TEST_DATABASE_URL). All 12 admin-activity unit + DI-boot tests pass. The 6 real-service tests in `test/admin-activity.e2e-spec.ts` are skipIf guarded.
+
+### Deviations
+
+None. `AuditRepository` added to `AuditModule` exports per BUILD rule 2 (guard-injected repos exported by consuming module). Single task, single commit.

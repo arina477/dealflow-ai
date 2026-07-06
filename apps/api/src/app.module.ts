@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { HealthModule } from './health/health.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AdminActivityModule } from './modules/admin-activity/admin-activity.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BuyerUniverseModule } from './modules/buyer-universe/buyer-universe.module';
@@ -19,6 +20,8 @@ import { SourcingModule } from './modules/sourcing/sourcing.module';
     AuthModule,
     AuditModule,
     AdminModule,
+    // Wave-16 (task 8bb0a22f): admin-activity read surface (P-4 Finding 3).
+    AdminActivityModule,
     ComplianceModule,
     ComplianceGateModule,
     BuyerUniverseModule,
