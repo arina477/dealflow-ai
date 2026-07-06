@@ -293,12 +293,71 @@ describe.skipIf(shouldSkip)(
           expect(row.workspace_id).toBe('a1b2c3d4-0000-4000-8000-000000000001');
         }
 
-        // AMP-4: verifyChain → {ok:true} — workspace_id backfill does NOT affect
-        // any HMAC preimage field. readChainAscending uses read_audit_chain_rls_exempt
-        // (SECURITY DEFINER) so it reads the full global chain, not a GUC-scoped subset.
-        const verifyResult = await auditVerifier.verifyChain();
+        // AMP-4: verifyEntries → {ok:true} over the 3 AMP-seeded rows only.
+        //
+        // We intentionally call verifyEntries(rows) rather than verifyChain() here.
+        // verifyChain() walks the ENTIRE global audit_log_entries table. In the shared
+        // CI Postgres DB, other e2e suites (outreach-gate, pipeline-gate,
+        // workspace-isolation) also write audit rows — some with different HMAC keys,
+        // some with fake/fixed hashes — that are not valid under this test's keyring.
+        // A global walk would break on those foreign rows (content-hash-mismatch or
+        // sequence-gap) before it ever reaches the AMP rows, producing a false ok:false
+        // that has nothing to do with whether workspace_id is hash-excluded.
+        //
+        // The intent of AMP-4 is: the 3 rows THIS test seeded pass HMAC recompute
+        // with workspace_id present, proving workspace_id is excluded from the hash
+        // preimage. verifyEntries() over just these rows is the correct scope.
+        // The assertion remains genuinely fault-killing: if workspace_id were included
+        // in HashableEntryFields / canonicalSerialization, the HMAC recompute would
+        // fail on these exact rows (the stored entry_hash would not match the
+        // recomputed one using the modified serialization).
+        const ampRows = await pool.query<{
+          sequence_number: number;
+          actor_user_id: string | null;
+          actor_role: string;
+          action: string;
+          resource_type: string;
+          resource_id: string | null;
+          content_hash: string;
+          payload_hash: string;
+          prev_hash: string;
+          entry_hash: string;
+          chain_version: number;
+          created_at: string;
+          mandate_id: string | null;
+          workspace_id: string;
+        }>(
+          `SELECT
+             sequence_number, actor_user_id, actor_role, action,
+             resource_type, resource_id, content_hash, payload_hash,
+             prev_hash, entry_hash, chain_version, created_at::text,
+             mandate_id, workspace_id
+           FROM audit_log_entries
+           WHERE sequence_number IN ($1, $2, $3)
+           ORDER BY sequence_number ASC`,
+          [e1.sequenceNumber, e2.sequenceNumber, e3.sequenceNumber]
+        );
+        expect(ampRows.rows).toHaveLength(3);
+        const verifyResult = auditVerifier.verifyEntries(
+          ampRows.rows.map((r) => ({
+            sequenceNumber: r.sequence_number,
+            actorUserId: r.actor_user_id,
+            actorRole: r.actor_role,
+            action: r.action,
+            resourceType: r.resource_type,
+            resourceId: r.resource_id,
+            contentHash: r.content_hash,
+            payloadHash: r.payload_hash,
+            prevHash: r.prev_hash,
+            entryHash: r.entry_hash,
+            chainVersion: r.chain_version,
+            createdAt: r.created_at,
+            mandateId: r.mandate_id,
+            workspaceId: r.workspace_id,
+          }))
+        );
         expect(verifyResult.ok).toBe(true);
-        expect(verifyResult.entriesChecked).toBeGreaterThanOrEqual(3);
+        expect(verifyResult.entriesChecked).toBe(3);
       }
     );
 
