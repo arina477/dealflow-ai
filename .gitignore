@@ -23,3 +23,6 @@ apps/web/e2e/results.json
 apps/web/test-results/
 apps/web/playwright-report/
 .gstack/
+
+# wave-17 C-2 transient owner-credential scratch (NEVER commit)
+process/session/.c2-scratch/
