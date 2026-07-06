@@ -1,0 +1,5 @@
+# Non-blocking follow-on — producer-side gate mandate-attribution
+**Surfaced:** wave-13 B-6 /review (H1)
+**What:** the compliance-gate writes its `gate-evaluate` audit row keyed to resourceType='outreach-template-version' (a reusable, cross-mandate resource) — so the allow/block decision is NOT mandate-attributable in a mandate-scoped recordkeeping export (it IS captured by time-range / full-chain export). For a fully mandate-scoped regulator package to include the gate decision, the compliance-gate should record the outreach/mandate context in its audit row (producer-side change to the shipped M2/M6 compliance-gate).
+**Why non-blocking:** gate decisions ARE in the immutable chain + the full-chain verify proves integrity; a compliance officer gets them via time-range/full-chain export. Adding a lossy template-version→mandate branch would over-capture other mandates' decisions (worse). The honest fix (docstring + time-range route) shipped in wave-13; the producer-side attribution is a real future improvement.
+**Candidate home:** a future M6 (compliance-gate enhancement) or M10 (advanced compliance/recordkeeping) bundle. Route via N-block / roadmap.

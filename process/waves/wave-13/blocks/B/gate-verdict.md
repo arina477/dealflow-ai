@@ -52,3 +52,29 @@ routed: [backend-developer (H1 docstring-honesty + M2 validation + L3/L4/L5)]
 followon_nonblocking: producer-side-gate-mandate-attribution (compliance-gate should record outreach/mandate context)
 rework_attempt_cap_remaining: 2
 ```
+
+---
+# Wave 13 — B-6 Verdict (Phase 2 REWORK RE-VERIFY) → APPROVED
+**Reviewer:** code-reviewer (re-review of b57e733). **Attempt:** 2.
+## CONFIRMED-RESOLVED → B-6 APPROVED (overall)
+- H1 RESOLVED — false "captures gate-evaluate" docstring GONE; accurate limitation documented (template-version-keyed, cross-mandate, time-range/full-chain-capturable, deliberately excluded from mandate-scope to avoid over-capture); NO lossy branch added.
+- M2 RESOLVED — listFilterSchema.safeParse in controller → 400 on bad uuid/limit; limit clamped ≤200 (coerce.int.positive.max); genuine tests.
+- L3 RESOLVED — advisor+mandate narrowing (created_by preserved). L4 RESOLVED — audit-log-export branch (direct mandateId match, no double-count, matches the writer). L5 RESOLVED — determinism wording tightened.
+No regressions; clean invariants hold (read-only-zero-audit, export-one-last-in-txn, injection-safe, RBAC advisor-403). No new CRITICAL/HIGH. 65 recordkeeping tests + full repo 1686 green.
+Non-blocking follow-on surfaced: producer-side gate mandate-attribution (process/session/updates/followon-gate-mandate-attribution.md).
+## Footer
+```yaml
+verdict_complete: true
+verdict: APPROVED
+phase1_head_builder: APPROVED
+phase2_review: REWORK→CONFIRMED-RESOLVED
+gate: PASSED
+```
+---
+## B-block exit
+```yaml
+build_block_status: complete
+branch: wave-13-recordkeeping-export
+review_verdict: APPROVE
+ready_for_ci: true
+```

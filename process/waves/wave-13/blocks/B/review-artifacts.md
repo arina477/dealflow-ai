@@ -1,7 +1,7 @@
 # Wave 13 — B-block review artifacts
 **Wave topic:** M6 audit-log / recordkeeping export (read+verify API + export package + page)
 **Block exit gate:** B-6
-**Status:** in-progress
+**Status:** complete
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
 | B-0 | stages/B-0-branch-and-schema.md | done | branch wave-13-recordkeeping-export; schema SKIP (no migration — action col is text) |
@@ -10,7 +10,7 @@
 | B-3 | done | extended audit-log page: filter table + real-shape badge + advisor-gated export panel (00fdbaa) |
 | B-4 | done | repo typecheck+build PASS |
 | B-5 | done | lint 0, full test green (~1675), build pass |
-| B-6 | stages/B-6-review.md | pending | head-builder gate + /review |
+| B-6 | gate-verdict.md | done — APPROVED (Phase-1 head-builder + Phase-2 /review REWORK→resolved; H1 gate-evaluate-honesty + M2 validation) |
 ## Context (P-4 build-notes)
 - Branch: wave-13-recordkeeping-export. claimed: [36a17c81, 20c479db, 10ee0ec4]. multi-spec.
 - **B-0 = DEFINITE SKIP** (no migration; audit action col is text; export_generated → shared auditActionEnum at B-1).
