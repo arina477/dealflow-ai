@@ -1,11 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-  foreignKey,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { foreignKey, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 import { disclaimerTemplates } from './compliance-rules';
 import { users } from './users-roles';
