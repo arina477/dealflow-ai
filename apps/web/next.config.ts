@@ -353,6 +353,35 @@ const nextConfig: NextConfig = {
           source: '/pipeline-data/:id',
           destination: `${apiProxyTarget}/pipeline/:id`,
         },
+        // Wave-13: audit-log data proxy (page-route-collision fix).
+        //
+        // CRITICAL: /compliance/audit-log has a Next.js page file:
+        //   /compliance/audit-log → app/(app)/compliance/audit-log/page.tsx
+        //
+        // We must NOT rewrite /compliance/audit-log (GET — served as the React
+        // page). All client data fetches use the non-colliding
+        // /compliance/audit-log-data prefix. These paths have NO Next.js page
+        // file, so afterFiles always proxies them to the API.
+        //
+        // Route-ordering: most-specific path (/export) BEFORE the bare root,
+        // following the wave-9/10/12 lesson.
+        //
+        // Client callers:
+        //   GET  /compliance/audit-log-data?...   → GET  /compliance/audit-log (read/filter)
+        //   POST /compliance/audit-log-data/export → POST /compliance/audit-log/export
+        //
+        // NOTE: GET /compliance/audit-log/verify is already proxied above
+        //   (wave-4 entry). The export sub-path uses /compliance/audit-log-data/export
+        //   to avoid any collision with the existing /compliance/audit-log/* page
+        //   namespace.
+        {
+          source: '/compliance/audit-log-data/export',
+          destination: `${apiProxyTarget}/compliance/audit-log/export`,
+        },
+        {
+          source: '/compliance/audit-log-data',
+          destination: `${apiProxyTarget}/compliance/audit-log`,
+        },
       ],
       beforeFiles: [],
       fallback: [],
