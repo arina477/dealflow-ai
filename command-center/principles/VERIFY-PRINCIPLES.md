@@ -71,3 +71,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
    Why: A stub returning the stored value verbatim cannot detect app-vs-DB serialization divergence.
 2. Run adversarial /review on every B-block diff that builds an auth guard, integrity chain, or merge engine.
    Why: Head-builder gate reviews structure; adversarial review finds fail-open and hash CRITICALs.
+3. A compliance-invariant test must call the real service or guard, not re-implement or mock the mechanism it proves.
+   Why: A mocked or re-implemented mechanism passes whether the real guard is correct or broken.
