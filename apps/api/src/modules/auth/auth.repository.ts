@@ -295,14 +295,21 @@ export class AuthRepository {
    * interceptor ran before signup). The invites UPDATE and users INSERT both
    * require the GUC to be set (FORCE RLS). This method:
    *   1. Checks out a dedicated pg PoolClient.
-   *   2. SETs app.workspace_id = workspaceId SESSION-LEVEL on that client.
+   *   2. Calls SELECT set_config('app.workspace_id', workspaceId, true) — the
+   *      parameterized, injection-safe form. is_local=true = SET LOCAL (tx-scoped):
+   *      the GUC is automatically reset at transaction end, so no explicit RESET
+   *      is needed inside the transaction. PostgreSQL's SET command does NOT accept
+   *      bind parameters ($1); set_config() is the correct form.
    *   3. Wraps the client in a Drizzle instance.
    *   4. Runs the caller's transaction work.
-   *   5. RESETS app.workspace_id and releases the client in finally.
+   *   5. RESETS app.workspace_id and releases the client in finally (defence in
+   *      depth — Drizzle may COMMIT/ROLLBACK, but we still explicitly clean up).
    *
    * The workspaceId is sourced from the invite row via resolve_invite() —
    * server-derived, never client-supplied. Cross-workspace placement is
    * structurally impossible: the invitee joins the INVITE'S workspace.
+   *
+   * B-6 rework (task 96026365 / df2f3b2f): SET → set_config (is_local=true).
    */
   async runInTransactionWithWorkspace<T>(
     workspaceId: string,
@@ -311,10 +318,13 @@ export class AuthRepository {
     const client = await pool.connect();
     const clientDb = drizzle(client, { schema }) as unknown as Database;
     try {
-      await client.query('SET app.workspace_id = $1', [workspaceId]);
+      // is_local=true → SET LOCAL (transaction-scoped). Parameterized + injection-safe.
+      await client.query('SELECT set_config($1, $2, true)', ['app.workspace_id', workspaceId]);
       return await clientDb.transaction(work);
     } finally {
       // Surgical RESET — not DISCARD ALL (mirrors WorkspaceInterceptor CARRY [c]).
+      // Defence-in-depth: Drizzle's transaction() commits/rolls back, but we
+      // still reset and release unconditionally.
       try {
         await client.query('RESET app.workspace_id');
       } finally {

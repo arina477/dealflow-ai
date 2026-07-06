@@ -91,6 +91,12 @@ const seededMandateIds: string[] = [];
  * Open a fresh dedicated PoolClient, SET app.workspace_id, run a callback,
  * then RESET app.workspace_id and release.
  * Mirrors the interceptor's F1 pattern: checkout → SET GUC → work → RESET GUC → release.
+ *
+ * B-6 rework: uses SELECT set_config($1, $2, false) — the parameterized, injection-safe
+ * form that matches production WorkspaceInterceptor exactly.  is_local=false → session-
+ * scoped on the dedicated client.  PostgreSQL's SET command does NOT accept bind
+ * parameters; the literal-interpolation form previously used here was diverging from the
+ * production statement and masking the SQLSTATE 42P02 bug.
  */
 async function withWorkspace<T>(
   workspaceId: string,
@@ -98,7 +104,7 @@ async function withWorkspace<T>(
 ): Promise<T> {
   const client = await pool.connect();
   try {
-    await client.query(`SET app.workspace_id = '${workspaceId}'`);
+    await client.query('SELECT set_config($1, $2, false)', ['app.workspace_id', workspaceId]);
     return await fn(client);
   } finally {
     // Surgical RESET — not DISCARD ALL (P-4 F1 CARRY [c]).

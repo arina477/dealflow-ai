@@ -90,3 +90,83 @@ Teardown is WORM-safe per T-4 rule 1: no hard-deletes on rows FK-referenced by `
 **Scope**: Out of B-2 scope. Deferred to B-3 or a dedicated wave. The pilot firm's first admin user was created via direct DB seed (migration 0014's `DEFAULT_WORKSPACE_ID` row), so this does not block the pilot-partner use case.
 
 **Risk**: Low for pilot (single firm, users already exist). High for any new invite-based signup until fixed.
+
+## DEV-1 resolution
+
+**Fixed in this wave (B-2 fix-forward, commit 8b331dc).**
+
+### Design: `resolve_invite(token_hash)` SECURITY DEFINER (migration 0015)
+
+Option A chosen: one `resolve_invite(p_token_hash text)` SECURITY DEFINER function returning `(email text, workspace_id uuid, role_id uuid)`. Minimal surface:
+- Keyed on the token hash (SHA-256 of the plaintext, the unguessable capability — caller cannot enumerate other invites without the token hash).
+- Filters to unconsumed (`consumed_at IS NULL`) + unexpired (`expiry > now()`) rows only.
+- Returns only three fields: email (for EmailPassword.signUp), workspace_id (for tenant placement), role_id (latent — available if the service needs it; currently not used but present for forward-compatibility).
+- `SECURITY DEFINER + SET search_path = ''` (prevents search_path injection, consistent with 0014 step 7).
+
+**Workspace placement invariant**: `workspace_id` is sourced from `invite.workspace_id` (set when the admin created the invite). The new user is created in the INVITE'S workspace — server-derived, never client-supplied. Cross-workspace placement is structurally impossible.
+
+### Migration 0015
+
+- `0015_invite_rls_bootstrap.sql` — additive only; `CREATE OR REPLACE FUNCTION resolve_invite(text)`.
+- `0015_invite_rls_bootstrap.down.sql` — `DROP FUNCTION IF EXISTS resolve_invite(text)`.
+- `meta/_journal.json` — idx 15, when 1784073600000 (> 0014 when 1783987200000).
+- `meta/0015_snapshot.json` — copied from 0014 (schema unchanged; function-only migration), updated id + prevId.
+
+### Repository wiring (`auth.repository.ts`)
+
+- `getInviteEmail(tokenHash)` now calls `resolve_invite($1)` via `pool.query()` (raw SQL on the pool singleton — the function bypasses RLS as SECURITY DEFINER regardless of connection GUC state). Returns `InviteBootstrap { email, workspaceId }` or `null`.
+- New `runInTransactionWithWorkspace(workspaceId, work)`: checks out a dedicated `PoolClient` from the pool, `SET app.workspace_id = $1`, wraps in Drizzle, runs the caller's transaction work, then `RESET app.workspace_id` + `client.release()` in `finally`. Same pattern as `WorkspaceInterceptor.setupClient`. Both the `invites UPDATE` and `users INSERT` inside `consumeInviteAndCreateUser` pass FORCE RLS with the GUC set.
+- `runInTransaction` retained unchanged for authenticated request paths (where ALS already provides the GUC via `getDb(this.db)`).
+
+### Service wiring (`auth.service.ts`)
+
+`signup`: `getInviteEmail` returns `InviteBootstrap | null`; on success, `inviteWorkspaceId` is extracted and passed to `runInTransactionWithWorkspace`. The invitee joins the workspace named in the invite — not anything the client supplied.
+
+### Tests
+
+- `auth.service.spec.ts`: all four signup tests updated to `InviteBootstrap` return type and `runInTransactionWithWorkspace`. Added test `DEV-1: workspace placement — transaction uses server-derived workspaceId from invite` proving the workspace cannot be client-controlled.
+- `test/invite-signup-rls.e2e-spec.ts` (new, 5 assertions, skips without `TEST_DATABASE_URL`):
+  - **INV-1**: `resolve_invite()` returns email + workspace_id with NO GUC set (direct proof of RLS bypass).
+  - **INV-2**: full consume cycle under FORCE RLS — invite consumed, user created in workspace W via `runInTransactionWithWorkspace`.
+  - **INV-3**: new user (workspace W GUC) sees workspace-W mandates, cannot see workspace-X mandates (cross-workspace isolation holds post-signup).
+  - **INV-4**: consumed invite returns 0 rows from `resolve_invite()` (no replay).
+  - **INV-5**: fault-killing — direct `SELECT` on `invites` without GUC returns 0 rows, proving FORCE RLS is active and the resolver is load-bearing. Remove the function → INV-1/INV-2/INV-3 fail immediately.
+
+### Typecheck
+
+`pnpm -w typecheck` — 4 tasks successful, 0 errors (post-fix).
+
+### Residual deviations
+
+None. DEV-1 is fully resolved. RLS on `invites` remains FORCE + deny-by-default; only the pre-auth bootstrap is exempt via the minimal-surface SECURITY DEFINER function.
+
+---
+
+## B-6 rework resolution
+
+**Bug**: Both `workspace.interceptor.ts:101` and `auth.repository.ts:314` used `SET app.workspace_id = $1` (parameterized). PostgreSQL's `SET` command does not accept bind parameters — this throws SQLSTATE 42P02 at runtime. The interceptor catch block was silently swallowing the error, leaving the GUC unset and every authenticated tenant read returning 0 rows. The transaction wrapper threw, breaking every invite signup.
+
+The e2e tests were passing because both `withWorkspace()` helpers (workspace-isolation and invite-signup-rls) used literal string interpolation — a test-local reimplementation that never exercised the broken production statement.
+
+**Fixes applied** (tasks 96026365 + df2f3b2f):
+
+1. **`apps/api/src/db/workspace.interceptor.ts`** — replaced `SET app.workspace_id = $1` with `SELECT set_config($1, $2, false)` (is_local=false = session-scoped on the dedicated per-request client). The catch block now **re-throws** (fail-closed loudly) — resolver failure or GUC-set failure propagates rather than proceeding with an unset GUC. Client is released in the catch before re-throwing. RESET-in-finally preserved.
+
+2. **`apps/api/src/modules/auth/auth.repository.ts` — `runInTransactionWithWorkspace`** — replaced `SET app.workspace_id = $1` with `SELECT set_config($1, $2, true)` (is_local=true = tx-scoped SET LOCAL, resets automatically at tx end). RESET-in-finally preserved as defence-in-depth.
+
+3. **`apps/api/test/invite-signup-rls.e2e-spec.ts`** — `withWorkspace()` helper replaced with `SELECT set_config($1, $2, false)`. INV-2 inline GUC-set replaced with `SELECT set_config($1, $2, true)` (tx-scoped, matching production). Comment documents fault-killing intent: regressing to `SET app.workspace_id = $1` in this test would throw SQLSTATE 42P02.
+
+4. **`apps/api/test/workspace-isolation.e2e-spec.ts`** — `withWorkspace()` helper replaced with `SELECT set_config($1, $2, false)`.
+
+5. **`apps/api/src/db/workspace-guc.spec.ts`** (NEW) — three fault-killing unit tests that mock the pg client and assert the exact SQL string issued:
+   - GUC-1: interceptor issues `SELECT set_config(..., false)`, not `SET app.workspace_id = $1`.
+   - GUC-2: interceptor fails-closed (propagates, not swallows) when set_config throws; client released.
+   - GUC-3: `runInTransactionWithWorkspace` issues `SELECT set_config(..., true)`; RESET fires; client released.
+
+   These run locally with no DB required. A regression to the parameterized-SET form causes GUC-1/GUC-3 to fail immediately (no more silent swallow).
+
+**Grep confirmation**: `grep -rn 'SET app.workspace_id = \$' --include="*.ts"` returns only comments and doc strings — zero live parameterized SET occurrences.
+
+**Typecheck**: `pnpm -w typecheck` — 4 tasks successful, 0 errors.
+
+**Unit tests**: 772 passed, 52 skipped (e2e DB-gated), 0 failed. GUC-1, GUC-2, GUC-3 all green.

@@ -91,6 +91,11 @@ const seededMandateIds: string[] = [];
 
 /**
  * Open a dedicated PoolClient with app.workspace_id set, run fn, RESET + release.
+ *
+ * B-6 rework: uses SELECT set_config() — the parameterized, injection-safe form.
+ * is_local=false → session-scoped (mirrors WorkspaceInterceptor).
+ * PostgreSQL's SET command does NOT accept bind parameters; this form matches the
+ * production interceptor and runInTransactionWithWorkspace exactly.
  */
 async function withWorkspace<T>(
   workspaceId: string,
@@ -98,7 +103,7 @@ async function withWorkspace<T>(
 ): Promise<T> {
   const client = await pool.connect();
   try {
-    await client.query(`SET app.workspace_id = '${workspaceId}'`);
+    await client.query('SELECT set_config($1, $2, false)', ['app.workspace_id', workspaceId]);
     return await fn(client);
   } finally {
     await client.query('RESET app.workspace_id');
@@ -300,13 +305,19 @@ describe.skipIf(shouldSkip)(
         const inviteWorkspaceId = resolved!.workspace_id;
 
         // Step 2: consume + create user in a transaction with GUC set to inviteWorkspaceId.
+        // B-6 rework: uses SELECT set_config($1, $2, true) — the EXACT same form used by the
+        // production runInTransactionWithWorkspace (is_local=true = tx-scoped SET LOCAL).
+        // PostgreSQL's SET command does NOT accept bind parameters; set_config() is the
+        // correct parameterized form. This test exercises that exact mechanism so a
+        // regression back to 'SET app.workspace_id = $1' would throw SQLSTATE 42P02 here.
         const newSupertokensId = `inv2-st-${crypto.randomUUID()}`;
         const newUserEmail = email.toLowerCase();
         const newUserId = crypto.randomUUID();
 
         const client = await pool.connect();
         try {
-          await client.query('SET app.workspace_id = $1', [inviteWorkspaceId]);
+          // is_local=true → tx-scoped SET LOCAL, matches runInTransactionWithWorkspace.
+          await client.query('SELECT set_config($1, $2, true)', ['app.workspace_id', inviteWorkspaceId]);
           await client.query('BEGIN');
           // SELECT FOR UPDATE the invite (mirrors consumeInviteAndCreateUser).
           const lockRes = await client.query<{ id: string; workspace_id: string }>(

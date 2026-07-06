@@ -2,6 +2,7 @@
  * WorkspaceInterceptor — request-scoped workspace GUC propagation.
  *
  * Wave-17 (task 96026365) — P-4 F1 CRITICAL + P-4 F2 HIGH.
+ * B-6 rework (df2f3b2f): replaced parameterized SET with SELECT set_config().
  *
  * For every request:
  *   1. Checks out ONE pg PoolClient from the shared pool (dedicated to this request).
@@ -9,9 +10,11 @@
  *      fn resolve_user_workspace($stUserId) — RLS-exempt bootstrap; returns
  *      (workspace_id, role_name). stUserId is from the SERVER-VERIFIED session
  *      subject — NEVER client-supplied (CARRY [b]).
- *   3. Runs SET app.workspace_id = $wsId SESSION-LEVEL on that dedicated client.
- *      Session-level SET binds to THIS connection only; no other pooled connection is
- *      affected.
+ *   3. Runs SELECT set_config('app.workspace_id', $1, false) SESSION-LEVEL on that
+ *      dedicated client. is_local=false means session-scoped (persists for the
+ *      request lifetime on this dedicated client).  PostgreSQL's SET command does
+ *      NOT accept bind parameters ($1) — set_config() is the correct parameterized
+ *      form and is injection-safe.
  *   4. Wraps the PoolClient in a Drizzle instance and stores it + workspaceId in ALS.
  *   5. next.handle() — the entire request handler runs within this ALS context.
  *   6. finalize: RESET app.workspace_id (CARRY [c]: surgical RESET, NOT DISCARD ALL)
@@ -97,12 +100,23 @@ export class WorkspaceInterceptor implements NestInterceptor {
         const row = result.rows[0];
         if (row?.workspace_id) {
           workspaceId = row.workspace_id;
-          // SET session-level on THIS dedicated client only.
-          await client.query('SET app.workspace_id = $1', [workspaceId]);
+          // set_config() is the parameterized, injection-safe form of SET.
+          // is_local=false → session-scoped on THIS dedicated client.
+          // PostgreSQL's SET command does NOT accept bind parameters; this is
+          // the correct form. If this throws, the request fails-closed (the
+          // catch below re-throws so GUC failures are never silently swallowed).
+          await client.query('SELECT set_config($1, $2, false)', [
+            'app.workspace_id',
+            workspaceId,
+          ]);
         }
-      } catch {
-        // Resolver failed (function unavailable, user not found).
-        // Proceed without GUC — RLS denies tenant reads (fail-closed).
+      } catch (err) {
+        // Re-throw: resolver failure OR GUC-set failure → fail-closed loudly.
+        // The caller releases the client in the finalize block; we must still
+        // release here since the finally in intercept() only runs after
+        // setupClient() resolves successfully.
+        client.release();
+        throw err;
       }
     }
 
