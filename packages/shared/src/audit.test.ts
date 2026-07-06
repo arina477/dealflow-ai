@@ -85,6 +85,47 @@ describe('auditActionEnum', () => {
     expect(wave12Last).toBeLessThan(wave13Idx);
   });
 
+  it('accepts all wave-15 admin action values (additive extension)', () => {
+    expect(auditActionEnum.parse('user-invite')).toBe('user-invite');
+    expect(auditActionEnum.parse('role-change')).toBe('role-change');
+    expect(auditActionEnum.parse('deactivate')).toBe('deactivate');
+    expect(auditActionEnum.parse('workspace-settings-update')).toBe('workspace-settings-update');
+    expect(auditActionEnum.parse('data-source-conn-upsert')).toBe('data-source-conn-upsert');
+    expect(auditActionEnum.parse('data-source-conn-toggle')).toBe('data-source-conn-toggle');
+  });
+
+  it('wave-13 export_generated appears before all wave-15 admin actions (serialization order stable)', () => {
+    // Wave-15 values appended after export_generated — existing ordinal positions unchanged.
+    const options = auditActionEnum.options;
+    const wave13Idx = options.indexOf('export_generated');
+    const wave15First = Math.min(
+      options.indexOf('user-invite'),
+      options.indexOf('role-change'),
+      options.indexOf('deactivate'),
+      options.indexOf('workspace-settings-update'),
+      options.indexOf('data-source-conn-upsert'),
+      options.indexOf('data-source-conn-toggle')
+    );
+    expect(wave13Idx).toBeGreaterThan(-1);
+    expect(wave15First).toBeGreaterThan(-1);
+    expect(wave13Idx).toBeLessThan(wave15First);
+  });
+
+  it('wave-15 admin actions count is exactly 6 new values after export_generated', () => {
+    const options = auditActionEnum.options;
+    const wave15Actions = [
+      'user-invite',
+      'role-change',
+      'deactivate',
+      'workspace-settings-update',
+      'data-source-conn-upsert',
+      'data-source-conn-toggle',
+    ];
+    for (const action of wave15Actions) {
+      expect(options).toContain(action);
+    }
+  });
+
   it('existing wave-4 action string values are unchanged (no rename)', () => {
     // Exhaustive check: each wave-4 action must parse to the SAME string.
     // A rename would change the serialized value in the audit log — forbidden.

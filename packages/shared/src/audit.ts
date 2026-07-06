@@ -184,6 +184,46 @@ export const auditActionEnum = z.enum([
    * (exactly-one-or-none: no package is delivered without its audit row).
    */
   'export_generated',
+  // --- Wave-15 admin actions (additive; serialization order preserved) ---
+  /**
+   * An admin created an invite (privilege-granting action).
+   * Audited by UserManagementService.inviteAsActor LAST-IN-TXN.
+   * actor = admin app users.id.
+   */
+  'user-invite',
+  /**
+   * An admin changed a user's role (role-change / demotion / promotion).
+   * Audited by UserManagementService.assignRoleAsActor LAST-IN-TXN.
+   * actor = admin app users.id.
+   */
+  'role-change',
+  /**
+   * An admin deactivated a user (soft-deactivation via deactivated_at).
+   * Audited by UserManagementService.deactivateAsActor LAST-IN-TXN.
+   * actor = admin app users.id.
+   */
+  'deactivate',
+  /**
+   * An admin updated the firm-level workspace settings
+   * (firm profile fields or default compliance profile).
+   * Audited by WorkspaceSettingsService LAST-IN-TXN.
+   * actor = admin app users.id.
+   */
+  'workspace-settings-update',
+  /**
+   * An admin created or updated a data_source_connections row
+   * (upsert — new row or update of existing connection metadata + credential).
+   * Audited by DataSourceAdminService LAST-IN-TXN.
+   * actor = admin app users.id.
+   * NOTE: the plaintext credential is NEVER included in the audit row.
+   */
+  'data-source-conn-upsert',
+  /**
+   * An admin toggled the enabled/disabled state of a data_source_connections row.
+   * Audited by DataSourceAdminService LAST-IN-TXN.
+   * actor = admin app users.id.
+   */
+  'data-source-conn-toggle',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;

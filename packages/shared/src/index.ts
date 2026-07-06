@@ -5,6 +5,43 @@ export type {
   AuditLogEntry,
   AuditVerifyResponse,
 } from './audit';
+// --- Wave-15 admin contracts ---
+export type {
+  AdminAssignRoleInput,
+  AdminDeactivateResponse,
+  AdminInviteInput,
+  AdminInviteResponse,
+  UserAdminListResponse,
+  UserAdminRecord,
+} from './user-admin';
+export {
+  adminAssignRoleInputSchema,
+  adminDeactivateResponseSchema,
+  adminInviteInputSchema,
+  adminInviteResponseSchema,
+  userAdminListResponseSchema,
+  userAdminRecordSchema,
+} from './user-admin';
+export type {
+  DataSourceConnectionAdminListResponse,
+  DataSourceConnectionAdminRecord,
+  DataSourceConnectionToggleInput,
+  DataSourceConnectionUpsertInput,
+} from './data-source-admin';
+export {
+  dataSourceConnectionAdminListResponseSchema,
+  dataSourceConnectionAdminRecordSchema,
+  dataSourceConnectionToggleSchema,
+  dataSourceConnectionUpsertSchema,
+} from './data-source-admin';
+export type {
+  WorkspaceSettings,
+  WorkspaceSettingsUpdateInput,
+} from './workspace-settings';
+export {
+  workspaceSettingsSchema,
+  workspaceSettingsUpdateSchema,
+} from './workspace-settings';
 export {
   auditActionEnum,
   auditBreakReasonEnum,

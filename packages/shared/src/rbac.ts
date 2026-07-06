@@ -535,12 +535,50 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     navItem: NAV_TEAM,
   },
   {
-    pattern: '/admin/settings',
+    // POST /admin/users/invite — create invite record (no email send).
+    pattern: '/admin/users/invite',
+    allowedRoles: ['admin'],
+  },
+  {
+    // PATCH /admin/users/:id/role — change user role.
+    pattern: '/admin/users/:id/role',
+    allowedRoles: ['admin'],
+  },
+  {
+    // POST /admin/users/:id/deactivate — soft-deactivate a user.
+    pattern: '/admin/users/:id/deactivate',
+    allowedRoles: ['admin'],
+  },
+  {
+    // Wave-15: /admin/workspace-settings — firm profile + default compliance profile.
+    // admin-only (full CRUD over firm settings). RBAC: admin.
+    // nav⊆RBAC: NAV_SETTINGS references /admin/settings (shell placeholder);
+    // this API route is the canonical REST endpoint for workspace settings data.
+    pattern: '/admin/workspace-settings',
     allowedRoles: ['admin'],
     navItem: NAV_SETTINGS,
   },
   {
+    // Legacy /admin/settings route kept for shell nav compatibility.
+    // Points at the same page as /admin/workspace-settings.
+    pattern: '/admin/settings',
+    allowedRoles: ['admin'],
+  },
+  {
+    // GET /admin/integrations — list data source connections.
+    // POST /admin/integrations — create a new connection.
     pattern: '/admin/integrations',
+    allowedRoles: ['admin'],
+  },
+  {
+    // PATCH /admin/integrations/:id — update a connection (metadata + credential).
+    // Wave-15: credential is encrypted by the service before DB write.
+    pattern: '/admin/integrations/:id',
+    allowedRoles: ['admin'],
+  },
+  {
+    // PATCH /admin/integrations/:id/toggle — enable/disable a connection.
+    pattern: '/admin/integrations/:id/toggle',
     allowedRoles: ['admin'],
   },
 ];
