@@ -168,3 +168,19 @@ The /compliance/audit-log page (F11) is now the full recordkeeping-defensibility
 Entry: /compliance/audit-log. Compliance reviews the filterable immutable audit trail + the integrity badge, and exports a mandate/time-scoped VERIFIABLE recordkeeping package (independently re-verifiable offline) — the regulator-facing compliance-defensibility wedge, the last clause of M6's success metric. Advisor: read-only own-outreach, no export.
 
 Verified: C-2 LIVE — verify {ok:true, entriesChecked:309} over the real production chain; export → package + verify 309→310 (export_generated appended last-in-txn); advisor export 403; M2 validation 400. Deferred (later): PDF/multi-format/multi-regulation presets, background jobs, producer-side gate mandate-attribution.
+
+
+---
+
+## Wave-14 delivered — M6 compliance hardening (LIVE @ 5754fbf)
+
+- **Gate mandate-attribution (487b0f0c)** — the compliance pre-send gate now records the mandate on its allow/block audit entry (as a hash-EXCLUDED metadata column, so tamper-evidence is preserved — verifyChain stays green live), making gate decisions mandate-attributable in a recordkeeping export. The wave-13 recordkeeping mandate-scoped export now includes gate decisions.
+- **Mandate-derivation e2e (07bd1e1a)** — a real-DB test proves the scoped export captures every mandate-derivable producer (incl gate decisions) and excludes other mandates' rows even when they share a template version. This LIFTS the wave-13 hard-gate: the mandate-scoped recordkeeping export is now trustworthy for a live regulator request.
+- **Compliance oversight (f5074df8)** — a new read-only gate-outcome oversight surface at **/compliance/oversight** (compliance/admin), showing each outreach's gate verdict + mandate + SoD status. Distinct from the version-approval queue.
+
+### Route reconciliation (journey-map hygiene):
+- **/compliance-queue** (hyphen) = the SHIPPED wave-11 compliance approval queue (pending template-version approve/reject + SoD). This is F10.
+- **/compliance/oversight** (new, wave-14) = the read-only outreach gate-outcome oversight view (NOT an approval workflow).
+These are distinct surfaces; the earlier F10 mapping to "/compliance/queue" (slash) is superseded by the shipped hyphen route + the new oversight route.
+
+Verified: C-2 LIVE — verifyChain {ok:true, entriesChecked:310} after the additive mandate_id column (tamper-evidence intact); gate no-regression; oversight read-only + advisor-blocked. CI: recordkeeping-gate e2e 9/9 real (mandate_id isolation).

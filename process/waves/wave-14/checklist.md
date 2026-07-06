@@ -38,18 +38,18 @@ BUILD:
 
 CI/CD:
 - [x] C-1 PR, CI & merge — PASS (ff-push bfe686a..0488cd7; run 28784535052 all-green; recordkeeping-gate e2e REAL against migrated dealflow_test proves mandate_id isolation → DEV-2 lifted; 0 fix-forward cycles)
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [x] C-2 Deploy & verify — PASS (both svcs immutable-deployed @ 5754fbf; api 3a8813fe + web 90b2fc2f SUCCESS, never SKIPPED; 0012 additive+hash-safe applied by preDeploy one-shot; verifyChain LIVE {ok:true,entriesChecked:310} after mandate_id column [chain intact]; gate no-regression + mandate-filter live; /compliance/oversight read-only+advisor-blocked+distinct; /health 200 {db:ok,version:5754fbf}; rollback armed to wave-13 2ec4953; canary skipped 0 DAU<1000) Gate
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
-- [ ] T-9 Journey
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
+- [x] T-5 E2E
+- [x] T-6 Layout
+- [x] T-7 Perf
+- [x] T-8 Security
+- [x] T-9 Journey
 
 VERIFY:
 - [ ] V-1 Independent reviews (Karen + jenny, parallel)
