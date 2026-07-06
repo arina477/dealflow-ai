@@ -15,6 +15,7 @@ import { mandates } from './mandate';
 import { matchCandidates } from './matching';
 import { outreach } from './outreach';
 import { users } from './users-roles';
+import { workspaces } from './workspaces';
 
 /**
  * Wave-12 pipeline spine (B-0, task 07989285).
@@ -209,6 +210,9 @@ export const pipeline = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).$onUpdateFn(() =>
       new Date().toISOString()
     ),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     // -----------------------------------------------------------------------
@@ -243,6 +247,12 @@ export const pipeline = pgTable(
       columns: [table.updatedBy],
       foreignColumns: [users.id],
     }).onDelete('set null'),
+
+    foreignKey({
+      name: 'pipeline_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
 
     // -----------------------------------------------------------------------
     // CHECK: exactly one of (outreach_id, match_candidate_id) is non-null.
@@ -290,6 +300,7 @@ export const pipeline = pgTable(
 
     /** Creator listing: WHERE created_by = $1. */
     index('pipeline_created_by_idx').on(table.createdBy),
+    index('pipeline_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -377,6 +388,9 @@ export const pipelineEvents = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     // -----------------------------------------------------------------------
@@ -394,10 +408,17 @@ export const pipelineEvents = pgTable(
       foreignColumns: [users.id],
     }).onDelete('restrict'),
 
+    foreignKey({
+      name: 'pipeline_events_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     // -----------------------------------------------------------------------
     // INDEX: (pipeline_id, created_at) — ordered timeline read for a deal.
     // GET /pipeline/:id/events → WHERE pipeline_id = $1 ORDER BY created_at ASC.
     // -----------------------------------------------------------------------
     index('pipeline_events_pipeline_id_created_at_idx').on(table.pipelineId, table.createdAt),
+    index('pipeline_events_workspace_id_idx').on(table.workspaceId),
   ]
 );

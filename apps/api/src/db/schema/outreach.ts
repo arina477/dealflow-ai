@@ -16,6 +16,7 @@ import { disclaimerTemplates } from './compliance-rules';
 import { mandates } from './mandate';
 import { matchCandidates } from './matching';
 import { users } from './users-roles';
+import { workspaces } from './workspaces';
 
 /**
  * Wave-11 outreach spine (B-0, task 102a2f00).
@@ -147,6 +148,9 @@ export const outreachTemplates = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).$onUpdateFn(() =>
       new Date().toISOString()
     ),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -155,8 +159,15 @@ export const outreachTemplates = pgTable(
       foreignColumns: [users.id],
     }).onDelete('set null'),
 
+    foreignKey({
+      name: 'outreach_templates_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /** Owner-scoped listing: WHERE owner_id = $1. */
     index('outreach_templates_owner_id_idx').on(table.ownerId),
+    index('outreach_templates_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -262,6 +273,9 @@ export const outreachTemplateVersions = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -282,6 +296,12 @@ export const outreachTemplateVersions = pgTable(
       foreignColumns: [users.id],
     }).onDelete('set null'),
 
+    foreignKey({
+      name: 'outreach_template_versions_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /**
      * PARTIAL UNIQUE (template_id, version_number) — no duplicate version numbers
      * per template. The service enforces monotonic increment; the DB enforces uniqueness.
@@ -296,6 +316,7 @@ export const outreachTemplateVersions = pgTable(
 
     /** Approval-status-scoped query: WHERE approval_status = $1. */
     index('outreach_template_versions_approval_status_idx').on(table.approvalStatus),
+    index('outreach_template_versions_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -373,6 +394,9 @@ export const outreach = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -399,6 +423,12 @@ export const outreach = pgTable(
       foreignColumns: [users.id],
     }).onDelete('restrict'),
 
+    foreignKey({
+      name: 'outreach_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /** Mandate-scoped outreach listing: WHERE mandate_id = $1. */
     index('outreach_mandate_id_idx').on(table.mandateId),
 
@@ -407,5 +437,6 @@ export const outreach = pgTable(
 
     /** Created-by listing: WHERE created_by = $1. */
     index('outreach_created_by_idx').on(table.createdBy),
+    index('outreach_workspace_id_idx').on(table.workspaceId),
   ]
 );

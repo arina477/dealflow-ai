@@ -16,6 +16,7 @@ import {
 import { buyerUniverse, buyerUniverseCandidates } from './buyer-universe';
 import { mandates } from './mandate';
 import { users } from './users-roles';
+import { workspaces } from './workspaces';
 
 /**
  * Wave-10 match spine (B-0, task 47ed7ddd).
@@ -153,6 +154,9 @@ export const matchRun = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).$onUpdateFn(() =>
       new Date().toISOString()
     ),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -173,6 +177,12 @@ export const matchRun = pgTable(
       foreignColumns: [users.id],
     }).onDelete('restrict'),
 
+    foreignKey({
+      name: 'match_run_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /**
      * One-run-per-universe idempotency: buyer_universe_id UNIQUE.
      * createRunAsActor uses ON CONFLICT (buyer_universe_id) DO UPDATE to
@@ -189,6 +199,7 @@ export const matchRun = pgTable(
 
     /** Status-scoped listing: WHERE status = $1. */
     index('match_run_status_idx').on(table.status),
+    index('match_run_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -261,6 +272,9 @@ export const matchCandidates = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -275,6 +289,12 @@ export const matchCandidates = pgTable(
       foreignColumns: [buyerUniverseCandidates.id],
     }).onDelete('cascade'),
 
+    foreignKey({
+      name: 'match_candidates_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /** Run-scoped candidate listing: WHERE match_run_id = $1. */
     index('match_candidates_run_id_idx').on(table.matchRunId),
 
@@ -283,6 +303,8 @@ export const matchCandidates = pgTable(
      * Used by handoffAsActor's guard (count accepted).
      */
     index('match_candidates_run_disposition_idx').on(table.matchRunId, table.disposition),
+
+    index('match_candidates_workspace_id_idx').on(table.workspaceId),
 
     /**
      * fit_score CHECK (0–100): drizzle-kit may omit the CHECK constraint.

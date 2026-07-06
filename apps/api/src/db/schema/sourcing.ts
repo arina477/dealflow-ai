@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { users } from './users-roles';
+import { workspaces } from './workspaces';
 
 /**
  * Wave-6 deal-sourcing data spine (B-2, tasks ff378a95 + db274731).
@@ -163,6 +164,9 @@ export const dataSourceConnections = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -171,6 +175,12 @@ export const dataSourceConnections = pgTable(
       foreignColumns: [users.id],
     }).onDelete('set null'),
 
+    foreignKey({
+      name: 'data_source_connections_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /**
      * INFO integrity fix (migration 0005): UNIQUE on display_name.
      * Prevents two connectors with the same human label from being created,
@@ -178,6 +188,7 @@ export const dataSourceConnections = pgTable(
      * The UNIQUE constraint is also emitted in migration 0005.
      */
     unique('data_source_connections_display_name_unique').on(table.displayName),
+    index('data_source_connections_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -233,6 +244,9 @@ export const rawCompanies = pgTable(
     ingestedAt: timestamp('ingested_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -240,6 +254,12 @@ export const rawCompanies = pgTable(
       columns: [table.connectionId],
       foreignColumns: [dataSourceConnections.id],
     }).onDelete('cascade'),
+
+    foreignKey({
+      name: 'raw_companies_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
 
     /**
      * Idempotent upsert key: one staging row per (connection, provider-record).
@@ -253,6 +273,7 @@ export const rawCompanies = pgTable(
 
     /** Connection-scoped listing (sync summary queries). */
     index('raw_companies_connection_id_idx').on(table.connectionId),
+    index('raw_companies_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -324,8 +345,17 @@ export const companies = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).$onUpdateFn(() =>
       new Date().toISOString()
     ),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
+    foreignKey({
+      name: 'companies_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /**
      * Primary dedupe lookup: find a canonical company by normalized domain.
      * The dedupe engine's match step queries WHERE normalized_domain = $1.
@@ -343,6 +373,7 @@ export const companies = pgTable(
      * Covers the list query: WHERE status = 'active' ORDER BY name.
      */
     index('companies_status_name_domain_idx').on(table.status, table.name, table.domain),
+    index('companies_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -393,6 +424,9 @@ export const contacts = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).$onUpdateFn(() =>
       new Date().toISOString()
     ),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -401,11 +435,18 @@ export const contacts = pgTable(
       foreignColumns: [companies.id],
     }).onDelete('cascade'),
 
+    foreignKey({
+      name: 'contacts_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /** Company-scoped contact listing (detail page). */
     index('contacts_company_id_idx').on(table.companyId),
 
     /** Contact merge lookup: find existing canonical contact by normalized email. */
     index('contacts_normalized_email_idx').on(table.normalizedEmail),
+    index('contacts_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -457,6 +498,9 @@ export const companyProvenance = pgTable(
     ingestedAt: timestamp('ingested_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -477,6 +521,12 @@ export const companyProvenance = pgTable(
       foreignColumns: [dataSourceConnections.id],
     }).onDelete('cascade'),
 
+    foreignKey({
+      name: 'company_provenance_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /**
      * Idempotency: a raw record contributes to a canonical company at most once.
      * UNIQUE(company_id, raw_company_id) — hand-appended in migration 0004.
@@ -487,6 +537,7 @@ export const companyProvenance = pgTable(
 
     /** Company-scoped provenance listing (detail page). */
     index('company_provenance_company_id_idx').on(table.companyId),
+    index('company_provenance_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -534,6 +585,9 @@ export const contactProvenance = pgTable(
     ingestedAt: timestamp('ingested_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -554,6 +608,12 @@ export const contactProvenance = pgTable(
       foreignColumns: [dataSourceConnections.id],
     }).onDelete('cascade'),
 
+    foreignKey({
+      name: 'contact_provenance_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /**
      * Idempotency: a raw company record contributes to a contact at most once.
      * UNIQUE(contact_id, raw_company_id) — hand-appended in migration 0004.
@@ -562,6 +622,7 @@ export const contactProvenance = pgTable(
 
     /** Contact-scoped listing. */
     index('contact_provenance_contact_id_idx').on(table.contactId),
+    index('contact_provenance_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -634,6 +695,9 @@ export const dedupeCandidates = pgTable(
 
     /** Set when status transitions from pending to merged or rejected. */
     resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'string' }),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -654,6 +718,12 @@ export const dedupeCandidates = pgTable(
       foreignColumns: [users.id],
     }).onDelete('set null'),
 
+    foreignKey({
+      name: 'dedupe_candidates_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /**
      * Review queue filter index: list pending candidates.
      * Covers: WHERE status = 'pending' ORDER BY created_at.
@@ -665,6 +735,8 @@ export const dedupeCandidates = pgTable(
      * Covers: WHERE matched_company_id = $1 AND status = 'pending'.
      */
     index('dedupe_candidates_matched_company_id_idx').on(table.matchedCompanyId),
+
+    index('dedupe_candidates_workspace_id_idx').on(table.workspaceId),
 
     /**
      * PARTIAL-UNIQUE idempotency backstop for the ambiguous-candidate path.

@@ -1,7 +1,17 @@
 import { sql } from 'drizzle-orm';
-import { bigint, foreignKey, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  foreignKey,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 import { users } from './users-roles';
+import { workspaces } from './workspaces';
 
 /**
  * Wave-4 compliance backbone (B-2, task ec1f279d).
@@ -128,6 +138,25 @@ export const auditLogEntries = pgTable(
      * audit log (same rationale as actor_user_id ON DELETE SET NULL).
      */
     mandateId: uuid('mandate_id'),
+
+    /**
+     * Wave-17 (task 0db154ff) — tenant boundary FK. HASH-EXCLUDED.
+     *
+     * CRITICAL: this column is NOT part of HashableEntryFields and is NEVER fed
+     * into canonicalSerialization() or computeEntryHash(). Mirrors the mandate_id
+     * exclusion pattern (wave-14) exactly. Existing entry_hash values are
+     * byte-identical after this migration — the HMAC preimage is unchanged.
+     * workspace_id hash-exclusion is SAFE because the WORM BEFORE-UPDATE trigger
+     * (migration 0002) unconditionally rejects ALL UPDATE/DELETE on audit_log_entries
+     * regardless of which column is targeted. The trigger is the sole backstop
+     * against cross-workspace re-attribution; df2f3b2f MUST prove it fires.
+     *
+     * The LIST/EXPORT projection is RLS-scoped (GUC policy). The integrity WALK
+     * (verifyChain readChainAscending) uses read_audit_chain_rls_exempt()
+     * SECURITY DEFINER to bypass RLS and walk the FULL global chain, returning
+     * ok:true over the whole chain, not per-workspace sub-chains.
+     */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -135,8 +164,14 @@ export const auditLogEntries = pgTable(
       columns: [table.actorUserId],
       foreignColumns: [users.id],
     }).onDelete('set null'),
+    foreignKey({
+      name: 'audit_log_entries_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
     // sequence_number is the PK and the walk order for verification.
     // No additional index needed for MVP — the verifier walks the full chain
     // in PK order; the PK B-tree index already covers that scan.
+    index('audit_log_entries_workspace_id_idx').on(table.workspaceId),
   ]
 );

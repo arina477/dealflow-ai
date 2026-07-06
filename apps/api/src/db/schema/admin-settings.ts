@@ -1,8 +1,9 @@
 import { sql } from 'drizzle-orm';
-import { foreignKey, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { foreignKey, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 import { disclaimerTemplates } from './compliance-rules';
 import { users } from './users-roles';
+import { workspaces } from './workspaces';
 
 /**
  * Wave-15 admin settings data model (B-0, tasks 648a86a6 + 41c017f7).
@@ -91,6 +92,12 @@ export const workspaceSettings = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).$onUpdateFn(() =>
       new Date().toISOString()
     ),
+
+    /**
+     * Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced.
+     * workspace_settings is a singleton per firm; this FK scopes it to its workspace.
+     */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -104,5 +111,13 @@ export const workspaceSettings = pgTable(
       columns: [table.defaultDisclaimerTemplateId],
       foreignColumns: [disclaimerTemplates.id],
     }).onDelete('set null'),
+
+    foreignKey({
+      name: 'workspace_settings_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
+    index('workspace_settings_workspace_id_idx').on(table.workspaceId),
   ]
 );

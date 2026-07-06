@@ -14,6 +14,7 @@ import {
 
 import { disclaimerTemplates } from './compliance-rules';
 import { users } from './users-roles';
+import { workspaces } from './workspaces';
 
 /**
  * Wave-8 mandate spine (B-0, task ba0edebf).
@@ -121,6 +122,9 @@ export const mandates = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).$onUpdateFn(() =>
       new Date().toISOString()
     ),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -129,11 +133,19 @@ export const mandates = pgTable(
       foreignColumns: [users.id],
     }).onDelete('restrict'),
 
+    foreignKey({
+      name: 'mandates_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /** Status-scoped listing: WHERE status = $1 ORDER BY created_at. */
     index('mandates_status_created_at_idx').on(table.status, table.createdAt),
 
     /** Creator-scoped listing: WHERE created_by = $1. */
     index('mandates_created_by_idx').on(table.createdBy),
+
+    index('mandates_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -171,6 +183,9 @@ export const mandateBuyerCriteria = pgTable(
 
     /** Preferred deal type. Nullable — no restriction. */
     dealType: text('deal_type'),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -179,8 +194,15 @@ export const mandateBuyerCriteria = pgTable(
       foreignColumns: [mandates.id],
     }).onDelete('cascade'),
 
+    foreignKey({
+      name: 'mandate_buyer_criteria_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
     /** Mandate-scoped criteria lookup. */
     index('mandate_buyer_criteria_mandate_id_idx').on(table.mandateId),
+    index('mandate_buyer_criteria_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -261,6 +283,9 @@ export const mandateComplianceProfile = pgTable(
      * Must be TRUE at INSERT. Default false for DB integrity; service enforces TRUE.
      */
     conflictDbsReviewed: boolean('conflict_dbs_reviewed').notNull().default(false),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     /**
@@ -286,5 +311,13 @@ export const mandateComplianceProfile = pgTable(
       columns: [table.disclaimerTemplateId],
       foreignColumns: [disclaimerTemplates.id],
     }).onDelete('restrict'),
+
+    foreignKey({
+      name: 'mandate_compliance_profile_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+
+    index('mandate_compliance_profile_workspace_id_idx').on(table.workspaceId),
   ]
 );

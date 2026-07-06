@@ -13,6 +13,7 @@ import {
 import { mandates } from './mandate';
 import { companies } from './sourcing';
 import { users } from './users-roles';
+import { workspaces } from './workspaces';
 
 /**
  * Wave-9 buyer-universe spine (B-0, task 92a8ff3f).
@@ -126,6 +127,9 @@ export const buyerUniverse = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).$onUpdateFn(() =>
       new Date().toISOString()
     ),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -138,6 +142,12 @@ export const buyerUniverse = pgTable(
       name: 'buyer_universe_created_by_fk',
       columns: [table.createdBy],
       foreignColumns: [users.id],
+    }).onDelete('restrict'),
+
+    foreignKey({
+      name: 'buyer_universe_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
     }).onDelete('restrict'),
 
     /**
@@ -154,6 +164,7 @@ export const buyerUniverse = pgTable(
 
     /** Status-scoped listing: WHERE status = $1. */
     index('buyer_universe_status_idx').on(table.status),
+    index('buyer_universe_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -219,6 +230,9 @@ export const buyerUniverseCandidates = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -232,6 +246,12 @@ export const buyerUniverseCandidates = pgTable(
       columns: [table.companyId],
       foreignColumns: [companies.id],
     }).onDelete('cascade'),
+
+    foreignKey({
+      name: 'buyer_universe_candidates_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
 
     /**
      * Idempotent re-assemble backstop: plain composite UNIQUE on
@@ -251,5 +271,6 @@ export const buyerUniverseCandidates = pgTable(
      *   AND membership_status = 'included' (used by enrich + gaps queries).
      */
     index('buyer_universe_candidates_status_idx').on(table.buyerUniverseId, table.membershipStatus),
+    index('buyer_universe_candidates_workspace_id_idx').on(table.workspaceId),
   ]
 );

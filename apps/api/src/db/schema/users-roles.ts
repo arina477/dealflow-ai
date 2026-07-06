@@ -10,6 +10,8 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
+import { workspaces } from './workspaces';
+
 /**
  * Wave-2 auth data model (B-0, task e15f71dd).
  *
@@ -60,6 +62,14 @@ export const users = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+    /**
+     * Wave-17 (task 0db154ff) — tenant boundary FK.
+     * RLS policy: USING (workspace_id = current_setting('app.workspace_id', true)::uuid).
+     * FORCE ROW LEVEL SECURITY is set on this table (mandatory — API runs as owner).
+     * The pre-GUC bootstrap path uses resolve_user_workspace() SECURITY DEFINER
+     * to read this column before the GUC is set (chicken-and-egg break).
+     */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     unique('users_supertokens_user_id_unique').on(table.supertokensUserId),
@@ -71,9 +81,15 @@ export const users = pgTable(
       columns: [table.roleId],
       foreignColumns: [roles.id],
     }).onDelete('restrict'),
+    foreignKey({
+      name: 'users_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
     // dedicated index on supertokens_user_id: the createNewSession override
     // resolves role by this column on every session creation + refresh.
     index('users_supertokens_user_id_idx').on(table.supertokensUserId),
+    index('users_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -95,6 +111,8 @@ export const invites = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     unique('invites_token_unique').on(table.token),
@@ -108,6 +126,11 @@ export const invites = pgTable(
       columns: [table.roleId],
       foreignColumns: [roles.id],
     }).onDelete('restrict'),
+    foreignKey({
+      name: 'invites_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
     // partial unique index: supports the concurrent-consumption guard
     // (SELECT FOR UPDATE + consumed_at IS NULL guard in the repository).
     // Drizzle does not natively emit partial indexes via the table builder;
@@ -115,5 +138,6 @@ export const invites = pgTable(
     // 0001_*.sql). This index declaration is a no-op in drizzle-kit output
     // and is replaced by the raw SQL in the migration.
     uniqueIndex('invites_token_unconsumed_idx').on(table.token).where(sql`consumed_at IS NULL`),
+    index('invites_workspace_id_idx').on(table.workspaceId),
   ]
 );

@@ -3,6 +3,7 @@
  * drizzle.config.ts points here so drizzle-kit sees all tables.
  *
  * Import order (alphabetical per biome organizeImports):
+ *   0. workspaces        (wave-17 tenant boundary — task 0db154ff) — MUST be first
  *   1. admin-settings    (wave-15 workspace_settings — tasks 648a86a6 + 41c017f7)
  *   2. app-meta          (wave-1 bootstrap table)
  *   3. audit-log         (wave-4 tamper-evident audit store — task ec1f279d)
@@ -15,6 +16,9 @@
  *  10. sourcing          (wave-6 deal-sourcing data spine — tasks ff378a95 + db274731)
  *  11. users-roles       (wave-2 auth data model)
  *
+ * workspaces is exported first so all other tenant-table files can import it
+ * without circular dependency. All tenant tables import ./workspaces directly.
+ *
  * Note: admin-settings.ts imports from './compliance-rules' (disclaimer_templates FK)
  * and './users-roles' (users FK) directly — no circular dep via this barrel.
  * audit-log.ts, compliance-rules.ts, mandate.ts, sourcing.ts, and
@@ -25,6 +29,7 @@
  * matching.ts imports from './mandate', './buyer-universe', and './users-roles'.
  * pipeline.ts imports from './mandate', './matching', './outreach', and './users-roles'.
  */
+export * from './workspaces';
 export * from './admin-settings';
 export * from './app-meta';
 export * from './audit-log';

@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { users } from './users-roles';
+import { workspaces } from './workspaces';
 
 /**
  * Wave-5 compliance rules engine (B-2, task 0595a835).
@@ -122,6 +123,8 @@ export const complianceRules = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).$onUpdateFn(() =>
       new Date().toISOString()
     ),
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -129,6 +132,12 @@ export const complianceRules = pgTable(
       columns: [table.createdBy],
       foreignColumns: [users.id],
     }).onDelete('set null'),
+    foreignKey({
+      name: 'compliance_rules_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
+    index('compliance_rules_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -173,6 +182,9 @@ export const suppressionList = pgTable(
       .default(sql`now()`),
 
     createdBy: uuid('created_by'),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -180,11 +192,17 @@ export const suppressionList = pgTable(
       columns: [table.createdBy],
       foreignColumns: [users.id],
     }).onDelete('set null'),
+    foreignKey({
+      name: 'suppression_list_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
     /**
      * Gate suppression lookup index: (match_type, value).
      * Covers: SELECT * FROM suppression_list WHERE match_type = $1 AND value = $2
      */
     index('suppression_list_match_type_value_idx').on(table.matchType, table.value),
+    index('suppression_list_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -239,6 +257,9 @@ export const disclaimerTemplates = pgTable(
       .default(sql`now()`),
 
     createdBy: uuid('created_by'),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -246,11 +267,17 @@ export const disclaimerTemplates = pgTable(
       columns: [table.createdBy],
       foreignColumns: [users.id],
     }).onDelete('set null'),
+    foreignKey({
+      name: 'disclaimer_templates_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
     /**
      * Gate disclaimer lookup index: (jurisdiction, active).
      * Covers: SELECT * FROM disclaimer_templates WHERE jurisdiction = $1 AND active = true
      */
     index('disclaimer_templates_jurisdiction_active_idx').on(table.jurisdiction, table.active),
+    index('disclaimer_templates_workspace_id_idx').on(table.workspaceId),
   ]
 );
 
@@ -319,6 +346,9 @@ export const complianceApprovals = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+
+    /** Wave-17 (task 0db154ff) — tenant boundary FK. RLS-enforced. */
+    workspaceId: uuid('workspace_id').notNull(),
   },
   (table) => [
     foreignKey({
@@ -326,6 +356,11 @@ export const complianceApprovals = pgTable(
       columns: [table.approverUserId],
       foreignColumns: [users.id],
     }).onDelete('set null'),
+    foreignKey({
+      name: 'compliance_approvals_workspace_id_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+    }).onDelete('restrict'),
     /**
      * Gate approval lookup index: (resource_type, resource_id).
      * Covers: WHERE resource_type = $1 AND resource_id = $2 [AND status = 'approved']
@@ -334,5 +369,6 @@ export const complianceApprovals = pgTable(
       table.resourceType,
       table.resourceId
     ),
+    index('compliance_approvals_workspace_id_idx').on(table.workspaceId),
   ]
 );
