@@ -160,3 +160,61 @@ None. All ACs from task 904a3c25 implemented as specified. Pre-existing TypeScri
 ### Deviations
 
 None. `AuditRepository` added to `AuditModule` exports per BUILD rule 2 (guard-injected repos exported by consuming module). Single task, single commit.
+
+---
+
+## USER-MANAGEMENT vertical (tasks c54db02d + 042cf4e6)
+
+**Agent:** backend-developer
+**Tasks:** c54db02d — invite dedup advisory-lock; 042cf4e6 — user reactivate + prod-cleanup C-2 hand-off
+
+### Commits
+
+- `feat(admin): B-2 invite dedup advisory-lock for wave-16` SHA `0efb0ce` (task c54db02d)
+- `feat(admin): B-2 user reactivate for wave-16` SHA `a8d5f0b` (task 042cf4e6)
+
+### Files implemented
+
+- `apps/api/src/modules/admin/user-management.service.ts` — inviteAsActor dedup + reactivateAsActor
+- `apps/api/src/modules/admin/admin-users.controller.ts` — POST /admin/users/:id/reactivate endpoint
+- `apps/api/src/modules/admin/admin.spec.ts` — A-7a/b/c/d invite dedup unit tests + A-8a/b/c reactivate unit tests; A-1 updated for new select-call ordering
+- `apps/api/test/admin-concurrency.e2e-spec.ts` — INVITE-CONC-1 fault-killing concurrency test + REACTIVATE-1/2 real-service integration tests
+
+### Task c54db02d — Invite duplicate handling (P-4 Finding 1)
+
+Advisory lock (PRIMARY race guard): pg_advisory_xact_lock(hashtext(lower(email))::bigint) is the FIRST statement in the inviteAsActor transaction. No partial unique index used: WHERE consumed_at IS NULL blocks re-inviting expired invites; WHERE expiry > now() is non-immutable and Postgres refuses it in a partial index.
+
+Dedup checks under lock (SELECT-then-INSERT critical section):
+1. SELECT active users (deactivated_at IS NULL) for the email -> 409 ConflictException if found.
+2. SELECT live invites (consumed_at IS NULL AND expiry > now()) -> 409 ConflictException if found.
+3. Expired (expiry <= now()) and consumed (consumed_at IS NOT NULL) invites -> new invite allowed.
+
+Fault-killing concurrency test (VERIFY rule 3): INVITE-CONC-1 calls the REAL UserManagementService.inviteAsActor. Two concurrent calls for a fresh email -> exactly one invite row in DB, the other gets 409. If the advisory lock is removed, both calls pass the SELECT-live-check simultaneously and both INSERT two rows; expect(rows).toHaveLength(1) catches the regression.
+
+Unit tests (A-7a-d): registered-active->409; live-pending->409; expired->new-allowed; consumed->new-allowed. Each asserts execute called once (lock fires first).
+
+### Task 042cf4e6 — Reactivate + prod-cleanup
+
+reactivateAsActor (mirrors deactivateAsActor):
+- 404 for unknown userId (tx-scoped SELECT per BUILD rule 7).
+- 400 if deactivated_at IS NULL (already active).
+- UPDATE deactivated_at = NULL; role_id preserved (never changed).
+- Audit LAST-IN-TXN under user-reactivate action.
+
+Controller: POST /admin/users/:id/reactivate -> 200|400|401|403|404. SessionGuard + RolesGuard + ADMIN_USERS_ROLES (admin-only fail-closed).
+
+Real-service tests (REACTIVATE-1/2): deactivated user -> DB deactivated_at=NULL + action=user-reactivate audit row + role_id unchanged; already-active -> 400. WORM-safe teardown (UPDATE not DELETE).
+
+### C-2 prod-cleanup hand-off (NON-DEFERRABLE ops action, NOT in migration or seed)
+
+Execute at C-2 against prod:
+1. Restore advisor1: UPDATE users SET deactivated_at = NULL WHERE email = 'advisor1@example.com';
+2. Neutralize 3 KAREN-V1-SENTINEL records (WORM-safe): UPDATE users SET email = 'karen-v1-sentinel-purged-N@invalid.invalid' WHERE id = '<each-id>'; (one UPDATE per row, distinct suffix).
+
+### Test results
+
+15 new tests added, all pass. Suite totals: 763 pass / 2 pre-existing admin-activity failures (task 8bb0a22f, not this vertical) / 41 skipped (e2e requiring live DB).
+
+### Deviation from plan
+
+None.
