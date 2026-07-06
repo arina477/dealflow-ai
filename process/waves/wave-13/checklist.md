@@ -27,9 +27,9 @@ TEST:
 - [x] T-8 Security
 - [x] T-9 Journey
 VERIFY:
-- [ ] V-1 Independent reviews
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop
+- [x] V-1 Independent reviews
+- [x] V-2 Triage
+- [x] V-3 Fast-fix loop
 LEARN:
 - [ ] L-1 Docs
 - [ ] L-2 Distill

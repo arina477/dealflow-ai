@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0] — 2026-07-06 — Audit-log & recordkeeping export (M6 compliance-defensibility)
+
+### Added
+- **Verifiable recordkeeping export** (M6 recordkeeping wedge) — the /compliance/audit-log page is now the full compliance-defensibility surface: a filterable, paginated view of the immutable audit trail (mandate/event-type/actor/date), a hash-chain **integrity badge** (tamper-evidence at a glance), and a **recordkeeping export** — a mandate/time-scoped, self-contained package (in-scope entries + per-entry hashes + a full-chain integrity result + a manifest) that a regulator or auditor can independently re-verify offline. No schema change (reads the existing audit log).
+- Endpoints: `GET /compliance/audit-log` (filtered read), `GET /compliance/audit-log/verify` (chain integrity), `POST /compliance/audit-log/export` (verifiable package). Compliance/admin see org-wide and can export; advisors see their own outreach and cannot export.
+
+### Correctness / compliance
+- The audit log stays immutable: the read and verify paths write nothing to it; only the export action records itself — exactly one entry, last in its transaction (proven live: an export moved the verified chain from 309 to 310 entries). The integrity check is the real tamper-evidence verifier over the whole chain. Export is restricted server-side (advisors are refused). Bad filter input is rejected (not run as an unbounded query). The mandate-scoped view honestly documents which records it derives (it does not overclaim completeness — the full-chain export is the complete record).
+
+### Provenance (transparency)
+- Recordkeeping only — no email is sent, no AI drafting, no edit or delete of audit rows. Formal PDF/multi-regulation export formats and producer-side mandate-tagging of every gate decision are deferred to later bundles.
+
 ## [0.12.0] — 2026-07-05 — Pipeline / deal-stage tracking (M6 pipeline)
 
 ### Added
