@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.14.0] — 2026-07-06 — Compliance hardening (audit mandate-attribution + recordkeeping fidelity)
+
+### Added
+- **Mandate-attributable compliance decisions** — the pre-send compliance gate now stamps each allow/block decision with the mandate it belongs to, so a mandate-scoped recordkeeping export includes the gate decisions for that mandate. A new read-only **compliance oversight** view (/compliance/oversight) lets compliance/admin see each outreach's gate outcome, mandate, and separation-of-duties status at a glance (distinct from the version-approval queue).
+
+### Correctness / compliance
+- The mandate stamp is recorded as tamper-evidence-neutral metadata — it is NOT part of the audit log's hash chain, so adding it left every existing entry's integrity hash byte-identical and the chain still verifies (confirmed live on the production chain of 310 entries after the change). The pre-send gate's non-bypassable allow/block behaviour is unchanged. A real-database test now proves the mandate-scoped export captures every mandate-derivable record — including gate decisions — and correctly isolates one mandate's records from another's even when they share a template, lifting the prior hold on relying on the scoped export for a regulator request.
+
+### Provenance (transparency)
+- Compliance hardening only — no email send, no AI, no edit/delete of audit records. The mandate stamp is a filterable attribution field, not a tamper-evident one (documented in the audit architecture notes); a distinct control would be needed if mandate-attribution integrity itself became a regulatory requirement.
+
 ## [0.13.0] — 2026-07-06 — Audit-log & recordkeeping export (M6 compliance-defensibility)
 
 ### Added
