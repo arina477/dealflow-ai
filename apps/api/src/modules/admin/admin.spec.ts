@@ -268,6 +268,122 @@ describe('UserManagementService', () => {
       service.assignRoleAsActor('nonexistent', 'analyst', 'actor', 'admin')
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  // ── 409 unit coverage: last-admin guard rejects deactivate/demote/self ──
+
+  it('A-4: deactivateAsActor — last-admin deactivate → ConflictException (409)', async () => {
+    // The guard executes inside the transaction:
+    //   1. SELECT user → found, deactivatedAt=null, roleId='role-admin'
+    //   2. SELECT role name → 'admin'
+    //   3. execute() advisory lock + count → remaining=0 → ConflictException
+    // We configure the tx mock to simulate 1 active admin remaining after excluding
+    // the target (i.e., 0 others → guard fires).
+    const adminRoleId = 'role-admin-id';
+    let selectCallCount = 0;
+
+    const txMock = {
+      select: vi.fn().mockImplementation(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockImplementation(() => {
+          selectCallCount++;
+          if (selectCallCount === 1) {
+            // Step 1: user lookup → active admin
+            return Promise.resolve([
+              { id: 'last-admin', roleId: adminRoleId, deactivatedAt: null },
+            ]);
+          }
+          // Step 2: role lookup → 'admin'
+          return Promise.resolve([{ name: 'admin' }]);
+        }),
+      })),
+      execute: vi.fn().mockResolvedValue({ rows: [{ remaining: '0' }] }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
+      }),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    await expect(
+      service.deactivateAsActor('last-admin', 'last-admin', 'admin')
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('A-5: assignRoleAsActor — demoting last admin → ConflictException (409)', async () => {
+    // Guard fires when demoting the last active admin to a non-admin role.
+    // TX flow: user found → role=admin → guard execute returns remaining=0 → 409.
+    const adminRoleId = 'role-admin-id-2';
+    let selectCallCount = 0;
+
+    const txMock = {
+      select: vi.fn().mockImplementation(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockImplementation(() => {
+          selectCallCount++;
+          if (selectCallCount === 1) {
+            // Step 1: user lookup → active admin
+            return Promise.resolve([
+              { id: 'last-admin-2', roleId: adminRoleId, deactivatedAt: null, email: 'a@b.com' },
+            ]);
+          }
+          // Step 2: current role lookup → 'admin'
+          return Promise.resolve([{ name: 'admin' }]);
+        }),
+      })),
+      execute: vi.fn().mockResolvedValue({ rows: [{ remaining: '0' }] }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
+      }),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    await expect(
+      service.assignRoleAsActor('last-admin-2', 'advisor', 'actor', 'admin')
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('A-6: deactivateAsActor — self-deactivating last admin → ConflictException (409)', async () => {
+    // Self-deactivation is identical to deactivateAsActor with actorUserId===userId.
+    // The service does not distinguish self vs. other — the guard fires on admin count alone.
+    const adminRoleId = 'role-admin-id-3';
+    let selectCallCount = 0;
+
+    const txMock = {
+      select: vi.fn().mockImplementation(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockImplementation(() => {
+          selectCallCount++;
+          if (selectCallCount === 1) {
+            return Promise.resolve([
+              { id: 'self-admin', roleId: adminRoleId, deactivatedAt: null },
+            ]);
+          }
+          return Promise.resolve([{ name: 'admin' }]);
+        }),
+      })),
+      execute: vi.fn().mockResolvedValue({ rows: [{ remaining: '0' }] }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }),
+      }),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    // actorUserId === userId (self-deactivation)
+    await expect(
+      service.deactivateAsActor('self-admin', 'self-admin', 'admin')
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
 });
 
 // ---------------------------------------------------------------------------

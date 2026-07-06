@@ -11,6 +11,13 @@
  * This test PROVES that pg_advisory_xact_lock(ADMIN_GUARD_LOCK_KEY) closes the
  * write-skew window that a plain `count(*) FOR UPDATE` cannot close.
  *
+ * The test calls the REAL UserManagementService.deactivateAsActor (not inline SQL).
+ * Fault-killing property: if the production guard regressed to count(*)-FOR-UPDATE,
+ * two concurrent deactivateAsActor calls on DIFFERENT last-two admins would BOTH
+ * read count=2 (one for each, excluding themselves → 1 remaining each), BOTH
+ * proceed, and both succeed → 0 admins remain. The "exactly one fulfilled + ≥1
+ * remains" assertion would then FAIL, catching the regression.
+ *
  * ── CREDENTIAL NEVER LEAKS (SECURITY TEST — P-4 load-bearing) ───────────────
  * Test SEC-1: The credential is absent from the audit row written during
  * createConnection. (Asserts on the real audit_log_entries row.)
@@ -136,6 +143,26 @@ describe.skipIf(shouldSkip)(
       await db.execute(sql`DELETE FROM data_source_connections WHERE id = ${connId}::uuid`);
     }
 
+    /**
+     * Build a REAL UserManagementService wired against the live test DB.
+     * Mirrors the pattern used by outreach-gate.e2e-spec.ts for building
+     * real services: instantiate AuditKeyring → AuditRepository → AuditService
+     * → UserManagementService, passing `db` directly (bypassing NestJS DI).
+     */
+    async function buildUserManagementService() {
+      const { AuditKeyring } = await import('../src/modules/audit/audit.keyring');
+      const { AuditRepository } = await import('../src/modules/audit/audit.repository');
+      const { AuditService } = await import('../src/modules/audit/audit.service');
+      const { UserManagementService } = await import(
+        '../src/modules/admin/user-management.service'
+      );
+
+      const keyring = new AuditKeyring(process.env);
+      const auditRepo = new AuditRepository(db);
+      const auditService = new AuditService(keyring, auditRepo);
+      return new UserManagementService(db, auditService);
+    }
+
     // ── CONC-1: Race-safe last-admin guard ──────────────────────────────────
 
     it('CONC-1: two concurrent deactivate attempts on different last-two-admins — exactly one succeeds, ≥1 admin always remains', {
@@ -143,97 +170,230 @@ describe.skipIf(shouldSkip)(
     }, async () => {
       if (!dbReachable) return;
 
-      // Create 2 test admin users (no existing admins from seeds expected in test DB,
-      // but we can't guarantee isolation. We create 2 new users that are the
-      // "last admins" in our concurrent test — we'll use them exclusively.)
-      const admin1 = await createTestUser(`admin-conc-1-${Date.now()}@test.com`, 'admin');
-      const admin2 = await createTestUser(`admin-conc-2-${Date.now()}@test.com`, 'admin');
-
-      // To test ONLY our two admins, we need to verify the guard counts correctly.
-      // The service counts ALL active admins in the DB — if there are pre-existing admins,
-      // the guard won't fire. We work around this by running the guard logic directly.
-
-      // Import the service and advisory lock constant.
-      const { ADMIN_GUARD_LOCK_KEY } = await import('../src/modules/admin/user-management.service');
       const { sql } = await import('drizzle-orm');
+      const { ConflictException } = await import('@nestjs/common');
 
-      // Simulate two concurrent transactions each trying to deactivate their respective admin.
-      // Each txn acquires the advisory lock and counts remaining admins EXCLUDING itself.
-      // With exactly 2 admins: excluding admin1 leaves 1 (admin2) → admin1 proceeds.
-      //   Then: excluding admin2 leaves 0 (admin1 is now deactivated) → admin2 is blocked.
-      // BUT — the advisory lock serializes the txns, so only one runs at a time.
+      // Seed exactly two fresh admin users.  We cannot control pre-existing
+      // admins, but the guard counts ALL active admins — so we first count
+      // how many admins already exist and only proceed if the DB already has
+      // zero active non-test admins, OR we accept that pre-existing admins
+      // would prevent the guard from firing (guard sees >2 remaining → both
+      // succeed → test assertion fails).  To guarantee the guard fires we
+      // need to ensure EXACTLY 2 active admins are present when the concurrent
+      // calls hit.  We deactivate all pre-existing admins within the test and
+      // restore them after (a controlled, isolated approach for the write-skew
+      // proof).
+      //
+      // Simpler approach: accept DB may have pre-existing admins.  Instead of
+      // deactivating them (risky for shared CI state), we seed 2 new admins and
+      // rely on the guard's cross-connection advisory lock to serialize the
+      // concurrent calls correctly even in the presence of other admins.  If
+      // there are pre-existing admins the guard won't fire (both calls succeed
+      // because count-excluding-self > 0 for both).  That would also FAIL our
+      // "exactly one rejected" assertion — so the test is still honest about
+      // the environment state.
+      //
+      // Correct approach for a deterministic test: deactivate ALL pre-existing
+      // admins (other than our two seeds) WITHIN this test, prove write-skew,
+      // then restore.  But that modifies shared state.  The safest approach that
+      // does NOT corrupt shared state is to use ONLY our two newly-created admins
+      // and hard-deactivate any other admins WITHIN the test scope, restoring
+      // them after.
+      //
+      // FINAL APPROACH: count and snapshot pre-existing active admins.
+      // Temporarily deactivate them, run the concurrent proof, restore them.
+      // This is safe because we restore in a finally block.
 
-      // We'll use a real-DB test: run two concurrent transactions.
-      // To control the race, we run them in Promise.all and check the results.
+      // 1. Create our two test admins.
+      const ts = Date.now();
+      const admin1 = await createTestUser(`conc1-a-${ts}@test.invalid`, 'admin');
+      const admin2 = await createTestUser(`conc1-b-${ts}@test.invalid`, 'admin');
 
-      let results: Array<{ ok: boolean; error?: string }> = [];
-
-      const deactivate = async (userId: string): Promise<{ ok: boolean; error?: string }> => {
-        try {
-          await db.transaction(async (tx: unknown) => {
-            const txDb = tx as {
-              execute: (
-                s: ReturnType<typeof sql>
-              ) => Promise<{ rows: Array<{ remaining: string }> }>;
-            };
-
-            // Step 1: Acquire advisory lock.
-            await txDb.execute(sql`SELECT pg_advisory_xact_lock(${ADMIN_GUARD_LOCK_KEY})`);
-
-            // Step 2: Count active admins excluding this user.
-            const countResult = await txDb.execute<{ remaining: string }>(sql`
-                SELECT COUNT(*)::text AS remaining
-                FROM users u
-                INNER JOIN roles r ON u.role_id = r.id
-                WHERE r.name = 'admin'
-                  AND u.deactivated_at IS NULL
-                  AND u.id != ${userId}::uuid
-              `);
-            const remaining = Number((countResult.rows ?? countResult)[0]?.remaining ?? 0);
-
-            if (remaining === 0) {
-              throw new Error('LAST_ADMIN_GUARD_REJECTED');
-            }
-
-            // Step 3: Deactivate.
-            await txDb.execute(sql`
-                UPDATE users SET deactivated_at = now() WHERE id = ${userId}::uuid
-              `);
-          });
-          return { ok: true };
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          return { ok: false, error: msg };
-        }
-      };
-
-      // Run both concurrently.
-      results = await Promise.all([deactivate(admin1), deactivate(admin2)]);
-
-      const succeeded = results.filter((r) => r.ok);
-      const rejected = results.filter((r) => !r.ok);
-
-      // Exactly one must succeed.
-      expect(succeeded).toHaveLength(1);
-      // Exactly one must be rejected by the last-admin guard.
-      expect(rejected).toHaveLength(1);
-      expect(rejected[0]!.error).toContain('LAST_ADMIN_GUARD_REJECTED');
-
-      // Verify DB state: at least one admin remains active.
-      const activeAdminCount = await db.execute<{ count: string }>(sql`
-          SELECT COUNT(*)::text AS count
-          FROM users u
+      // 2. Snapshot and temporarily deactivate any OTHER active admins so the
+      //    guard sees exactly 2 active admins during our concurrent calls.
+      const preExisting = await db.execute<{ id: string }>(sql`
+          SELECT id FROM users u
           INNER JOIN roles r ON u.role_id = r.id
           WHERE r.name = 'admin'
             AND u.deactivated_at IS NULL
-            AND u.id IN (${admin1}::uuid, ${admin2}::uuid)
+            AND u.id NOT IN (${admin1}::uuid, ${admin2}::uuid)
         `);
-      const remaining = Number((activeAdminCount.rows ?? activeAdminCount)[0]?.count ?? 0);
-      expect(remaining).toBeGreaterThanOrEqual(1);
+      const preExistingIds: string[] = (preExisting.rows ?? preExisting).map(
+        (r: { id: string }) => r.id
+      );
 
-      // Cleanup.
-      await deleteTestUser(admin1);
-      await deleteTestUser(admin2);
+      // Temporarily deactivate pre-existing admins.
+      for (const id of preExistingIds) {
+        await db.execute(sql`
+            UPDATE users SET deactivated_at = now() WHERE id = ${id}::uuid
+          `);
+      }
+
+      try {
+        // 3. Build a REAL UserManagementService — calls the ACTUAL advisory-lock guard.
+        const svc = await buildUserManagementService();
+
+        // 4. Run TWO CONCURRENT deactivateAsActor calls: each targeting a DIFFERENT
+        //    one of the only two active admins.  The advisory-lock serializes them;
+        //    the second sees count-excluding-self = 0 → ConflictException (409).
+        //
+        //    FAULT-KILLING PROPERTY: if the guard regressed to count(*) FOR UPDATE
+        //    (write-skew), both transactions could read count=1 (excluding their own
+        //    user) at the same time, both pass the guard, both commit → 0 active
+        //    admins.  The "exactly one rejected" assertion below would then FAIL,
+        //    exposing the regression.
+        const results = await Promise.allSettled([
+          svc.deactivateAsActor(admin1, admin1, 'admin'),
+          svc.deactivateAsActor(admin2, admin2, 'admin'),
+        ]);
+
+        const fulfilled = results.filter((r) => r.status === 'fulfilled');
+        const rejected = results.filter((r) => r.status === 'rejected');
+
+        // EXACTLY ONE must succeed.
+        expect(fulfilled).toHaveLength(1);
+        // EXACTLY ONE must be rejected.
+        expect(rejected).toHaveLength(1);
+
+        // The rejection MUST be a ConflictException (409 from the last-admin guard).
+        // Not a random DB error — it must be the guard itself firing.
+        const rejectedReason = (rejected[0] as PromiseRejectedResult).reason;
+        expect(rejectedReason).toBeInstanceOf(ConflictException);
+        expect((rejectedReason as ConflictException).message).toMatch(
+          /Cannot (deactivate|demote) the last active admin/i
+        );
+
+        // DB state: at least one of our two test admins remains active.
+        const activeCount = await db.execute<{ count: string }>(sql`
+            SELECT COUNT(*)::text AS count
+            FROM users u
+            INNER JOIN roles r ON u.role_id = r.id
+            WHERE r.name = 'admin'
+              AND u.deactivated_at IS NULL
+              AND u.id IN (${admin1}::uuid, ${admin2}::uuid)
+          `);
+        const remaining = Number((activeCount.rows ?? activeCount)[0]?.count ?? 0);
+        expect(remaining).toBeGreaterThanOrEqual(1);
+      } finally {
+        // Restore any pre-existing admins we temporarily deactivated.
+        for (const id of preExistingIds) {
+          await db.execute(sql`
+              UPDATE users SET deactivated_at = NULL WHERE id = ${id}::uuid
+            `);
+        }
+        // Cleanup our test users.
+        await deleteTestUser(admin1);
+        await deleteTestUser(admin2);
+      }
+    });
+
+    // ── CONC-2: Happy path — deactivating a non-last admin succeeds ──────────
+
+    it('CONC-2: deactivating a non-last admin succeeds when >2 admins are active', {
+      timeout: 10000,
+    }, async () => {
+      if (!dbReachable) return;
+
+      // Seed 3 admins so deactivating one of them cannot trigger the guard.
+      const ts = Date.now();
+      const admin1 = await createTestUser(`conc2-a-${ts}@test.invalid`, 'admin');
+      const admin2 = await createTestUser(`conc2-b-${ts}@test.invalid`, 'admin');
+      const admin3 = await createTestUser(`conc2-c-${ts}@test.invalid`, 'admin');
+
+      try {
+        const svc = await buildUserManagementService();
+        // Deactivating admin1 when admin2+admin3 also exist → guard passes.
+        const result = await svc.deactivateAsActor(admin1, admin1, 'admin');
+        expect(result.id).toBe(admin1);
+        expect(result.deactivatedAt).toBeTruthy();
+      } finally {
+        await deleteTestUser(admin1);
+        await deleteTestUser(admin2);
+        await deleteTestUser(admin3);
+      }
+    });
+
+    // ── CONC-3: demote-last-admin → 409 ─────────────────────────────────────
+
+    it('CONC-3: demoting the last active admin → 409 ConflictException', {
+      timeout: 10000,
+    }, async () => {
+      if (!dbReachable) return;
+
+      const { sql } = await import('drizzle-orm');
+      const { ConflictException } = await import('@nestjs/common');
+
+      const ts = Date.now();
+      const lastAdmin = await createTestUser(`conc3-a-${ts}@test.invalid`, 'admin');
+
+      // Temporarily deactivate all other admins.
+      const preExisting = await db.execute<{ id: string }>(sql`
+          SELECT id FROM users u
+          INNER JOIN roles r ON u.role_id = r.id
+          WHERE r.name = 'admin'
+            AND u.deactivated_at IS NULL
+            AND u.id != ${lastAdmin}::uuid
+        `);
+      const preExistingIds: string[] = (preExisting.rows ?? preExisting).map(
+        (r: { id: string }) => r.id
+      );
+      for (const id of preExistingIds) {
+        await db.execute(sql`UPDATE users SET deactivated_at = now() WHERE id = ${id}::uuid`);
+      }
+
+      try {
+        const svc = await buildUserManagementService();
+        // Attempt to demote the only active admin to 'advisor'.
+        await expect(
+          svc.assignRoleAsActor(lastAdmin, 'advisor', lastAdmin, 'admin')
+        ).rejects.toBeInstanceOf(ConflictException);
+      } finally {
+        for (const id of preExistingIds) {
+          await db.execute(sql`UPDATE users SET deactivated_at = NULL WHERE id = ${id}::uuid`);
+        }
+        await deleteTestUser(lastAdmin);
+      }
+    });
+
+    // ── CONC-4: self-deactivate-last-admin → 409 ────────────────────────────
+
+    it('CONC-4: self-deactivating the last active admin → 409 ConflictException', {
+      timeout: 10000,
+    }, async () => {
+      if (!dbReachable) return;
+
+      const { sql } = await import('drizzle-orm');
+      const { ConflictException } = await import('@nestjs/common');
+
+      const ts = Date.now();
+      const lastAdmin = await createTestUser(`conc4-a-${ts}@test.invalid`, 'admin');
+
+      const preExisting = await db.execute<{ id: string }>(sql`
+          SELECT id FROM users u
+          INNER JOIN roles r ON u.role_id = r.id
+          WHERE r.name = 'admin'
+            AND u.deactivated_at IS NULL
+            AND u.id != ${lastAdmin}::uuid
+        `);
+      const preExistingIds: string[] = (preExisting.rows ?? preExisting).map(
+        (r: { id: string }) => r.id
+      );
+      for (const id of preExistingIds) {
+        await db.execute(sql`UPDATE users SET deactivated_at = now() WHERE id = ${id}::uuid`);
+      }
+
+      try {
+        const svc = await buildUserManagementService();
+        // Self-deactivation of the only active admin must reject with 409.
+        await expect(svc.deactivateAsActor(lastAdmin, lastAdmin, 'admin')).rejects.toBeInstanceOf(
+          ConflictException
+        );
+      } finally {
+        for (const id of preExistingIds) {
+          await db.execute(sql`UPDATE users SET deactivated_at = NULL WHERE id = ${id}::uuid`);
+        }
+        await deleteTestUser(lastAdmin);
+      }
     });
 
     // ── SEC-1: Credential absent from audit row ──────────────────────────────
@@ -279,13 +439,13 @@ describe.skipIf(shouldSkip)(
           action: string;
           resource_id: string;
         }>(sql`
-            SELECT action, resource_id, content_hash, payload_hash
-            FROM audit_log_entries
-            WHERE resource_type = 'data_source_connection'
-              AND resource_id = ${connId}
-            ORDER BY sequence_number DESC
-            LIMIT 1
-          `);
+              SELECT action, resource_id, content_hash, payload_hash
+              FROM audit_log_entries
+              WHERE resource_type = 'data_source_connection'
+                AND resource_id = ${connId}
+              ORDER BY sequence_number DESC
+              LIMIT 1
+            `);
         const auditRow = (auditRows.rows ?? auditRows)[0];
         expect(auditRow).toBeDefined();
         expect(auditRow!.action).toBe('data-source-conn-upsert');
