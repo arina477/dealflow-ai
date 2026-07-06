@@ -39,6 +39,7 @@ import Session from 'supertokens-node/recipe/session';
 
 // biome-ignore lint/style/useImportType: injected via DI, needs runtime metadata
 import { AuthRepository } from './auth.repository';
+import type { InviteBootstrap } from './auth.repository';
 
 const TENANT_ID = 'public';
 /** Invite lifetime: 7 days. */
@@ -114,12 +115,16 @@ export class AuthService {
     const tokenHash = this.hashToken(input.inviteToken);
 
     // (1) Pre-check: reject invalid invites BEFORE any Core user is created.
-    // getInviteEmail returns null for absent/expired/consumed invites, so a
-    // single read both validates the invite AND yields the email for signUp.
-    const inviteEmail = await this.repository.getInviteEmail(tokenHash);
-    if (inviteEmail === null) {
+    // getInviteEmail calls the SECURITY DEFINER function resolve_invite() via
+    // raw SQL — bypasses FORCE RLS on invites, which has no GUC at this point.
+    // Returns { email, workspaceId } or null for absent/expired/consumed invites.
+    // workspaceId is server-derived from the invite row (never client-supplied).
+    const inviteBootstrap: InviteBootstrap | null =
+      await this.repository.getInviteEmail(tokenHash);
+    if (inviteBootstrap === null) {
       throw new BadRequestException('Invalid or expired invite');
     }
+    const { email: inviteEmail, workspaceId: inviteWorkspaceId } = inviteBootstrap;
 
     // (2) Create the SuperTokens Core user.
     const signUpResult = await EmailPassword.signUp(TENANT_ID, inviteEmail, input.password);
@@ -132,13 +137,19 @@ export class AuthService {
     const supertokensUserId = signUpResult.recipeUserId.getAsString();
 
     // (3) Atomic consume + app-user create under a row lock.
+    // runInTransactionWithWorkspace sets app.workspace_id = inviteWorkspaceId on
+    // the dedicated transaction connection so FORCE RLS on invites + users passes.
+    // The workspaceId is sourced from the invite row — invitee joins the INVITE'S
+    // workspace (the admin's workspace that issued the invite).
     let created: Awaited<ReturnType<AuthRepository['consumeInviteAndCreateUser']>> | null = null;
     try {
-      created = await this.repository.runInTransaction((tx) =>
-        this.repository.consumeInviteAndCreateUser(tx, {
-          tokenHash,
-          supertokensUserId,
-        })
+      created = await this.repository.runInTransactionWithWorkspace(
+        inviteWorkspaceId,
+        (tx) =>
+          this.repository.consumeInviteAndCreateUser(tx, {
+            tokenHash,
+            supertokensUserId,
+          })
       );
     } catch (err) {
       // App-DB failure after the Core user was created → compensate first (so no

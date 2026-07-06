@@ -57,9 +57,16 @@ function makeRepo(overrides: Partial<AuthRepository> = {}): AuthRepository {
     findUserBySupertokensUserId: vi.fn(),
     consumeInviteAndCreateUser: vi.fn(),
     runInTransaction: vi.fn(),
+    runInTransactionWithWorkspace: vi.fn(),
     ...overrides,
   } as unknown as AuthRepository;
 }
+
+/** Default InviteBootstrap returned by a valid invite (wave-17 DEV-1 fix). */
+const VALID_INVITE_BOOTSTRAP = {
+  email: 'invitee@example.com',
+  workspaceId: 'a1b2c3d4-0000-4000-8000-000000000001',
+};
 
 const fakeReq = {} as never;
 const fakeRes = {} as never;
@@ -90,11 +97,11 @@ describe('AuthService', () => {
 
     it('compensates (deletes the Core user) when the invite is lost in the race', async () => {
       const repo = makeRepo({
-        getInviteEmail: vi.fn().mockResolvedValue('invitee@example.com'),
+        getInviteEmail: vi.fn().mockResolvedValue(VALID_INVITE_BOOTSTRAP),
         // tx runs the work; consume returns null → lost the race.
-        runInTransaction: vi
+        runInTransactionWithWorkspace: vi
           .fn()
-          .mockImplementation(async (work: (tx: unknown) => unknown) => work({})),
+          .mockImplementation(async (_wsId: string, work: (tx: unknown) => unknown) => work({})),
         consumeInviteAndCreateUser: vi.fn().mockResolvedValue(null),
       });
       signUp.mockResolvedValue({
@@ -123,10 +130,10 @@ describe('AuthService', () => {
         { code: '23505', constraint: 'users_email_unique', detail: 'Key (email)=(x) exists.' }
       );
       const repo = makeRepo({
-        getInviteEmail: vi.fn().mockResolvedValue('invitee@example.com'),
-        runInTransaction: vi
+        getInviteEmail: vi.fn().mockResolvedValue(VALID_INVITE_BOOTSTRAP),
+        runInTransactionWithWorkspace: vi
           .fn()
-          .mockImplementation(async (work: (tx: unknown) => unknown) => work({})),
+          .mockImplementation(async (_wsId: string, work: (tx: unknown) => unknown) => work({})),
         consumeInviteAndCreateUser: vi.fn().mockRejectedValue(pgUniqueViolation),
       });
       signUp.mockResolvedValue({
@@ -156,10 +163,10 @@ describe('AuthService', () => {
       // it generically, rather than being masked as a 4xx "bad request".
       const unexpected = new Error('connection terminated unexpectedly');
       const repo = makeRepo({
-        getInviteEmail: vi.fn().mockResolvedValue('invitee@example.com'),
-        runInTransaction: vi
+        getInviteEmail: vi.fn().mockResolvedValue(VALID_INVITE_BOOTSTRAP),
+        runInTransactionWithWorkspace: vi
           .fn()
-          .mockImplementation(async (work: (tx: unknown) => unknown) => work({})),
+          .mockImplementation(async (_wsId: string, work: (tx: unknown) => unknown) => work({})),
         consumeInviteAndCreateUser: vi.fn().mockRejectedValue(unexpected),
       });
       signUp.mockResolvedValue({
@@ -181,10 +188,10 @@ describe('AuthService', () => {
 
     it('happy path: consumes invite, mints session with role, returns summary', async () => {
       const repo = makeRepo({
-        getInviteEmail: vi.fn().mockResolvedValue('invitee@example.com'),
-        runInTransaction: vi
+        getInviteEmail: vi.fn().mockResolvedValue(VALID_INVITE_BOOTSTRAP),
+        runInTransactionWithWorkspace: vi
           .fn()
-          .mockImplementation(async (work: (tx: unknown) => unknown) => work({})),
+          .mockImplementation(async (_wsId: string, work: (tx: unknown) => unknown) => work({})),
         consumeInviteAndCreateUser: vi.fn().mockResolvedValue({
           id: 'app-user-1',
           supertokensUserId: 'st-user-1',
@@ -213,6 +220,51 @@ describe('AuthService', () => {
       });
       expect(createNewSession).toHaveBeenCalledOnce();
       expect(deleteUser).not.toHaveBeenCalled();
+      // Wave-17 DEV-1: transaction must run with the invite's workspaceId (server-derived).
+      const txCall = (
+        repo.runInTransactionWithWorkspace as ReturnType<typeof vi.fn>
+      ).mock.calls[0];
+      expect(txCall[0]).toBe(VALID_INVITE_BOOTSTRAP.workspaceId);
+    });
+
+    it('DEV-1: workspace placement — transaction uses server-derived workspaceId from invite (never client)', async () => {
+      // This test is the unit-level proof of the server-derived workspace placement
+      // invariant. The workspaceId passed to runInTransactionWithWorkspace MUST be
+      // the one returned by getInviteEmail (from resolve_invite SECURITY DEFINER),
+      // not anything the client supplied (the client only supplied the token).
+      const inviteWithWorkspace = {
+        email: 'invitee@example.com',
+        workspaceId: 'beef0000-0000-4000-8000-000000000099',
+      };
+      const runInTransactionWithWorkspace = vi
+        .fn()
+        .mockImplementation(async (_wsId: string, work: (tx: unknown) => unknown) => work({}));
+      const repo = makeRepo({
+        getInviteEmail: vi.fn().mockResolvedValue(inviteWithWorkspace),
+        runInTransactionWithWorkspace,
+        consumeInviteAndCreateUser: vi.fn().mockResolvedValue({
+          id: 'app-user-2',
+          supertokensUserId: 'st-user-2',
+          email: 'invitee@example.com',
+          roleId: 'role-1',
+          roleName: 'analyst',
+        }),
+      });
+      signUp.mockResolvedValue({
+        status: 'OK',
+        recipeUserId: { getAsString: () => 'st-user-2' },
+      });
+      createNewSession.mockResolvedValue({});
+      const service = new AuthService(repo);
+
+      await service.signup({ inviteToken: 'ok', password: 'password123' }, fakeReq, fakeRes);
+
+      // The workspace passed to the transaction is exactly what the server resolved
+      // from the invite row — not client-controlled.
+      expect(runInTransactionWithWorkspace).toHaveBeenCalledOnce();
+      expect(runInTransactionWithWorkspace.mock.calls[0][0]).toBe(
+        inviteWithWorkspace.workspaceId
+      );
     });
   });
 

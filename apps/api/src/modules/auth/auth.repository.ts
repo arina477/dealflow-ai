@@ -9,12 +9,20 @@
  * two-system write (Core signUp + these app-DB writes) is orchestrated in the
  * service; the repository exposes a transaction-scoped consume+create pair so
  * the service can run them atomically.
+ *
+ * Wave-17 DEV-1 fix: pre-auth invite bootstrap uses the SECURITY DEFINER
+ * function resolve_invite(token_hash) to bypass FORCE RLS on the invites table.
+ * consumeInviteAndCreateUser runs in runInTransactionWithWorkspace so the
+ * transaction connection has the correct GUC set.
  */
 
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { pool } from '../../db/index';
+import * as schema from '../../db/schema';
 import { getDb, getWorkspaceId } from '../../db/workspace-context';
 import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { invites, roles, users } from '../../db/schema/users-roles';
@@ -34,6 +42,12 @@ export interface CreatedUser {
   email: string;
   roleId: string;
   roleName: string;
+}
+
+/** Resolved invite bootstrap data returned by getInviteEmail (DEV-1 fix). */
+export interface InviteBootstrap {
+  email: string;
+  workspaceId: string;
 }
 
 /** Transaction handle type accepted by the atomic consume+create path. */
@@ -94,31 +108,34 @@ export class AuthRepository {
   }
 
   /**
-   * Pre-check: email attached to a present, unexpired, unconsumed invite for
-   * this token hash; null otherwise. Used BEFORE creating the Core user so the
-   * invite-only invariant holds (invalid invite → no Core user created) AND to
-   * supply the email for EmailPassword.signUp. This unlocked read is NOT a
-   * substitute for the locked re-check in consumeInviteAndCreateUser — it only
-   * rejects the obviously-invalid case early.
+   * Pre-check: email + workspace_id attached to a present, unexpired, unconsumed
+   * invite for this token hash; null otherwise.
+   *
+   * Wave-17 DEV-1 fix: invites has FORCE RLS. This method runs during pre-auth
+   * signup (no session → no GUC set). Instead of a Drizzle query through the
+   * RLS-gated path (which returns 0 rows when the GUC is unset), we call the
+   * SECURITY DEFINER function resolve_invite(token_hash) via raw SQL on the pool
+   * singleton. The function runs as its DEFINER (table owner) → bypasses RLS →
+   * returns the invite row regardless of the GUC state.
+   *
+   * The token_hash is the capability (unguessable SHA-256 of the plaintext token).
+   * A caller cannot enumerate other invites — the function filters to the single
+   * row matching the hash AND unconsumed AND unexpired.
+   *
+   * Returns { email, workspaceId } so the service can:
+   *   (a) pass email to EmailPassword.signUp
+   *   (b) pass workspaceId to runInTransactionWithWorkspace so the consume
+   *       transaction has the correct GUC set (required for FORCE RLS on both
+   *       invites UPDATE and users INSERT).
    */
-  async getInviteEmail(tokenHash: string): Promise<string | null> {
-    // NOTE (wave-17 deviation): invites has FORCE RLS. This method runs during
-    // pre-auth signup (no session → no GUC set). The getDb(this.db) call uses
-    // the singleton (no ALS store) → RLS denies → 0 rows → signup broken.
-    // The fix requires a resolve_invite_workspace SECURITY DEFINER fn (out of B-2 scope).
-    // Tracked as deviation in B-2-backend.md. For now, wire consistently.
-    const rows = await getDb(this.db)
-      .select({ email: invites.email })
-      .from(invites)
-      .where(
-        and(
-          eq(invites.token, tokenHash),
-          isNull(invites.consumedAt),
-          gt(invites.expiry, sql`now()`)
-        )
-      )
-      .limit(1);
-    return rows[0]?.email ?? null;
+  async getInviteEmail(tokenHash: string): Promise<InviteBootstrap | null> {
+    const result = await pool.query<{ email: string; workspace_id: string }>(
+      'SELECT email, workspace_id FROM resolve_invite($1)',
+      [tokenHash]
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return { email: row.email, workspaceId: row.workspace_id };
   }
 
   /**
@@ -188,6 +205,12 @@ export class AuthRepository {
    *
    * NOTE: the caller must NOT have created the SuperTokens user before invite
    * validation succeeds here; ordering is enforced in the service.
+   *
+   * Wave-17 DEV-1 fix: this method is called via runInTransactionWithWorkspace
+   * so the transaction connection has app.workspace_id set to the invite's
+   * workspace_id. Both the SELECT/UPDATE on invites and the INSERT on users
+   * are RLS-gated by FORCE RLS; the GUC must match workspace_id for them to
+   * see/write rows.
    */
   async consumeInviteAndCreateUser(
     tx: Tx,
@@ -262,6 +285,42 @@ export class AuthRepository {
       ...expectOne(inserted, 'user'),
       roleName: expectOne(roleRow, 'role').name,
     };
+  }
+
+  /**
+   * Run a transaction on a dedicated pool connection with app.workspace_id set
+   * to workspaceId for the duration of the transaction.
+   *
+   * Wave-17 DEV-1 fix: the pre-auth signup path has no ALS context (no request
+   * interceptor ran before signup). The invites UPDATE and users INSERT both
+   * require the GUC to be set (FORCE RLS). This method:
+   *   1. Checks out a dedicated pg PoolClient.
+   *   2. SETs app.workspace_id = workspaceId SESSION-LEVEL on that client.
+   *   3. Wraps the client in a Drizzle instance.
+   *   4. Runs the caller's transaction work.
+   *   5. RESETS app.workspace_id and releases the client in finally.
+   *
+   * The workspaceId is sourced from the invite row via resolve_invite() —
+   * server-derived, never client-supplied. Cross-workspace placement is
+   * structurally impossible: the invitee joins the INVITE'S workspace.
+   */
+  async runInTransactionWithWorkspace<T>(
+    workspaceId: string,
+    work: (tx: Tx) => Promise<T>
+  ): Promise<T> {
+    const client = await pool.connect();
+    const clientDb = drizzle(client, { schema }) as unknown as Database;
+    try {
+      await client.query('SET app.workspace_id = $1', [workspaceId]);
+      return await clientDb.transaction(work);
+    } finally {
+      // Surgical RESET — not DISCARD ALL (mirrors WorkspaceInterceptor CARRY [c]).
+      try {
+        await client.query('RESET app.workspace_id');
+      } finally {
+        client.release();
+      }
+    }
   }
 
   /** Expose the underlying db handle so the service can open a transaction. */
