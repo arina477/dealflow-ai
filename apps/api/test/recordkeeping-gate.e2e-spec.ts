@@ -80,6 +80,12 @@ const TEMPLATE_A_ID = '00000014-0004-4000-8000-000000000001';
 const TEMPLATE_B_ID = '00000014-0004-4000-8000-000000000002';
 const VERSION_A_ID = '00000014-0005-4000-8000-000000000001';
 const VERSION_B_ID = '00000014-0005-4000-8000-000000000002';
+// SHARED_VERSION_ID: a single outreach-template-version referenced by BOTH
+// mandate-A's and mandate-B's gate-evaluate audit rows — the isolation between
+// them is provided solely by the mandate_id column, not by resource_id.
+// This is the UUID the M1 regression-proof case (test I) uses.
+const SHARED_VERSION_ID = '00000014-0005-4000-8000-000000000003';
+const SHARED_TEMPLATE_ID = '00000014-0004-4000-8000-000000000003';
 
 const COMPANY_A_ID = '00000014-0005-4000-8000-000000000010';
 const BUYER_UNIVERSE_A_ID = '00000014-0005-4000-8000-000000000011';
@@ -428,6 +434,60 @@ describe.skipIf(shouldSkip)(
         },
         MANDATE_B_ID
       );
+
+      // ── Shared-version fixtures (M1 regression-proof case, test I) ──────────
+      //
+      // A THIRD outreach-template-version (SHARED_VERSION_ID) owned by SHARED_TEMPLATE_ID
+      // is gate-evaluated for BOTH mandate-A AND mandate-B.  Both audit rows carry
+      // resource_type='outreach-template-version' AND resource_id=SHARED_VERSION_ID —
+      // they are ONLY distinguishable by the mandate_id column.
+      //
+      // If the repository's gate-evaluate branch regressed from
+      //   mandate_id = mid::uuid
+      // to a resource_id-based lookup (e.g. a sub-SELECT on the template/version
+      // tables), BOTH rows would be captured by mandate-A's export (or neither),
+      // and test I's exclusion assertion would fail.
+      await db.execute(
+        sql`INSERT INTO outreach_templates (id, name, owner_id)
+            VALUES (${SHARED_TEMPLATE_ID}, ${'Shared Template (wave-14 M1)'}, ${COMPLIANCE_ID})
+            ON CONFLICT (id) DO NOTHING`
+      );
+      await db.execute(
+        sql`INSERT INTO outreach_template_versions
+            (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
+            VALUES (${SHARED_VERSION_ID}, ${SHARED_TEMPLATE_ID}, 1,
+                    ${'Shared Subject'}, ${'Shared Body.'}, ${DISCLAIMER_ID},
+                    ${'0'.repeat(64)}, 'approved')
+            ON CONFLICT (id) DO NOTHING`
+      );
+
+      // gate-evaluate for mandate-A referencing SHARED_VERSION_ID
+      await auditService.appendWithMandateStandalone(
+        {
+          actorUserId: COMPLIANCE_ID,
+          actorRole: 'compliance',
+          action: 'gate-evaluate',
+          resourceType: 'outreach-template-version',
+          resourceId: SHARED_VERSION_ID,
+          contentHash: '1'.repeat(64),
+          payloadHash: '1'.repeat(64),
+        },
+        MANDATE_A_ID
+      );
+
+      // gate-evaluate for mandate-B referencing the SAME SHARED_VERSION_ID
+      await auditService.appendWithMandateStandalone(
+        {
+          actorUserId: COMPLIANCE_ID,
+          actorRole: 'compliance',
+          action: 'gate-evaluate',
+          resourceType: 'outreach-template-version',
+          resourceId: SHARED_VERSION_ID,
+          contentHash: '2'.repeat(64),
+          payloadHash: '2'.repeat(64),
+        },
+        MANDATE_B_ID
+      );
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -576,6 +636,73 @@ describe.skipIf(shouldSkip)(
       expect(mandateAOutreach).toHaveLength(0);
 
       expect(pkg.verifyResult.ok).toBe(true);
+    }, 30_000);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test I — REGRESSION-PROOF: shared-version mandate_id-only isolation
+    //
+    // Both mandate-A and mandate-B have gate-evaluate rows whose resource_id is
+    // SHARED_VERSION_ID. The ONLY column that separates them is mandate_id.
+    //
+    // WHY THIS FAILS IF REGRESSED TO resource_id-KEYING:
+    //   If the repository's outreach-template-version branch changed to a
+    //   resource_id sub-SELECT (e.g. "resource_id IN (SELECT id FROM
+    //   outreach_template_versions WHERE ...)") rather than "mandate_id = mid",
+    //   BOTH rows share SHARED_VERSION_ID and mandate-A's export would include
+    //   the mandate-B row — making the exclusion assertion below fail.
+    //   Conversely, if the branch were simply removed, mandate-A's export would
+    //   include neither row and the inclusion assertion would fail.
+    //   Only the mandate_id column provides the correct per-mandate filter.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    it('I. shared-version isolation: mandate-A export includes gate-evaluate(mandate_id=A, resourceId=SHARED) and EXCLUDES gate-evaluate(mandate_id=B, resourceId=SHARED)', async () => {
+      if (!dbReachable) return;
+
+      const pkgA = await recordkeepingService.exportAsActor(
+        { mandateId: MANDATE_A_ID },
+        ST_COMPLIANCE_ID
+      );
+
+      // Inclusion: the row with mandate_id=A AND resource_id=SHARED_VERSION_ID
+      // must appear in mandate-A's export.
+      const sharedRowsInA = pkgA.entries.filter(
+        (e: { resourceType: string; resourceId: string }) =>
+          e.resourceType === 'outreach-template-version' && e.resourceId === SHARED_VERSION_ID
+      );
+      expect(sharedRowsInA.length).toBeGreaterThanOrEqual(1);
+
+      // Exclusion: mandate-B's gate-evaluate row (mandate_id=B, same resourceId)
+      // must NOT appear in mandate-A's export.
+      // We fetch mandate-B's export to confirm the mandate-B row does exist in
+      // the DB (guards against a missing-seed false-pass).
+      const pkgB = await recordkeepingService.exportAsActor(
+        { mandateId: MANDATE_B_ID },
+        ST_COMPLIANCE_ID
+      );
+      const sharedRowsInB = pkgB.entries.filter(
+        (e: { resourceType: string; resourceId: string }) =>
+          e.resourceType === 'outreach-template-version' && e.resourceId === SHARED_VERSION_ID
+      );
+      // The mandate-B row must exist in the DB (seeded); confirms we're testing
+      // genuine isolation, not a vacuous pass from a missing row.
+      expect(sharedRowsInB.length).toBeGreaterThanOrEqual(1);
+
+      // Core assertion: mandate-A's export must contain exactly the rows whose
+      // mandate_id=A. Since both rows share SHARED_VERSION_ID, the only thing
+      // that can produce a correct count is the mandate_id column filter — not
+      // resource_id keying.
+      //
+      // Concretely: sharedRowsInA contains the A-row; it must NOT also contain
+      // the B-row. Because entries lack a mandate_id field in the exported shape,
+      // we verify by asserting the total count from the A-export equals the count
+      // from the B-export (each mandate sees exactly one shared-version row, not
+      // two). If resource_id-keying were used, BOTH exports would capture both
+      // rows (count=2) — the assertion below would catch that regression.
+      expect(sharedRowsInA.length).toBe(sharedRowsInB.length);
+      // And neither export should contain 0 rows for this resource (both mandate
+      // rows are seeded), so the combined check is: each sees exactly 1.
+      expect(sharedRowsInA.length).toBe(1);
+      expect(sharedRowsInB.length).toBe(1);
     }, 30_000);
   }
 );
