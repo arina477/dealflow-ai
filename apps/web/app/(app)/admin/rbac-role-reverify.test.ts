@@ -39,6 +39,9 @@ const ADMIN_ROUTES = [
   '/admin/workspace-settings',
   '/admin/settings',
   '/admin/integrations',
+  // Wave-16: admin activity page + API endpoint (P-4 Finding 3)
+  '/admin/activity',
+  '/admin/activity-data',
 ];
 
 const NON_ADMIN_ROLE_ROUTES: Array<{ route: string; allowedRoles: Role[] }> = [
@@ -231,6 +234,110 @@ describe('RBAC role-reverify — changing role changes live access (wave-15, tas
     it('/admin/integrations/:id/toggle allows admin only', () => {
       expect(canAccess('admin', '/admin/integrations/some-uuid/toggle')).toBe(true);
       expect(canAccess('compliance', '/admin/integrations/some-uuid/toggle')).toBe(false);
+    });
+  });
+
+  // ── Wave-16: /admin/activity + reactivate RBAC coverage ──────────────────
+
+  describe('wave-16 admin-activity page + API (P-4 Finding 3)', () => {
+    it('/admin/activity allows admin', () => {
+      expect(canAccess('admin', '/admin/activity')).toBe(true);
+    });
+
+    it('/admin/activity denies advisor (403-class)', () => {
+      expect(canAccess('advisor', '/admin/activity')).toBe(false);
+    });
+
+    it('/admin/activity denies analyst', () => {
+      expect(canAccess('analyst', '/admin/activity')).toBe(false);
+    });
+
+    it('/admin/activity denies compliance', () => {
+      expect(canAccess('compliance', '/admin/activity')).toBe(false);
+    });
+
+    it('/admin/activity-data allows admin', () => {
+      expect(canAccess('admin', '/admin/activity-data')).toBe(true);
+    });
+
+    it('/admin/activity-data denies advisor (403-class)', () => {
+      expect(canAccess('advisor', '/admin/activity-data')).toBe(false);
+    });
+
+    it('/admin/activity-data denies analyst', () => {
+      expect(canAccess('analyst', '/admin/activity-data')).toBe(false);
+    });
+
+    it('/admin/activity-data denies compliance', () => {
+      expect(canAccess('compliance', '/admin/activity-data')).toBe(false);
+    });
+
+    it('advisor→admin promotion grants /admin/activity access', () => {
+      let role: Role = 'advisor';
+      expect(canAccess(role, '/admin/activity')).toBe(false);
+      role = 'admin';
+      expect(canAccess(role, '/admin/activity')).toBe(true);
+    });
+
+    it('admin→advisor demotion revokes /admin/activity access', () => {
+      let role: Role = 'admin';
+      expect(canAccess(role, '/admin/activity')).toBe(true);
+      role = 'advisor';
+      expect(canAccess(role, '/admin/activity')).toBe(false);
+    });
+  });
+
+  describe('wave-16 reactivate action RBAC (task 042cf4e6)', () => {
+    it('/admin/users/:id/reactivate allows admin', () => {
+      expect(canAccess('admin', '/admin/users/some-uuid/reactivate')).toBe(true);
+    });
+
+    it('/admin/users/:id/reactivate denies advisor', () => {
+      expect(canAccess('advisor', '/admin/users/some-uuid/reactivate')).toBe(false);
+    });
+
+    it('/admin/users/:id/reactivate denies analyst', () => {
+      expect(canAccess('analyst', '/admin/users/some-uuid/reactivate')).toBe(false);
+    });
+
+    it('/admin/users/:id/reactivate denies compliance', () => {
+      expect(canAccess('compliance', '/admin/users/some-uuid/reactivate')).toBe(false);
+    });
+
+    it('reactivate route mirrors deactivate RBAC (same access set)', () => {
+      for (const role of ALL_ROLES) {
+        expect(canAccess(role, '/admin/users/some-uuid/reactivate')).toBe(
+          canAccess(role, '/admin/users/some-uuid/deactivate')
+        );
+      }
+    });
+  });
+
+  describe('wave-16 admin nav item — /admin/activity in navItemsForRole', () => {
+    it('admin nav includes Activity', () => {
+      const navLabels = navItemsForRole('admin').map((i) => i.label);
+      expect(navLabels).toContain('Activity');
+    });
+
+    it('advisor nav does not include Activity', () => {
+      const navLabels = navItemsForRole('advisor').map((i) => i.label);
+      expect(navLabels).not.toContain('Activity');
+    });
+
+    it('analyst nav does not include Activity', () => {
+      const navLabels = navItemsForRole('analyst').map((i) => i.label);
+      expect(navLabels).not.toContain('Activity');
+    });
+
+    it('compliance nav does not include Activity', () => {
+      const navLabels = navItemsForRole('compliance').map((i) => i.label);
+      expect(navLabels).not.toContain('Activity');
+    });
+
+    it('/admin/activity nav item is RBAC-permitted for admin (nav⊆RBAC)', () => {
+      const activityItem = navItemsForRole('admin').find((i) => i.route === '/admin/activity');
+      expect(activityItem).toBeDefined();
+      expect(canAccess('admin', '/admin/activity')).toBe(true);
     });
   });
 });

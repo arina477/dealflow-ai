@@ -17,8 +17,8 @@
 
 'use client';
 
-import type { Role, UserAdminRecord } from '@dealflow/shared';
-import { roleEnum } from '@dealflow/shared';
+import type { AdminReactivateResponse, Role, UserAdminRecord } from '@dealflow/shared';
+import { adminReactivateResponseSchema, roleEnum } from '@dealflow/shared';
 import { useState } from 'react';
 import { apiFetch } from '../../../_lib/apiFetch';
 
@@ -218,6 +218,38 @@ export function AdminUsersClient({ initialUsers, currentUserId }: AdminUsersClie
       } else {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
         setActionError(body.message ?? 'Failed to deactivate user. Please try again.');
+      }
+    } catch {
+      setActionError('Network error. Please try again.');
+    } finally {
+      setActionUserId(null);
+    }
+  }
+
+  // ── Reactivate ────────────────────────────────────────────────────────────
+
+  async function handleReactivate(userId: string) {
+    setActionError(null);
+    setActionUserId(userId);
+    try {
+      const res = await apiFetch(`/admin/users-data/${userId}/reactivate`, {
+        method: 'POST',
+      });
+
+      if (res.ok) {
+        const raw: unknown = await res.json();
+        const parsed = adminReactivateResponseSchema.safeParse(raw);
+        if (parsed.success) {
+          const body: AdminReactivateResponse = parsed.data;
+          setUsers((prev) =>
+            prev.map((u) => (u.id === userId ? { ...u, deactivatedAt: body.deactivatedAt } : u))
+          );
+        }
+      } else if (res.status === 400) {
+        setActionError('User is already active.');
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        setActionError(body.message ?? 'Failed to reactivate user. Please try again.');
       }
     } catch {
       setActionError('Network error. Please try again.');
@@ -609,12 +641,35 @@ export function AdminUsersClient({ initialUsers, currentUserId }: AdminUsersClie
 
               {/* Actions */}
               <div>
-                {!user.deactivatedAt && (
+                {user.deactivatedAt ? (
+                  /* Reactivate — shown only for deactivated users */
+                  <button
+                    type="button"
+                    aria-label={`Reactivate ${user.email}`}
+                    disabled={actionUserId === user.id}
+                    onClick={() => void handleReactivate(user.id)}
+                    style={{
+                      height: '28px',
+                      padding: '0 12px',
+                      borderRadius: '5px',
+                      border: '1px solid #6ee7b7',
+                      backgroundColor: '#ffffff',
+                      color: '#047857',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: actionUserId === user.id ? 'not-allowed' : 'pointer',
+                      opacity: actionUserId === user.id ? 0.5 : 1,
+                    }}
+                  >
+                    Reactivate
+                  </button>
+                ) : (
+                  /* Deactivate — shown only for active users */
                   <button
                     type="button"
                     aria-label={`Deactivate ${user.email}`}
                     disabled={actionUserId === user.id || user.id === currentUserId}
-                    onClick={() => handleDeactivate(user.id)}
+                    onClick={() => void handleDeactivate(user.id)}
                     style={{
                       height: '28px',
                       padding: '0 12px',

@@ -417,6 +417,89 @@ describe('AdminUsersClient', () => {
     });
   });
 
+  // ── Reactivate (wave-16, task 042cf4e6) ─────────────────────────────────────
+
+  describe('reactivate', () => {
+    it('shows Reactivate button for deactivated users when inactive users are shown', async () => {
+      render(<AdminUsersClient initialUsers={ADMIN_USER_LIST.users} currentUserId={UUID_ADMIN} />);
+      // Reveal inactive users first
+      await user.click(screen.getByRole('button', { name: /show inactive/i }));
+      expect(
+        screen.getByRole('button', { name: /reactivate deactivated@firm\.com/i })
+      ).toBeDefined();
+    });
+
+    it('does not show Reactivate button for active users', async () => {
+      render(<AdminUsersClient initialUsers={ADMIN_USER_LIST.users} currentUserId={UUID_ADMIN} />);
+      // Active users get Deactivate, not Reactivate
+      expect(screen.queryByRole('button', { name: /reactivate advisor@firm\.com/i })).toBeNull();
+    });
+
+    it('calls POST /admin/users-data/:id/reactivate on reactivate click', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            id: UUID_DEACTIVATED,
+            email: 'deactivated@firm.com',
+            deactivatedAt: null,
+          }),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      render(<AdminUsersClient initialUsers={ADMIN_USER_LIST.users} currentUserId={UUID_ADMIN} />);
+      await user.click(screen.getByRole('button', { name: /show inactive/i }));
+
+      const reactivateBtn = screen.getByRole('button', {
+        name: /reactivate deactivated@firm\.com/i,
+      });
+      await user.click(reactivateBtn);
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining(`/admin/users-data/${UUID_DEACTIVATED}/reactivate`),
+          expect.objectContaining({ method: 'POST' })
+        );
+      });
+    });
+
+    it('shows error when reactivate returns 400 (already active)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 400,
+          json: () => Promise.resolve({ message: 'User is already active' }),
+        })
+      );
+
+      render(<AdminUsersClient initialUsers={ADMIN_USER_LIST.users} currentUserId={UUID_ADMIN} />);
+      await user.click(screen.getByRole('button', { name: /show inactive/i }));
+
+      await user.click(
+        screen.getByRole('button', { name: /reactivate deactivated@firm\.com/i })
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toBeDefined();
+        expect(screen.getByRole('alert').textContent).toMatch(/already active/i);
+      });
+    });
+  });
+
+  // ── Invite form is write-only (credential-form regression guard) ───────────
+
+  describe('invite form write-only — no credential pre-fill (wave-15 regression guard)', () => {
+    it('email input has no defaultValue or value pre-filled from a user record', async () => {
+      render(<AdminUsersClient initialUsers={ADMIN_USER_LIST.users} currentUserId={UUID_ADMIN} />);
+      await user.click(screen.getByRole('button', { name: /invite user/i }));
+      const emailInput = screen.getByLabelText(/email address/i) as HTMLInputElement;
+      // Must start empty — never pre-filled from existing user data
+      expect(emailInput.value).toBe('');
+    });
+  });
+
   // ── No send/AI ──────────────────────────────────────────────────────────────
 
   describe('no send/AI affordance', () => {
