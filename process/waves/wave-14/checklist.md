@@ -37,7 +37,7 @@ BUILD:
 - [x] B-6 — APPROVED (2-phase; hash-chain-safety+gate-regression clean; Ghost-Green journal + e2e-isolation-gap caught+fixed) Review
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
+- [x] C-1 PR, CI & merge — PASS (ff-push bfe686a..0488cd7; run 28784535052 all-green; recordkeeping-gate e2e REAL against migrated dealflow_test proves mandate_id isolation → DEV-2 lifted; 0 fix-forward cycles)
 - [ ] C-2 Deploy & verify (canary armed when real users > 1000)
 
 TEST:
