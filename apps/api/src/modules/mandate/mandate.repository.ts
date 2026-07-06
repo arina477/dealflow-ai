@@ -27,6 +27,8 @@ import {
 import { and, eq, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { workspaceSettings } from '../../db/schema/admin-settings';
 import { disclaimerTemplates } from '../../db/schema/compliance-rules';
 import { mandateBuyerCriteria, mandateComplianceProfile, mandates } from '../../db/schema/mandate';
@@ -76,7 +78,7 @@ export class MandateRepository {
   // ---------------------------------------------------------------------------
 
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
-    return this.db.transaction(work);
+    return getDb(this.db).transaction(work);
   }
 
   // ---------------------------------------------------------------------------
@@ -165,7 +167,7 @@ export class MandateRepository {
    * ORDER BY jurisdiction ASC for stable, alphabetical dropdown ordering.
    */
   async listAvailableJurisdictions(): Promise<Array<{ jurisdiction: string }>> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .selectDistinct({ jurisdiction: disclaimerTemplates.jurisdiction })
       .from(disclaimerTemplates)
       .where(eq(disclaimerTemplates.active, true))
@@ -206,6 +208,7 @@ export class MandateRepository {
           sellerSizeBand: input.sellerSizeBand ?? undefined,
           description: input.description ?? undefined,
           dealType: input.dealType ?? undefined,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
     } catch (err: unknown) {
@@ -228,7 +231,7 @@ export class MandateRepository {
    * Returns null if not found (service maps to 404).
    */
   async findMandateById(id: string): Promise<MandateRow | null> {
-    const rows = await this.db.select().from(mandates).where(eq(mandates.id, id)).limit(1);
+    const rows = await getDb(this.db).select().from(mandates).where(eq(mandates.id, id)).limit(1);
     return rows[0] ?? null;
   }
 
@@ -253,9 +256,9 @@ export class MandateRepository {
    */
   async listMandates(filter: MandateListFilter): Promise<MandateRow[]> {
     if (filter.status === 'all' || filter.status === undefined) {
-      return this.db.select().from(mandates).orderBy(sql`${mandates.createdAt} DESC`);
+      return getDb(this.db).select().from(mandates).orderBy(sql`${mandates.createdAt} DESC`);
     }
-    return this.db
+    return getDb(this.db)
       .select()
       .from(mandates)
       .where(eq(mandates.status, filter.status))
@@ -330,6 +333,7 @@ export class MandateRepository {
           geo: input.geo ?? undefined,
           sizeBand: input.sizeBand ?? undefined,
           dealType: input.dealType ?? undefined,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
     } catch (err: unknown) {
@@ -383,7 +387,7 @@ export class MandateRepository {
    * Returns null if no row exists. Uses the module-level DB connection (outside tx).
    */
   async findBuyerCriteriaByMandateId(mandateId: string): Promise<MandateBuyerCriteriaRow | null> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select()
       .from(mandateBuyerCriteria)
       .where(eq(mandateBuyerCriteria.mandateId, mandateId))
@@ -443,6 +447,7 @@ export class MandateRepository {
           lawfulAuthorization: input.lawfulAuthorization,
           aiResultsValidated: input.aiResultsValidated,
           conflictDbsReviewed: input.conflictDbsReviewed,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
     } catch (err: unknown) {
@@ -475,7 +480,7 @@ export class MandateRepository {
   async findComplianceProfileByMandateId(
     mandateId: string
   ): Promise<MandateComplianceProfileRow | null> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select()
       .from(mandateComplianceProfile)
       .where(eq(mandateComplianceProfile.mandateId, mandateId))

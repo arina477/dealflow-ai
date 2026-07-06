@@ -48,6 +48,8 @@ import type { AuditEntryInput, AuditLogEntry } from '@dealflow/shared';
 import { GENESIS_PREV_HASH } from '@dealflow/shared';
 import { Injectable } from '@nestjs/common';
 
+import { getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { computeEntryHash, type HashableEntryFields } from './audit.hash';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
 import { AuditKeyring } from './audit.keyring';
@@ -169,13 +171,17 @@ export class AuditService {
     const entryHash = computeEntryHash(hashable, prevHash, key);
 
     // (4) Insert with the forced sequence_number (OVERRIDING SYSTEM VALUE).
-    // mandateId goes into the DB column alongside the hashed fields but was
-    // never part of the preimage — hash integrity is preserved for all entries.
+    // mandateId and workspaceId go into the DB column alongside the hashed fields
+    // but were never part of the preimage — hash integrity is preserved for all entries.
+    // workspaceId is sourced from the ALS request context (getWorkspaceId) — NEVER
+    // from client input. Falls back to DEFAULT_WORKSPACE_ID for bootstrap/background paths
+    // where no ALS context is set (e.g. standalone appends in tests / startup audits).
     const stored = await this.repository.insertEntry(tx, {
       ...hashable,
       prevHash,
       entryHash,
       mandateId,
+      workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
     });
 
     // (5) Self-check tripwire: recompute the hash over the STORED row (whose

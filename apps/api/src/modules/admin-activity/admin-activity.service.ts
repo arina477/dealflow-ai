@@ -45,6 +45,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb } from '../../db/workspace-context';
 import { users } from '../../db/schema/users-roles';
 
 // biome-ignore lint/style/useImportType: value import required for emitDecoratorMetadata DI resolution
@@ -123,7 +124,7 @@ export class AdminActivityService {
     // Batch-resolve all user emails in a single query.
     const emailMap = new Map<string, string>();
     if (userIds.size > 0) {
-      const userRows = await this.db
+      const userRows = await getDb(this.db)
         .select({ id: users.id, email: users.email })
         .from(users)
         .where(inArray(users.id, [...userIds]));

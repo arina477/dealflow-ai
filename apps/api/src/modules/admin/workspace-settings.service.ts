@@ -31,6 +31,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { workspaceSettings } from '../../db/schema/admin-settings';
 import type { Tx } from '../audit/audit.repository';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
@@ -85,7 +87,7 @@ export class WorkspaceSettingsService {
    * Reads are not audited.
    */
   async getSettings(): Promise<WorkspaceSettings | null> {
-    const rows = await this.db.select().from(workspaceSettings).limit(1);
+    const rows = await getDb(this.db).select().from(workspaceSettings).limit(1);
     return rows[0] ? toSettings(rows[0]) : null;
   }
 
@@ -98,7 +100,7 @@ export class WorkspaceSettingsService {
     actorUserId: string,
     actorRole: string
   ): Promise<WorkspaceSettings> {
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       // Serialize concurrent first-PUT races: two simultaneous requests that each
       // see no row would both proceed to INSERT, producing two workspace_settings
       // rows (nondeterministic firm-defaults cascade). The advisory lock ensures
@@ -126,6 +128,7 @@ export class WorkspaceSettingsService {
             defaultDisclaimerTemplateId: input.defaultDisclaimerTemplateId ?? null,
             defaultSuppressionScope: input.defaultSuppressionScope ?? null,
             createdBy: actorUserId,
+            workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
           })
           .returning();
 

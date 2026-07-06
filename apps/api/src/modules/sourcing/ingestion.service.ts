@@ -39,6 +39,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { dataSourceConnections, rawCompanies } from '../../db/schema/sourcing';
 import type { AdapterRegistry } from './adapters/adapter.registry';
 import { ADAPTER_REGISTRY } from './adapters/adapter.registry';
@@ -73,7 +75,7 @@ export class IngestionService {
    */
   async sync(connectionId: string): Promise<SyncSummary> {
     // 1. Load connection
-    const connectionRows = await this.db
+    const connectionRows = await getDb(this.db)
       .select()
       .from(dataSourceConnections)
       .where(eq(dataSourceConnections.id, connectionId))
@@ -132,7 +134,7 @@ export class IngestionService {
       // Approach: insert with conflict update; count via a pre-check (less
       // complex than parsing xmax in Drizzle). We do a simple EXISTS check
       // before the upsert to determine if this is new or existing.
-      const existingRows = await this.db
+      const existingRows = await getDb(this.db)
         .select({ id: rawCompanies.id })
         .from(rawCompanies)
         .where(
@@ -150,7 +152,7 @@ export class IngestionService {
       // More direct: use the upsert result to determine new vs update
       // by checking xmax. We use a simpler strategy: count before/after.
       // For correctness and simplicity, use a per-record existence check.
-      const existingRecord = await this.db
+      const existingRecord = await getDb(this.db)
         .select({ id: rawCompanies.id })
         .from(rawCompanies)
         .where(
@@ -160,7 +162,7 @@ export class IngestionService {
 
       const isNew = existingRecord.length === 0;
 
-      await this.db
+      await getDb(this.db)
         .insert(rawCompanies)
         .values({
           connectionId,
@@ -169,6 +171,7 @@ export class IngestionService {
           domain: record.domain ?? null,
           normalizedDomain: normalizedDomainValue,
           raw: rawPayload,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .onConflictDoUpdate({
           target: [rawCompanies.connectionId, rawCompanies.sourceRecordId],
@@ -190,7 +193,7 @@ export class IngestionService {
 
     // 5. Run dedupe promotion in a separate transaction (canonical writes)
     // The engine promotes all unpromoted raw rows for this connection.
-    await this.db.transaction(async (tx) => {
+    await getDb(this.db).transaction(async (tx) => {
       await this.dedupeEngine.promoteStaging(tx, connectionId);
     });
 

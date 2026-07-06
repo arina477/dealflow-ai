@@ -135,6 +135,8 @@ import { and, eq, isNotNull, sql } from 'drizzle-orm';
 // Re-export Tx type (sourcing module re-uses the same Drizzle tx type)
 // ---------------------------------------------------------------------------
 import type { Database } from '../../db/db.provider';
+import { getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import {
   companies,
   companyProvenance,
@@ -597,6 +599,7 @@ export class DedupeEngine {
         rawCompanyId: raw.id,
         connectionId: raw.connectionId,
         contributedFields: Object.keys(contributed).length > 0 ? contributed : null,
+        workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
       })
       .onConflictDoNothing();
 
@@ -630,6 +633,7 @@ export class DedupeEngine {
       normalizedName: normName,
       sector: null,
       status: 'active',
+      workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
     };
 
     let canonicalId: string;
@@ -680,6 +684,7 @@ export class DedupeEngine {
         normalizedDomain: normDomain !== null,
         normalizedName: normName !== null,
       },
+      workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
     });
 
     // Promote contacts
@@ -738,6 +743,7 @@ export class DedupeEngine {
               email: rc.email ?? null,
               normalizedEmail: normEmail,
               title: rc.title ?? null,
+              workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
             })
             .returning({ id: contacts.id });
           if (!inserted[0]) throw new Error('DedupeEngine: INSERT contacts returned no row');
@@ -753,6 +759,7 @@ export class DedupeEngine {
             email: rc.email ?? null,
             normalizedEmail: null,
             title: rc.title ?? null,
+            workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
           })
           .returning({ id: contacts.id });
         if (!inserted[0])
@@ -768,6 +775,7 @@ export class DedupeEngine {
           contactId,
           rawCompanyId: raw.id,
           connectionId: raw.connectionId,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .onConflictDoNothing();
     }
@@ -797,6 +805,7 @@ export class DedupeEngine {
         score,
         reason,
         status: 'pending',
+        workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
       })
       .onConflictDoNothing({
         target: [dedupeCandidates.rawCompanyId, dedupeCandidates.matchedCompanyId],

@@ -25,6 +25,8 @@ import { and, eq, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { complianceApprovals, disclaimerTemplates } from '../../db/schema/compliance-rules';
 import { outreach, outreachTemplates, outreachTemplateVersions } from '../../db/schema/outreach';
 
@@ -76,7 +78,7 @@ export class OutreachRepository {
   // ---------------------------------------------------------------------------
 
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
-    return this.db.transaction(work);
+    return getDb(this.db).transaction(work);
   }
 
   // ---------------------------------------------------------------------------
@@ -123,6 +125,7 @@ export class OutreachRepository {
           name: input.name,
           mandateScope: input.mandateScope ?? undefined,
           ownerId: input.ownerId,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
     } catch (err: unknown) {
@@ -145,7 +148,7 @@ export class OutreachRepository {
    * Returns null if not found. Uses module-level DB (outside tx).
    */
   async findTemplateById(id: string): Promise<OutreachTemplateRow | null> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select()
       .from(outreachTemplates)
       .where(eq(outreachTemplates.id, id))
@@ -170,7 +173,7 @@ export class OutreachRepository {
    * listTemplates — returns all outreach templates ordered by created_at DESC.
    */
   async listTemplates(): Promise<OutreachTemplateRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(outreachTemplates)
       .orderBy(sql`${outreachTemplates.createdAt} DESC`);
@@ -191,7 +194,7 @@ export class OutreachRepository {
   async listTemplatesWithVersions(): Promise<
     Array<OutreachTemplateRow & { versions: OutreachTemplateVersionRow[] }>
   > {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select({
         // Template columns
         templateId: outreachTemplates.id,
@@ -212,6 +215,9 @@ export class OutreachRepository {
         versionApprovedContentHash: outreachTemplateVersions.approvedContentHash,
         versionApprovedBy: outreachTemplateVersions.approvedBy,
         versionCreatedAt: outreachTemplateVersions.createdAt,
+        // wave-17 workspace_id columns (hash-excluded from audit, tenant boundary)
+        templateWorkspaceId: outreachTemplates.workspaceId,
+        versionWorkspaceId: outreachTemplateVersions.workspaceId,
       })
       .from(outreachTemplates)
       .leftJoin(
@@ -238,6 +244,7 @@ export class OutreachRepository {
           ownerId: row.templateOwnerId,
           createdAt: row.templateCreatedAt,
           updatedAt: row.templateUpdatedAt,
+          workspaceId: row.templateWorkspaceId,
           versions: [],
         });
       }
@@ -260,6 +267,8 @@ export class OutreachRepository {
           approvedContentHash: row.versionApprovedContentHash,
           approvedBy: row.versionApprovedBy,
           createdAt: row.versionCreatedAt ?? '',
+          // biome-ignore lint/style/noNonNullAssertion: versionId !== null implies workspaceId non-null
+          workspaceId: row.versionWorkspaceId!,
         });
       }
     }
@@ -297,6 +306,7 @@ export class OutreachRepository {
       approverUserId: input.approverUserId,
       approverRole: input.approverRole,
       status: 'approved',
+      workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
     });
   }
 
@@ -369,6 +379,7 @@ export class OutreachRepository {
           disclaimerTemplateId: input.disclaimerTemplateId,
           contentHash: input.contentHash,
           // approvalStatus defaults to 'pending'; approvedContentHash and approvedBy stay NULL.
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
     } catch (err: unknown) {
@@ -399,7 +410,7 @@ export class OutreachRepository {
    * Returns null if not found. Uses module-level DB (outside tx).
    */
   async findVersionById(id: string): Promise<OutreachTemplateVersionRow | null> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select()
       .from(outreachTemplateVersions)
       .where(eq(outreachTemplateVersions.id, id))
@@ -425,7 +436,7 @@ export class OutreachRepository {
    * version_number DESC (newest first).
    */
   async listVersionsByTemplateId(templateId: string): Promise<OutreachTemplateVersionRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(outreachTemplateVersions)
       .where(eq(outreachTemplateVersions.templateId, templateId))
@@ -518,6 +529,7 @@ export class OutreachRepository {
           gateVerdict: input.gateVerdict,
           status: input.status,
           createdBy: input.createdBy,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
     } catch (err: unknown) {
@@ -542,7 +554,7 @@ export class OutreachRepository {
    * Returns null if not found. Uses module-level DB (outside tx).
    */
   async findOutreachById(id: string): Promise<OutreachRow | null> {
-    const rows = await this.db.select().from(outreach).where(eq(outreach.id, id)).limit(1);
+    const rows = await getDb(this.db).select().from(outreach).where(eq(outreach.id, id)).limit(1);
     return rows[0] ?? null;
   }
 
@@ -552,13 +564,13 @@ export class OutreachRepository {
    */
   async listOutreach(filter?: { mandateId?: string }): Promise<OutreachRow[]> {
     if (filter?.mandateId) {
-      return this.db
+      return getDb(this.db)
         .select()
         .from(outreach)
         .where(eq(outreach.mandateId, filter.mandateId))
         .orderBy(sql`${outreach.createdAt} DESC`);
     }
-    return this.db.select().from(outreach).orderBy(sql`${outreach.createdAt} DESC`);
+    return getDb(this.db).select().from(outreach).orderBy(sql`${outreach.createdAt} DESC`);
   }
 
   // ---------------------------------------------------------------------------
@@ -571,7 +583,7 @@ export class OutreachRepository {
    * Used by the compliance queue view.
    */
   async listPendingVersions(): Promise<OutreachTemplateVersionRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(outreachTemplateVersions)
       .where(and(eq(outreachTemplateVersions.approvalStatus, 'pending')))

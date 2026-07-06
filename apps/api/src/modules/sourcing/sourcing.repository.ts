@@ -20,6 +20,8 @@ import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { and, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import {
   companies,
   companyProvenance,
@@ -48,7 +50,7 @@ export class SourcingRepository {
   // ---------------------------------------------------------------------------
 
   async findConnectionById(id: string): Promise<ConnectionRow | null> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select()
       .from(dataSourceConnections)
       .where(eq(dataSourceConnections.id, id))
@@ -84,6 +86,7 @@ export class SourcingRepository {
           displayName: input.displayName,
           config: input.config,
           createdBy: input.createdBy,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
     } catch (err: unknown) {
@@ -126,14 +129,14 @@ export class SourcingRepository {
    * facet; count derived from company_provenance.
    */
   async listConnections(): Promise<Array<ConnectionRow & { companyCount: number }>> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select()
       .from(dataSourceConnections)
       .orderBy(dataSourceConnections.createdAt);
 
     const result = await Promise.all(
       rows.map(async (conn) => {
-        const countRows = await this.db
+        const countRows = await getDb(this.db)
           .select({
             count: sql<number>`cast(count(distinct ${companyProvenance.companyId}) as int)`,
           })
@@ -210,7 +213,7 @@ export class SourcingRepository {
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    const companyRows = await this.db.select().from(companies).where(whereClause);
+    const companyRows = await getDb(this.db).select().from(companies).where(whereClause);
 
     // Augment with contact count, source count, and connectionIds
     const result = await Promise.all(
@@ -251,16 +254,16 @@ export class SourcingRepository {
   // ---------------------------------------------------------------------------
 
   async findCompanyById(id: string): Promise<CompanyRow | null> {
-    const rows = await this.db.select().from(companies).where(eq(companies.id, id)).limit(1);
+    const rows = await getDb(this.db).select().from(companies).where(eq(companies.id, id)).limit(1);
     return rows[0] ?? null;
   }
 
   async findContactsByCompanyId(companyId: string): Promise<ContactRow[]> {
-    return this.db.select().from(contacts).where(eq(contacts.companyId, companyId));
+    return getDb(this.db).select().from(contacts).where(eq(contacts.companyId, companyId));
   }
 
   async findProvenanceByCompanyId(companyId: string): Promise<CompanyProvenanceRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(companyProvenance)
       .where(eq(companyProvenance.companyId, companyId));
@@ -269,7 +272,7 @@ export class SourcingRepository {
   async findPendingCandidatesByMatchedCompany(
     matchedCompanyId: string
   ): Promise<DedupeCandidateRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(dedupeCandidates)
       .where(
@@ -285,7 +288,7 @@ export class SourcingRepository {
   // ---------------------------------------------------------------------------
 
   async findDedupeCandidateById(id: string): Promise<DedupeCandidateRow | null> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select()
       .from(dedupeCandidates)
       .where(eq(dedupeCandidates.id, id))
@@ -294,7 +297,7 @@ export class SourcingRepository {
   }
 
   async findRawCompanyById(id: string): Promise<typeof rawCompanies.$inferSelect | null> {
-    const rows = await this.db.select().from(rawCompanies).where(eq(rawCompanies.id, id)).limit(1);
+    const rows = await getDb(this.db).select().from(rawCompanies).where(eq(rawCompanies.id, id)).limit(1);
     return rows[0] ?? null;
   }
 
@@ -448,6 +451,6 @@ export class SourcingRepository {
 
   /** Expose the db handle for opening transactions in SourcingService. */
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
-    return this.db.transaction(work);
+    return getDb(this.db).transaction(work);
   }
 }

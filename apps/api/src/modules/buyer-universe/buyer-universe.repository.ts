@@ -22,6 +22,8 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { buyerUniverse, buyerUniverseCandidates } from '../../db/schema/buyer-universe';
 import { mandateBuyerCriteria, mandates } from '../../db/schema/mandate';
 import { companies, contacts } from '../../db/schema/sourcing';
@@ -73,7 +75,7 @@ export class BuyerUniverseRepository {
   // ---------------------------------------------------------------------------
 
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
-    return this.db.transaction(work);
+    return getDb(this.db).transaction(work);
   }
 
   // ---------------------------------------------------------------------------
@@ -85,7 +87,7 @@ export class BuyerUniverseRepository {
    * Returns null if not found.
    */
   async findMandateById(id: string): Promise<MandateRow | null> {
-    const rows = await this.db.select().from(mandates).where(eq(mandates.id, id)).limit(1);
+    const rows = await getDb(this.db).select().from(mandates).where(eq(mandates.id, id)).limit(1);
     return rows[0] ?? null;
   }
 
@@ -102,7 +104,7 @@ export class BuyerUniverseRepository {
    * Returns null if no row exists.
    */
   async findBuyerCriteriaByMandateId(mandateId: string): Promise<MandateBuyerCriteriaRow | null> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select()
       .from(mandateBuyerCriteria)
       .where(eq(mandateBuyerCriteria.mandateId, mandateId))
@@ -135,7 +137,7 @@ export class BuyerUniverseRepository {
    * This repository NEVER writes to the companies table.
    */
   async listActiveCompanies(): Promise<CompanyRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(companies)
       .where(eq(companies.status, 'active'))
@@ -166,7 +168,7 @@ export class BuyerUniverseRepository {
    */
   async findContactsByCompanyIds(companyIds: string[]): Promise<ContactRow[]> {
     if (companyIds.length === 0) return [];
-    return this.db.select().from(contacts).where(inArray(contacts.companyId, companyIds));
+    return getDb(this.db).select().from(contacts).where(inArray(contacts.companyId, companyIds));
   }
 
   /**
@@ -217,6 +219,7 @@ export class BuyerUniverseRepository {
         .values({
           mandateId: input.mandateId,
           createdBy: input.createdBy,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .onConflictDoUpdate({
           target: buyerUniverse.mandateId,
@@ -274,7 +277,7 @@ export class BuyerUniverseRepository {
    * Returns null if not found (service maps to 404).
    */
   async findBuyerUniverseById(id: string): Promise<BuyerUniverseRow | null> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select()
       .from(buyerUniverse)
       .where(eq(buyerUniverse.id, id))
@@ -296,7 +299,7 @@ export class BuyerUniverseRepository {
    * the method signature is kept as an array for API compatibility.
    */
   async listBuyerUniversesByMandateId(mandateId: string): Promise<BuyerUniverseRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(buyerUniverse)
       .where(eq(buyerUniverse.mandateId, mandateId))
@@ -355,6 +358,7 @@ export class BuyerUniverseRepository {
             buyerUniverseId: c.buyerUniverseId,
             companyId: c.companyId,
             provenance: c.provenance,
+            workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
           }))
         )
         .onConflictDoNothing()
@@ -394,7 +398,7 @@ export class BuyerUniverseRepository {
    * listCandidatesByUniverseId — returns all candidates for a universe.
    */
   async listCandidatesByUniverseId(universeId: string): Promise<BuyerUniverseCandidateRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(buyerUniverseCandidates)
       .where(eq(buyerUniverseCandidates.buyerUniverseId, universeId))
@@ -422,7 +426,7 @@ export class BuyerUniverseRepository {
   async listIncludedCandidatesByUniverseId(
     universeId: string
   ): Promise<BuyerUniverseCandidateRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(buyerUniverseCandidates)
       .where(
@@ -580,7 +584,7 @@ export class BuyerUniverseRepository {
    * Returns null if not found.
    */
   async findCandidateById(id: string): Promise<BuyerUniverseCandidateRow | null> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select()
       .from(buyerUniverseCandidates)
       .where(eq(buyerUniverseCandidates.id, id))
@@ -593,7 +597,7 @@ export class BuyerUniverseRepository {
    * @deprecated Use countIncludedCandidatesByUniverseId for submit guard (CRITICAL-4).
    */
   async countCandidatesByUniverseId(universeId: string): Promise<number> {
-    const result = await this.db
+    const result = await getDb(this.db)
       .select({ count: sql<number>`COUNT(*)::int` })
       .from(buyerUniverseCandidates)
       .where(eq(buyerUniverseCandidates.buyerUniverseId, universeId));
@@ -606,7 +610,7 @@ export class BuyerUniverseRepository {
    * all-excluded universes (0 included, totalCount>0, status='filtered').
    */
   async countIncludedCandidatesByUniverseId(universeId: string): Promise<number> {
-    const result = await this.db
+    const result = await getDb(this.db)
       .select({ count: sql<number>`COUNT(*)::int` })
       .from(buyerUniverseCandidates)
       .where(
@@ -625,7 +629,7 @@ export class BuyerUniverseRepository {
    * after filter — must re-filter before submit).
    */
   async countUntriagedCandidatesByUniverseId(universeId: string): Promise<number> {
-    const result = await this.db
+    const result = await getDb(this.db)
       .select({ count: sql<number>`COUNT(*)::int` })
       .from(buyerUniverseCandidates)
       .where(

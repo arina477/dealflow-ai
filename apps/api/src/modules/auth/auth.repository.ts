@@ -15,6 +15,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { invites, roles, users } from '../../db/schema/users-roles';
 
 export interface InviteRow {
@@ -56,6 +58,7 @@ export class AuthRepository {
 
   /** Resolve the role id for a role name; null if the name is not in the table. */
   async findRoleIdByName(name: string): Promise<string | null> {
+    // roles is excluded from RLS (global RBAC lookup, no workspace_id column).
     const rows = await this.db
       .select({ id: roles.id })
       .from(roles)
@@ -75,7 +78,7 @@ export class AuthRepository {
     invitedBy: string | null;
     expiry: string;
   }): Promise<{ id: string }> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .insert(invites)
       .values({
         token: input.tokenHash,
@@ -83,6 +86,8 @@ export class AuthRepository {
         roleId: input.roleId,
         invitedBy: input.invitedBy,
         expiry: input.expiry,
+        // workspaceId sourced from ALS (authenticated admin creating the invite).
+        workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
       })
       .returning({ id: invites.id });
     return expectOne(rows, 'invite');
@@ -97,7 +102,12 @@ export class AuthRepository {
    * rejects the obviously-invalid case early.
    */
   async getInviteEmail(tokenHash: string): Promise<string | null> {
-    const rows = await this.db
+    // NOTE (wave-17 deviation): invites has FORCE RLS. This method runs during
+    // pre-auth signup (no session → no GUC set). The getDb(this.db) call uses
+    // the singleton (no ALS store) → RLS denies → 0 rows → signup broken.
+    // The fix requires a resolve_invite_workspace SECURITY DEFINER fn (out of B-2 scope).
+    // Tracked as deviation in B-2-backend.md. For now, wire consistently.
+    const rows = await getDb(this.db)
       .select({ email: invites.email })
       .from(invites)
       .where(
@@ -117,7 +127,7 @@ export class AuthRepository {
    * when no users row exists for the id (claim is then omitted).
    */
   async resolveRoleBySupertokensUserId(supertokensUserId: string): Promise<string | null> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select({ roleName: roles.name })
       .from(users)
       .innerJoin(roles, eq(users.roleId, roles.id))
@@ -130,7 +140,7 @@ export class AuthRepository {
   async findUserBySupertokensUserId(
     supertokensUserId: string
   ): Promise<{ email: string; roleName: string } | null> {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select({ email: users.email, roleName: roles.name })
       .from(users)
       .innerJoin(roles, eq(users.roleId, roles.id))
@@ -153,9 +163,9 @@ export class AuthRepository {
    */
   async getUserWithRole(
     supertokensUserId: string
-  ): Promise<{ id: string; roleName: string } | null> {
-    const rows = await this.db
-      .select({ id: users.id, roleName: roles.name })
+  ): Promise<{ id: string; roleName: string; workspaceId: string } | null> {
+    const rows = await getDb(this.db)
+      .select({ id: users.id, roleName: roles.name, workspaceId: users.workspaceId })
       .from(users)
       .innerJoin(roles, eq(users.roleId, roles.id))
       .where(eq(users.supertokensUserId, supertokensUserId))
@@ -193,6 +203,7 @@ export class AuthRepository {
         id: invites.id,
         email: invites.email,
         roleId: invites.roleId,
+        workspaceId: invites.workspaceId,
       })
       .from(invites)
       .where(
@@ -223,12 +234,14 @@ export class AuthRepository {
     }
 
     // Create the app-DB users row mapping supertokens_user_id 1:1.
+    // workspaceId is inherited from the invite row (set when the invite was created).
     const inserted = await tx
       .insert(users)
       .values({
         supertokensUserId: input.supertokensUserId,
         email: invite.email.toLowerCase(),
         roleId: invite.roleId,
+        workspaceId: invite.workspaceId,
       })
       .returning({
         id: users.id,
@@ -253,6 +266,6 @@ export class AuthRepository {
 
   /** Expose the underlying db handle so the service can open a transaction. */
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
-    return this.db.transaction(work);
+    return getDb(this.db).transaction(work);
   }
 }

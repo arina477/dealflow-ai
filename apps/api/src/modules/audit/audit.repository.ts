@@ -10,10 +10,11 @@
  */
 
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb } from '../../db/workspace-context';
 import { auditLogEntries } from '../../db/schema/audit-log';
 
 /** Drizzle transaction handle — same derivation as auth.repository.ts. */
@@ -55,6 +56,12 @@ export interface StoredAuditEntry {
    * before this wave. NEVER included in HashableEntryFields / canonicalSerialization.
    */
   mandateId: string | null;
+  /**
+   * Wave-17 (task 0db154ff) — tenant boundary, HASH-EXCLUDED.
+   * NEVER included in HashableEntryFields / canonicalSerialization.
+   * The WORM trigger is the sole backstop against cross-workspace re-attribution.
+   */
+  workspaceId: string;
 }
 
 /** Fields the service supplies to INSERT — sequence_number IS supplied here */
@@ -120,6 +127,9 @@ export class AuditRepository {
         // mandateId is hash-excluded — written to the DB column directly, never
         // fed into computeEntryHash. NULL for all non-gate-evaluate rows.
         mandateId: entry.mandateId,
+        // workspaceId is hash-excluded — mirrors the mandate_id exclusion pattern.
+        // The WORM trigger is the sole backstop against cross-workspace re-attribution.
+        workspaceId: entry.workspaceId,
       })
       .returning();
 
@@ -132,11 +142,42 @@ export class AuditRepository {
 
   /**
    * Read the WHOLE chain in sequence_number ASC order for verification.
-   * Read-only, runs on the shared pool (no tx). O(n) — acceptable for MVP
-   * volumes; a future paginated/streamed verify is a noted upgrade path.
+   *
+   * [P-4 F3] MUST use the SECURITY DEFINER function read_audit_chain_rls_exempt()
+   * rather than a direct Drizzle select. The audit HMAC chain is a SINGLE GLOBAL
+   * monotonic sequence across ALL workspaces; a GUC-scoped RLS read would return
+   * a non-contiguous subset → false sequence-gap → ok:false. The SECURITY DEFINER
+   * function bypasses RLS so the verifier always sees the full chain.
+   *
+   * The LIST/EXPORT projection (findAdminActivity, recordkeeping queries) remains
+   * RLS-scoped (workspace-filtered) — only this integrity WALK is RLS-exempt.
+   *
+   * Column aliases map the function's snake_case returns to StoredAuditEntry
+   * camelCase fields. sequence_number::int casts BIGINT to JS number (safe for
+   * MVP volumes; promote to Number() + BigInt if chain exceeds 2^31 entries).
+   * created_at::text returns the timestamptz as a pg text string, which
+   * canonicalSerialization() normalises before hashing (see audit.service.ts comment).
    */
   async readChainAscending(): Promise<StoredAuditEntry[]> {
-    return this.db.select().from(auditLogEntries).orderBy(asc(auditLogEntries.sequenceNumber));
+    const result = await getDb(this.db).execute<Record<string, unknown>>(sql`
+      SELECT
+        (sequence_number)::int    AS "sequenceNumber",
+        actor_user_id::text       AS "actorUserId",
+        actor_role                AS "actorRole",
+        action,
+        resource_type             AS "resourceType",
+        resource_id               AS "resourceId",
+        content_hash              AS "contentHash",
+        payload_hash              AS "payloadHash",
+        prev_hash                 AS "prevHash",
+        entry_hash                AS "entryHash",
+        chain_version             AS "chainVersion",
+        created_at::text          AS "createdAt",
+        mandate_id::text          AS "mandateId",
+        workspace_id::text        AS "workspaceId"
+      FROM read_audit_chain_rls_exempt(1, 9223372036854775807)
+    `);
+    return result.rows as unknown as StoredAuditEntry[];
   }
 
   /**
@@ -187,7 +228,7 @@ export class AuditRepository {
       conditions.push(lt(auditLogEntries.sequenceNumber, filter.cursor));
     }
 
-    return this.db
+    return getDb(this.db)
       .select()
       .from(auditLogEntries)
       .where(and(...conditions))
@@ -221,7 +262,7 @@ export class AuditRepository {
       conditions.push(lte(auditLogEntries.createdAt, filter.until));
     }
 
-    const result = await this.db
+    const result = await getDb(this.db)
       .select({ count: sql<number>`count(*)::int` })
       .from(auditLogEntries)
       .where(and(...conditions));
@@ -231,6 +272,6 @@ export class AuditRepository {
 
   /** Expose the db handle so the service can open a standalone tx (helper path). */
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
-    return this.db.transaction(work);
+    return getDb(this.db).transaction(work);
   }
 }

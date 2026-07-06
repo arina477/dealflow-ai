@@ -17,6 +17,8 @@ import { eq } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { suppressionList } from '../../db/schema/compliance-rules';
 import type { Tx } from '../audit/audit.repository';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
@@ -48,7 +50,7 @@ export class SuppressionService {
 
   /** GET /compliance/suppression — list all entries (no audit for reads). */
   async listEntries(): Promise<SuppressionEntry[]> {
-    const rows = await this.db.select().from(suppressionList);
+    const rows = await getDb(this.db).select().from(suppressionList);
     return rows.map(toEntry);
   }
 
@@ -58,7 +60,7 @@ export class SuppressionService {
     actorUserId: string,
     actorRole: string
   ): Promise<SuppressionEntry> {
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       // Normalize value to lower-case before persistence.
       const normalizedValue = input.value.toLowerCase();
 
@@ -69,6 +71,7 @@ export class SuppressionService {
           value: normalizedValue,
           reason: input.reason ?? null,
           createdBy: actorUserId,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
 
@@ -93,7 +96,7 @@ export class SuppressionService {
 
   /** DELETE /compliance/suppression/:id — hard delete, audit in-tx. */
   async deleteEntry(id: string, actorUserId: string, actorRole: string): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    await getDb(this.db).transaction(async (tx) => {
       const [existing] = await tx.select().from(suppressionList).where(eq(suppressionList.id, id));
 
       if (!existing) {

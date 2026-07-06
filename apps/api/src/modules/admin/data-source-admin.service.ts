@@ -57,6 +57,8 @@ import {
 import { eq } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { dataSourceConnections } from '../../db/schema/sourcing';
 import type { Tx } from '../audit/audit.repository';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
@@ -158,7 +160,7 @@ export class DataSourceAdminService {
    * Credential is never included in the response (hasCredential boolean only).
    */
   async listConnections(): Promise<DataSourceConnectionAdminRecord[]> {
-    const rows = await this.db.select().from(dataSourceConnections);
+    const rows = await getDb(this.db).select().from(dataSourceConnections);
     return rows.map(toAdminRecord);
   }
 
@@ -182,7 +184,7 @@ export class DataSourceAdminService {
 
     const plainCredential = input.credential;
 
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       let encryptedCredentials: string | null = null;
 
       if (plainCredential) {
@@ -205,6 +207,7 @@ export class DataSourceAdminService {
             enabled: true,
             encryptedCredentials,
             createdBy: actorUserId,
+            workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
           })
           .returning();
 
@@ -265,7 +268,7 @@ export class DataSourceAdminService {
 
     const plainCredential = input.credential;
 
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       const [existing] = await tx
         .select()
         .from(dataSourceConnections)
@@ -349,7 +352,7 @@ export class DataSourceAdminService {
     actorUserId: string,
     actorRole: string
   ): Promise<DataSourceConnectionAdminRecord> {
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       const [existing] = await tx
         .select()
         .from(dataSourceConnections)

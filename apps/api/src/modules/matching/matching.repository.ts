@@ -26,6 +26,8 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { buyerUniverse, buyerUniverseCandidates } from '../../db/schema/buyer-universe';
 import { mandateBuyerCriteria } from '../../db/schema/mandate';
 import { matchCandidates, matchRun } from '../../db/schema/matching';
@@ -79,7 +81,7 @@ export class MatchingRepository {
   // ---------------------------------------------------------------------------
 
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
-    return this.db.transaction(work);
+    return getDb(this.db).transaction(work);
   }
 
   // ---------------------------------------------------------------------------
@@ -229,6 +231,7 @@ export class MatchingRepository {
           mandateId: input.mandateId,
           buyerUniverseId: input.buyerUniverseId,
           createdBy: input.createdBy,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .onConflictDoUpdate({
           target: matchRun.buyerUniverseId,
@@ -244,6 +247,7 @@ export class MatchingRepository {
           readyForOutreach: matchRun.readyForOutreach,
           createdAt: matchRun.createdAt,
           updatedAt: matchRun.updatedAt,
+          workspaceId: matchRun.workspaceId,
           xmax: sql<string>`xmax::text`,
         });
     } catch (err: unknown) {
@@ -272,7 +276,7 @@ export class MatchingRepository {
    * Returns null if not found (service maps to 404).
    */
   async findMatchRunById(id: string): Promise<MatchRunRow | null> {
-    const rows = await this.db.select().from(matchRun).where(eq(matchRun.id, id)).limit(1);
+    const rows = await getDb(this.db).select().from(matchRun).where(eq(matchRun.id, id)).limit(1);
     return rows[0] ?? null;
   }
 
@@ -288,7 +292,7 @@ export class MatchingRepository {
    * listMatchRunsByMandateId — returns all match runs for a mandate.
    */
   async listMatchRunsByMandateId(mandateId: string): Promise<MatchRunRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(matchRun)
       .where(eq(matchRun.mandateId, mandateId))
@@ -406,6 +410,7 @@ export class MatchingRepository {
             buyerUniverseCandidateId: c.buyerUniverseCandidateId,
             fitScore: c.fitScore,
             scoreBreakdown: c.scoreBreakdown,
+            workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
             ...(c.disposition !== undefined ? { disposition: c.disposition } : {}),
           }))
         )
@@ -434,7 +439,7 @@ export class MatchingRepository {
    * Used by getRun / listByMandate to return the ranked list.
    */
   async listMatchCandidatesByRunId(runId: string): Promise<MatchCandidateRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(matchCandidates)
       .where(eq(matchCandidates.matchRunId, runId))
@@ -457,7 +462,7 @@ export class MatchingRepository {
    * Used by getShortlist.
    */
   async listAcceptedMatchCandidatesByRunId(runId: string): Promise<MatchCandidateRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(matchCandidates)
       .where(
@@ -471,7 +476,7 @@ export class MatchingRepository {
    * Used by handoffAsActor's ≥1-accepted guard (BUILD rule 6).
    */
   async countAcceptedCandidatesByRunId(runId: string): Promise<number> {
-    const result = await this.db
+    const result = await getDb(this.db)
       .select({ count: sql<number>`COUNT(*)::int` })
       .from(matchCandidates)
       .where(

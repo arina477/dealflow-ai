@@ -34,6 +34,8 @@ import { and, eq, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { matchCandidates, matchRun } from '../../db/schema/matching';
 import { outreach } from '../../db/schema/outreach';
 import { pipeline, pipelineEvents } from '../../db/schema/pipeline';
@@ -105,7 +107,7 @@ export class PipelineRepository {
   // ---------------------------------------------------------------------------
 
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
-    return this.db.transaction(work);
+    return getDb(this.db).transaction(work);
   }
 
   // ---------------------------------------------------------------------------
@@ -185,6 +187,7 @@ export class PipelineRepository {
           matchCandidateId: input.matchCandidateId ?? undefined,
           stage: 'shortlisted',
           createdBy: input.createdBy,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
     } catch (err: unknown) {
@@ -228,7 +231,7 @@ export class PipelineRepository {
    * Used for read endpoints that do not need transaction consistency.
    */
   async findPipelineById(id: string): Promise<PipelineRow | null> {
-    const rows = await this.db.select().from(pipeline).where(eq(pipeline.id, id)).limit(1);
+    const rows = await getDb(this.db).select().from(pipeline).where(eq(pipeline.id, id)).limit(1);
     return rows[0] ?? null;
   }
 
@@ -291,6 +294,7 @@ export class PipelineRepository {
           toStage: (input.toStage ?? null) as PipelineEventRow['toStage'],
           note: input.note ?? null,
           actorId: input.actorId,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
     } catch (err: unknown) {
@@ -319,7 +323,7 @@ export class PipelineRepository {
    * Used by GET /pipeline/:id/events.
    */
   async listEventsByPipelineId(pipelineId: string): Promise<PipelineEventRow[]> {
-    return this.db
+    return getDb(this.db)
       .select()
       .from(pipelineEvents)
       .where(eq(pipelineEvents.pipelineId, pipelineId))
@@ -337,12 +341,12 @@ export class PipelineRepository {
    */
   async listPipelineForBoard(filter?: { mandateId?: string }): Promise<PipelineRow[]> {
     if (filter?.mandateId) {
-      return this.db
+      return getDb(this.db)
         .select()
         .from(pipeline)
         .where(and(eq(pipeline.mandateId, filter.mandateId)))
         .orderBy(sql`${pipeline.createdAt} ASC`);
     }
-    return this.db.select().from(pipeline).orderBy(sql`${pipeline.createdAt} ASC`);
+    return getDb(this.db).select().from(pipeline).orderBy(sql`${pipeline.createdAt} ASC`);
   }
 }

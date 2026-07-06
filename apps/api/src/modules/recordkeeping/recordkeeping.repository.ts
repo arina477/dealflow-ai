@@ -61,6 +61,7 @@ import { and, asc, eq, gte, lte, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb } from '../../db/workspace-context';
 import { auditLogEntries } from '../../db/schema/audit-log';
 import type { StoredAuditEntry, Tx } from '../audit/audit.repository';
 
@@ -147,7 +148,7 @@ export class RecordkeepingRepository {
     // Build the base query with all conditions
     // Use raw sql for the complex mandate derivation fragment
     if (conditions.mandateFragment) {
-      return this.db
+      return getDb(this.db)
         .select()
         .from(auditLogEntries)
         .where(
@@ -159,7 +160,7 @@ export class RecordkeepingRepository {
     }
 
     if (conditions.simpleConditions.length > 0) {
-      return this.db
+      return getDb(this.db)
         .select()
         .from(auditLogEntries)
         .where(and(...conditions.simpleConditions))
@@ -168,7 +169,7 @@ export class RecordkeepingRepository {
         .offset(offset);
     }
 
-    return this.db
+    return getDb(this.db)
       .select()
       .from(auditLogEntries)
       .orderBy(sql`${auditLogEntries.sequenceNumber} DESC`)
@@ -213,7 +214,7 @@ export class RecordkeepingRepository {
 
   /** Expose runInTransaction for service-level tx composition. */
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
-    return this.db.transaction(work);
+    return getDb(this.db).transaction(work);
   }
 
   // ---------------------------------------------------------------------------

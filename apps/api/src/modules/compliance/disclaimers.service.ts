@@ -41,6 +41,8 @@ import { eq, max, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { disclaimerTemplates } from '../../db/schema/compliance-rules';
 import type { Tx } from '../audit/audit.repository';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
@@ -73,7 +75,7 @@ export class DisclaimersService {
 
   /** GET /compliance/disclaimers — list all disclaimer rows (all versions). */
   async listDisclaimers(): Promise<DisclaimerTemplate[]> {
-    const rows = await this.db.select().from(disclaimerTemplates);
+    const rows = await getDb(this.db).select().from(disclaimerTemplates);
     return rows.map(toTemplate);
   }
 
@@ -86,7 +88,7 @@ export class DisclaimersService {
     actorUserId: string,
     actorRole: string
   ): Promise<DisclaimerTemplate> {
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       // Serialize concurrent edits for the same jurisdiction via a per-jurisdiction
       // advisory lock. hashtext(jurisdiction) maps the text key to a stable int4
       // that is consistent within a single Postgres instance (same hash function
@@ -120,6 +122,7 @@ export class DisclaimersService {
           version: nextVersion,
           active: true,
           createdBy: actorUserId,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
 
@@ -159,7 +162,7 @@ export class DisclaimersService {
     actorUserId: string,
     actorRole: string
   ): Promise<DisclaimerTemplate> {
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       // Fetch the referenced row (any version — the PATCH target).
       // We read the existing row BEFORE acquiring the advisory lock so that a
       // NotFoundException on a non-existent id fails fast (no lock acquired for
@@ -207,6 +210,7 @@ export class DisclaimersService {
           version: nextVersion,
           active: true,
           createdBy: actorUserId,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
 

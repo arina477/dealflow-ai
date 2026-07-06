@@ -22,6 +22,8 @@ import { eq } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { complianceRules } from '../../db/schema/compliance-rules';
 import type { Tx } from '../audit/audit.repository';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
@@ -57,7 +59,7 @@ export class RulesService {
 
   /** GET /compliance/rules — list all rules (no audit for reads). */
   async listRules(): Promise<ComplianceRule[]> {
-    const rows = await this.db.select().from(complianceRules);
+    const rows = await getDb(this.db).select().from(complianceRules);
     return rows.map(toRule);
   }
 
@@ -67,7 +69,7 @@ export class RulesService {
     actorUserId: string,
     actorRole: string
   ): Promise<ComplianceRule> {
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       const [row] = await tx
         .insert(complianceRules)
         .values({
@@ -76,6 +78,7 @@ export class RulesService {
           config: input.config,
           enabled: input.enabled ?? true,
           createdBy: actorUserId,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning();
 
@@ -105,7 +108,7 @@ export class RulesService {
     actorUserId: string,
     actorRole: string
   ): Promise<ComplianceRule> {
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       // Verify the row exists first.
       const [existing] = await tx.select().from(complianceRules).where(eq(complianceRules.id, id));
 
@@ -146,7 +149,7 @@ export class RulesService {
 
   /** DELETE /compliance/rules/:id — hard delete, audit in-tx. */
   async deleteRule(id: string, actorUserId: string, actorRole: string): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    await getDb(this.db).transaction(async (tx) => {
       const [existing] = await tx.select().from(complianceRules).where(eq(complianceRules.id, id));
 
       if (!existing) {

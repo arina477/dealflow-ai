@@ -59,6 +59,8 @@ import {
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { invites, roles, users } from '../../db/schema/users-roles';
 import type { Tx } from '../audit/audit.repository';
 
@@ -107,7 +109,7 @@ export class UserManagementService {
       invitedBy: string | null;
     }>
   > {
-    const rows = await this.db
+    const rows = await getDb(this.db)
       .select({
         id: users.id,
         email: users.email,
@@ -155,7 +157,7 @@ export class UserManagementService {
     actorUserId: string,
     actorRole: string
   ): Promise<{ inviteId: string; email: string; role: Role; expiry: string }> {
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       const normalizedEmail = input.email.toLowerCase();
 
       // ── Step 1: per-email advisory lock (FIRST statement in tx) ──────────
@@ -218,6 +220,7 @@ export class UserManagementService {
           roleId: roleRow.id,
           invitedBy: actorUserId,
           expiry,
+          workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
         })
         .returning({ id: invites.id });
 
@@ -255,7 +258,7 @@ export class UserManagementService {
     actorUserId: string,
     actorRole: string
   ): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    await getDb(this.db).transaction(async (tx) => {
       // Step 1: Look up the target user.
       const [target] = await tx
         .select({
@@ -328,7 +331,7 @@ export class UserManagementService {
     actorUserId: string,
     actorRole: string
   ): Promise<{ id: string; deactivatedAt: string }> {
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       // Step 1: Look up the target user.
       const [target] = await tx
         .select({ id: users.id, roleId: users.roleId, deactivatedAt: users.deactivatedAt })
@@ -406,7 +409,7 @@ export class UserManagementService {
     actorUserId: string,
     actorRole: string
   ): Promise<{ id: string; email: string; deactivatedAt: null }> {
-    return this.db.transaction(async (tx) => {
+    return getDb(this.db).transaction(async (tx) => {
       // Step 1: Look up the target user (tx-scoped read — BUILD rule 7).
       const [target] = await tx
         .select({
