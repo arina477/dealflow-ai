@@ -63,6 +63,6 @@ LEARN:
 - [x] L-2 Distill
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M7 stays in_progress (open=6, F-1/F-3 real unbuilt scope; metric unmet; Hallucinated-Milestone-Completion avoided). No milestone transition. No decomposition (seed_candidates=1); N-2 re-homes V-2 follow-ups. No roadmap-planning (M8-M12 todo). No checkpoint.
+- [x] N-2 Seed — wave-16 bundle: seed 904a3c25 (firm-default cascade-wire into mandate-create) + siblings 6f1a96da (admin nav) / c54db02d (invite dedup 409) / 042cf4e6 (reactivate + V-1 prod cleanup) / 2560fecc (config-JSONB secret guard). Vertical slice (UI+API+DB), no ghost dep / no deadlock / additive-only. Re-homed 5 V-2 follow-ups (nulled wave_id, re-parented 4 under seed). Validated live.
+- [x] N-3 Handoff — wave-15 archived (single git mv); waves row 15 status='ok'; wave-16 pre-created; loop_state=ready (automatic continues to wave-16 P-0).
