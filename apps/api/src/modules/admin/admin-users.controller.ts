@@ -1,11 +1,13 @@
 /**
- * AdminUsersController (wave-15, task 82ec8724) — admin user management.
+ * AdminUsersController (wave-15 task 82ec8724; wave-16 task 042cf4e6)
+ * — admin user management.
  *
  * Routes:
  *   GET  /admin/users                   — list users (name/email/role/active)
  *   POST /admin/users/invite            — create invite record (no email send)
  *   PATCH /admin/users/:id/role         — change user role
  *   POST /admin/users/:id/deactivate    — soft-deactivate a user
+ *   POST /admin/users/:id/reactivate    — reverse deactivation (wave-16 042cf4e6)
  *
  * RBAC: admin-only (sourced from shared roleRoutes matrix).
  * Auth: SessionGuard + RolesGuard.
@@ -20,6 +22,7 @@ import {
   adminAssignRoleInputSchema,
   type adminDeactivateResponseSchema,
   adminInviteInputSchema,
+  type adminReactivateResponseSchema,
   rolesForRoute,
   type userAdminListResponseSchema,
 } from '@dealflow/shared';
@@ -143,5 +146,27 @@ export class AdminUsersController {
   ): Promise<ReturnType<typeof adminDeactivateResponseSchema.parse>> {
     const { userId, role } = await this.resolveActor(req);
     return this.userManagementService.deactivateAsActor(id, userId, role);
+  }
+
+  /**
+   * POST /admin/users/:id/reactivate — reverse a soft-deactivation.
+   *
+   * Responses:
+   *   200  — user is now active (deactivated_at = null)
+   *   400  — user is already active (deactivated_at was already null)
+   *   401  — anonymous caller
+   *   403  — advisor (admin-only guard)
+   *   404  — unknown user id
+   */
+  @Post('users/:id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SessionGuard, RolesGuard)
+  @Roles(...ADMIN_USERS_ROLES)
+  async reactivateUser(
+    @Param('id') id: string,
+    @Req() req: RequestWithSession
+  ): Promise<ReturnType<typeof adminReactivateResponseSchema.parse>> {
+    const { userId, role } = await this.resolveActor(req);
+    return this.userManagementService.reactivateAsActor(id, userId, role);
   }
 }
