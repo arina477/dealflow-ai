@@ -138,6 +138,7 @@ const seededPipelineIds: string[] = [];
 const seededOutreachIds: string[] = [];
 const seededBuyerUniverseIds: string[] = [];
 const seededBuyerUniverseCandidateIds: string[] = [];
+const seededCompanyIds: string[] = [];
 
 // ── Workspace helper (wave-17 pattern) ───────────────────────────────────────
 
@@ -290,11 +291,19 @@ async function seedOutreachWithStatus(
       seededBuyerUniverseIds.push(buyerUniverseId);
     }
 
-    // buyer_universe_candidates (FK: buyer_universe.id, workspaces.id)
+    // companies (required NOT NULL FK for buyer_universe_candidates.company_id)
+    const companyId = crypto.randomUUID();
+    await client.query(
+      `INSERT INTO companies (id, name, workspace_id) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+      [companyId, `ANA-test company ${companyId.slice(0, 8)}`, workspaceId]
+    );
+    seededCompanyIds.push(companyId);
+
+    // buyer_universe_candidates (FK: buyer_universe.id, companies.id, workspaces.id)
     await client.query(
       `INSERT INTO buyer_universe_candidates (id, buyer_universe_id, company_id, workspace_id, membership_status)
-       VALUES ($1, $2, NULL, $3, 'included')`,
-      [buyerUniverseCandidateId, actualBuyerUniverseId, workspaceId]
+       VALUES ($1, $2, $3, $4, 'included')`,
+      [buyerUniverseCandidateId, actualBuyerUniverseId, companyId, workspaceId]
     );
     seededBuyerUniverseCandidateIds.push(buyerUniverseCandidateId);
 
@@ -413,10 +422,18 @@ async function seedPipeline(
     );
     const actualBuId2 = buRes2.rows[0]?.id ?? buyerUniverseId2;
 
+    // companies (required NOT NULL FK for buyer_universe_candidates.company_id)
+    const companyId2 = crypto.randomUUID();
+    await client.query(
+      `INSERT INTO companies (id, name, workspace_id) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+      [companyId2, `ANA-test company ${companyId2.slice(0, 8)}`, workspaceId]
+    );
+    seededCompanyIds.push(companyId2);
+
     await client.query(
       `INSERT INTO buyer_universe_candidates (id, buyer_universe_id, company_id, workspace_id, membership_status)
-       VALUES ($1, $2, NULL, $3, 'included')`,
-      [buyerUniverseCandidateId2, actualBuId2, workspaceId]
+       VALUES ($1, $2, $3, $4, 'included')`,
+      [buyerUniverseCandidateId2, actualBuId2, companyId2, workspaceId]
     );
     seededBuyerUniverseCandidateIds.push(buyerUniverseCandidateId2);
 
@@ -596,6 +613,7 @@ describe.skipIf(shouldSkip)(
       await tryDeleteBothWs('match_candidates', seededMatchCandidateIds);
       await tryDeleteBothWs('match_run', seededMatchRunIds);
       await tryDeleteBothWs('buyer_universe_candidates', seededBuyerUniverseCandidateIds);
+      await tryDeleteBothWs('companies', seededCompanyIds);
       await tryDeleteBothWs('buyer_universe', seededBuyerUniverseIds);
       await tryDeleteBothWs('mandates', seededMandateIds);
       // Users: soft-delete flag already set (deactivated_at = now()) — no additional teardown.
