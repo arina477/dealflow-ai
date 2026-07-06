@@ -27,6 +27,7 @@ import {
 import { and, eq, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
+import { workspaceSettings } from '../../db/schema/admin-settings';
 import { disclaimerTemplates } from '../../db/schema/compliance-rules';
 import { mandateBuyerCriteria, mandateComplianceProfile, mandates } from '../../db/schema/mandate';
 
@@ -76,6 +77,25 @@ export class MandateRepository {
 
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
     return this.db.transaction(work);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Firm defaults lookup (compliance-default cascade — BUILD rule 7)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * findWorkspaceSettingsInTx — reads the single workspace_settings row inside
+   * the provided transaction snapshot (BUILD rule 7: tx-scoped read, not a
+   * module-level off-snapshot read). Returns null when no settings row exists.
+   *
+   * Called inside createAsActor's transaction so the cascade resolution is
+   * consistent with the other writes in the same atomic unit.
+   */
+  async findWorkspaceSettingsInTx(
+    tx: Tx
+  ): Promise<typeof workspaceSettings.$inferSelect | null> {
+    const rows = await tx.select().from(workspaceSettings).limit(1);
+    return rows[0] ?? null;
   }
 
   // ---------------------------------------------------------------------------

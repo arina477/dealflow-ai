@@ -19,10 +19,18 @@
  * + mandate_compliance_profile + audit entry all inside it. Any failure (including
  * audit fail) rolls back all three table writes.
  *
+ * ── Compliance-default cascade (wave-16, task 904a3c25) ────────────────────
+ * For each UNSET compliance field (jurisdiction, suppressionScope), the service
+ * reads the firm workspace_settings defaults TX-SCOPED (BUILD rule 7) at the
+ * START of the create transaction and fills the value if absent. An explicitly-
+ * provided value ALWAYS wins — firm defaults are never applied over user intent.
+ * Resolve-once-at-create: existing mandates are NEVER mutated when firm defaults
+ * change. The settings read uses the tx-scoped handle (not a module-level read).
+ *
  * ── Disclaimer derivation (D2) ─────────────────────────────────────────────
  * disclaimer_template_id is NEVER sourced from the request body. The service
- * looks up the active disclaimer template for input.compliance.jurisdiction
- * INSIDE the transaction. No match → BadRequestException(400).
+ * looks up the active disclaimer template for the resolved jurisdiction INSIDE
+ * the transaction. No match → BadRequestException(400).
  *
  * ── Acknowledgments (D5) ───────────────────────────────────────────────────
  * All 3 attestations (lawful_authorization, ai_results_validated,
@@ -76,11 +84,19 @@ export class MandateService {
    * Steps (all in ONE tx — 3-table atomicity):
    *   1. Translate ST id → app users.id (actor-id-FK lesson).
    *   2. Validate all 3 acknowledgments (defensive; schema enforces at parse time).
-   *   3. DERIVE disclaimer_template_id from input.compliance.jurisdiction (D2).
-   *   4. INSERT mandates (created_by = appUserId).
-   *   5. INSERT mandate_buyer_criteria.
-   *   6. INSERT mandate_compliance_profile (with derived disclaimerTemplateId + acks).
-   *   7. AUDIT mandate-create LAST-IN-TXN (rollback whole tx on audit fail).
+   *   3. READ firm workspace_settings TX-SCOPED (BUILD rule 7) for cascade defaults.
+   *   4. RESOLVE jurisdiction: user-provided || firm default || BadRequestException(400).
+   *   5. RESOLVE suppressionScope: user-provided || firm default || null.
+   *   6. DERIVE disclaimer_template_id from resolved jurisdiction (D2).
+   *   7. INSERT mandates (created_by = appUserId).
+   *   8. INSERT mandate_buyer_criteria.
+   *   9. INSERT mandate_compliance_profile (with derived disclaimerTemplateId + resolved fields).
+   *  10. AUDIT mandate-create LAST-IN-TXN (rollback whole tx on audit fail).
+   *
+   * Cascade invariant: explicit client-provided values ALWAYS win over firm defaults.
+   * Firm defaults fill ONLY fields the client left absent (undefined / not provided).
+   * Resolve-once-at-create: the resolved values are stamped into the compliance_profile
+   * row. Future changes to workspace_settings do NOT mutate existing mandates.
    *
    * @param input              — validated MandateCreateInput (body)
    * @param supertokensUserId  — raw SuperTokens user id from the session
@@ -112,19 +128,42 @@ export class MandateService {
     }
 
     return this.repository.runInTransaction(async (tx: Tx) => {
-      // 3. DERIVE disclaimer_template_id from jurisdiction (D2). No user-supplied FK.
+      // 3. READ firm workspace_settings TX-SCOPED (BUILD rule 7).
+      //    Must use the tx handle — not a module-level off-snapshot read.
+      //    This ensures the cascade resolution is consistent with the atomic unit.
+      const firmSettings = await this.repository.findWorkspaceSettingsInTx(tx);
+
+      // 4. RESOLVE jurisdiction: client-provided value always wins; firm default fills
+      //    only when absent (undefined). Throws 400 when neither is available.
+      const resolvedJurisdiction: string | null =
+        input.compliance.jurisdiction ?? firmSettings?.defaultJurisdiction ?? null;
+      if (!resolvedJurisdiction) {
+        throw new BadRequestException(
+          'jurisdiction is required: provide it in the request or configure a ' +
+            'defaultJurisdiction in workspace_settings.'
+        );
+      }
+
+      // 5. RESOLVE suppressionScope: client-provided value always wins; firm default
+      //    fills only when absent (undefined); falls back to null.
+      const resolvedSuppressionScope: unknown =
+        input.compliance.suppressionScope !== undefined
+          ? input.compliance.suppressionScope
+          : (firmSettings?.defaultSuppressionScope ?? null);
+
+      // 6. DERIVE disclaimer_template_id from resolved jurisdiction (D2). No user-supplied FK.
       const disclaimer = await this.repository.findActiveDisclaimerByJurisdiction(
         tx,
-        input.compliance.jurisdiction
+        resolvedJurisdiction
       );
       if (!disclaimer) {
         throw new BadRequestException(
-          `No active disclaimer template found for jurisdiction "${input.compliance.jurisdiction}". ` +
+          `No active disclaimer template found for jurisdiction "${resolvedJurisdiction}". ` +
             'Ensure a disclaimer template is active for this jurisdiction before creating a mandate.'
         );
       }
 
-      // 4. INSERT mandate row (created_by = app users.id, NOT raw ST id).
+      // 7. INSERT mandate row (created_by = app users.id, NOT raw ST id).
       const mandate = await this.repository.insertMandate(tx, {
         createdBy: appUserId,
         sellerName: input.sellerName,
@@ -135,7 +174,7 @@ export class MandateService {
         dealType: input.dealType ?? null,
       });
 
-      // 5. INSERT buyer criteria (cascade on mandate delete).
+      // 8. INSERT buyer criteria (cascade on mandate delete).
       await this.repository.insertBuyerCriteria(tx, {
         mandateId: mandate.id,
         industry: input.buyerCriteria?.industry ?? null,
@@ -144,24 +183,28 @@ export class MandateService {
         dealType: input.buyerCriteria?.dealType ?? null,
       });
 
-      // 6. INSERT compliance profile (1:1; uses DERIVED disclaimer FK).
+      // 9. INSERT compliance profile (1:1; uses DERIVED disclaimer FK + resolved fields).
+      //    resolvedJurisdiction and resolvedSuppressionScope are stamped into the row
+      //    at create time — NOT derived at read time (resolve-once-at-create invariant).
       await this.repository.insertComplianceProfile(tx, {
         mandateId: mandate.id,
-        jurisdiction: input.compliance.jurisdiction,
+        jurisdiction: resolvedJurisdiction,
         disclaimerTemplateId: disclaimer.id,
-        suppressionScope: input.compliance.suppressionScope ?? null,
+        suppressionScope: resolvedSuppressionScope,
         // All 3 attestations validated above; always true here.
         lawfulAuthorization: true,
         aiResultsValidated: true,
         conflictDbsReviewed: true,
       });
 
-      // 7. AUDIT in-tx — LAST-IN-TXN (audit failure rolls back ALL 3 table writes).
-      //    actorUserId = app users.id (NOT the raw SuperTokens id — actor-id-FK lesson).
+      // 10. AUDIT in-tx — LAST-IN-TXN (audit failure rolls back ALL 3 table writes).
+      //     actorUserId = app users.id (NOT the raw SuperTokens id — actor-id-FK lesson).
+      //     Audit payload uses resolvedJurisdiction (post-cascade) so the audit record
+      //     reflects the actual jurisdiction stamped into the compliance_profile row.
       const eventPayload = {
         mandateId: mandate.id,
         sellerName: mandate.sellerName,
-        jurisdiction: input.compliance.jurisdiction,
+        jurisdiction: resolvedJurisdiction,
         disclaimerTemplateId: disclaimer.id,
         actorRole,
       };

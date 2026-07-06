@@ -176,12 +176,18 @@ export const mandateCreateSchema = z
         dealType: z.string().optional(),
       })
       .optional(),
-    /** Compliance context — required (jurisdiction + acknowledgments are mandatory). */
+    /** Compliance context — required (acknowledgments are mandatory; jurisdiction is optional when a firm default is configured). */
     compliance: z
       .object({
-        /** Jurisdiction key — used server-side to derive disclaimerTemplateId. */
-        jurisdiction: z.string().min(1),
-        /** Suppression scope payload. Optional. */
+        /**
+         * Jurisdiction key — used server-side to derive disclaimerTemplateId.
+         * Optional when the firm has configured a defaultJurisdiction in workspace_settings;
+         * the service fills it from the firm default at create time. When provided, the
+         * explicit value always wins (firm default is NOT applied). Required if no firm
+         * default is set (service throws 400 if unresolved).
+         */
+        jurisdiction: z.string().min(1).optional(),
+        /** Suppression scope payload. Optional; filled from firm defaultSuppressionScope when absent. */
         suppressionScope: z.unknown().optional(),
         /**
          * All 3 mandatory attestations (D5). Use z.literal(true) so any

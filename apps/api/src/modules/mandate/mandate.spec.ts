@@ -105,14 +105,16 @@ describe('mandateCreateSchema — parse and reject', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects missing jurisdiction in compliance', () => {
+  it('accepts missing jurisdiction in compliance (cascade fills it from firm default)', () => {
+    // jurisdiction is now optional — the service fills it from workspace_settings when absent.
     const result = mandateCreateSchema.safeParse({
       ...baseValid,
       compliance: {
         acknowledgments: baseValid.compliance.acknowledgments,
+        // jurisdiction deliberately omitted — valid schema; service resolves at create time.
       },
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it('rejects when lawful_authorization is false (must be literal true)', () => {
@@ -590,6 +592,8 @@ function makeMockRepository(overrides: Partial<MandateRepository> = {}) {
     // Transaction-aware variants used by configureAsActor (CRITICAL-1)
     findBuyerCriteriaByMandateIdInTx: vi.fn().mockResolvedValue(null),
     findComplianceProfileByMandateIdInTx: vi.fn().mockResolvedValue(null),
+    // compliance-default cascade (wave-16, 904a3c25) — null = no firm settings
+    findWorkspaceSettingsInTx: vi.fn().mockResolvedValue(null),
     ...overrides,
   } as unknown as MandateRepository;
 }
@@ -1486,5 +1490,242 @@ describe('READ-SCHEMA: mandateListFilterSchema passthrough (extra query params t
     if (result.success) {
       expect(result.data.status).toBe('all');
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 23. Compliance-default cascade — wave-16 task 904a3c25 (unit layer)
+//
+// These unit tests verify the cascade logic IN THE SERVICE using a mocked
+// repository. The mandatory e2e proof (inherits-firm-default, change-default-
+// doesnt-mutate-existing) lives in apps/api/test/mandate-cascade.e2e-spec.ts.
+// ---------------------------------------------------------------------------
+
+describe('cascade: jurisdiction filled from firm default when omitted', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('uses firm defaultJurisdiction when jurisdiction is absent from input', async () => {
+    const firmJurisdiction = 'EU';
+    const repo = makeMockRepository({
+      findWorkspaceSettingsInTx: vi.fn().mockResolvedValue({
+        id: 'settings-uuid-001',
+        defaultJurisdiction: firmJurisdiction,
+        defaultDisclaimerTemplateId: null,
+        defaultSuppressionScope: null,
+      }),
+      findActiveDisclaimerByJurisdiction: vi.fn().mockResolvedValue({
+        id: 'disclaimer-eu-001',
+        jurisdiction: firmJurisdiction,
+        body: 'EU disclaimer',
+        version: 1,
+        active: true,
+        createdAt: '2026-01-01T00:00:00Z',
+        createdBy: null,
+      }),
+    });
+    const audit = makeMockAuditService();
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const service = new MandateService(repo, audit, authRepo);
+
+    const inputWithoutJurisdiction = {
+      sellerName: 'Acme Corp',
+      compliance: {
+        // jurisdiction deliberately absent
+        acknowledgments: {
+          lawful_authorization: true as const,
+          ai_results_validated: true as const,
+          conflict_dbs_reviewed: true as const,
+        },
+      },
+    };
+
+    await service.createAsActor(inputWithoutJurisdiction, 'st-id');
+
+    // Disclaimer lookup must be called with the FIRM default jurisdiction
+    expect(repo.findActiveDisclaimerByJurisdiction).toHaveBeenCalledWith({}, firmJurisdiction);
+
+    // compliance_profile must be inserted with the firm jurisdiction
+    const profileCall = (repo.insertComplianceProfile as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1] as { jurisdiction: string };
+    expect(profileCall.jurisdiction).toBe(firmJurisdiction);
+  });
+
+  it('explicit jurisdiction wins over firm default (explicit-wins invariant)', async () => {
+    const firmJurisdiction = 'EU';
+    const userJurisdiction = 'US';
+    const repo = makeMockRepository({
+      findWorkspaceSettingsInTx: vi.fn().mockResolvedValue({
+        id: 'settings-uuid-001',
+        defaultJurisdiction: firmJurisdiction,
+        defaultDisclaimerTemplateId: null,
+        defaultSuppressionScope: null,
+      }),
+    });
+    const audit = makeMockAuditService();
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const service = new MandateService(repo, audit, authRepo);
+
+    await service.createAsActor(
+      {
+        sellerName: 'Acme Corp',
+        compliance: {
+          jurisdiction: userJurisdiction, // explicitly provided — firm EU is ignored
+          acknowledgments: {
+            lawful_authorization: true as const,
+            ai_results_validated: true as const,
+            conflict_dbs_reviewed: true as const,
+          },
+        },
+      },
+      'st-id'
+    );
+
+    // Disclaimer lookup uses the USER-provided jurisdiction, not the firm default
+    expect(repo.findActiveDisclaimerByJurisdiction).toHaveBeenCalledWith({}, userJurisdiction);
+
+    const profileCall = (repo.insertComplianceProfile as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1] as { jurisdiction: string };
+    expect(profileCall.jurisdiction).toBe(userJurisdiction);
+  });
+
+  it('throws BadRequestException when jurisdiction absent and no firm default', async () => {
+    const repo = makeMockRepository({
+      findWorkspaceSettingsInTx: vi.fn().mockResolvedValue(null), // no settings row
+    });
+    const audit = makeMockAuditService();
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const service = new MandateService(repo, audit, authRepo);
+
+    await expect(
+      service.createAsActor(
+        {
+          sellerName: 'Acme Corp',
+          compliance: {
+            // jurisdiction absent, no firm default
+            acknowledgments: {
+              lawful_authorization: true as const,
+              ai_results_validated: true as const,
+              conflict_dbs_reviewed: true as const,
+            },
+          },
+        },
+        'st-id'
+      )
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('throws BadRequestException when jurisdiction absent and firm defaultJurisdiction is null', async () => {
+    const repo = makeMockRepository({
+      findWorkspaceSettingsInTx: vi.fn().mockResolvedValue({
+        id: 'settings-uuid-001',
+        defaultJurisdiction: null, // explicitly null
+        defaultDisclaimerTemplateId: null,
+        defaultSuppressionScope: null,
+      }),
+    });
+    const audit = makeMockAuditService();
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const service = new MandateService(repo, audit, authRepo);
+
+    await expect(
+      service.createAsActor(
+        {
+          sellerName: 'Acme Corp',
+          compliance: {
+            acknowledgments: {
+              lawful_authorization: true as const,
+              ai_results_validated: true as const,
+              conflict_dbs_reviewed: true as const,
+            },
+          },
+        },
+        'st-id'
+      )
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('cascade: suppressionScope filled from firm default when omitted', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('uses firm defaultSuppressionScope when suppressionScope is absent from input', async () => {
+    const firmScope = 'firm';
+    const repo = makeMockRepository({
+      findWorkspaceSettingsInTx: vi.fn().mockResolvedValue({
+        id: 'settings-uuid-001',
+        defaultJurisdiction: null,
+        defaultDisclaimerTemplateId: null,
+        defaultSuppressionScope: firmScope,
+      }),
+    });
+    const audit = makeMockAuditService();
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const service = new MandateService(repo, audit, authRepo);
+
+    await service.createAsActor(VALID_CREATE_INPUT, 'st-id');
+
+    // compliance_profile must be inserted with the firm suppressionScope
+    const profileCall = (repo.insertComplianceProfile as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1] as { suppressionScope: unknown };
+    expect(profileCall.suppressionScope).toBe(firmScope);
+  });
+
+  it('explicit suppressionScope wins over firm default', async () => {
+    const firmScope = 'firm';
+    const userScope = 'mandate';
+    const repo = makeMockRepository({
+      findWorkspaceSettingsInTx: vi.fn().mockResolvedValue({
+        id: 'settings-uuid-001',
+        defaultJurisdiction: null,
+        defaultDisclaimerTemplateId: null,
+        defaultSuppressionScope: firmScope,
+      }),
+    });
+    const audit = makeMockAuditService();
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const service = new MandateService(repo, audit, authRepo);
+
+    await service.createAsActor(
+      {
+        ...VALID_CREATE_INPUT,
+        compliance: {
+          ...VALID_CREATE_INPUT.compliance,
+          suppressionScope: userScope, // explicit — firm 'firm' is ignored
+        },
+      },
+      'st-id'
+    );
+
+    const profileCall = (repo.insertComplianceProfile as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1] as { suppressionScope: unknown };
+    expect(profileCall.suppressionScope).toBe(userScope);
+  });
+
+  it('null is used when suppressionScope absent and no firm default', async () => {
+    const repo = makeMockRepository({
+      findWorkspaceSettingsInTx: vi.fn().mockResolvedValue(null),
+    });
+    const audit = makeMockAuditService();
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const service = new MandateService(repo, audit, authRepo);
+
+    await service.createAsActor(VALID_CREATE_INPUT, 'st-id');
+
+    const profileCall = (repo.insertComplianceProfile as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1] as { suppressionScope: unknown };
+    expect(profileCall.suppressionScope).toBeNull();
+  });
+
+  it('findWorkspaceSettingsInTx is called with the tx handle (BUILD rule 7)', async () => {
+    const repo = makeMockRepository();
+    const audit = makeMockAuditService();
+    const authRepo = makeMockAuthRepo('app-user-uuid-001', 'advisor');
+    const service = new MandateService(repo, audit, authRepo);
+
+    await service.createAsActor(VALID_CREATE_INPUT, 'st-id');
+
+    // Must be called with the tx handle (the mock runInTransaction passes {} as tx)
+    expect(repo.findWorkspaceSettingsInTx).toHaveBeenCalledWith({});
+    expect(repo.findWorkspaceSettingsInTx).toHaveBeenCalledTimes(1);
   });
 });
