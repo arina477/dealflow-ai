@@ -431,6 +431,15 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     allowedRoles: ['compliance', 'admin'],
   },
   {
+    // Wave-14 (task f5074df8): /compliance/oversight — compliance + admin ONLY.
+    // READ-focused gate-outcome oversight surface over outreach records.
+    // DISTINCT from /compliance-queue (template version-approval; wave-11) and
+    // /compliance/queue (reserved for F10 approvals). Advisor is DENIED (403/redirect).
+    // No navItem — oversight is an in-compliance sidebar sub-surface, not a top-level nav item.
+    pattern: '/compliance/oversight',
+    allowedRoles: ['compliance', 'admin'],
+  },
+  {
     // Wave-5: navItem attached so compliance sees 'Rules' in sidebar.
     // allowedRoles remains compliance-only (unchanged from wave-4).
     // The SoD APPROVER role restriction ('compliance' only, admin excluded)

@@ -353,6 +353,22 @@ const nextConfig: NextConfig = {
           source: '/pipeline-data/:id',
           destination: `${apiProxyTarget}/pipeline/:id`,
         },
+        // Wave-14: /compliance/oversight-data proxy (page-route-collision fix).
+        //
+        // CRITICAL: /compliance/oversight has a Next.js page file:
+        //   /compliance/oversight → app/(app)/compliance/oversight/page.tsx
+        //
+        // We must NOT rewrite /compliance/oversight (GET — served as the React
+        // page). The SSR fetch goes via apiBase() server-side; if the compliance
+        // page component needs a client-side refresh, use /compliance/oversight-data
+        // (no matching page file) which is proxied to GET /outreach on the API.
+        //
+        // Client caller (ComplianceOversightClient — if any client refresh needed):
+        //   GET /compliance/oversight-data?... → GET /outreach?... (outreach list)
+        {
+          source: '/compliance/oversight-data',
+          destination: `${apiProxyTarget}/outreach`,
+        },
         // Wave-13: audit-log data proxy (page-route-collision fix).
         //
         // CRITICAL: /compliance/audit-log has a Next.js page file:
