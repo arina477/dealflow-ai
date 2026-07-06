@@ -66,6 +66,6 @@ LEARN:
 - [x] L-2 Distill
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M8 in_progress→done (BOARD 7/7 APPROVE-A, slug N-1-milestone-disposition-M8-wave-17); M9 promoted todo→in_progress; 3 open M8 tasks re-homed (GAP-2→M11 blocking pre-req, GAP-4/GAP-5→M10, all wave_id cleared); milestone-decomposition fired for M9 buildable credential-free analytics vertical (commit 86fc38c); vendor-gated 345dfbc6 left untouched + surfaced to founder digest
+- [x] N-2 Seed — seed a5ba8068 (advisor-insights analytics aggregation service) + 2 siblings (9e05828b shared-Zod API, 4b014689 /insights page) under M9; validation PASS; oldest candidate 345dfbc6 SKIPPED (founder-vendor+credential-blocked)
+- [x] N-3 Handoff — wave-17 archived; waves row 17 status='ok'; wave-18 pre-created; loop_state=ready
