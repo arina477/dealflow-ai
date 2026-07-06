@@ -180,6 +180,24 @@ export const gateContextSchema = z
     resourceType: z.string().min(1),
     /** Audited object id (the mandate/outreach-batch being sent). */
     resourceId: z.string().min(1),
+    /**
+     * Wave-14 (task 487b0f0c) — mandate context for the gate-evaluate audit row.
+     *
+     * The mandate this gate evaluation is being performed on behalf of.
+     * OutreachService.composeAsActor populates this from input.mandateId so
+     * ComplianceGateService.verdictAuditEntry can record it in the hash-excluded
+     * mandate_id column of audit_log_entries.
+     *
+     * NOTE: outreachId is NOT available at gate-evaluate time — the gate runs
+     * BEFORE the outreach INSERT, so only mandateId is recorded here. This is
+     * sufficient for the recordkeeping mandate-derivation (see
+     * recordkeeping.repository.ts § gate-evaluate branch).
+     *
+     * HASH-EXCLUDED: mandateId is written to the DB column but NEVER included in
+     * the HMAC preimage (not part of HashableEntryFields). The gate-evaluate
+     * audit entry's entry_hash is computed over the same fields as before.
+     */
+    mandateId: z.string().uuid(),
   })
   .strict();
 

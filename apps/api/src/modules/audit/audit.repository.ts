@@ -49,6 +49,12 @@ export interface StoredAuditEntry {
   entryHash: string;
   chainVersion: number;
   createdAt: string;
+  /**
+   * Wave-14 (task 487b0f0c) — hash-excluded mandate context.
+   * NULL for all non-gate-evaluate rows and for gate-evaluate rows appended
+   * before this wave. NEVER included in HashableEntryFields / canonicalSerialization.
+   */
+  mandateId: string | null;
 }
 
 /** Fields the service supplies to INSERT — sequence_number IS supplied here */
@@ -111,6 +117,9 @@ export class AuditRepository {
         entryHash: entry.entryHash,
         chainVersion: entry.chainVersion,
         createdAt: entry.createdAt,
+        // mandateId is hash-excluded — written to the DB column directly, never
+        // fed into computeEntryHash. NULL for all non-gate-evaluate rows.
+        mandateId: entry.mandateId,
       })
       .returning();
 

@@ -106,6 +106,28 @@ export const auditLogEntries = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
+
+    /**
+     * Wave-14 (task 487b0f0c) — nullable mandate context, HASH-EXCLUDED.
+     *
+     * Populated ONLY for gate-evaluate rows: set at INSERT time to the mandate
+     * UUID that was in scope when ComplianceGateService.evaluate() was called.
+     * All other action types leave this NULL.
+     *
+     * CRITICAL: this column is NOT part of HashableEntryFields and is NEVER fed
+     * into canonicalSerialization() or computeEntryHash(). Existing rows have
+     * mandate_id = NULL and their entry_hash values are byte-identical after this
+     * additive migration — the column's value (NULL or otherwise) does not affect
+     * the HMAC preimage, so AuditVerifier.verifyChain() remains valid over the
+     * full mixed old/new chain.
+     *
+     * The recordkeeping mandate-derivation uses this column to capture
+     * gate-evaluate rows for a mandate-scoped export without over-capture
+     * (rows for other mandates' gate decisions are excluded by mandate_id ≠ mid).
+     * No FK: mandate rows can be deleted without cascading into the immutable
+     * audit log (same rationale as actor_user_id ON DELETE SET NULL).
+     */
+    mandateId: uuid('mandate_id'),
   },
   (table) => [
     foreignKey({

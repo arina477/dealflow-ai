@@ -311,6 +311,9 @@ describe('gateContextSchema', () => {
     contentHash: 'a'.repeat(64),
     resourceType: 'outreach',
     resourceId: 'batch-001',
+    // Wave-14 (task 487b0f0c): mandateId is now a required field of GateContext.
+    // It is hash-excluded (recorded in the mandate_id column, not the HMAC preimage).
+    mandateId: 'aaaaaaaa-0000-4000-8000-000000000001',
   };
 
   it('parses a valid gate context', () => {

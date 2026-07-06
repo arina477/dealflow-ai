@@ -73,6 +73,64 @@ export class AuditService {
    *   4. inserts with the forced sequence_number.
    */
   async append(input: AuditEntryInput, tx: Tx): Promise<AuditLogEntry> {
+    return this._appendCore(input, tx, null);
+  }
+
+  /**
+   * Wave-14 (task 487b0f0c) — append with a hash-EXCLUDED mandate context.
+   *
+   * Identical to append() except it also writes `mandateId` to the dedicated
+   * hash-excluded `mandate_id` column. The HMAC hash is computed over the
+   * SAME HashableEntryFields as append() — mandateId is NEVER fed into
+   * computeEntryHash or canonicalSerialization. This means:
+   *   • AuditVerifier.verifyChain() over a mixed chain (entries with and without
+   *     mandateId) returns {ok:true} — existing entry_hash values are unchanged.
+   *   • The mandate_id column value is purely additive metadata for the
+   *     recordkeeping mandate-derivation (see recordkeeping.repository.ts).
+   *
+   * Used ONLY by ComplianceGateService.verdictAuditEntry to record the mandate
+   * context for a gate-evaluate row. All other callers use append().
+   */
+  async appendWithMandate(
+    input: AuditEntryInput,
+    tx: Tx,
+    mandateId: string
+  ): Promise<AuditLogEntry> {
+    return this._appendCore(input, tx, mandateId);
+  }
+
+  /**
+   * Standalone helper: opens a fresh transaction and appends. For call-sites
+   * with NO surrounding business transaction (and for standalone tests). Real
+   * audited actions should prefer append(input, tx) to compose atomically with
+   * their business write.
+   */
+  appendStandalone(input: AuditEntryInput): Promise<AuditLogEntry> {
+    return this.repository.runInTransaction((tx) => this.append(input, tx));
+  }
+
+  /**
+   * Standalone variant of appendWithMandate — opens its own tx.
+   * Used only in tests and in scenarios where the gate-evaluate is not
+   * composed into a wider business transaction.
+   */
+  appendWithMandateStandalone(input: AuditEntryInput, mandateId: string): Promise<AuditLogEntry> {
+    return this.repository.runInTransaction((tx) => this.appendWithMandate(input, tx, mandateId));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private core
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Core append implementation. `mandateId` is hash-excluded — written to the
+   * DB column but NEVER included in the HMAC preimage.
+   */
+  private async _appendCore(
+    input: AuditEntryInput,
+    tx: Tx,
+    mandateId: string | null
+  ): Promise<AuditLogEntry> {
     // (1) Serialize the critical section. First statement in the append tx.
     await this.repository.acquireChainLock(tx);
 
@@ -107,13 +165,17 @@ export class AuditService {
     };
 
     // (3) Keyed HMAC over the canonical serialization + prev_hash link.
+    // mandateId is NOT in `hashable` — it is hash-excluded by design.
     const entryHash = computeEntryHash(hashable, prevHash, key);
 
     // (4) Insert with the forced sequence_number (OVERRIDING SYSTEM VALUE).
+    // mandateId goes into the DB column alongside the hashed fields but was
+    // never part of the preimage — hash integrity is preserved for all entries.
     const stored = await this.repository.insertEntry(tx, {
       ...hashable,
       prevHash,
       entryHash,
+      mandateId,
     });
 
     // (5) Self-check tripwire: recompute the hash over the STORED row (whose
@@ -122,6 +184,9 @@ export class AuditService {
     // created_at (or other field) representation drift AT WRITE TIME, inside the
     // caller's tx, so a chain that would not verify live never commits. Cheap
     // (one HMAC) and self-heals the class of bug this defends against.
+    // NOTE: mandateId is intentionally excluded from the self-check hash fields
+    // for the same reason it is excluded from the original hash: it is not part
+    // of the tamper-evident chain. The self-check validates the hashed fields.
     const selfHash = computeEntryHash(
       {
         sequenceNumber: stored.sequenceNumber,
@@ -147,16 +212,6 @@ export class AuditService {
     }
 
     return toAuditLogEntry(stored);
-  }
-
-  /**
-   * Standalone helper: opens a fresh transaction and appends. For call-sites
-   * with NO surrounding business transaction (and for standalone tests). Real
-   * audited actions should prefer append(input, tx) to compose atomically with
-   * their business write.
-   */
-  appendStandalone(input: AuditEntryInput): Promise<AuditLogEntry> {
-    return this.repository.runInTransaction((tx) => this.append(input, tx));
   }
 }
 

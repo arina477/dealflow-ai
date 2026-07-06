@@ -46,8 +46,11 @@ class FakeRepo {
   });
 
   insertEntry = vi.fn(async (_tx: Tx, entry: StoredAuditEntry) => {
-    this.rows.push(entry);
-    return entry;
+    // Ensure mandateId is always present in the stored row (may be null for
+    // old-style entries or set for gate-evaluate entries with mandate context).
+    const stored: StoredAuditEntry = { ...entry, mandateId: entry.mandateId ?? null };
+    this.rows.push(stored);
+    return stored;
   });
 
   readChainAscending = vi.fn(async () =>
