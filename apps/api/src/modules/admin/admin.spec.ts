@@ -33,6 +33,7 @@
 
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AdminUsersController } from './admin-users.controller';
 import { decryptCredential, encryptCredential, loadEncKey } from './credential-crypto';
 import { DataSourceAdminService } from './data-source-admin.service';
 import { UserManagementService } from './user-management.service';
@@ -1124,5 +1125,73 @@ describe('DataSourceAdminService', () => {
     expect(caughtError!.message).not.toContain(secretSlug);
     expect(caughtError!.message).toContain('config contains an unsupported or disallowed field');
     expect(mockDb.transaction).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// E. AdminUsersController — reactivate :id UUID validation (wave-16, 042cf4e6)
+// ---------------------------------------------------------------------------
+
+describe('AdminUsersController — reactivateUser UUID param guard', () => {
+  /**
+   * E-1: non-UUID :id → 400 BadRequestException BEFORE any session resolution.
+   * Proves that a malformed id (e.g. "not-a-uuid", "'; DROP TABLE users; --")
+   * is caught by adminReactivateParamsSchema.parse at the controller boundary
+   * and never forwarded to the service or Postgres.
+   *
+   * E-2: valid UUID :id with a mock session → service is called (no 400).
+   * Confirms the guard only fires on malformed input.
+   */
+
+  function makeController() {
+    // biome-ignore lint/suspicious/noExplicitAny: stub service — only reactivateAsActor is called
+    const userManagementService: any = {
+      reactivateAsActor: vi.fn().mockResolvedValue({
+        id: '00000016-0000-0000-0000-000000000001',
+        email: 'u@example.com',
+        deactivatedAt: null,
+      }),
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: stub auth repo
+    const authRepository: any = {
+      getUserWithRole: vi.fn().mockResolvedValue({
+        id: '00000016-0000-0000-0000-000000000099',
+        roleName: 'admin',
+      }),
+    };
+    return { controller: new AdminUsersController(userManagementService, authRepository), userManagementService };
+  }
+
+  function fakeReq(supertokensUserId = 'st-mock-user-id') {
+    return {
+      session: { getUserId: () => supertokensUserId },
+    };
+  }
+
+  it('E-1a: non-UUID id ("not-a-uuid") → 400 BadRequestException, service NOT called', async () => {
+    const { controller, userManagementService } = makeController();
+    // biome-ignore lint/suspicious/noExplicitAny: test req stub
+    await expect(controller.reactivateUser('not-a-uuid', fakeReq() as any)).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+    expect(userManagementService.reactivateAsActor).not.toHaveBeenCalled();
+  });
+
+  it('E-1b: SQL injection id → 400 BadRequestException, service NOT called', async () => {
+    const { controller, userManagementService } = makeController();
+    // biome-ignore lint/suspicious/noExplicitAny: test req stub
+    await expect(
+      controller.reactivateUser("'; DROP TABLE users; --", fakeReq() as any)
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(userManagementService.reactivateAsActor).not.toHaveBeenCalled();
+  });
+
+  it('E-2: valid UUID id → service is called (guard does not fire)', async () => {
+    const { controller, userManagementService } = makeController();
+    const validId = '00000016-0000-0000-0000-000000000001';
+    // biome-ignore lint/suspicious/noExplicitAny: test req stub
+    const result = await controller.reactivateUser(validId, fakeReq() as any);
+    expect(userManagementService.reactivateAsActor).toHaveBeenCalledWith(validId, expect.any(String), 'admin');
+    expect(result.id).toBe(validId);
   });
 });

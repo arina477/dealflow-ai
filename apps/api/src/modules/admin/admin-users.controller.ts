@@ -22,6 +22,7 @@ import {
   adminAssignRoleInputSchema,
   type adminDeactivateResponseSchema,
   adminInviteInputSchema,
+  adminReactivateParamsSchema,
   type adminReactivateResponseSchema,
   rolesForRoute,
   type userAdminListResponseSchema,
@@ -166,6 +167,11 @@ export class AdminUsersController {
     @Param('id') id: string,
     @Req() req: RequestWithSession
   ): Promise<ReturnType<typeof adminReactivateResponseSchema.parse>> {
+    try {
+      adminReactivateParamsSchema.parse({ id });
+    } catch {
+      throw new BadRequestException('id must be a valid UUID');
+    }
     const { userId, role } = await this.resolveActor(req);
     return this.userManagementService.reactivateAsActor(id, userId, role);
   }
