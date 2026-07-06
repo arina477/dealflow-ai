@@ -218,3 +218,24 @@ Execute at C-2 against prod:
 ### Deviation from plan
 
 None.
+
+
+## B-2 summary (orchestrator)
+```yaml
+skipped: false
+fast_path_active: false
+specialists_spawned: [backend-developer x4 (user-mgmt, config-boundary, admin-activity, mandate-cascade) + backend-developer x1 (typecheck fix)]
+files_implemented:
+  - apps/api/src/modules/admin/user-management.service.ts (invite dedup advisory-lock + reactivate)
+  - apps/api/src/modules/admin/admin-users.controller.ts (POST reactivate)
+  - apps/api/src/modules/admin/data-source-admin.service.ts (config typed-boundary, uniform-static no-echo)
+  - apps/api/src/modules/admin-activity/* (new module: service/controller/module + reuse AuditRepository.findAdminActivity)
+  - apps/api/src/modules/audit/audit.repository.ts (+findAdminActivity/countAdminActivity read-only) + audit.module.ts (export)
+  - apps/api/src/app.module.ts (register AdminActivityModule)
+  - apps/api/src/modules/mandate/mandate.service.ts + mandate.repository.ts (cascade, tx-scoped read) + packages/shared/src/mandate.ts (jurisdiction optional)
+deviations: []   # all agents reported none; jurisdiction-optional is additive/backward-compat (spec-required)
+simplify_applied: true
+commits: [0efb0ce, a8d5f0b, 7bda731, 225e51f, 10dfc9c, 7543564]
+p4_findings_honored: {F1: invite advisory-lock first-in-txn (fault-killing test), F2: config uniform-static no-echo (secret-absent test), F3: admin-activity 5-field whitelist + read-appends-0-audit-rows}
+c2_prod_cleanup_handoff: "restore advisor1@example.com (deactivated_at=NULL); WORM-safe rename 3 KAREN-V1-SENTINEL users to *@invalid.invalid"
+```
