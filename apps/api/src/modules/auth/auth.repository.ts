@@ -24,8 +24,10 @@ import { DB } from '../../db/db.provider';
 import { pool } from '../../db/index';
 import * as schema from '../../db/schema';
 import { invites, roles, users } from '../../db/schema/users-roles';
-import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { getDb, getWorkspaceId } from '../../db/workspace-context';
+// DEFAULT_WORKSPACE_ID import removed (Finding #4, B-6 rework2): createInvite now
+// fails-closed instead of falling back to a default workspace when the ALS context
+// is missing. This prevents silent cross-workspace invite placement.
 
 export interface InviteRow {
   id: string;
@@ -92,6 +94,20 @@ export class AuthRepository {
     invitedBy: string | null;
     expiry: string;
   }): Promise<{ id: string }> {
+    // Finding #4 (B-6 rework2): fail-closed — workspace MUST be resolved from the
+    // authenticated admin's ALS context. getWorkspaceId() returns null for missing/empty
+    // (unauthenticated path, or interceptor threw for authenticated-but-no-workspace).
+    // Never fall back to DEFAULT_WORKSPACE_ID: an invite created with the wrong workspace
+    // would place the new user in the default workspace regardless of which admin issued it,
+    // silently defeating the per-workspace isolation. Throw so the caller gets a 500 that
+    // surfaces the misconfiguration loudly instead of silently cross-placing data.
+    const workspaceId = getWorkspaceId();
+    if (!workspaceId) {
+      throw new Error(
+        '[createInvite] No workspace context in ALS — cannot create invite without a resolved workspace. ' +
+          'Ensure the request is authenticated and the WorkspaceInterceptor has run.'
+      );
+    }
     const rows = await getDb(this.db)
       .insert(invites)
       .values({
@@ -101,7 +117,7 @@ export class AuthRepository {
         invitedBy: input.invitedBy,
         expiry: input.expiry,
         // workspaceId sourced from ALS (authenticated admin creating the invite).
-        workspaceId: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID,
+        workspaceId,
       })
       .returning({ id: invites.id });
     return expectOne(rows, 'invite');
@@ -295,21 +311,28 @@ export class AuthRepository {
    * interceptor ran before signup). The invites UPDATE and users INSERT both
    * require the GUC to be set (FORCE RLS). This method:
    *   1. Checks out a dedicated pg PoolClient.
-   *   2. Calls SELECT set_config('app.workspace_id', workspaceId, true) — the
-   *      parameterized, injection-safe form. is_local=true = SET LOCAL (tx-scoped):
-   *      the GUC is automatically reset at transaction end, so no explicit RESET
-   *      is needed inside the transaction. PostgreSQL's SET command does NOT accept
-   *      bind parameters ($1); set_config() is the correct form.
-   *   3. Wraps the client in a Drizzle instance.
-   *   4. Runs the caller's transaction work.
+   *   2. Wraps the client in a Drizzle instance.
+   *   3. Opens the Drizzle transaction. The FIRST statement INSIDE the transaction
+   *      is SELECT set_config('app.workspace_id', $1, true) — is_local=true (SET LOCAL):
+   *      the GUC is scoped to the transaction and automatically reset when the tx
+   *      commits or rolls back. Critically, this runs WITHIN the BEGIN…COMMIT block,
+   *      so it is in effect for all subsequent statements in the transaction.
+   *   4. Calls the caller's work callback with the transaction handle.
    *   5. RESETS app.workspace_id and releases the client in finally (defence in
-   *      depth — Drizzle may COMMIT/ROLLBACK, but we still explicitly clean up).
+   *      depth — SET LOCAL auto-resets on tx end, but we still explicitly clean up
+   *      in case future refactors extend the client lifetime beyond this call).
+   *
+   * B-6 rework2 (Finding #1 — GUC-inside-tx): previously set_config was called as a
+   *   STANDALONE client.query() OUTSIDE the Drizzle transaction(). A standalone query
+   *   runs in its own autocommit transaction. SET LOCAL (is_local=true) scopes the GUC
+   *   to the current transaction — but the autocommit tx ends immediately after the
+   *   query, so the GUC was reset before Drizzle's BEGIN. The fix: run set_config as the
+   *   FIRST statement INSIDE clientDb.transaction(), where it is in the same BEGIN block
+   *   as the invites UPDATE and users INSERT.
    *
    * The workspaceId is sourced from the invite row via resolve_invite() —
    * server-derived, never client-supplied. Cross-workspace placement is
    * structurally impossible: the invitee joins the INVITE'S workspace.
-   *
-   * B-6 rework (task 96026365 / df2f3b2f): SET → set_config (is_local=true).
    */
   async runInTransactionWithWorkspace<T>(
     workspaceId: string,
@@ -318,13 +341,19 @@ export class AuthRepository {
     const client = await pool.connect();
     const clientDb = drizzle(client, { schema }) as unknown as Database;
     try {
-      // is_local=true → SET LOCAL (transaction-scoped). Parameterized + injection-safe.
-      await client.query('SELECT set_config($1, $2, true)', ['app.workspace_id', workspaceId]);
-      return await clientDb.transaction(work);
+      return await clientDb.transaction(async (tx) => {
+        // SET LOCAL (is_local=true) scopes the GUC to THIS transaction.
+        // This is now the FIRST statement in the BEGIN block, so it is in effect
+        // for all subsequent statements (SELECT/UPDATE/INSERT) in this transaction.
+        // Parameterized + injection-safe: PostgreSQL's SET command does NOT accept
+        // bind parameters ($1); set_config() is the correct form.
+        await client.query('SELECT set_config($1, $2, true)', ['app.workspace_id', workspaceId]);
+        return work(tx);
+      });
     } finally {
       // Surgical RESET — not DISCARD ALL (mirrors WorkspaceInterceptor CARRY [c]).
-      // Defence-in-depth: Drizzle's transaction() commits/rolls back, but we
-      // still reset and release unconditionally.
+      // Defence-in-depth: SET LOCAL auto-resets on tx commit/rollback. We still
+      // reset here in case future refactors extend the client lifetime beyond this tx.
       try {
         await client.query('RESET app.workspace_id');
       } finally {
