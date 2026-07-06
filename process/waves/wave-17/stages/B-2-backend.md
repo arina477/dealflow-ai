@@ -170,3 +170,46 @@ The e2e tests were passing because both `withWorkspace()` helpers (workspace-iso
 **Typecheck**: `pnpm -w typecheck` — 4 tasks successful, 0 errors.
 
 **Unit tests**: 772 passed, 52 skipped (e2e DB-gated), 0 failed. GUC-1, GUC-2, GUC-3 all green.
+
+## B-6 rework2 resolution
+
+B-6 phase-2 adversarial review found 4 defects (2 P0 isolation-critical). All 4 closed in 3 commits on `wave-17-workspace-isolation`.
+
+### Finding #2 [P0] — Non-superuser app role (isolation real + testable)
+
+**Root cause**: app and CI connect as `postgres` (SUPERUSER) → implicit BYPASSRLS → FORCE RLS bypassed → isolation unenforced; e2e assertions vacuous.
+
+**Fix (3 parts)**:
+1. **Migration 0016** (`0016_dealflow_app_role.sql`, journaled idx 16, `when > 1784073600000`) creates `dealflow_app` (NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE LOGIN) and grants minimal DML on all 28 tenant tables, USAGE on sequences, EXECUTE on the 3 SECURITY DEFINER functions, SELECT on global tables. `.down` + snapshot included.
+2. **E2e non-superuser assertions**: `withWorkspace()` in both `workspace-isolation.e2e-spec.ts` and `invite-signup-rls.e2e-spec.ts` now issues `SET ROLE dealflow_app` before `SET app.workspace_id` on every isolation-asserting client. CI cannot change `ci.yml` (lacks Workflows:write); `SET ROLE` achieves the same effect — drops superuser privilege, makes FORCE RLS apply. Seeding/teardown still use the superuser pool. INV-2 consume cycle also runs as dealflow_app.
+3. **Startup is_superuser assertion** (`assertNonSuperuserConnection()` in `apps/api/src/db/index.ts`): checks `current_setting('is_superuser')` and `rolbypassrls`; throws with `[RLS-GUARD]` prefix if either is true. Wired into `main.ts` bootstrap (skipped in `NODE_ENV=test`). Fail-closed — no degraded boot.
+
+**C-2 Railway hand-off**: Set `DATABASE_URL` to authenticate as `dealflow_app`. See migration 0016 header comments for password/URL format. Startup guard fires if misconfigured.
+
+### Finding #1 [P0] — GUC inside transaction
+
+**Root cause**: `runInTransactionWithWorkspace` issued `set_config(is_local=true)` as a standalone `client.query()` OUTSIDE the Drizzle `transaction()` call. SET LOCAL scopes to the current tx — the autocommit tx ends immediately, GUC reset before `BEGIN`. Invites UPDATE + users INSERT ran with unset GUC → RLS denied → invite-signup broken.
+
+**Fix**: moved `set_config($1, $2, true)` to be the FIRST statement INSIDE `clientDb.transaction(async (tx) => { ... })`, so it shares the same BEGIN block as the tenant writes. INV-2 test updated to match exact production path and runs as dealflow_app.
+
+### Finding #3 [P1] — Sourcing getDb
+
+**Root cause**: 4 tenant reads in `listCompanies` (companyProvenance subquery, contacts count, companyProvenance source count, companyProvenance connectionIds) used `this.db` (singleton, no GUC) → FORCE RLS → 0 rows → brick.
+
+**Fix**: all 4 replaced with `getDb(this.db)`. Full grep of all `this.db` references in api src confirmed no other tenant-table queries using bare `this.db` — all other sites already use `getDb`.
+
+### Finding #4 [P2] — Fail-closed workspace
+
+**Root cause**: interceptor stored `workspaceId ?? ''`; `getWorkspaceId()` returned `''` for unauthenticated paths; `getWorkspaceId() ?? DEFAULT_WORKSPACE_ID` evaluated `'' ?? ...` → `''` (nullish coalescing misses empty string); `createInvite` inserted `workspace_id=''` → invalid-uuid 500 or cross-workspace DEFAULT placement.
+
+**Fix (3-part)**:
+- Interceptor throws fail-closed when `stUserId` is set but `workspaceId` is null (authenticated session, no workspace row).
+- `getWorkspaceId()` normalises `''` → `null`.
+- `createInvite` throws when `getWorkspaceId()` returns null — no `DEFAULT_WORKSPACE_ID` fallback.
+
+### Verification
+
+- `pnpm -w typecheck`: 4 tasks successful, 0 errors.
+- `pnpm --filter @dealflow/api test --run`: 772 passed, 52 skipped (e2e DB-gated), 0 failed.
+- No local DB available in dev container; e2e assertions (ISO-1..ISO-5, INV-1..INV-5) will run in CI with `TEST_DATABASE_URL` set.
+- Commits: `b247d24` (finding #2), `f7cdb70` (finding #1), `90c1b67` (findings #3/#4).
