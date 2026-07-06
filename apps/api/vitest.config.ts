@@ -54,6 +54,11 @@ export default defineConfig({
       // their own known key directly.
       AUDIT_LOG_HMAC_KEY: 'test-audit-hmac-key-dummy-do-not-use-in-prod',
       AUDIT_LOG_HMAC_KEY_VERSION: '1',
+      // Wave-15: CREDENTIALS_ENC_KEY for DataSourceAdminService encryption tests.
+      // Must be exactly 32 bytes when base64-decoded (AES-256 key).
+      // This is a TEST-ONLY known value — DO NOT USE IN PRODUCTION.
+      // Mirrors how AUDIT_LOG_HMAC_KEY is set for test contexts.
+      CREDENTIALS_ENC_KEY: 'dGVzdC1jcmVkZW50aWFscy1rZXktMzItYnl0ZXMhISE=',
     },
   },
 });

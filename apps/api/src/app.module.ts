@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { HealthModule } from './health/health.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BuyerUniverseModule } from './modules/buyer-universe/buyer-universe.module';
@@ -17,6 +18,7 @@ import { SourcingModule } from './modules/sourcing/sourcing.module';
     HealthModule,
     AuthModule,
     AuditModule,
+    AdminModule,
     ComplianceModule,
     ComplianceGateModule,
     BuyerUniverseModule,
