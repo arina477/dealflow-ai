@@ -56,6 +56,9 @@ const NON_ADMIN_ROLE_ROUTES: Array<{ route: string; allowedRoles: Role[] }> = [
   { route: '/outreach-templates', allowedRoles: ['advisor', 'analyst', 'compliance'] },
   { route: '/outreach', allowedRoles: ['advisor', 'compliance'] },
   { route: '/pipeline', allowedRoles: ['advisor', 'compliance'] },
+  // Wave-18: /insights (advisor + admin) and /analytics API proxy (advisor + admin)
+  { route: '/insights', allowedRoles: ['advisor', 'admin'] },
+  { route: '/analytics', allowedRoles: ['advisor', 'admin'] },
 ];
 
 const ALL_ROLES: Role[] = ['advisor', 'analyst', 'compliance', 'admin'];
@@ -338,6 +341,111 @@ describe('RBAC role-reverify — changing role changes live access (wave-15, tas
       const activityItem = navItemsForRole('admin').find((i) => i.route === '/admin/activity');
       expect(activityItem).toBeDefined();
       expect(canAccess('admin', '/admin/activity')).toBe(true);
+    });
+  });
+
+  // ── Wave-18: /insights page + /analytics API endpoint ─────────────────────
+
+  describe('wave-18 insights page + analytics API (task 4b014689)', () => {
+    it('/insights allows advisor', () => {
+      expect(canAccess('advisor', '/insights')).toBe(true);
+    });
+
+    it('/insights allows admin', () => {
+      expect(canAccess('admin', '/insights')).toBe(true);
+    });
+
+    it('/insights denies analyst', () => {
+      expect(canAccess('analyst', '/insights')).toBe(false);
+    });
+
+    it('/insights denies compliance', () => {
+      expect(canAccess('compliance', '/insights')).toBe(false);
+    });
+
+    it('/analytics allows advisor', () => {
+      expect(canAccess('advisor', '/analytics')).toBe(true);
+    });
+
+    it('/analytics allows admin', () => {
+      expect(canAccess('admin', '/analytics')).toBe(true);
+    });
+
+    it('/analytics denies analyst', () => {
+      expect(canAccess('analyst', '/analytics')).toBe(false);
+    });
+
+    it('/analytics denies compliance', () => {
+      expect(canAccess('compliance', '/analytics')).toBe(false);
+    });
+
+    it('advisor nav includes Insights', () => {
+      const navLabels = navItemsForRole('advisor').map((i) => i.label);
+      expect(navLabels).toContain('Insights');
+    });
+
+    it('admin nav includes Insights', () => {
+      const navLabels = navItemsForRole('admin').map((i) => i.label);
+      expect(navLabels).toContain('Insights');
+    });
+
+    it('analyst nav does not include Insights', () => {
+      const navLabels = navItemsForRole('analyst').map((i) => i.label);
+      expect(navLabels).not.toContain('Insights');
+    });
+
+    it('compliance nav does not include Insights', () => {
+      const navLabels = navItemsForRole('compliance').map((i) => i.label);
+      expect(navLabels).not.toContain('Insights');
+    });
+
+    it('/insights nav item is RBAC-permitted for advisor (nav⊆RBAC)', () => {
+      const insightsItem = navItemsForRole('advisor').find((i) => i.route === '/insights');
+      expect(insightsItem).toBeDefined();
+      expect(canAccess('advisor', '/insights')).toBe(true);
+    });
+
+    it('/insights nav item is RBAC-permitted for admin (nav⊆RBAC)', () => {
+      const insightsItem = navItemsForRole('admin').find((i) => i.route === '/insights');
+      expect(insightsItem).toBeDefined();
+      expect(canAccess('admin', '/insights')).toBe(true);
+    });
+
+    it('advisor→admin promotion retains /insights access', () => {
+      let role: Role = 'advisor';
+      expect(canAccess(role, '/insights')).toBe(true);
+      role = 'admin';
+      expect(canAccess(role, '/insights')).toBe(true);
+    });
+
+    it('analyst→advisor promotion grants /insights access', () => {
+      let role: Role = 'analyst';
+      expect(canAccess(role, '/insights')).toBe(false);
+      role = 'advisor';
+      expect(canAccess(role, '/insights')).toBe(true);
+    });
+
+    it('advisor→analyst demotion revokes /insights access', () => {
+      let role: Role = 'advisor';
+      expect(canAccess(role, '/insights')).toBe(true);
+      role = 'analyst';
+      expect(canAccess(role, '/insights')).toBe(false);
+    });
+
+    it('rolesForRoute(/insights) returns [advisor, admin]', () => {
+      const roles = rolesForRoute('/insights') as Role[];
+      expect(roles).toContain('advisor');
+      expect(roles).toContain('admin');
+      expect(roles).not.toContain('analyst');
+      expect(roles).not.toContain('compliance');
+    });
+
+    it('rolesForRoute(/analytics) returns [advisor, admin]', () => {
+      const roles = rolesForRoute('/analytics') as Role[];
+      expect(roles).toContain('advisor');
+      expect(roles).toContain('admin');
+      expect(roles).not.toContain('analyst');
+      expect(roles).not.toContain('compliance');
     });
   });
 });

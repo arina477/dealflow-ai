@@ -478,6 +478,23 @@ const nextConfig: NextConfig = {
           source: '/compliance/audit-log-data',
           destination: `${apiProxyTarget}/compliance/audit-log`,
         },
+        // Wave-18 (task 4b014689): analytics read proxy.
+        //
+        // CRITICAL: /insights has a Next.js page file:
+        //   /insights → app/(app)/insights/page.tsx
+        //
+        // We must NOT rewrite /insights (GET — served as the React page).
+        // The SSR fetch goes via apiBase() server-side (INTERNAL_API_BASE_URL).
+        // The non-colliding /analytics path (no matching Next.js page file)
+        // falls through afterFiles and is proxied to GET /analytics on the API.
+        //
+        // Read-only: no mutations. Workspace-scoped (FORCE RLS in the service).
+        // advisor + admin only (RBAC enforced by the B-2 controller guard and
+        // by assertRole('/insights', me.role) on the page).
+        {
+          source: '/analytics',
+          destination: `${apiProxyTarget}/analytics`,
+        },
       ],
       beforeFiles: [],
       fallback: [],

@@ -17,6 +17,7 @@
 
 import {
   Activity,
+  BarChart2,
   Briefcase,
   Database,
   FileText,
@@ -63,6 +64,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   kanban: Kanban as unknown as LucideIcon,
   // Wave-16: NAV_ADMIN_ACTIVITY icon
   activity: Activity as unknown as LucideIcon,
+  // Wave-18: NAV_INSIGHTS icon
+  'bar-chart-2': BarChart2 as unknown as LucideIcon,
 };
 
 // ---------------------------------------------------------------------------
