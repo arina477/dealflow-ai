@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.17.0] — 2026-07-06 — Pilot-partner workspace data-isolation (M8)
+
+### Added
+- **A firm can only ever see its own data** — every firm's records (deals, mandates, contacts, the audit trail, everything) now live in a private workspace, and the platform guarantees one firm can never read or change another firm's data. The guarantee is enforced inside the database itself (deny-by-default row-level security), not just in application code, and it was proven by a test that confirms one firm literally cannot read another firm's rows. The pilot firm's existing data was moved into its own default workspace with no loss.
+- **New teammates land in the right firm automatically** — an invited user joins the inviting firm's workspace, so they see exactly that firm's data and nothing else.
+
+### Correctness / compliance
+- **The isolation cannot be bypassed by misconfiguration** — the app connects to the database under a restricted (non-superuser) account so the isolation rules always apply, and every request carries the user's workspace so the database returns only that workspace's rows. If the app were ever wired up to connect with an over-privileged account, it refuses to start rather than silently expose data (fail-closed).
+- **The immutable audit trail stayed intact** — all 328 existing audit entries were tagged with their workspace without breaking their tamper-evidence; the audit hash-chain still verifies after the change (confirmed live).
+
+### Provenance (transparency)
+- No new user-facing screens — isolation is invisible to users and adds no new setup step. No email is sent and no AI is used; no audit record is edited or deleted. Additive-only database migrations (0014–0017); the only operational change is the restricted database connection, an internal deploy detail.
+- **Scope is honest — this is the pilot firm, one workspace today.** The plumbing that keeps firms apart is live, but standing up many firms as a full multi-tenant product is a later milestone. Three follow-up hardening items (a fail-closed check on one write path, a standing test for audit-table migrations, and documenting the split database connection) are tracked and non-blocking.
+
 ## [0.16.0] — 2026-07-06 — Admin hardening & compliance-default cascade (M7)
 
 ### Added

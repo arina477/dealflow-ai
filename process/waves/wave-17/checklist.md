@@ -43,26 +43,26 @@ BUILD:
 
 CI/CD:
 - [x] C-1 PR/CI/merge — GREEN on main (ec9e480, run 28821888615, all 5 jobs; ISO/INV/GUC/RBAC real as dealflow_app; 3 fix-forward cycles)
-- [ ] C-2 Deploy & verify
+- [x] C-2 Deploy & verify — PASS @ 591b3f8 (head-ci-cd APPROVED → PROCEED_TO_T). Both services SUCCESS commitHash-verified (api f3b96634 / web cdc512b3); migrations 0014-0017 applied AS OWNER on populated prod (journal 0013→0017, verifyChain ok:true after 328-row backfill, 0 chain breaks); dealflow_app runtime (NOSUPERUSER NOBYPASSRLS) via DATABASE_URL/MIGRATE_DATABASE_URL split; [RLS-GUARD] PASSED (/health 200 {ok,db:ok,591b3f8}); isolation live — authed compliance read 200/50-rows (not bricked), RBAC verify 200 (not 403), audit verify {ok:true,328}. Canary skipped (0 DAU). Coupled rollback armed (api a0afbcec / web ab3be4d2 @ d72d7cb7 + DATABASE_URL→owner). Prior HOLD (WORM-trigger defect) resolved via fix-forward (58c1498/591b3f8); api deploy #1 preDeploy-PATH FAIL captured+fixed, not glossed.
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
-- [ ] T-9 Journey
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
+- [x] T-5 E2E
+- [x] T-6 Layout
+- [x] T-7 Perf
+- [x] T-8 Security
+- [x] T-9 Journey
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-1 Independent reviews (Karen + jenny, parallel)
+- [x] V-2 Triage
+- [x] V-3 Fast-fix loop (or close)
 
 LEARN:
-- [ ] L-1 Docs
+- [x] L-1 Docs — CHANGELOG 0.17.0 (CHANGELOG.md:3-18); M8 stays in_progress (4 done this wave, 4 open: 3 H3 hardening todos + 1 stale blocked TRIAGE for L-2 to reconcile); founder-TBD quantitative metric; README skipped
 - [ ] L-2 Distill
 
 NEXT:
