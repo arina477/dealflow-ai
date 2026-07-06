@@ -94,12 +94,15 @@ export type AdminActivityQuery = z.infer<typeof adminActivityQuerySchema>;
  * AdminActivityRow — a single row returned by GET /admin/activity-data.
  *
  * SECURITY INVARIANT (P-4 Finding 3 — load-bearing):
- *   Returns ONLY { actor, target, action, timestamp }.
+ *   Returns ONLY { sequenceNumber, actor, target, action, timestamp }.
  *   NEVER includes:
  *     - Any credential, encrypted_credentials, or API key value.
  *     - payloadHash, contentHash, entryHash, prevHash, or any hash preimage.
  *     - PII beyond the actor's and target's display identity (name / email).
- *     - sequenceNumber (internal chain cursor; exposes log size to the client).
+ *
+ * sequenceNumber: exposed intentionally as the opaque pagination cursor for
+ *   admin-only consumers. Admins are a trusted internal audience; exposing the
+ *   monotonic sequence to them is an accepted and reviewed risk.
  *
  * actor: the admin who performed the action.
  * target: the affected user/resource (nullable — some actions have no target user).
