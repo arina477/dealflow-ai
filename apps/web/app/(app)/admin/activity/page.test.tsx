@@ -87,12 +87,7 @@ const ACTIVITY_WITH_ROWS: AdminActivityResponse = {
   total: 2,
 };
 
-function makeFetch(
-  meBody: unknown,
-  meOk: boolean,
-  activityBody: unknown,
-  activityOk = true
-) {
+function makeFetch(meBody: unknown, meOk: boolean, activityBody: unknown, activityOk = true) {
   return vi.fn().mockImplementation((url: string) => {
     const s = String(url);
     if (s.includes('/auth/me')) {

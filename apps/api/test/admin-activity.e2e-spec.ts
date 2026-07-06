@@ -340,9 +340,7 @@ describe.skipIf(shouldSkip)(
       ];
 
       for (const field of forbiddenFields) {
-        expect(serialized, `Response must not contain field: ${field}`).not.toContain(
-          `"${field}"`
-        );
+        expect(serialized, `Response must not contain field: ${field}`).not.toContain(`"${field}"`);
       }
 
       // Each row must have EXACTLY the allowed keys.

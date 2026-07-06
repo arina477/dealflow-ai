@@ -577,16 +577,14 @@ describe('UserManagementService', () => {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
-        limit: vi
-          .fn()
-          .mockResolvedValue([
-            {
-              id: 'active-user',
-              email: 'active@example.com',
-              roleId: 'role-1',
-              deactivatedAt: null,
-            },
-          ]),
+        limit: vi.fn().mockResolvedValue([
+          {
+            id: 'active-user',
+            email: 'active@example.com',
+            roleId: 'role-1',
+            deactivatedAt: null,
+          },
+        ]),
       }),
     };
     mockDb.transaction = vi

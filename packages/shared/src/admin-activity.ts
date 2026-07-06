@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { auditActionEnum } from './audit';
+import type { auditActionEnum } from './audit';
 
 // ---------------------------------------------------------------------------
 // Admin-activity action filter (Wave-16, task 8bb0a22f — P-4 Finding 3)

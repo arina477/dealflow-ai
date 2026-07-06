@@ -477,9 +477,7 @@ describe('AdminUsersClient', () => {
       render(<AdminUsersClient initialUsers={ADMIN_USER_LIST.users} currentUserId={UUID_ADMIN} />);
       await user.click(screen.getByRole('button', { name: /show inactive/i }));
 
-      await user.click(
-        screen.getByRole('button', { name: /reactivate deactivated@firm\.com/i })
-      );
+      await user.click(screen.getByRole('button', { name: /reactivate deactivated@firm\.com/i }));
 
       await waitFor(() => {
         expect(screen.getByRole('alert')).toBeDefined();

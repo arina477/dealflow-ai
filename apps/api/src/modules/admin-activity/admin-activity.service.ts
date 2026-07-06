@@ -39,14 +39,10 @@
  * .findFiltered). Does NOT fork a second audit reader.
  */
 
+import type { AdminActivityQuery, AdminActivityResponse, AdminActivityRow } from '@dealflow/shared';
+import { adminActivityActionEnum } from '@dealflow/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { eq, inArray, sql } from 'drizzle-orm';
-import type {
-  AdminActivityQuery,
-  AdminActivityResponse,
-  AdminActivityRow,
-} from '@dealflow/shared';
-import { adminActivityActionEnum } from '@dealflow/shared';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
 import { users } from '../../db/schema/users-roles';
@@ -115,7 +111,11 @@ export class AdminActivityService {
       if (entry.actorUserId) {
         userIds.add(entry.actorUserId);
       }
-      if (entry.resourceId && USER_TARGET_ACTIONS.has(entry.action) && UUID_RE.test(entry.resourceId)) {
+      if (
+        entry.resourceId &&
+        USER_TARGET_ACTIONS.has(entry.action) &&
+        UUID_RE.test(entry.resourceId)
+      ) {
         userIds.add(entry.resourceId);
       }
     }

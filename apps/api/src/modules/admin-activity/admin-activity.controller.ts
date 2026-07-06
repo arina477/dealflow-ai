@@ -23,17 +23,11 @@
 
 import type { Role } from '@dealflow/shared';
 import {
-  adminActivityQuerySchema,
   type AdminActivityResponse,
+  adminActivityQuerySchema,
   rolesForRoute,
 } from '@dealflow/shared';
-import {
-  BadRequestException,
-  Controller,
-  Get,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ZodError } from 'zod';
 
 // biome-ignore lint/style/useImportType: value import required for emitDecoratorMetadata DI resolution

@@ -482,7 +482,10 @@ export function ActivityTable({ initialRows, initialNextCursor }: ActivityTableP
               rows.map((row) => (
                 <tr
                   key={row.sequenceNumber}
-                  style={{ borderBottom: '1px solid #f3f4f6', transition: 'background-color 100ms' }}
+                  style={{
+                    borderBottom: '1px solid #f3f4f6',
+                    transition: 'background-color 100ms',
+                  }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#f9fafb';
                   }}

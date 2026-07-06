@@ -27,14 +27,14 @@
 
 import type { AdminActivityResponse, MeResponse, Role } from '@dealflow/shared';
 import { adminActivityResponseSchema, meResponseSchema } from '@dealflow/shared';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 // Note: explicit React import needed for the test environment JSX transform.
 // Next.js uses the automatic JSX runtime in production; the test environment's
 // esbuild transform uses jsx:'automatic' but the import is still needed here
 // because vitest resolves this file in the same transform pass as page-colliding
 // modules that reference React explicitly.
 import React from 'react';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { assertRole } from '../../_lib/assertRole';
 import { ActivityTable } from './_components/ActivityTable';
 

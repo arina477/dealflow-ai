@@ -33,21 +33,23 @@ function makeAuditRepo() {
 // ── Fake audit entry with ALL chain fields present ────────────────────────────
 // This is the raw StoredAuditEntry shape the repository returns.
 
-function fakeEntry(overrides: Partial<{
-  sequenceNumber: number;
-  actorUserId: string | null;
-  actorRole: string;
-  action: string;
-  resourceType: string;
-  resourceId: string | null;
-  contentHash: string;
-  payloadHash: string;
-  prevHash: string;
-  entryHash: string;
-  chainVersion: number;
-  createdAt: string;
-  mandateId: string | null;
-}> = {}) {
+function fakeEntry(
+  overrides: Partial<{
+    sequenceNumber: number;
+    actorUserId: string | null;
+    actorRole: string;
+    action: string;
+    resourceType: string;
+    resourceId: string | null;
+    contentHash: string;
+    payloadHash: string;
+    prevHash: string;
+    entryHash: string;
+    chainVersion: number;
+    createdAt: string;
+    mandateId: string | null;
+  }> = {}
+) {
   return {
     sequenceNumber: 42,
     actorUserId: ACTOR_UUID,
@@ -170,7 +172,11 @@ describe('AdminActivityService', () => {
   describe('B. Target resolution', () => {
     it('B-1: target is null for workspace-settings-update (no user target)', async () => {
       mockAuditRepo.findAdminActivity.mockResolvedValue([
-        fakeEntry({ action: 'workspace-settings-update', resourceType: 'workspace_settings', resourceId: null }),
+        fakeEntry({
+          action: 'workspace-settings-update',
+          resourceType: 'workspace_settings',
+          resourceId: null,
+        }),
       ]);
       mockAuditRepo.countAdminActivity.mockResolvedValue(1);
 
@@ -193,7 +199,11 @@ describe('AdminActivityService', () => {
       // data-source-conn-upsert uses a connection UUID, but in this test we pass
       // a non-UUID string to cover the guard.
       mockAuditRepo.findAdminActivity.mockResolvedValue([
-        fakeEntry({ action: 'data-source-conn-upsert', resourceType: 'data_source_connection', resourceId: 'not-a-uuid' }),
+        fakeEntry({
+          action: 'data-source-conn-upsert',
+          resourceType: 'data_source_connection',
+          resourceId: 'not-a-uuid',
+        }),
       ]);
       mockAuditRepo.countAdminActivity.mockResolvedValue(1);
 
@@ -231,9 +241,7 @@ describe('AdminActivityService', () => {
     });
 
     it('C-2: nextCursor is null when rows.length < limit (last page)', async () => {
-      mockAuditRepo.findAdminActivity.mockResolvedValue([
-        fakeEntry({ sequenceNumber: 5 }),
-      ]);
+      mockAuditRepo.findAdminActivity.mockResolvedValue([fakeEntry({ sequenceNumber: 5 })]);
       mockAuditRepo.countAdminActivity.mockResolvedValue(1);
 
       const result = await service.getActivity({ limit: 50 });

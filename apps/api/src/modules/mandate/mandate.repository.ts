@@ -91,9 +91,7 @@ export class MandateRepository {
    * Called inside createAsActor's transaction so the cascade resolution is
    * consistent with the other writes in the same atomic unit.
    */
-  async findWorkspaceSettingsInTx(
-    tx: Tx
-  ): Promise<typeof workspaceSettings.$inferSelect | null> {
+  async findWorkspaceSettingsInTx(tx: Tx): Promise<typeof workspaceSettings.$inferSelect | null> {
     const rows = await tx.select().from(workspaceSettings).limit(1);
     return rows[0] ?? null;
   }

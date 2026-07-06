@@ -10,7 +10,7 @@
  */
 
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, lte, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
