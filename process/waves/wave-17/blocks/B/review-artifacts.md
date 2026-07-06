@@ -1,5 +1,5 @@
 # Wave 17 — B-block review artifacts
-**Block:** B (Build) | **Wave topic:** M8 pilot-partner data-isolation (workspaces + workspace_id RLS + request-scoped connection propagation + cross-tenant negative-read proof) | **Block exit gate:** B-6 | **Status:** in-progress
+**Block:** B (Build) | **Wave topic:** M8 pilot-partner data-isolation (workspaces + workspace_id RLS + request-scoped connection propagation + cross-tenant negative-read proof) | **Block exit gate:** B-6 | **Status:** gate-passed
 ## Stage deliverables
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
@@ -18,3 +18,15 @@
 - SECURITY-SCOPE-TIGHTENED. LOAD-BEARING: FORCE-RLS+owner-connection-test, dedicated-connection+RESET-no-leak, resolver-RLS-exempt, integrity-global-vs-projection-scoped, WORM-blocks-reattribution-test, backfill-before-NOT-NULL, audit_log-hash-exclude, migration-0014-journaled
 ## Gate verdict log
 - **B-6 Attempt 1 (head-builder, HEAD b58a630): REWORK → REWORK_B-2, route backend-developer.** CRITICAL D1: production GUC-set paths (workspace.interceptor.ts:101, auth.repository.ts:314) use `SET app.workspace_id = $1` (parameterized utility statement) → PostgreSQL 42P02 at runtime (confirmed postgres-pro). Interceptor swallows → GUC never set → all authenticated tenant reads = 0 rows; runInTransactionWithWorkspace throws → all invite signups fail. e2e helpers hide it via literal-interpolation reimplementation; INV-2 (bind form) will fail C-1. Fix: `SELECT set_config('app.workspace_id',$1,false)` + coverage of the shipped path. All other load-bearing checks PASS (FORCE-RLS x28, fail-closed policy, both SECURITY-DEFINER resolvers, integrity-vs-projection, WORM-reattribution ISO-5, backfill-before-NOT-NULL, 0014+0015 journaled). Verdict: process/waves/wave-17/blocks/B/gate-verdict.md
+
+## Block exit handoff
+```yaml
+build_block_status: complete
+branch: wave-17-workspace-isolation
+stages_run: [B-0, B-1, B-2, B-4, B-5, B-6]
+stages_skipped: [B-3 frontend (design_gap_flag false, no UI)]
+review_verdict: APPROVE
+last_commit_sha: b70215c
+ready_for_ci: true
+c2_handoff: Railway DATABASE_URL must be dealflow_app (non-superuser) — [RLS-GUARD] fails-closed; migration 0016 creates it
+```

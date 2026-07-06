@@ -39,7 +39,7 @@ BUILD:
 - [ ] B-3 Frontend
 - [ ] B-4 Wiring
 - [ ] B-5 Verify
-- [ ] B-6 Review
+- [x] B-6 Review
 
 CI/CD:
 - [ ] C-1 PR/CI/merge
