@@ -62,3 +62,31 @@ production_code: CORRECT (both security invariants sound)
 rework: B-5-test-discipline (hollow-CONC-1 + missing-409-unit)
 rework_attempt_cap_remaining: 2
 ```
+
+---
+# Wave 15 — B-6 Verdict (Phase 2 — /review) → REWORK (2 MEDIUM)
+## CLEAN at CRITICAL + HIGH: credential crypto (random-IV/GCM-tag-verify/fail-closed/key-id), credential-never-leaks (audit/hash/error/read all clean), race-safe advisory-lock guard (all admin-removing paths, CONC-1 fault-killing), RBAC (admin-only/DB-authoritative/role-validated), migration 0013 journaled, auditActionEnum additive.
+## REWORK (2 MEDIUM + L3):
+- **M1:** toggle/settings/users controllers throw BadRequestException(err.issues) echoing raw Zod issues (input) to the client, vs the hardened create/update static-string. NO credential leak (no credential in those bodies) but a defense-in-depth inconsistency. FIX: uniform static message / err.flatten() (no input echo) across all admin controllers.
+- **M2:** workspace_settings single-row invariant not enforced → concurrent first-PUTs double-insert (no unique/advisory-lock/ON CONFLICT). Data-integrity gap for the firm-defaults cascade. FIX: partial unique index (singleton key) OR advisory lock at the top of updateSettings.
+- **L3:** runLastAdminGuard docstring says advisory-lock "MUST be FIRST statement" but runs after 2 SELECTs (behavior correct — same lock, held to commit). FIX: tighten the comment (or hoist the lock) to avoid a maintainer "fixing" it wrongly.
+- L1 (guard over-strict on already-inactive admin — harmless), L2 (config blob could hold a secret — doc note) → non-blocking, log.
+→ Routing M1+M2+L3 to backend-developer.
+
+---
+# Wave 15 — B-6 → APPROVED (overall)
+Phase-1 head-builder: production code CORRECT (advisory-lock guard + credential crypto); test-discipline rework (real-service CONC-1 + 409 units) resolved (795e896). Phase-2 /review: CLEAN at CRITICAL+HIGH (all security invariants genuine); M1 (uniform static error) + M2 (workspace-settings singleton advisory-lock) + L3 (docstring) resolved (e150925). L1/L2 non-blocking logged.
+```yaml
+verdict: APPROVED
+gate: PASSED
+security: clean-at-critical-high (crypto + guard + RBAC + credential-never-leaks all genuine)
+rework: [hollow-CONC-1→real-service (795e896), M1-uniform-error+M2-singleton+L3 (e150925)]
+```
+---
+## B-block exit
+```yaml
+build_block_status: complete
+branch: wave-15-m7-admin
+review_verdict: APPROVE
+ready_for_ci: true
+```

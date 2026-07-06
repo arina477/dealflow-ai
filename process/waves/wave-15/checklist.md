@@ -36,7 +36,7 @@ BUILD:
 - [x] B-3 Frontend
 - [x] B-4 Wiring
 - [x] B-5 Verify
-- [ ] B-6 Review
+- [x] B-6 — APPROVED (2-phase; security clean at CRIT/HIGH; hollow-concurrency-test + M1/M2 caught+fixed) Review
 
 CI/CD:
 - [ ] C-1 PR, CI & merge

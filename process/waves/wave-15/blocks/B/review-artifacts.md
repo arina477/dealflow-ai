@@ -1,7 +1,7 @@
 # Wave 15 — B-block review artifacts
 **Wave topic:** M7 admin (user-mgmt + workspace settings + data-source conn + shell polish)
 **Block exit gate:** B-6
-**Status:** in-progress
+**Status:** complete
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
 | B-0 | stages/B-0-branch-and-schema.md | in-progress | branch wave-15-m7-admin; migration 0013 (users.deactivated_at + workspace_settings + data_source_connections.encrypted_credentials JOURNALED) + CREDENTIALS_ENC_KEY + M3-reconcile |
@@ -10,7 +10,7 @@
 | B-3 | done | 3 admin pages (credential write-only) + shell placeholders + TopBar + RBAC-reverify (670ecc0) |
 | B-4 | done | repo typecheck+build PASS |
 | B-5 | done | lint 0, full test green (~1858), build pass |
-| B-6 | stages/B-6-review.md | pending | head-builder gate + /review |
+| B-6 | gate-verdict.md | done — APPROVED (advisory-lock guard + AES-GCM credential clean; real-CONC-1 + M1/M2 reworks resolved) |
 ## Context (P-4 security build-notes — LOAD-BEARING)
 - RACE-SAFE last-admin: pg_advisory_xact_lock(<constant>) PRIMARY (NOT count-FOR-UPDATE=write-skew); deactivate+demote+self-deactivate; concurrency-tested.
 - auditActionEnum: extend CLOSED shared enum (5 admin actions + toggle) or append fails at runtime; audit invite-CREATE + toggle.
