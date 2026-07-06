@@ -124,6 +124,20 @@ const NAV_ADMIN_ACTIVITY: NavItem = {
   allowedRoles: ['admin'],
 };
 
+// Wave-18 (task a5ba8068): Insights nav item (/insights).
+// advisor + admin: summary analytics over the firm's own data (workspace-scoped).
+// analyst excluded: advisory analytics are advisor-facing (mandate/pipeline/match).
+// nav⊆RBAC: NAV_INSIGHTS.allowedRoles references the same array literal
+// as the /insights route entry below. Per-advisor productivity is viewable by
+// advisor (own data) and admin (firm-wide); admin-only filtering is service-layer.
+const NAV_INSIGHTS: NavItem = {
+  label: 'Insights',
+  route: '/insights',
+  icon: 'bar-chart-2',
+  group: 'workspace',
+  allowedRoles: ['advisor', 'admin'],
+};
+
 // Wave-13: advisor added — advisor sees own-outreach entries (role-scoped in service);
 // compliance sees org-wide. admin is NOT in the nav (admin uses the API directly, not
 // the page UI). nav⊆RBAC holds: NAV_AUDIT_LOG.allowedRoles ⊆ the /compliance/audit-log
@@ -614,6 +628,24 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     pattern: '/admin/activity-data',
     allowedRoles: ['admin'],
   },
+
+  // Wave-18 (task a5ba8068): Insights page + analytics API.
+  // advisor + admin: workspace-scoped analytics (FORCE RLS; no cross-firm leak).
+  // Read-only; GET /analytics returns the 4-family AnalyticsSummary shape.
+  // nav⊆RBAC: NAV_INSIGHTS.allowedRoles references the same array literal.
+  {
+    pattern: '/insights',
+    allowedRoles: ['advisor', 'admin'],
+    navItem: NAV_INSIGHTS,
+  },
+  {
+    // GET /analytics — REST API endpoint (non-page-colliding proxy path).
+    // No navItem — API-only endpoint; the sidebar nav is /insights above.
+    // advisor + admin (same as /insights; per-productivity admin-only scoping
+    // is enforced in the service layer, not at the route level).
+    pattern: '/analytics',
+    allowedRoles: ['advisor', 'admin'],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -763,4 +795,6 @@ export const ALL_NAV_ITEMS: ReadonlyArray<NavItem> = [
   NAV_SETTINGS,
   // Wave-16: Admin Activity nav item.
   NAV_ADMIN_ACTIVITY,
+  // Wave-18: Insights nav item.
+  NAV_INSIGHTS,
 ];
