@@ -338,3 +338,12 @@ export {
   workspaceSettingsSchema,
   workspaceSettingsUpdateSchema,
 } from './workspace-settings';
+// --- Wave-17 workspace isolation contracts (tasks 0db154ff / 96026365) ---
+export type { Workspace, WorkspaceId } from './workspace';
+export {
+  DEFAULT_WORKSPACE_ID,
+  workspaceIdSchema,
+  workspaceSchema,
+} from './workspace';
+export type { ResolveUserWorkspaceResult } from './resolver-contract';
+export { resolveUserWorkspaceResultSchema } from './resolver-contract';
