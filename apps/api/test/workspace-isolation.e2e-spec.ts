@@ -92,8 +92,12 @@ async function isDbReachable(url: string): Promise<boolean> {
 }
 
 // ── UUID namespace (wave-17 workspace-isolation) ─────────────────────────────
-const WS_A_ID = '00000017-wspc-4000-8000-000000000001';
-const WS_B_ID = '00000017-wspc-4000-8000-000000000002';
+// NOTE: all segment characters must be valid hex (0-9, a-f). 'wspc' contained
+// non-hex chars ('w','s','p') and was replaced with 'aa17' (valid hex, disjoint
+// from every other wave namespace). supertokens_user_id fields are text columns
+// and are not cast to uuid, so they are left unchanged.
+const WS_A_ID = '00000017-aa17-4000-8000-000000000001';
+const WS_B_ID = '00000017-aa17-4000-8000-000000000002';
 
 // Admin role for seeded users — resolved in beforeAll.
 let adminRoleId: string;
@@ -331,9 +335,10 @@ describe.skipIf(shouldSkip)(
       await pool.end().catch(() => {});
     });
 
-    it.skipIf(!dbReachable)(
+    it(
       'ISO-1: cross-tenant negative read — WS_B GUC cannot see WS_A mandates',
       async () => {
+        if (!dbReachable) return;
         // Seed a mandate in WS_A.
         const mandateId = await seedMandate(WS_A_ID, wsAUserId);
 
@@ -350,9 +355,10 @@ describe.skipIf(shouldSkip)(
       }
     );
 
-    it.skipIf(!dbReachable)(
+    it(
       'ISO-2: positive control — WS_A GUC can see WS_A mandates',
       async () => {
+        if (!dbReachable) return;
         // At least one mandate was seeded in WS_A by ISO-1 (above).
         const rows = await withWorkspace(WS_A_ID, async (client) => {
           const res = await client.query<{ id: string }>(
@@ -367,9 +373,10 @@ describe.skipIf(shouldSkip)(
       }
     );
 
-    it.skipIf(!dbReachable)(
+    it(
       'ISO-3: bidirectional isolation — WS_A cannot see WS_B mandates',
       async () => {
+        if (!dbReachable) return;
         // Seed a mandate in WS_B.
         const wsBMandateId = await seedMandate(WS_B_ID, wsBUserId);
 
@@ -385,9 +392,10 @@ describe.skipIf(shouldSkip)(
       }
     );
 
-    it.skipIf(!dbReachable)(
+    it(
       'ISO-4: GUC-leak guard — RESET app.workspace_id → 0 rows (fail-closed)',
       async () => {
+        if (!dbReachable) return;
         // Finding #2 (B-6 rework2): this assertion MUST run as dealflow_app (non-superuser)
         // to be non-vacuous. A superuser bypasses FORCE RLS, so the GUC-unset check is only
         // meaningful under the non-superuser role where RLS is enforced.
@@ -418,7 +426,8 @@ describe.skipIf(shouldSkip)(
       }
     );
 
-    it.skipIf(!dbReachable)('ISO-5: WORM trigger rejects UPDATE on audit_log_entries', async () => {
+    it('ISO-5: WORM trigger rejects UPDATE on audit_log_entries', async () => {
+      if (!dbReachable) return;
       // Seed a minimal audit_log_entries row directly (bypassing the service to
       // avoid dependency on the keyring env var in CI). Use WS_A GUC.
       const entryId = crypto.randomUUID();

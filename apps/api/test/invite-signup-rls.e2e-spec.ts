@@ -71,8 +71,12 @@ function hashToken(token: string): string {
 // ── UUID namespace (wave-17 invite-signup) ────────────────────────────────────
 // W = the workspace the invite was issued by
 // X = a second workspace (cross-tenant control)
-const WS_W_ID = '00000017-inv0-4000-8000-000000000001';
-const WS_X_ID = '00000017-inv0-4000-8000-000000000002';
+// NOTE: all segment characters must be valid hex (0-9, a-f). 'inv0' contained
+// non-hex chars ('i','n','v') and was replaced with 'ab17' (valid hex, disjoint
+// from every other wave namespace). supertokens_user_id fields are text columns
+// and are not cast to uuid, so they are left unchanged.
+const WS_W_ID = '00000017-ab17-4000-8000-000000000001';
+const WS_X_ID = '00000017-ab17-4000-8000-000000000002';
 
 // biome-ignore lint/suspicious/noExplicitAny: drizzle handle in e2e context
 let db: any;
@@ -269,9 +273,10 @@ describe.skipIf(shouldSkip)(
       await pool.end().catch(() => {});
     });
 
-    it.skipIf(!dbReachable)(
+    it(
       'INV-1: resolve_invite() returns email + workspace_id WITHOUT the GUC set (no-GUC bypass)',
       async () => {
+        if (!dbReachable) return;
         // Seed invite in workspace W.
         const email = `inv1-${crypto.randomUUID().slice(0, 8)}@invite-signup.test`;
         const { tokenHash } = await seedInvite(WS_W_ID, email);
@@ -299,9 +304,10 @@ describe.skipIf(shouldSkip)(
       }
     );
 
-    it.skipIf(!dbReachable)(
+    it(
       'INV-2: full consume cycle — invite consumed + user created in workspace W under FORCE RLS',
       async () => {
+        if (!dbReachable) return;
         // Seed invite in workspace W.
         const email = `inv2-${crypto.randomUUID().slice(0, 8)}@invite-signup.test`;
         const { inviteId, tokenHash } = await seedInvite(WS_W_ID, email);
@@ -397,9 +403,10 @@ describe.skipIf(shouldSkip)(
       }
     );
 
-    it.skipIf(!dbReachable)(
+    it(
       'INV-3: new user in workspace W can read W data and CANNOT read workspace X data',
       async () => {
+        if (!dbReachable) return;
         // Seed invite in workspace W and create a user (simulated post-signup state).
         const email = `inv3-${crypto.randomUUID().slice(0, 8)}@invite-signup.test`;
         const { tokenHash } = await seedInvite(WS_W_ID, email);
@@ -452,9 +459,10 @@ describe.skipIf(shouldSkip)(
       }
     );
 
-    it.skipIf(!dbReachable)(
+    it(
       'INV-4: resolve_invite() returns 0 rows for a consumed invite (no replay)',
       async () => {
+        if (!dbReachable) return;
         const email = `inv4-${crypto.randomUUID().slice(0, 8)}@invite-signup.test`;
         const { tokenHash } = await seedInvite(WS_W_ID, email);
 
@@ -473,19 +481,28 @@ describe.skipIf(shouldSkip)(
       }
     );
 
-    it.skipIf(!dbReachable)(
+    it(
       'INV-5: fault-killing — direct invites SELECT without GUC returns 0 rows (FORCE RLS active)',
       async () => {
+        if (!dbReachable) return;
         // This test proves that WITHOUT the SECURITY DEFINER resolver, a direct
         // SELECT on invites with no GUC set returns 0 rows — confirming FORCE RLS
         // is active and the resolver is load-bearing.
+        //
+        // CRITICAL: FORCE ROW LEVEL SECURITY does NOT apply to superusers (BYPASSRLS).
+        // The pool connects as postgres (SUPERUSER) which bypasses RLS entirely.
+        // We must SET ROLE dealflow_app (NOSUPERUSER NOBYPASSRLS) so FORCE RLS is
+        // actually enforced. Without this SET ROLE the test is vacuous — a superuser
+        // always sees the row regardless of GUC.
         const email = `inv5-${crypto.randomUUID().slice(0, 8)}@invite-signup.test`;
         const { tokenHash } = await seedInvite(WS_W_ID, email);
 
-        // Direct SELECT on invites with no GUC — must return 0 rows (FORCE RLS).
+        // Direct SELECT on invites as dealflow_app (NOSUPERUSER NOBYPASSRLS) with no GUC
+        // set — FORCE RLS applies and the workspace_id policy evaluates to false → 0 rows.
         const client = await pool.connect();
         let rows: unknown[] = [];
         try {
+          await client.query('SET ROLE dealflow_app');
           await client.query('RESET app.workspace_id');
           const res = await client.query(
             'SELECT email, workspace_id FROM invites WHERE token = $1',
@@ -493,10 +510,12 @@ describe.skipIf(shouldSkip)(
           );
           rows = res.rows;
         } finally {
+          await client.query('RESET ROLE').catch(() => {});
           client.release();
         }
 
-        // FORCE RLS + no GUC → 0 rows. This is exactly what was broken before DEV-1 fix.
+        // FORCE RLS + dealflow_app role + no GUC → 0 rows.
+        // This is exactly what was broken before DEV-1 fix.
         expect(rows).toHaveLength(0);
       }
     );
