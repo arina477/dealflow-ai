@@ -34,6 +34,6 @@ LEARN:
 - [x] L-1 Docs
 - [x] L-2 Distill
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 — APPROVED (M6 closure WITHHELD honest — SEND+tracking founder-gated; Hallucinated-Milestone-Completion avoided; Option-A buildable hardening decomposed inline) Survey & triggers
+- [x] N-2 — APPROVED (seed 07bd1e1a + siblings 487b0f0c/f5074df8; clean M6 vertical, validated live) Seed
+- [x] N-3 — COMPLETE (wave-13 archived; waves row 13 closed status='ok'; wave-14 opened; .last-wave-completed next_wave=14) Handoff
