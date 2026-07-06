@@ -28,13 +28,23 @@ import type {
   WorkspaceSettingsUpdateInput,
 } from '@dealflow/shared';
 import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
 import { workspaceSettings } from '../../db/schema/admin-settings';
 import type { Tx } from '../audit/audit.repository';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
 import { AuditService } from '../audit/audit.service';
+
+/**
+ * Fixed advisory-lock key for the workspace-settings singleton critical section.
+ * Distinct from ADMIN_GUARD_LOCK_KEY (4_200_500_500) and
+ * AUDIT_CHAIN_ADVISORY_LOCK_KEY (4_100_400_400).
+ * Serializes concurrent first-PUT races so only one INSERT wins; the second
+ * waits, sees the row, and falls through to UPDATE.
+ * pg_advisory_xact_lock(<key>) — transaction-scoped, auto-released on commit/rollback.
+ */
+export const WORKSPACE_SETTINGS_LOCK_KEY = 4_300_600_600 as const;
 
 /** Deterministic SHA-256 hex over a canonical JSON object. */
 function hashJson(value: unknown): string {
@@ -89,6 +99,14 @@ export class WorkspaceSettingsService {
     actorRole: string
   ): Promise<WorkspaceSettings> {
     return this.db.transaction(async (tx) => {
+      // Serialize concurrent first-PUT races: two simultaneous requests that each
+      // see no row would both proceed to INSERT, producing two workspace_settings
+      // rows (nondeterministic firm-defaults cascade). The advisory lock ensures
+      // the second transaction waits for the first to commit; it then sees the
+      // already-inserted row and falls through to the UPDATE branch.
+      // Transaction-scoped — released automatically on commit or rollback.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${WORKSPACE_SETTINGS_LOCK_KEY})`);
+
       // Fetch existing row (for audit before/after and to decide insert vs update).
       const [existing] = await tx.select().from(workspaceSettings).limit(1);
 

@@ -327,8 +327,12 @@ export class UserManagementService {
  * The `excludeUserId` is the user being mutated — we count the remaining
  * active admins EXCLUDING that user (simulating post-mutation state).
  *
- * Call order: this MUST be the first non-setup statement in the transaction
- * (or immediately after the advisory lock is acquired) to prevent write-skew.
+ * Call order: the advisory lock acquisition IS the first statement inside this
+ * function and therefore the first count-and-mutate step under the lock. Callers
+ * invoke runLastAdminGuard BEFORE any write in the surrounding transaction —
+ * preceding SELECTs (user lookup, role lookup) are read-only and do not affect
+ * the write-skew guarantee, which is solely provided by the advisory lock held
+ * to commit. Do NOT re-order the lock acquisition inside this function.
  */
 async function runLastAdminGuard(
   tx: AdminTx,

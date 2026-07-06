@@ -150,7 +150,7 @@ export class DataSourceAdminController {
     try {
       input = dataSourceConnectionToggleSchema.parse(body);
     } catch (err) {
-      if (err instanceof ZodError) throw new BadRequestException(err.issues);
+      if (err instanceof ZodError) throw new BadRequestException('Invalid request body');
       throw err;
     }
     const { userId, role } = await this.resolveActor(req);

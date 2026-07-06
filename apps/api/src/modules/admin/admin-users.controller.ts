@@ -108,7 +108,7 @@ export class AdminUsersController {
     try {
       input = adminInviteInputSchema.parse(body);
     } catch (err) {
-      if (err instanceof ZodError) throw new BadRequestException(err.issues);
+      if (err instanceof ZodError) throw new BadRequestException('Invalid request body');
       throw err;
     }
     const { userId, role } = await this.resolveActor(req);
@@ -127,7 +127,7 @@ export class AdminUsersController {
     try {
       input = adminAssignRoleInputSchema.parse(body);
     } catch (err) {
-      if (err instanceof ZodError) throw new BadRequestException(err.issues);
+      if (err instanceof ZodError) throw new BadRequestException('Invalid request body');
       throw err;
     }
     const { userId, role } = await this.resolveActor(req);
