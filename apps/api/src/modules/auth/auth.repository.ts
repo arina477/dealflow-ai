@@ -23,9 +23,9 @@ import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
 import { pool } from '../../db/index';
 import * as schema from '../../db/schema';
-import { getDb, getWorkspaceId } from '../../db/workspace-context';
-import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { invites, roles, users } from '../../db/schema/users-roles';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
 
 export interface InviteRow {
   id: string;

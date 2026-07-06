@@ -1159,7 +1159,10 @@ describe('AdminUsersController — reactivateUser UUID param guard', () => {
         roleName: 'admin',
       }),
     };
-    return { controller: new AdminUsersController(userManagementService, authRepository), userManagementService };
+    return {
+      controller: new AdminUsersController(userManagementService, authRepository),
+      userManagementService,
+    };
   }
 
   function fakeReq(supertokensUserId = 'st-mock-user-id') {
@@ -1191,7 +1194,11 @@ describe('AdminUsersController — reactivateUser UUID param guard', () => {
     const validId = '00000016-0000-0000-0000-000000000001';
     // biome-ignore lint/suspicious/noExplicitAny: test req stub
     const result = await controller.reactivateUser(validId, fakeReq() as any);
-    expect(userManagementService.reactivateAsActor).toHaveBeenCalledWith(validId, expect.any(String), 'admin');
+    expect(userManagementService.reactivateAsActor).toHaveBeenCalledWith(
+      validId,
+      expect.any(String),
+      'admin'
+    );
     expect(result.id).toBe(validId);
   });
 });

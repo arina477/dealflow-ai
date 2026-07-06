@@ -135,8 +135,6 @@ import { and, eq, isNotNull, sql } from 'drizzle-orm';
 // Re-export Tx type (sourcing module re-uses the same Drizzle tx type)
 // ---------------------------------------------------------------------------
 import type { Database } from '../../db/db.provider';
-import { getWorkspaceId } from '../../db/workspace-context';
-import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import {
   companies,
   companyProvenance,
@@ -145,6 +143,8 @@ import {
   dedupeCandidates,
   rawCompanies,
 } from '../../db/schema/sourcing';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
+import { getWorkspaceId } from '../../db/workspace-context';
 export type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 // ---------------------------------------------------------------------------

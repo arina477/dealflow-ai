@@ -34,11 +34,11 @@ import { and, eq, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { getDb, getWorkspaceId } from '../../db/workspace-context';
-import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { matchCandidates, matchRun } from '../../db/schema/matching';
 import { outreach } from '../../db/schema/outreach';
 import { pipeline, pipelineEvents } from '../../db/schema/pipeline';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
 
 // ---------------------------------------------------------------------------
 // Row type aliases

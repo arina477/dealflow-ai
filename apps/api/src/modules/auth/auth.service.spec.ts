@@ -221,9 +221,7 @@ describe('AuthService', () => {
       expect(createNewSession).toHaveBeenCalledOnce();
       expect(deleteUser).not.toHaveBeenCalled();
       // Wave-17 DEV-1: transaction must run with the invite's workspaceId (server-derived).
-      const txCall = (
-        repo.runInTransactionWithWorkspace as ReturnType<typeof vi.fn>
-      ).mock.calls[0];
+      const txCall = (repo.runInTransactionWithWorkspace as ReturnType<typeof vi.fn>).mock.calls[0];
       expect(txCall[0]).toBe(VALID_INVITE_BOOTSTRAP.workspaceId);
     });
 
@@ -262,9 +260,7 @@ describe('AuthService', () => {
       // The workspace passed to the transaction is exactly what the server resolved
       // from the invite row — not client-controlled.
       expect(runInTransactionWithWorkspace).toHaveBeenCalledOnce();
-      expect(runInTransactionWithWorkspace.mock.calls[0][0]).toBe(
-        inviteWithWorkspace.workspaceId
-      );
+      expect(runInTransactionWithWorkspace.mock.calls[0][0]).toBe(inviteWithWorkspace.workspaceId);
     });
   });
 

@@ -31,8 +31,7 @@ export const workspaceIdSchema = z
  * This is the backfill target for all existing rows and the pilot firm's
  * tenant boundary. Fixed constant — do not change without a new migration.
  */
-export const DEFAULT_WORKSPACE_ID =
-  'a1b2c3d4-0000-4000-8000-000000000001' as WorkspaceId;
+export const DEFAULT_WORKSPACE_ID = 'a1b2c3d4-0000-4000-8000-000000000001' as WorkspaceId;
 
 // ---------------------------------------------------------------------------
 // Workspace read shape — what a workspace record looks like at the API boundary.

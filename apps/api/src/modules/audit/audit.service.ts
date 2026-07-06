@@ -47,9 +47,8 @@
 import type { AuditEntryInput, AuditLogEntry } from '@dealflow/shared';
 import { GENESIS_PREV_HASH } from '@dealflow/shared';
 import { Injectable } from '@nestjs/common';
-
-import { getWorkspaceId } from '../../db/workspace-context';
 import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
+import { getWorkspaceId } from '../../db/workspace-context';
 import { computeEntryHash, type HashableEntryFields } from './audit.hash';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
 import { AuditKeyring } from './audit.keyring';

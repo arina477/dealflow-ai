@@ -27,11 +27,11 @@ import {
 import { and, eq, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { getDb, getWorkspaceId } from '../../db/workspace-context';
-import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { workspaceSettings } from '../../db/schema/admin-settings';
 import { disclaimerTemplates } from '../../db/schema/compliance-rules';
 import { mandateBuyerCriteria, mandateComplianceProfile, mandates } from '../../db/schema/mandate';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
 
 export type MandateRow = typeof mandates.$inferSelect;
 export type MandateBuyerCriteriaRow = typeof mandateBuyerCriteria.$inferSelect;

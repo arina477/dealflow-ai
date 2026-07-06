@@ -25,10 +25,10 @@ import { and, eq, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { getDb, getWorkspaceId } from '../../db/workspace-context';
-import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { complianceApprovals, disclaimerTemplates } from '../../db/schema/compliance-rules';
 import { outreach, outreachTemplates, outreachTemplateVersions } from '../../db/schema/outreach';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
 
 // ---------------------------------------------------------------------------
 // Row type aliases

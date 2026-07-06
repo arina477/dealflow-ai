@@ -31,9 +31,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { getDb, getWorkspaceId } from '../../db/workspace-context';
-import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { workspaceSettings } from '../../db/schema/admin-settings';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
 import type { Tx } from '../audit/audit.repository';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
 import { AuditService } from '../audit/audit.service';

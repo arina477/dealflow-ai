@@ -16,12 +16,12 @@ import { and, eq, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { getDb } from '../../db/workspace-context';
 import {
   complianceApprovals,
   disclaimerTemplates,
   suppressionList,
 } from '../../db/schema/compliance-rules';
+import { getDb } from '../../db/workspace-context';
 import type { Tx } from '../audit/audit.repository';
 
 /** A suppression_list row as read by the suppression evaluator. */

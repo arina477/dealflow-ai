@@ -36,10 +36,9 @@ import supertokens from 'supertokens-node';
 import EmailPassword from 'supertokens-node/recipe/emailpassword';
 import type { SessionContainer } from 'supertokens-node/recipe/session';
 import Session from 'supertokens-node/recipe/session';
-
+import type { InviteBootstrap } from './auth.repository';
 // biome-ignore lint/style/useImportType: injected via DI, needs runtime metadata
 import { AuthRepository } from './auth.repository';
-import type { InviteBootstrap } from './auth.repository';
 
 const TENANT_ID = 'public';
 /** Invite lifetime: 7 days. */
@@ -119,8 +118,7 @@ export class AuthService {
     // raw SQL — bypasses FORCE RLS on invites, which has no GUC at this point.
     // Returns { email, workspaceId } or null for absent/expired/consumed invites.
     // workspaceId is server-derived from the invite row (never client-supplied).
-    const inviteBootstrap: InviteBootstrap | null =
-      await this.repository.getInviteEmail(tokenHash);
+    const inviteBootstrap: InviteBootstrap | null = await this.repository.getInviteEmail(tokenHash);
     if (inviteBootstrap === null) {
       throw new BadRequestException('Invalid or expired invite');
     }
@@ -143,13 +141,11 @@ export class AuthService {
     // workspace (the admin's workspace that issued the invite).
     let created: Awaited<ReturnType<AuthRepository['consumeInviteAndCreateUser']>> | null = null;
     try {
-      created = await this.repository.runInTransactionWithWorkspace(
-        inviteWorkspaceId,
-        (tx) =>
-          this.repository.consumeInviteAndCreateUser(tx, {
-            tokenHash,
-            supertokensUserId,
-          })
+      created = await this.repository.runInTransactionWithWorkspace(inviteWorkspaceId, (tx) =>
+        this.repository.consumeInviteAndCreateUser(tx, {
+          tokenHash,
+          supertokensUserId,
+        })
       );
     } catch (err) {
       // App-DB failure after the Core user was created → compensate first (so no

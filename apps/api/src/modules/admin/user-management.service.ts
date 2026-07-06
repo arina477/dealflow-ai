@@ -59,9 +59,9 @@ import {
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { getDb, getWorkspaceId } from '../../db/workspace-context';
-import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { invites, roles, users } from '../../db/schema/users-roles';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
 import type { Tx } from '../audit/audit.repository';
 
 /** Tx alias scoped to this module for advisory lock and raw-SQL queries. */

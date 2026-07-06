@@ -20,8 +20,6 @@ import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { and, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { getDb, getWorkspaceId } from '../../db/workspace-context';
-import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import {
   companies,
   companyProvenance,
@@ -30,6 +28,8 @@ import {
   dedupeCandidates,
   rawCompanies,
 } from '../../db/schema/sourcing';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
 import { DedupeEngine, normalizeDomain, normalizeName } from './dedupe.engine';
 
 export type ConnectionRow = typeof dataSourceConnections.$inferSelect;
@@ -297,7 +297,11 @@ export class SourcingRepository {
   }
 
   async findRawCompanyById(id: string): Promise<typeof rawCompanies.$inferSelect | null> {
-    const rows = await getDb(this.db).select().from(rawCompanies).where(eq(rawCompanies.id, id)).limit(1);
+    const rows = await getDb(this.db)
+      .select()
+      .from(rawCompanies)
+      .where(eq(rawCompanies.id, id))
+      .limit(1);
     return rows[0] ?? null;
   }
 

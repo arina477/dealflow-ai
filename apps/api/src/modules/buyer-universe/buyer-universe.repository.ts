@@ -22,11 +22,11 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { getDb, getWorkspaceId } from '../../db/workspace-context';
-import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
 import { buyerUniverse, buyerUniverseCandidates } from '../../db/schema/buyer-universe';
 import { mandateBuyerCriteria, mandates } from '../../db/schema/mandate';
 import { companies, contacts } from '../../db/schema/sourcing';
+import { DEFAULT_WORKSPACE_ID } from '../../db/schema/workspaces';
+import { getDb, getWorkspaceId } from '../../db/workspace-context';
 
 export type BuyerUniverseRow = typeof buyerUniverse.$inferSelect;
 export type BuyerUniverseCandidateRow = typeof buyerUniverseCandidates.$inferSelect;

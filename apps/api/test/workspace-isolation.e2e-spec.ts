@@ -266,10 +266,9 @@ describe.skipIf(shouldSkip)(
 
         // Open a WS_B connection and query mandates.
         const rows = await withWorkspace(WS_B_ID, async (client) => {
-          const res = await client.query<{ id: string }>(
-            `SELECT id FROM mandates WHERE id = $1`,
-            [mandateId]
-          );
+          const res = await client.query<{ id: string }>(`SELECT id FROM mandates WHERE id = $1`, [
+            mandateId,
+          ]);
           return res.rows;
         });
 
@@ -303,10 +302,9 @@ describe.skipIf(shouldSkip)(
 
         // WS_A GUC should not see it.
         const rows = await withWorkspace(WS_A_ID, async (client) => {
-          const res = await client.query<{ id: string }>(
-            `SELECT id FROM mandates WHERE id = $1`,
-            [wsBMandateId]
-          );
+          const res = await client.query<{ id: string }>(`SELECT id FROM mandates WHERE id = $1`, [
+            wsBMandateId,
+          ]);
           return res.rows;
         });
 
@@ -339,17 +337,15 @@ describe.skipIf(shouldSkip)(
       }
     );
 
-    it.skipIf(!dbReachable)(
-      'ISO-5: WORM trigger rejects UPDATE on audit_log_entries',
-      async () => {
-        // Seed a minimal audit_log_entries row directly (bypassing the service to
-        // avoid dependency on the keyring env var in CI). Use WS_A GUC.
-        const entryId = crypto.randomUUID();
-        const fakeHash = 'a'.repeat(64);
+    it.skipIf(!dbReachable)('ISO-5: WORM trigger rejects UPDATE on audit_log_entries', async () => {
+      // Seed a minimal audit_log_entries row directly (bypassing the service to
+      // avoid dependency on the keyring env var in CI). Use WS_A GUC.
+      const entryId = crypto.randomUUID();
+      const fakeHash = 'a'.repeat(64);
 
-        await withWorkspace(WS_A_ID, async (client) => {
-          await client.query(
-            `INSERT INTO audit_log_entries
+      await withWorkspace(WS_A_ID, async (client) => {
+        await client.query(
+          `INSERT INTO audit_log_entries
                (id, actor_user_id, actor_role, action, resource_type, resource_id,
                 content_hash, payload_hash, prev_hash, entry_hash, chain_version,
                 workspace_id)
@@ -357,31 +353,29 @@ describe.skipIf(shouldSkip)(
                ($1, $2, 'admin', 'workspace-settings-update', 'workspace_settings',
                 $3, $4, $4, $4, $4, 1, $5)
              ON CONFLICT (id) DO NOTHING`,
-            [entryId, wsAUserId, entryId, fakeHash, WS_A_ID]
-          );
+          [entryId, wsAUserId, entryId, fakeHash, WS_A_ID]
+        );
+      });
+
+      // Attempt UPDATE — must be rejected by the WORM BEFORE-UPDATE trigger.
+      let thrownError: Error | null = null;
+      try {
+        await withWorkspace(WS_A_ID, async (client) => {
+          await client.query(`UPDATE audit_log_entries SET actor_role = 'advisor' WHERE id = $1`, [
+            entryId,
+          ]);
         });
-
-        // Attempt UPDATE — must be rejected by the WORM BEFORE-UPDATE trigger.
-        let thrownError: Error | null = null;
-        try {
-          await withWorkspace(WS_A_ID, async (client) => {
-            await client.query(
-              `UPDATE audit_log_entries SET actor_role = 'advisor' WHERE id = $1`,
-              [entryId]
-            );
-          });
-        } catch (err) {
-          thrownError = err as Error;
-        }
-
-        expect(thrownError).not.toBeNull();
-        // WORM trigger raises an exception → SQLSTATE P0001 (raise_exception) or
-        // the pg driver surfaces it as an error with code P0001 / 'P0001'.
-        const errCode =
-          (thrownError as { code?: string })?.code ??
-          (thrownError as { cause?: { code?: string } })?.cause?.code;
-        expect(errCode).toBe('P0001');
+      } catch (err) {
+        thrownError = err as Error;
       }
-    );
+
+      expect(thrownError).not.toBeNull();
+      // WORM trigger raises an exception → SQLSTATE P0001 (raise_exception) or
+      // the pg driver surfaces it as an error with code P0001 / 'P0001'.
+      const errCode =
+        (thrownError as { code?: string })?.code ??
+        (thrownError as { cause?: { code?: string } })?.cause?.code;
+      expect(errCode).toBe('P0001');
+    });
   }
 );

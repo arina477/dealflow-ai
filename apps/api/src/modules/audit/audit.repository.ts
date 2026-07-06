@@ -14,8 +14,8 @@ import { and, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { getDb } from '../../db/workspace-context';
 import { auditLogEntries } from '../../db/schema/audit-log';
+import { getDb } from '../../db/workspace-context';
 
 /** Drizzle transaction handle — same derivation as auth.repository.ts. */
 export type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];

@@ -29,7 +29,7 @@
  * matching.ts imports from './mandate', './buyer-universe', and './users-roles'.
  * pipeline.ts imports from './mandate', './matching', './outreach', and './users-roles'.
  */
-export * from './workspaces';
+
 export * from './admin-settings';
 export * from './app-meta';
 export * from './audit-log';
@@ -41,3 +41,4 @@ export * from './outreach';
 export * from './pipeline';
 export * from './sourcing';
 export * from './users-roles';
+export * from './workspaces';

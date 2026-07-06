@@ -45,8 +45,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { getDb } from '../../db/workspace-context';
 import { users } from '../../db/schema/users-roles';
+import { getDb } from '../../db/workspace-context';
 
 // biome-ignore lint/style/useImportType: value import required for emitDecoratorMetadata DI resolution
 import { AuditRepository } from '../audit/audit.repository';

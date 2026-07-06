@@ -274,6 +274,8 @@ export {
   exportScopeSchema,
   listFilterSchema,
 } from './recordkeeping';
+export type { ResolveUserWorkspaceResult } from './resolver-contract';
+export { resolveUserWorkspaceResultSchema } from './resolver-contract';
 // auditVerifyResponseSchema is also re-exported from recordkeeping (do NOT
 // import it from there — import from ./audit directly to avoid double re-export
 // confusion; recordkeeping re-exports it for co-location convenience only).
@@ -330,6 +332,13 @@ export {
   userAdminListResponseSchema,
   userAdminRecordSchema,
 } from './user-admin';
+// --- Wave-17 workspace isolation contracts (tasks 0db154ff / 96026365) ---
+export type { Workspace, WorkspaceId } from './workspace';
+export {
+  DEFAULT_WORKSPACE_ID,
+  workspaceIdSchema,
+  workspaceSchema,
+} from './workspace';
 export type {
   WorkspaceSettings,
   WorkspaceSettingsUpdateInput,
@@ -338,12 +347,3 @@ export {
   workspaceSettingsSchema,
   workspaceSettingsUpdateSchema,
 } from './workspace-settings';
-// --- Wave-17 workspace isolation contracts (tasks 0db154ff / 96026365) ---
-export type { Workspace, WorkspaceId } from './workspace';
-export {
-  DEFAULT_WORKSPACE_ID,
-  workspaceIdSchema,
-  workspaceSchema,
-} from './workspace';
-export type { ResolveUserWorkspaceResult } from './resolver-contract';
-export { resolveUserWorkspaceResultSchema } from './resolver-contract';

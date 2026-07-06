@@ -35,8 +35,8 @@
  * Mandates seeded for cross-workspace check — DELETE is safe (same condition).
  */
 
-import path from 'node:path';
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { Pool, type PoolClient } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { apiMigrationsFolder, ensureMigrated } from './_helpers/ensure-migrated';
@@ -92,7 +92,10 @@ const seededMandateIds: string[] = [];
 /**
  * Open a dedicated PoolClient with app.workspace_id set, run fn, RESET + release.
  */
-async function withWorkspace<T>(workspaceId: string, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+async function withWorkspace<T>(
+  workspaceId: string,
+  fn: (client: PoolClient) => Promise<T>
+): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query(`SET app.workspace_id = '${workspaceId}'`);
@@ -380,10 +383,9 @@ describe.skipIf(shouldSkip)(
 
         // Consume the invite (so it's in a realistic state).
         await withWorkspace(WS_W_ID, async (client) => {
-          await client.query(
-            `UPDATE invites SET consumed_at = now() WHERE token = $1`,
-            [tokenHash]
-          );
+          await client.query(`UPDATE invites SET consumed_at = now() WHERE token = $1`, [
+            tokenHash,
+          ]);
         });
 
         // Seed a mandate in workspace W and workspace X.
@@ -397,20 +399,18 @@ describe.skipIf(shouldSkip)(
 
         // New user (workspace W GUC) can see workspace W mandate.
         const wRows = await withWorkspace(WS_W_ID, async (client) => {
-          const res = await client.query<{ id: string }>(
-            'SELECT id FROM mandates WHERE id = $1',
-            [mandateWId]
-          );
+          const res = await client.query<{ id: string }>('SELECT id FROM mandates WHERE id = $1', [
+            mandateWId,
+          ]);
           return res.rows;
         });
         expect(wRows).toHaveLength(1);
 
         // New user (workspace W GUC) cannot see workspace X mandate.
         const xRows = await withWorkspace(WS_W_ID, async (client) => {
-          const res = await client.query<{ id: string }>(
-            'SELECT id FROM mandates WHERE id = $1',
-            [mandateXId]
-          );
+          const res = await client.query<{ id: string }>('SELECT id FROM mandates WHERE id = $1', [
+            mandateXId,
+          ]);
           return res.rows;
         });
         expect(xRows).toHaveLength(0);
@@ -425,17 +425,15 @@ describe.skipIf(shouldSkip)(
 
         // Consume the invite.
         await withWorkspace(WS_W_ID, async (client) => {
-          await client.query(
-            `UPDATE invites SET consumed_at = now() WHERE token = $1`,
-            [tokenHash]
-          );
+          await client.query(`UPDATE invites SET consumed_at = now() WHERE token = $1`, [
+            tokenHash,
+          ]);
         });
 
         // resolve_invite must return 0 rows for a consumed invite.
-        const res = await pool.query(
-          'SELECT email, workspace_id FROM resolve_invite($1)',
-          [tokenHash]
-        );
+        const res = await pool.query('SELECT email, workspace_id FROM resolve_invite($1)', [
+          tokenHash,
+        ]);
         expect(res.rows).toHaveLength(0);
       }
     );

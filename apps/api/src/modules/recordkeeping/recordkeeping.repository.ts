@@ -61,8 +61,8 @@ import { and, asc, eq, gte, lte, sql } from 'drizzle-orm';
 
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
-import { getDb } from '../../db/workspace-context';
 import { auditLogEntries } from '../../db/schema/audit-log';
+import { getDb } from '../../db/workspace-context';
 import type { StoredAuditEntry, Tx } from '../audit/audit.repository';
 
 // ---------------------------------------------------------------------------

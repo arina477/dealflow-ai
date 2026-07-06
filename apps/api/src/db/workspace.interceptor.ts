@@ -31,14 +31,13 @@ import {
 } from '@nestjs/common';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { PoolClient } from 'pg';
-import { Observable, from } from 'rxjs';
+import { from, Observable } from 'rxjs';
 import { finalize, switchMap } from 'rxjs/operators';
-
+import type { RequestWithSession } from '../modules/auth/guards/session.guard';
 import type { Database } from './db.provider';
 import { pool } from './index';
 import * as schema from './schema';
 import { workspaceAls } from './workspace-context';
-import type { RequestWithSession } from '../modules/auth/guards/session.guard';
 
 @Injectable()
 export class WorkspaceInterceptor implements NestInterceptor {
