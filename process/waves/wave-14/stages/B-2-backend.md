@@ -1,0 +1,2 @@
+# Wave 14 — B-2-backend
+migration 0012 (hash-excluded mandate_id, PROVEN byte-identical existing hashes + verifyChain green mixed-chain); gate records mandateId via appendWithMandate (gate allow/block UNCHANGED, regression green); recordkeeping gate-evaluate branch + docstring reversed; hash-safety unit test (5, HMAC-recompute) + recordkeeping-gate e2e (8, lifts DEV-2). Full pnpm -r test green (486+707+498) (d020fd4)
