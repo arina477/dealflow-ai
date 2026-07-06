@@ -42,7 +42,7 @@ BUILD:
 - [x] B-6 Review
 
 CI/CD:
-- [ ] C-1 PR/CI/merge
+- [x] C-1 PR/CI/merge — GREEN on main (ec9e480, run 28821888615, all 5 jobs; ISO/INV/GUC/RBAC real as dealflow_app; 3 fix-forward cycles)
 - [ ] C-2 Deploy & verify
 
 TEST:
