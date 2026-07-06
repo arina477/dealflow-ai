@@ -161,9 +161,13 @@ describe.skipIf(shouldSkip)(
     async function createTestUser(email: string, roleName: string): Promise<string> {
       const { sql } = await import('drizzle-orm');
       const roleId = await getRoleId(roleName);
+      // workspace_id is NOT NULL after migration 0014. Use the stable default workspace
+      // seeded by that migration. The postgres CI user has BYPASSRLS so FORCE RLS does
+      // not affect this insert; the constraint is purely the NOT NULL check.
       const insertRows = await db.execute<{ id: string }>(sql`
-        INSERT INTO users (supertokens_user_id, email, role_id)
-        VALUES (gen_random_uuid()::text, ${email}, ${roleId}::uuid)
+        INSERT INTO users (supertokens_user_id, email, role_id, workspace_id)
+        VALUES (gen_random_uuid()::text, ${email}, ${roleId}::uuid,
+                'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
         ON CONFLICT (email) DO NOTHING
         RETURNING id
       `);
@@ -195,9 +199,11 @@ describe.skipIf(shouldSkip)(
       if (existingId) return existingId;
 
       // Insert a fresh active template.
+      // workspace_id is NOT NULL after migration 0014 — use the stable default workspace.
       const inserted = await db.execute<{ id: string }>(sql`
-        INSERT INTO disclaimer_templates (jurisdiction, body, version, active)
-        VALUES (${jurisdiction}, ${'Test disclaimer for ' + jurisdiction}, 1, true)
+        INSERT INTO disclaimer_templates (jurisdiction, body, version, active, workspace_id)
+        VALUES (${jurisdiction}, ${'Test disclaimer for ' + jurisdiction}, 1, true,
+                'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
         RETURNING id
       `);
       const newId = (inserted.rows ?? inserted)[0]?.id;
@@ -229,15 +235,18 @@ describe.skipIf(shouldSkip)(
       // Delete any existing row so we control the state exactly.
       await db.execute(sql`DELETE FROM workspace_settings`);
 
+      // workspace_id is NOT NULL after migration 0014 — use the stable default workspace.
       const rows = await db.execute<{ id: string }>(sql`
         INSERT INTO workspace_settings (
           default_jurisdiction,
           default_suppression_scope,
-          created_by
+          created_by,
+          workspace_id
         ) VALUES (
           ${opts.defaultJurisdiction ?? null},
           ${opts.defaultSuppressionScope ?? null},
-          ${opts.actorId}::uuid
+          ${opts.actorId}::uuid,
+          'a1b2c3d4-0000-4000-8000-000000000001'::uuid
         )
         RETURNING id
       `);

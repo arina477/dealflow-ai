@@ -205,31 +205,37 @@ describe.skipIf(shouldSkip)(
       if (!roleId) throw new Error('advisor role not found after seed');
 
       // users (advisor)
+      // workspace_id is NOT NULL after migration 0014. Use the stable default workspace.
+      // The postgres CI user has BYPASSRLS so FORCE RLS does not affect this insert.
       await db.execute(
-        sql`INSERT INTO users (id, email, role_id, supertokens_user_id)
-            VALUES (${ADVISOR_ID}, ${'e2e-pipeline-advisor@test.invalid'}, ${roleId}, ${ST_ADVISOR_ID})
+        sql`INSERT INTO users (id, email, role_id, supertokens_user_id, workspace_id)
+            VALUES (${ADVISOR_ID}, ${'e2e-pipeline-advisor@test.invalid'}, ${roleId}, ${ST_ADVISOR_ID},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // mandates (requires created_by → users.id)
       await db.execute(
-        sql`INSERT INTO mandates (id, created_by, seller_name, status)
-            VALUES (${MANDATE_ID}, ${ADVISOR_ID}, ${'E2E Pipeline Test Mandate'}, 'active')
+        sql`INSERT INTO mandates (id, created_by, seller_name, status, workspace_id)
+            VALUES (${MANDATE_ID}, ${ADVISOR_ID}, ${'E2E Pipeline Test Mandate'}, 'active',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // disclaimer_templates (active=false — not needed for pipeline tests, but
       // required as FK for outreach_template_versions)
       await db.execute(
-        sql`INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active)
-            VALUES (${DISCLAIMER_ID}, ${'US'}, ${'E2E pipeline test disclaimer body.'}, 1, false)
+        sql`INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active, workspace_id)
+            VALUES (${DISCLAIMER_ID}, ${'US'}, ${'E2E pipeline test disclaimer body.'}, 1, false,
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // outreach_templates
       await db.execute(
-        sql`INSERT INTO outreach_templates (id, name, owner_id)
-            VALUES (${TEMPLATE_ID}, ${'E2E Pipeline Test Template'}, ${ADVISOR_ID})
+        sql`INSERT INTO outreach_templates (id, name, owner_id, workspace_id)
+            VALUES (${TEMPLATE_ID}, ${'E2E Pipeline Test Template'}, ${ADVISOR_ID},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
@@ -238,54 +244,60 @@ describe.skipIf(shouldSkip)(
       await db.execute(
         sql`INSERT INTO outreach_template_versions
               (id, template_id, version_number, subject, body, disclaimer_template_id,
-               content_hash, approval_status, approved_content_hash, approved_by)
+               content_hash, approval_status, approved_content_hash, approved_by, workspace_id)
             VALUES
               (${VERSION_ID}, ${TEMPLATE_ID}, 1,
                ${'E2E pipeline subject'}, ${'E2E pipeline body content.'},
-               ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'approved', ${CONTENT_HASH}, ${ADVISOR_ID})
+               ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'approved', ${CONTENT_HASH}, ${ADVISOR_ID},
+               'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // companies (required FK for buyer_universe_candidates)
       await db.execute(
-        sql`INSERT INTO companies (id, name)
-            VALUES (${BUYER_UNIVERSE_COMPANY_ID}, ${'E2E Pipeline Test Company'})
+        sql`INSERT INTO companies (id, name, workspace_id)
+            VALUES (${BUYER_UNIVERSE_COMPANY_ID}, ${'E2E Pipeline Test Company'},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // buyer_universe (requires mandate_id + created_by)
       await db.execute(
-        sql`INSERT INTO buyer_universe (id, mandate_id, created_by, status)
-            VALUES (${BUYER_UNIVERSE_ID}, ${MANDATE_ID}, ${ADVISOR_ID}, 'draft')
+        sql`INSERT INTO buyer_universe (id, mandate_id, created_by, status, workspace_id)
+            VALUES (${BUYER_UNIVERSE_ID}, ${MANDATE_ID}, ${ADVISOR_ID}, 'draft',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // buyer_universe_candidates
       await db.execute(
         sql`INSERT INTO buyer_universe_candidates
-              (id, buyer_universe_id, company_id, membership_status)
+              (id, buyer_universe_id, company_id, membership_status, workspace_id)
             VALUES (${BUYER_UNIVERSE_CANDIDATE_ID}, ${BUYER_UNIVERSE_ID},
-                    ${BUYER_UNIVERSE_COMPANY_ID}, 'included')
+                    ${BUYER_UNIVERSE_COMPANY_ID}, 'included',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // match_run (requires mandate_id + buyer_universe_id + created_by)
       await db.execute(
         sql`INSERT INTO match_run
-              (id, mandate_id, buyer_universe_id, created_by, status, ready_for_outreach)
+              (id, mandate_id, buyer_universe_id, created_by, status, ready_for_outreach, workspace_id)
             VALUES (${MATCH_RUN_ID}, ${MANDATE_ID}, ${BUYER_UNIVERSE_ID},
-                    ${ADVISOR_ID}, 'scored', true)
+                    ${ADVISOR_ID}, 'scored', true,
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // match_candidates (requires match_run_id + buyer_universe_candidate_id)
       await db.execute(
         sql`INSERT INTO match_candidates
-              (id, match_run_id, buyer_universe_candidate_id, fit_score, score_breakdown, disposition)
+              (id, match_run_id, buyer_universe_candidate_id, fit_score, score_breakdown, disposition, workspace_id)
             VALUES (${MATCH_CANDIDATE_ID}, ${MATCH_RUN_ID}, ${BUYER_UNIVERSE_CANDIDATE_ID},
                     80,
                     ${'{"sectorMatch":40,"contactCompleteness":30,"tieBreak":10,"total":80,"notApplied":[]}'}::jsonb,
-                    'accepted')
+                    'accepted',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
@@ -293,11 +305,12 @@ describe.skipIf(shouldSkip)(
       await db.execute(
         sql`INSERT INTO outreach
               (id, mandate_id, match_candidate_id, template_version_id,
-               gate_verdict, status, created_by)
+               gate_verdict, status, created_by, workspace_id)
             VALUES
               (${OUTREACH_ID}, ${MANDATE_ID}, ${MATCH_CANDIDATE_ID}, ${VERSION_ID},
                ${'{"allowed":true,"blocks":[],"requiredDisclaimers":[]}'}::jsonb,
-               'send_eligible', ${ADVISOR_ID})
+               'send_eligible', ${ADVISOR_ID},
+               'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
     }

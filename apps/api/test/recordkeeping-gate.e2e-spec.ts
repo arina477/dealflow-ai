@@ -218,54 +218,65 @@ describe.skipIf(shouldSkip)(
       const complianceRoleId = complianceRoleRow.rows?.[0]?.id;
       if (!complianceRoleId) throw new Error('compliance role not found after seed');
 
+      // workspace_id is NOT NULL after migration 0014. Use the stable default workspace
+      // seeded by that migration. The postgres CI user has BYPASSRLS so FORCE RLS does
+      // not affect these inserts; the constraint is purely the NOT NULL check.
       await db.execute(
-        sql`INSERT INTO users (id, email, role_id, supertokens_user_id)
-            VALUES (${COMPLIANCE_ID}, ${'compliance14@test.invalid'}, ${complianceRoleId}, ${ST_COMPLIANCE_ID})
+        sql`INSERT INTO users (id, email, role_id, supertokens_user_id, workspace_id)
+            VALUES (${COMPLIANCE_ID}, ${'compliance14@test.invalid'}, ${complianceRoleId}, ${ST_COMPLIANCE_ID},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // ── mandates ───────────────────────────────────────────────────────────
       await db.execute(
-        sql`INSERT INTO mandates (id, seller_name, status, created_by)
-            VALUES (${MANDATE_A_ID}, ${'Mandate A (wave-14 e2e)'}, 'active', ${COMPLIANCE_ID})
+        sql`INSERT INTO mandates (id, seller_name, status, created_by, workspace_id)
+            VALUES (${MANDATE_A_ID}, ${'Mandate A (wave-14 e2e)'}, 'active', ${COMPLIANCE_ID},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
-        sql`INSERT INTO mandates (id, seller_name, status, created_by)
-            VALUES (${MANDATE_B_ID}, ${'Mandate B (wave-14 e2e)'}, 'active', ${COMPLIANCE_ID})
+        sql`INSERT INTO mandates (id, seller_name, status, created_by, workspace_id)
+            VALUES (${MANDATE_B_ID}, ${'Mandate B (wave-14 e2e)'}, 'active', ${COMPLIANCE_ID},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // ── disclaimer ─────────────────────────────────────────────────────────
       await db.execute(
-        sql`INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active)
-            VALUES (${DISCLAIMER_ID}, ${'US'}, ${'Test disclaimer for wave-14 e2e.'}, 1, false)
+        sql`INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active, workspace_id)
+            VALUES (${DISCLAIMER_ID}, ${'US'}, ${'Test disclaimer for wave-14 e2e.'}, 1, false,
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // ── outreach templates + versions (one per mandate) ───────────────────
       await db.execute(
-        sql`INSERT INTO outreach_templates (id, name, owner_id)
-            VALUES (${TEMPLATE_A_ID}, ${'Template A (wave-14 e2e)'}, ${COMPLIANCE_ID})
+        sql`INSERT INTO outreach_templates (id, name, owner_id, workspace_id)
+            VALUES (${TEMPLATE_A_ID}, ${'Template A (wave-14 e2e)'}, ${COMPLIANCE_ID},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
         sql`INSERT INTO outreach_template_versions
-            (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
+            (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status, workspace_id)
             VALUES (${VERSION_A_ID}, ${TEMPLATE_A_ID}, 1, ${'Subject A'}, ${'Body A.'}, ${DISCLAIMER_ID},
-                    ${'a'.repeat(64)}, 'approved')
+                    ${'a'.repeat(64)}, 'approved',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
-        sql`INSERT INTO outreach_templates (id, name, owner_id)
-            VALUES (${TEMPLATE_B_ID}, ${'Template B (wave-14 e2e)'}, ${COMPLIANCE_ID})
+        sql`INSERT INTO outreach_templates (id, name, owner_id, workspace_id)
+            VALUES (${TEMPLATE_B_ID}, ${'Template B (wave-14 e2e)'}, ${COMPLIANCE_ID},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
         sql`INSERT INTO outreach_template_versions
-            (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
+            (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status, workspace_id)
             VALUES (${VERSION_B_ID}, ${TEMPLATE_B_ID}, 1, ${'Subject B'}, ${'Body B.'}, ${DISCLAIMER_ID},
-                    ${'b'.repeat(64)}, 'approved')
+                    ${'b'.repeat(64)}, 'approved',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
@@ -273,91 +284,107 @@ describe.skipIf(shouldSkip)(
       // companies → buyer_universe → buyer_universe_candidates →
       // match_run → match_candidates → outreach
       await db.execute(
-        sql`INSERT INTO companies (id, name) VALUES (${COMPANY_A_ID}, ${'Company A (wave-14 e2e)'})
+        sql`INSERT INTO companies (id, name, workspace_id)
+            VALUES (${COMPANY_A_ID}, ${'Company A (wave-14 e2e)'},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
-        sql`INSERT INTO buyer_universe (id, mandate_id, created_by, status)
-            VALUES (${BUYER_UNIVERSE_A_ID}, ${MANDATE_A_ID}::uuid, ${COMPLIANCE_ID}::uuid, 'draft')
+        sql`INSERT INTO buyer_universe (id, mandate_id, created_by, status, workspace_id)
+            VALUES (${BUYER_UNIVERSE_A_ID}, ${MANDATE_A_ID}::uuid, ${COMPLIANCE_ID}::uuid, 'draft',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
-        sql`INSERT INTO buyer_universe_candidates (id, buyer_universe_id, company_id, membership_status)
-            VALUES (${BU_CANDIDATE_A_ID}, ${BUYER_UNIVERSE_A_ID}::uuid, ${COMPANY_A_ID}::uuid, 'included')
+        sql`INSERT INTO buyer_universe_candidates (id, buyer_universe_id, company_id, membership_status, workspace_id)
+            VALUES (${BU_CANDIDATE_A_ID}, ${BUYER_UNIVERSE_A_ID}::uuid, ${COMPANY_A_ID}::uuid, 'included',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
-        sql`INSERT INTO match_run (id, mandate_id, buyer_universe_id, created_by, status, ready_for_outreach)
+        sql`INSERT INTO match_run (id, mandate_id, buyer_universe_id, created_by, status, ready_for_outreach, workspace_id)
             VALUES (${MATCH_RUN_A_ID}, ${MANDATE_A_ID}::uuid, ${BUYER_UNIVERSE_A_ID}::uuid,
-                    ${COMPLIANCE_ID}::uuid, 'scored', true)
+                    ${COMPLIANCE_ID}::uuid, 'scored', true,
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
         sql`INSERT INTO match_candidates
-              (id, match_run_id, buyer_universe_candidate_id, fit_score, score_breakdown, disposition)
+              (id, match_run_id, buyer_universe_candidate_id, fit_score, score_breakdown, disposition, workspace_id)
             VALUES (${MATCH_CANDIDATE_A_ID}, ${MATCH_RUN_A_ID}::uuid, ${BU_CANDIDATE_A_ID}::uuid,
                     80, ${'{"sectorMatch":40,"contactCompleteness":30,"tieBreak":10,"total":80,"notApplied":[]}'}::jsonb,
-                    'accepted')
+                    'accepted',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
-        sql`INSERT INTO outreach (id, mandate_id, match_candidate_id, template_version_id, gate_verdict, status, created_by)
+        sql`INSERT INTO outreach (id, mandate_id, match_candidate_id, template_version_id, gate_verdict, status, created_by, workspace_id)
             VALUES (${OUTREACH_A_ID}, ${MANDATE_A_ID}::uuid, ${MATCH_CANDIDATE_A_ID}::uuid,
                     ${VERSION_A_ID}::uuid,
                     ${'{"allowed":true,"blocks":[],"requiredDisclaimers":[]}'}::jsonb,
-                    'send_eligible', ${COMPLIANCE_ID}::uuid)
+                    'send_eligible', ${COMPLIANCE_ID}::uuid,
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // ── full FK chain for outreach (mandate-B) ────────────────────────────
       await db.execute(
-        sql`INSERT INTO companies (id, name) VALUES (${COMPANY_B_ID}, ${'Company B (wave-14 e2e)'})
+        sql`INSERT INTO companies (id, name, workspace_id)
+            VALUES (${COMPANY_B_ID}, ${'Company B (wave-14 e2e)'},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
-        sql`INSERT INTO buyer_universe (id, mandate_id, created_by, status)
-            VALUES (${BUYER_UNIVERSE_B_ID}, ${MANDATE_B_ID}::uuid, ${COMPLIANCE_ID}::uuid, 'draft')
+        sql`INSERT INTO buyer_universe (id, mandate_id, created_by, status, workspace_id)
+            VALUES (${BUYER_UNIVERSE_B_ID}, ${MANDATE_B_ID}::uuid, ${COMPLIANCE_ID}::uuid, 'draft',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
-        sql`INSERT INTO buyer_universe_candidates (id, buyer_universe_id, company_id, membership_status)
-            VALUES (${BU_CANDIDATE_B_ID}, ${BUYER_UNIVERSE_B_ID}::uuid, ${COMPANY_B_ID}::uuid, 'included')
+        sql`INSERT INTO buyer_universe_candidates (id, buyer_universe_id, company_id, membership_status, workspace_id)
+            VALUES (${BU_CANDIDATE_B_ID}, ${BUYER_UNIVERSE_B_ID}::uuid, ${COMPANY_B_ID}::uuid, 'included',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
-        sql`INSERT INTO match_run (id, mandate_id, buyer_universe_id, created_by, status, ready_for_outreach)
+        sql`INSERT INTO match_run (id, mandate_id, buyer_universe_id, created_by, status, ready_for_outreach, workspace_id)
             VALUES (${MATCH_RUN_B_ID}, ${MANDATE_B_ID}::uuid, ${BUYER_UNIVERSE_B_ID}::uuid,
-                    ${COMPLIANCE_ID}::uuid, 'scored', true)
+                    ${COMPLIANCE_ID}::uuid, 'scored', true,
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
         sql`INSERT INTO match_candidates
-              (id, match_run_id, buyer_universe_candidate_id, fit_score, score_breakdown, disposition)
+              (id, match_run_id, buyer_universe_candidate_id, fit_score, score_breakdown, disposition, workspace_id)
             VALUES (${MATCH_CANDIDATE_B_ID}, ${MATCH_RUN_B_ID}::uuid, ${BU_CANDIDATE_B_ID}::uuid,
                     70, ${'{"sectorMatch":35,"contactCompleteness":25,"tieBreak":10,"total":70,"notApplied":[]}'}::jsonb,
-                    'accepted')
+                    'accepted',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
-        sql`INSERT INTO outreach (id, mandate_id, match_candidate_id, template_version_id, gate_verdict, status, created_by)
+        sql`INSERT INTO outreach (id, mandate_id, match_candidate_id, template_version_id, gate_verdict, status, created_by, workspace_id)
             VALUES (${OUTREACH_B_ID}, ${MANDATE_B_ID}::uuid, ${MATCH_CANDIDATE_B_ID}::uuid,
                     ${VERSION_B_ID}::uuid,
                     ${'{"allowed":false,"blocks":[{"code":"no-approval","message":"test"}],"requiredDisclaimers":[]}'}::jsonb,
-                    'blocked', ${COMPLIANCE_ID}::uuid)
+                    'blocked', ${COMPLIANCE_ID}::uuid,
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
       // ── pipeline (for pipeline_event branch) ──────────────────────────────
       await db.execute(
-        sql`INSERT INTO pipeline (id, mandate_id, deal_source_type, outreach_id, stage, created_by)
+        sql`INSERT INTO pipeline (id, mandate_id, deal_source_type, outreach_id, stage, created_by, workspace_id)
             VALUES (${PIPELINE_A_ID}, ${MANDATE_A_ID}::uuid, ${'outreach'}, ${OUTREACH_A_ID}::uuid,
-                    'shortlisted', ${COMPLIANCE_ID}::uuid)
+                    'shortlisted', ${COMPLIANCE_ID}::uuid,
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
-        sql`INSERT INTO pipeline_events (id, pipeline_id, event_type, from_stage, to_stage, actor_id)
+        sql`INSERT INTO pipeline_events (id, pipeline_id, event_type, from_stage, to_stage, actor_id, workspace_id)
             VALUES (${PIPELINE_EVENT_A_ID}, ${PIPELINE_A_ID}::uuid, 'stage_changed',
-                    'shortlisted', 'contacted', ${COMPLIANCE_ID}::uuid)
+                    'shortlisted', 'contacted', ${COMPLIANCE_ID}::uuid,
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 
@@ -457,16 +484,18 @@ describe.skipIf(shouldSkip)(
       // tables), BOTH rows would be captured by mandate-A's export (or neither),
       // and test I's exclusion assertion would fail.
       await db.execute(
-        sql`INSERT INTO outreach_templates (id, name, owner_id)
-            VALUES (${SHARED_TEMPLATE_ID}, ${'Shared Template (wave-14 M1)'}, ${COMPLIANCE_ID})
+        sql`INSERT INTO outreach_templates (id, name, owner_id, workspace_id)
+            VALUES (${SHARED_TEMPLATE_ID}, ${'Shared Template (wave-14 M1)'}, ${COMPLIANCE_ID},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
       await db.execute(
         sql`INSERT INTO outreach_template_versions
-            (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
+            (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status, workspace_id)
             VALUES (${SHARED_VERSION_ID}, ${SHARED_TEMPLATE_ID}, 1,
                     ${'Shared Subject'}, ${'Shared Body.'}, ${DISCLAIMER_ID},
-                    ${'0'.repeat(64)}, 'approved')
+                    ${'0'.repeat(64)}, 'approved',
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
 

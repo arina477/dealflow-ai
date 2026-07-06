@@ -119,9 +119,13 @@ describe.skipIf(shouldSkip)(
       if (!roleId) throw new Error(`Role ${roleName} not found after insert`);
       // supertokens_user_id is NOT NULL UNIQUE — supply a synthetic value per user.
       const stUserId = `st_${userId}`;
+      // workspace_id is NOT NULL after migration 0014. Use the stable default workspace
+      // seeded by that migration. The postgres CI user has BYPASSRLS so FORCE RLS does
+      // not affect this insert; the constraint is purely the NOT NULL check.
       await tx.execute(
-        sql`INSERT INTO users (id, email, role_id, supertokens_user_id)
-            VALUES (${userId}, ${`${userId}@test.invalid`}, ${roleId}, ${stUserId})
+        sql`INSERT INTO users (id, email, role_id, supertokens_user_id, workspace_id)
+            VALUES (${userId}, ${`${userId}@test.invalid`}, ${roleId}, ${stUserId},
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
     }
@@ -133,9 +137,11 @@ describe.skipIf(shouldSkip)(
     // content would fire missing-disclaimer and mask the SoD/approval assertions.
     // biome-ignore lint/suspicious/noExplicitAny: drizzle tx handle
     async function insertTestDisclaimer(tx: any, disclaimerId: string): Promise<void> {
+      // workspace_id is NOT NULL after migration 0014.
       await tx.execute(
-        sql`INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active)
-            VALUES (${disclaimerId}, ${TEST_JURISDICTION}, ${'Test disclaimer body for integration tests.'}, 1, false)
+        sql`INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active, workspace_id)
+            VALUES (${disclaimerId}, ${TEST_JURISDICTION}, ${'Test disclaimer body for integration tests.'}, 1, false,
+                    'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
             ON CONFLICT (id) DO NOTHING`
       );
     }
@@ -202,19 +208,23 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'Integration Template'}, ${ADVISOR_ID})`
+            sql`INSERT INTO outreach_templates (id, name, owner_id, workspace_id)
+               VALUES (${TEMPLATE_ID}, ${'Integration Template'}, ${ADVISOR_ID},
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
           await t.execute(
             sql`INSERT INTO outreach_template_versions
-               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${SUBJECT}, ${BODY}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'pending')`
+               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status, workspace_id)
+               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${SUBJECT}, ${BODY}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'pending',
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
 
           // C-1 FIX: this row is what grantApproval now inserts (bridging to M2 gate).
           await t.execute(
             sql`INSERT INTO compliance_approvals
-               (resource_type, resource_id, content_hash, approver_user_id, approver_role, status)
-               VALUES ('outreach-template-version', ${VERSION_ID}, ${CONTENT_HASH}, ${COMPLIANCE_ID}, 'compliance', 'approved')`
+               (resource_type, resource_id, content_hash, approver_user_id, approver_role, status, workspace_id)
+               VALUES ('outreach-template-version', ${VERSION_ID}, ${CONTENT_HASH}, ${COMPLIANCE_ID}, 'compliance', 'approved',
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
           await t.execute(
             sql`UPDATE outreach_template_versions
@@ -277,12 +287,15 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'Not-approved'}, ${ADVISOR_ID})`
+            sql`INSERT INTO outreach_templates (id, name, owner_id, workspace_id)
+               VALUES (${TEMPLATE_ID}, ${'Not-approved'}, ${ADVISOR_ID},
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
           await t.execute(
             sql`INSERT INTO outreach_template_versions
-               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${'Not-approved subject'}, ${'Not-approved body.'}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'pending')`
+               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status, workspace_id)
+               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${'Not-approved subject'}, ${'Not-approved body.'}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'pending',
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
           // Deliberately no compliance_approvals row.
 
@@ -336,18 +349,22 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'SoD template'}, ${USER_ID})`
+            sql`INSERT INTO outreach_templates (id, name, owner_id, workspace_id)
+               VALUES (${TEMPLATE_ID}, ${'SoD template'}, ${USER_ID},
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
           await t.execute(
             sql`INSERT INTO outreach_template_versions
-               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${'SoD-violation subject'}, ${'SoD-violation body.'}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'approved')`
+               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status, workspace_id)
+               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${'SoD-violation subject'}, ${'SoD-violation body.'}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'approved',
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
           // Approval row where approver === sender (same USER_ID).
           await t.execute(
             sql`INSERT INTO compliance_approvals
-               (resource_type, resource_id, content_hash, approver_user_id, approver_role, status)
-               VALUES ('outreach-template-version', ${VERSION_ID}, ${CONTENT_HASH}, ${USER_ID}, 'compliance', 'approved')`
+               (resource_type, resource_id, content_hash, approver_user_id, approver_role, status, workspace_id)
+               VALUES ('outreach-template-version', ${VERSION_ID}, ${CONTENT_HASH}, ${USER_ID}, 'compliance', 'approved',
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
 
           const gateSvc = await buildGateService();
@@ -411,24 +428,29 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'Drift template'}, ${ADVISOR_ID})`
+            sql`INSERT INTO outreach_templates (id, name, owner_id, workspace_id)
+               VALUES (${TEMPLATE_ID}, ${'Drift template'}, ${ADVISOR_ID},
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
           // v1: approved with compliance_approvals row.
           await t.execute(
             sql`INSERT INTO outreach_template_versions
-               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES (${VERSION1_ID}, ${TEMPLATE_ID}, 1, ${'Original subject v1'}, ${'Original body v1.'}, ${DISCLAIMER_ID}, ${HASH1}, 'approved')`
+               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status, workspace_id)
+               VALUES (${VERSION1_ID}, ${TEMPLATE_ID}, 1, ${'Original subject v1'}, ${'Original body v1.'}, ${DISCLAIMER_ID}, ${HASH1}, 'approved',
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
           await t.execute(
             sql`INSERT INTO compliance_approvals
-               (resource_type, resource_id, content_hash, approver_user_id, approver_role, status)
-               VALUES ('outreach-template-version', ${VERSION1_ID}, ${HASH1}, ${COMPLIANCE_ID}, 'compliance', 'approved')`
+               (resource_type, resource_id, content_hash, approver_user_id, approver_role, status, workspace_id)
+               VALUES ('outreach-template-version', ${VERSION1_ID}, ${HASH1}, ${COMPLIANCE_ID}, 'compliance', 'approved',
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
           // v2: new draft — NO compliance_approvals row.
           await t.execute(
             sql`INSERT INTO outreach_template_versions
-               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES (${VERSION2_ID}, ${TEMPLATE_ID}, 2, ${'Revised subject v2'}, ${'Revised body v2.'}, ${DISCLAIMER_ID}, ${HASH2}, 'pending')`
+               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status, workspace_id)
+               VALUES (${VERSION2_ID}, ${TEMPLATE_ID}, 2, ${'Revised subject v2'}, ${'Revised body v2.'}, ${DISCLAIMER_ID}, ${HASH2}, 'pending',
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
 
           const gateSvc = await buildGateService();
@@ -484,15 +506,18 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'Double-approve template'}, ${ADVISOR_ID})`
+            sql`INSERT INTO outreach_templates (id, name, owner_id, workspace_id)
+               VALUES (${TEMPLATE_ID}, ${'Double-approve template'}, ${ADVISOR_ID},
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
           // Version starts as 'approved' (already processed).
           await t.execute(
             sql`INSERT INTO outreach_template_versions
                (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash,
-                approval_status, approved_content_hash, approved_by)
+                approval_status, approved_content_hash, approved_by, workspace_id)
                VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${'Double-approve subject'}, ${'Double-approve body.'}, ${DISCLAIMER_ID}, ${CONTENT_HASH},
-                       'approved', ${CONTENT_HASH}, ${COMPLIANCE_ID})`
+                       'approved', ${CONTENT_HASH}, ${COMPLIANCE_ID},
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
 
           const { OutreachRepository } = await import(
@@ -545,12 +570,15 @@ describe.skipIf(shouldSkip)(
           await insertTestDisclaimer(t, DISCLAIMER_ID);
 
           await t.execute(
-            sql`INSERT INTO outreach_templates (id, name, owner_id) VALUES (${TEMPLATE_ID}, ${'ListTemplates template'}, ${ADVISOR_ID})`
+            sql`INSERT INTO outreach_templates (id, name, owner_id, workspace_id)
+               VALUES (${TEMPLATE_ID}, ${'ListTemplates template'}, ${ADVISOR_ID},
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
           await t.execute(
             sql`INSERT INTO outreach_template_versions
-               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status)
-               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${'ListTemplates subject'}, ${'ListTemplates body.'}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'pending')`
+               (id, template_id, version_number, subject, body, disclaimer_template_id, content_hash, approval_status, workspace_id)
+               VALUES (${VERSION_ID}, ${TEMPLATE_ID}, 1, ${'ListTemplates subject'}, ${'ListTemplates body.'}, ${DISCLAIMER_ID}, ${CONTENT_HASH}, 'pending',
+                       'a1b2c3d4-0000-4000-8000-000000000001'::uuid)`
           );
 
           const { OutreachRepository } = await import(

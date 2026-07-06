@@ -150,10 +150,14 @@ describe.skipIf(shouldSkip)(
     async function createTestUser(email: string, roleName: string): Promise<string> {
       const { sql } = await import('drizzle-orm');
       const roleId = await getRoleId(roleName);
+      // workspace_id is NOT NULL after migration 0014. Use the stable default workspace
+      // seeded by that migration. The postgres CI user has BYPASSRLS so FORCE RLS does
+      // not affect this insert; the constraint is purely the NOT NULL check.
       // Try insert; returns the new row or nothing if email already exists.
       const insertRows = await db.execute<{ id: string }>(sql`
-        INSERT INTO users (supertokens_user_id, email, role_id)
-        VALUES (gen_random_uuid()::text, ${email}, ${roleId}::uuid)
+        INSERT INTO users (supertokens_user_id, email, role_id, workspace_id)
+        VALUES (gen_random_uuid()::text, ${email}, ${roleId}::uuid,
+                'a1b2c3d4-0000-4000-8000-000000000001'::uuid)
         ON CONFLICT (email) DO NOTHING
         RETURNING id
       `);
