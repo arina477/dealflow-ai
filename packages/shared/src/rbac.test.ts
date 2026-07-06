@@ -1409,7 +1409,9 @@ describe('wave-13 — Audit Log nav item now shown for advisor', () => {
   });
 
   it('compliance still sees the Audit Log nav item', () => {
-    expect(navItemsForRole('compliance').some((i) => i.route === '/compliance/audit-log')).toBe(true);
+    expect(navItemsForRole('compliance').some((i) => i.route === '/compliance/audit-log')).toBe(
+      true
+    );
   });
 });
 

@@ -6,12 +6,12 @@ PRODUCT:
 - [x] P-3 Plan
 - [x] P-4 — PASSED (2-phase; karen mandate-scope WRONG + jenny RBAC caught & fixed; re-verified) Gate
 BUILD:
-- [ ] B-0 Branch & schema
-- [ ] B-1 Contracts
-- [ ] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
-- [ ] B-5 Verify
+- [x] B-0 — schema SKIP (no migration) Branch & schema
+- [x] B-1 Contracts
+- [x] B-2 Backend
+- [x] B-3 Frontend
+- [x] B-4 Wiring
+- [x] B-5 Verify
 - [ ] B-6 Review
 CI/CD:
 - [ ] C-1 PR, CI & merge
