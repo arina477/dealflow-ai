@@ -16,11 +16,11 @@
 - Unassigned queue (P-0 walk): b1a0b2ac "Tighten /health spec wording" (low-salience observability nicety; not M6-scope) remains for assignment/deferral.
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe)
+- [x] P-1 Decompose
+- [x] P-2 Spec
+- [x] P-3 Plan
+- [x] P-4 — PASSED (2-phase, 2 Phase-2 iters; f5074df8 REFRAME→/compliance/oversight; outreachId+route+docstring reworks resolved) Gate
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
