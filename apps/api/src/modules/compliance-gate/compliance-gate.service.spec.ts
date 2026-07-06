@@ -56,6 +56,9 @@ function baseCtx(overrides: Partial<GateContext> = {}): GateContext {
     contentHash: CONTENT_HASH,
     resourceType: 'outreach',
     resourceId: 'batch-1',
+    // Wave-14 (487b0f0c): mandateId is now required in GateContext.
+    // It is hash-excluded — recorded in the mandate_id column, not the HMAC preimage.
+    mandateId: 'aaaaaaaa-0000-4000-8000-000000000001',
     ...overrides,
   };
 }
@@ -107,6 +110,7 @@ class FakeRepo {
 /** Audit spy: records every append; can be told to throw (rollback test). */
 class FakeAudit {
   appended: AuditEntryInput[] = [];
+  appendedMandateIds: (string | null)[] = [];
   shouldThrow = false;
 
   append = vi.fn(async (input: AuditEntryInput, _tx: Tx) => {
@@ -114,6 +118,22 @@ class FakeAudit {
       throw new Error('audit append failed — chain would not verify');
     }
     this.appended.push(input);
+    this.appendedMandateIds.push(null);
+    return {} as never;
+  });
+
+  /**
+   * Wave-14 (487b0f0c) — stub for appendWithMandate. Behaves identically to
+   * append() in the fake but records the mandateId for assertions.
+   * The real implementation writes mandateId to the hash-excluded column;
+   * this stub records it in appendedMandateIds for spec assertions.
+   */
+  appendWithMandate = vi.fn(async (input: AuditEntryInput, _tx: Tx, mandateId: string) => {
+    if (this.shouldThrow) {
+      throw new Error('audit append failed — chain would not verify');
+    }
+    this.appended.push(input);
+    this.appendedMandateIds.push(mandateId);
     return {} as never;
   });
 }
@@ -146,10 +166,15 @@ describe('(a) non-bypassability: all evaluators + audit every call', () => {
     expect(repo.calls.disclaimer).toBe(1);
     expect(repo.calls.approval).toBe(2);
 
-    // Exactly one audit append, action gate-evaluate, in the same tx.
-    expect(audit.append).toHaveBeenCalledOnce();
+    // Exactly one audit append (via appendWithMandate — wave-14 487b0f0c),
+    // action gate-evaluate, in the same tx. The mandateId is from baseCtx().
+    expect(audit.appendWithMandate).toHaveBeenCalledOnce();
     expect(audit.appended[0]?.action).toBe('gate-evaluate');
-    expect(audit.append.mock.calls[0]?.[1]).toBe(TX);
+    // appendWithMandate(input, tx, mandateId) — tx is arg[1], mandateId is arg[2]
+    expect(audit.appendWithMandate.mock.calls[0]?.[1]).toBe(TX);
+    expect(audit.appendWithMandate.mock.calls[0]?.[2]).toBe('aaaaaaaa-0000-4000-8000-000000000001');
+    // audit.append is NOT called (gate uses appendWithMandate)
+    expect(audit.append).not.toHaveBeenCalled();
 
     // allow-with-no-rules + valid approval → allowed, schema-valid.
     expect(verdict.allowed).toBe(true);
@@ -175,7 +200,9 @@ describe('(a) non-bypassability: all evaluators + audit every call', () => {
 
     expect(verdict.allowed).toBe(true);
     expect(verdict.blocks).toEqual([]);
-    expect(audit.append).toHaveBeenCalledOnce();
+    // Gate uses appendWithMandate (wave-14 487b0f0c) — append is never called.
+    expect(audit.appendWithMandate).toHaveBeenCalledOnce();
+    expect(audit.append).not.toHaveBeenCalled();
   });
 
   it('evaluateStandalone opens its own tx and audits', async () => {
@@ -188,7 +215,9 @@ describe('(a) non-bypassability: all evaluators + audit every call', () => {
 
     expect(repo.calls.tx).toBe(1);
     expect(verdict.allowed).toBe(true);
-    expect(audit.append).toHaveBeenCalledOnce();
+    // Gate uses appendWithMandate (wave-14 487b0f0c) — append is never called.
+    expect(audit.appendWithMandate).toHaveBeenCalledOnce();
+    expect(audit.append).not.toHaveBeenCalled();
   });
 });
 
@@ -237,7 +266,7 @@ describe('(c) SoD compliance-only matrix', () => {
     const { verdict, audit } = await verdictFor(validApproval());
     expect(verdict.allowed).toBe(true);
     expect(verdict.blocks).toEqual([]);
-    expect(audit.append).toHaveBeenCalledOnce(); // decision still audited
+    expect(audit.appendWithMandate).toHaveBeenCalledOnce(); // decision still audited (wave-14: via appendWithMandate)
   });
 
   it('approver=admin → BLOCKED (sod / invalid-approver-role) — no super-role shortcut', async () => {

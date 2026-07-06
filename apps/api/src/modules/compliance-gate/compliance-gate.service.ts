@@ -113,7 +113,16 @@ export class ComplianceGateService {
     // its audit entry. Placed AFTER verdict computation, BEFORE the return.
     // Uses the parsed/normalized ctx so the audited hash + identity match what the
     // evaluators actually decided over.
-    await this.audit.append(this.verdictAuditEntry(parsed, verdict), tx);
+    //
+    // Wave-14 (task 487b0f0c): use appendWithMandate to record ctx.mandateId in
+    // the hash-excluded mandate_id column. The HMAC preimage is UNCHANGED —
+    // mandateId is NEVER fed into computeEntryHash. This makes the gate-evaluate
+    // row mandate-attributable without touching hash-chain integrity.
+    await this.audit.appendWithMandate(
+      this.verdictAuditEntry(parsed, verdict),
+      tx,
+      parsed.mandateId
+    );
 
     return verdict;
   }

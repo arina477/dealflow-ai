@@ -7,8 +7,8 @@
  * which is called from RecordkeepingService.exportAsActor via the M2 AuditService.
  *
  * Mandate-scope DERIVATION (load-bearing — the P-4 karen WRONG fix):
- * audit_log_entries has NO mandate_id column. A mandate-scoped filter MUST
- * resolve each entry's mandate via its resource_type:
+ * audit_log_entries has a nullable hash-excluded mandate_id column (wave-14,
+ * task 487b0f0c). A mandate-scoped filter resolves each entry's mandate via:
  *   'mandate'                  → resource_id IS the mandate UUID (direct match)
  *   'outreach'                 → JOIN outreach ON id WHERE outreach.mandate_id = ?
  *   'pipeline'                 → JOIN pipeline ON id WHERE pipeline.mandate_id = ?
@@ -19,16 +19,22 @@
  *   'buyer_universe_candidate' → JOIN buyer_universe_candidates→buyer_universe WHERE mandate_id = ?
  *   'audit-log-export'         → resource_id IS the mandate UUID (direct match on
  *                                 prior export events for this mandate's records)
+ *   'outreach-template-version' (gate-evaluate rows) →
+ *                                 mandate_id column = ? (direct match on the
+ *                                 hash-excluded mandate_id column populated at
+ *                                 gate-evaluate time — wave-14 487b0f0c)
  * Org-wide entries (compliance_rule, suppression_entry, etc.) have no mandate FK —
  * they are intentionally excluded from mandate-scoped queries.
  *
- * gate-evaluate rows are intentionally excluded from the mandate-scope derivation.
- * Gate-evaluate entries are written with resource_type='outreach-template-version'
- * (keyed to the reusable template version, which is cross-mandate). Adding an
- * outreach-template-version→mandate branch would over-capture gate decisions that
- * belong to other mandates that share the same template version. Gate-evaluate
- * entries are available in time-range or full-chain exports and are provable via
- * verifyChain; they are NOT mandate-attributable via this derivation.
+ * gate-evaluate rows ARE now included in the mandate-scope derivation (wave-14,
+ * task 487b0f0c reversal). Prior to wave-14 these rows were intentionally
+ * excluded because resource_type='outreach-template-version' is cross-mandate
+ * and a join-based derivation would over-capture decisions belonging to other
+ * mandates sharing the same template version. The wave-14 solution records the
+ * mandate context directly in the hash-excluded mandate_id column at gate-evaluate
+ * time (ComplianceGateService.evaluate → appendWithMandate), so the derivation
+ * can filter on mandate_id = ? with no over-capture. Entries written before
+ * wave-14 have mandate_id = NULL and are correctly excluded (NULL ≠ mid).
  *
  * Advisor scope:
  * When advisorUserId is provided (role='advisor'), only entries whose resource_id
@@ -262,11 +268,13 @@ export class RecordkeepingRepository {
 
     // Mandate-scope derivation (per resource_type)
     //
-    // gate-evaluate is intentionally ABSENT from this derivation: gate-evaluate
-    // rows use resource_type='outreach-template-version' (cross-mandate; attributing
-    // one template version's gate decision to a single mandate would over-capture
-    // other mandates' compliance decisions). Use time-range or full-chain export
-    // to obtain gate-evaluate entries; they are in the immutable chain.
+    // Wave-14 (487b0f0c): gate-evaluate rows (resource_type='outreach-template-version')
+    // are NOW INCLUDED via the hash-excluded mandate_id column. Prior to wave-14 these
+    // were intentionally excluded (cross-mandate template version → over-capture risk).
+    // The wave-14 solution records mandateId at gate-evaluate time in a separate
+    // column (never in the HMAC preimage), so the derivation filters on
+    // mandate_id = mid::uuid with zero over-capture. Entries from before wave-14
+    // have mandate_id = NULL and are correctly excluded by this filter.
     if (filter.mandateId) {
       const mid = filter.mandateId;
       const mandateFragment = sql`(
@@ -299,6 +307,8 @@ export class RecordkeepingRepository {
           WHERE bu.mandate_id = ${mid}::uuid
         ))
         OR (${auditLogEntries.resourceType} = 'audit-log-export' AND ${auditLogEntries.resourceId} = ${mid})
+        OR (${auditLogEntries.resourceType} = 'outreach-template-version'
+            AND ${auditLogEntries.mandateId} = ${mid}::uuid)
       )`;
       return { mandateFragment, simpleConditions };
     }

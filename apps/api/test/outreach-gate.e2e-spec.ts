@@ -225,6 +225,9 @@ describe.skipIf(shouldSkip)(
           // Instantiate the REAL gate (uses the tx so it reads our inserted rows).
           const gateSvc = await buildGateService();
 
+          // Wave-14 (487b0f0c): mandateId is now required in GateContext.
+          // Use a synthetic mandate UUID — the gate does not JOIN on mandate rows.
+          const SYNTHETIC_MANDATE_ID = '10000000-0000-0000-0001-000000000099';
           const verdict = await gateSvc.evaluate(
             {
               senderUserId: ADVISOR_ID,
@@ -235,6 +238,7 @@ describe.skipIf(shouldSkip)(
               contentHash: CONTENT_HASH,
               resourceType: 'outreach-template-version',
               resourceId: VERSION_ID,
+              mandateId: SYNTHETIC_MANDATE_ID,
             },
             tx
           );
@@ -293,6 +297,8 @@ describe.skipIf(shouldSkip)(
               contentHash: CONTENT_HASH,
               resourceType: 'outreach-template-version',
               resourceId: VERSION_ID,
+              // Wave-14 (487b0f0c): mandateId is now required in GateContext.
+              mandateId: '20000000-0000-0000-0002-000000000099',
             },
             tx
           );
@@ -356,6 +362,8 @@ describe.skipIf(shouldSkip)(
               contentHash: CONTENT_HASH,
               resourceType: 'outreach-template-version',
               resourceId: VERSION_ID,
+              // Wave-14 (487b0f0c): mandateId is now required in GateContext.
+              mandateId: '30000000-0000-0000-0003-000000000099',
             },
             tx
           );
@@ -435,6 +443,8 @@ describe.skipIf(shouldSkip)(
               contentHash: HASH2,
               resourceType: 'outreach-template-version',
               resourceId: VERSION2_ID,
+              // Wave-14 (487b0f0c): mandateId is now required in GateContext.
+              mandateId: '40000000-0000-0000-0004-000000000099',
             },
             tx
           );

@@ -267,6 +267,11 @@ export class OutreachService {
         contentHash,
         resourceType: 'outreach-template-version',
         resourceId: input.templateVersionId,
+        // Wave-14 (task 487b0f0c): pass mandateId so the gate-evaluate audit row
+        // records it in the hash-excluded mandate_id column. The gate runs BEFORE
+        // the outreach INSERT so outreachId is not available here — mandateId is
+        // sufficient for the recordkeeping mandate-derivation.
+        mandateId: input.mandateId,
       };
 
       // THE NON-BYPASSABLE GATE CALL.
