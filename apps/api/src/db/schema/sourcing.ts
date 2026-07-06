@@ -104,7 +104,18 @@ export const dataSourceConnections = pgTable(
     /**
      * Railway-env credential NAME — NOT the secret value.
      * Adapters call process.env[providerKey] at runtime.
-     * Assertion: no column named 'secret', 'api_key', 'credential' on this table.
+     *
+     * RECONCILE (wave-15, task 41c017f7 — security-auditor B-0):
+     * The original "no column named 'secret'/'api_key'/'credential'" assertion
+     * was true before wave-15 but is now superceded. TWO credential paths coexist:
+     *   1. providerKey (this column) — an env-var NAME (e.g. 'GRATA_API_KEY'), never
+     *      a secret value. Adapter resolves process.env[providerKey] at runtime.
+     *   2. encrypted_credentials (below) — an AES-256-GCM ciphertext envelope
+     *      (iv+tag+key-id+ciphertext), written by the M7 admin form. The PLAINTEXT
+     *      is NEVER stored; only the encrypted form is in this column.
+     * B-6 no-secret-column grep: 'encrypted_credentials' is intentionally named to
+     * signal "encrypted at rest, not a raw secret". Future auditors: the plaintext
+     * credential is handled in DataSourceAdminService and never reaches this column.
      */
     providerKey: text('provider_key').notNull(),
 
@@ -127,6 +138,24 @@ export const dataSourceConnections = pgTable(
      * Adapter-specific shape; validated by the adapter class, not by a schema.
      */
     config: jsonb('config').notNull().default(sql`'{}'`),
+
+    /**
+     * Wave-15 (task 41c017f7) — AES-256-GCM encrypted admin-entered credential.
+     *
+     * Format: `v1:<base64-iv>:<base64-tag>:<base64-ciphertext>`
+     * where:
+     *   - v1 = key-id/version prefix (reserves future key rotation)
+     *   - iv = crypto.randomBytes(12) — unique random per encryption, NEVER reused
+     *   - tag = GCM auth tag (16 bytes) — verified on decrypt; tamper-evident
+     *   - ciphertext = AES-256-GCM encrypted plaintext credential
+     *
+     * NULL until an admin provides a credential via the admin integrations form.
+     * The PLAINTEXT is NEVER stored; encryption happens in DataSourceAdminService
+     * BEFORE the value reaches this column. The read path (GET /admin/integrations)
+     * NEVER returns the plaintext — it returns a masked sentinel or omits the field.
+     * See DataSourceAdminService for the encryption/decryption implementation.
+     */
+    encryptedCredentials: text('encrypted_credentials'),
 
     /** Nullable FK — row survives if the creating user is deleted. */
     createdBy: uuid('created_by'),

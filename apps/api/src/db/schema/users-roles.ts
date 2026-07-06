@@ -48,6 +48,15 @@ export const users = pgTable(
     supertokensUserId: text('supertokens_user_id').notNull(),
     email: text('email').notNull(),
     roleId: uuid('role_id').notNull(),
+    /**
+     * Wave-15 (task 82ec8724) — soft-deactivation timestamp.
+     * NULL = active user. Non-null = deactivated at this instant.
+     * The UserManagementService sets this column via deactivateAsActor.
+     * A deactivated user's session is NOT auto-revoked at the SuperTokens
+     * layer (out of scope); RBAC is enforced at each guarded request via
+     * the DB-authoritative RolesGuard re-verify.
+     */
+    deactivatedAt: timestamp('deactivated_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .notNull()
       .default(sql`now()`),
