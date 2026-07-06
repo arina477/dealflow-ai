@@ -405,6 +405,11 @@ const nextConfig: NextConfig = {
           source: '/admin/users-data/:id/deactivate',
           destination: `${apiProxyTarget}/admin/users/:id/deactivate`,
         },
+        // Wave-16 (task 042cf4e6): POST /admin/users/:id/reactivate
+        {
+          source: '/admin/users-data/:id/reactivate',
+          destination: `${apiProxyTarget}/admin/users/:id/reactivate`,
+        },
         {
           source: '/admin/users-data',
           destination: `${apiProxyTarget}/admin/users`,
@@ -426,6 +431,23 @@ const nextConfig: NextConfig = {
         {
           source: '/admin/integrations-data',
           destination: `${apiProxyTarget}/admin/integrations`,
+        },
+        // Wave-16 (task 8bb0a22f): admin-activity read proxy.
+        //
+        // CRITICAL: /admin/activity has a Next.js page file:
+        //   /admin/activity → app/(app)/admin/activity/page.tsx
+        //
+        // We must NOT rewrite /admin/activity (GET — served as the React page).
+        // Client filter/pagination fetches use /admin/activity-data (non-colliding).
+        // These paths have NO Next.js page file, so afterFiles always proxies them
+        // to GET /admin/activity-data on the API.
+        //
+        // Admin-only (advisor 403 / anon 401) is enforced by the B-2 controller
+        // guard AND the page's server-side assertRole. Read-only-immutable:
+        // this proxy writes ZERO audit rows on any request.
+        {
+          source: '/admin/activity-data',
+          destination: `${apiProxyTarget}/admin/activity-data`,
         },
         // Wave-13: audit-log data proxy (page-route-collision fix).
         //

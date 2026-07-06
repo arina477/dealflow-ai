@@ -16,6 +16,7 @@
 'use client';
 
 import {
+  Activity,
   Briefcase,
   Database,
   FileText,
@@ -60,6 +61,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   send: Send as unknown as LucideIcon,
   // Wave-12: NAV_PIPELINE icon
   kanban: Kanban as unknown as LucideIcon,
+  // Wave-16: NAV_ADMIN_ACTIVITY icon
+  activity: Activity as unknown as LucideIcon,
 };
 
 // ---------------------------------------------------------------------------
