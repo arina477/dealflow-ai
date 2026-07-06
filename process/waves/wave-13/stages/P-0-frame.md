@@ -1,0 +1,17 @@
+# Wave 13 — P-0 Frame
+
+## Discover
+- wave_db_id: ac2262d8-c1fd-4396-ad67-d4aed86d6a40 (wave_number 13)
+- Prior-work: waves 11 (outreach foundation) + 12 (pipeline) shipped M6's outreach + pipeline halves; this wave adds the recordkeeping-EXPORT scope item over the existing M2 HMAC audit log. No overlap-redo.
+- Roadmap milestone: M6 (a068dc3d, in_progress, Class=product-feature). wave.milestone_id backfilled.
+- Spec-contract short-circuit: **no-prior-spec** (prose Problem: statement, no YAML head) → full P-1..P-3.
+- Product decisions: reads the existing M2 immutable HMAC-SHA256 hash-chain (audit.service.ts + AuditVerifier) — no new credential. Founder-gated deferrals (send/webhook #141, AI-drafting LLM) correctly OUT.
+
+## Reframe
+- Original framing: 3-task M6 recordkeeping-export bundle — seed 36a17c81 (audit-log recordkeeping API: filtered read + hash-chain integrity verify), sibling 20c479db (verifiable FINRA/SOX recordkeeping export package, mandate/time-scoped), sibling 10ee0ec4 (audit-log & recordkeeping-export page /compliance/audit-log + filters + integrity badge).
+- **problem-framer: PROCEED** — symptom-vs-cause passes (delivers M6's named recordkeeping-export at the correct API/UI layer); premature-abstraction refuted by code (M2 hash-chain + verifyChain exist; real events accumulate from shipped compliance-gate/outreach/approval/pipeline producers → the export/verify surface has genuine data); integrity-verify is load-bearing tamper-evidence, not decoration; coherent vertical, no antipattern.
+- **ceo-reviewer: PROCEED (HOLD-SCOPE)** — 9/10-for-3/10-cost; verify + independently-re-verifiable export IS the defensibility moat (not gold-plating a log table); over-ambition bounded (deterministic self-contained CSV/JSON manifest, NOT a certified regulator-portal filing — that depth is M10); closes the LAST clause of M6's success metric ("compliance can export a verifiable recordkeeping package"); de-risks the compliance-first bet's falsifier.
+- **mvp-thinner: OK** — no whole AC deferrable (seed=tamper-evidence wedge; export sibling=verbatim metric phrase; page=the compliance surface + integrity badge). Only intra-AC export DEPTH is ahead-of-demand (PDF-report + triple-format + multi-regulation presets); peeling it drops the wave to ~1,850 LOC below the 2,500 multi-spec floor → floor_constraint_active. Depth-trim flagged for P-2 (ONE deterministic verifiable format v1).
+- **Merge (PROCEED+PROCEED+OK):** no split. Disposition: **PROCEED** with the original 3-task framing.
+- **P-2/P-3 scope-hold constraints (carried from the reviewers):** (1) pin the integrity-verify response shape to the REAL AuditVerifier output ({ok, entriesChecked, firstBreakAt, reason}) — NOT an invented {ok, anomalies[]}; (2) export = ONE deterministic verifiable format for v1 (signed/hashed CSV or JSON manifest + integrity proof) — DEFER PDF, triple-format, multi-regulation presets, background jobs, export_templates, forensic reports (the expansive per-page-pd depth) to a later bundle.
+- Final framing: build the M6 recordkeeping-export vertical — a filtered audit-log read API + hash-chain integrity VERIFY (real AuditVerifier shape) + a mandate/time-scoped verifiable export package (one deterministic format) + the /compliance/audit-log page (filters + integrity badge). Reads the existing immutable M2 hash-chain (read-only; no new credential; additive). Scope held to MVP.
