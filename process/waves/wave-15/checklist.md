@@ -18,11 +18,11 @@
 - **UI wave:** seed + siblings ship admin pages (admin-users, admin-workspace-settings, admin-integrations) → D-block likely fires (design_gap_flag at P-1). d7f716b4 replaces the "Team"/"Settings" nav 404 placeholders.
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe)
+- [x] P-1 Decompose
+- [x] P-2 Spec
+- [x] P-3 Plan
+- [x] P-4 — PASSED (security-scope-tightened, 2 Phase-2 iters; security-auditor caught write-skew+audit-enum+credential-leak → fixed) Gate
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
