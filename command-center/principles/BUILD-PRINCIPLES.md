@@ -81,3 +81,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
    Why: A total-count guard passes with zero included rows, letting an empty record advance state.
 7. Every read inside a runInTransaction block must use the tx-scoped repository handle, not the module-level one.
    Why: A module-level read runs off-snapshot, so guards and audit fields see pre-transaction state.
+8. Use an advisory lock when a concurrent uniqueness or cardinality invariant has non-immutable or multi-row predicates.
+   Why: A partial index rejects non-immutable predicates; row FOR UPDATE misses disjoint members.
