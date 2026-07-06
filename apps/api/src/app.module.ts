@@ -9,6 +9,7 @@ import { MandateModule } from './modules/mandate/mandate.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
 import { PipelineModule } from './modules/pipeline/pipeline.module';
+import { RecordkeepingModule } from './modules/recordkeeping/recordkeeping.module';
 import { SourcingModule } from './modules/sourcing/sourcing.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { SourcingModule } from './modules/sourcing/sourcing.module';
     MatchingModule,
     OutreachModule,
     PipelineModule,
+    RecordkeepingModule,
     SourcingModule,
   ],
 })

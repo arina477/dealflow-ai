@@ -157,32 +157,34 @@ describe('AuditLogPage (/compliance/audit-log)', () => {
 
   // ── RBAC / auth guards ──────────────────────────────────────────────────
 
-  describe('RBAC guard — compliance-only access', () => {
+  // wave-13: /compliance/audit-log extended from compliance-only to
+  // compliance + admin + advisor (read; advisor gets own-outreach scope server-side).
+  // The assertRole helper reads canAccess from shared roleRoutes, so this page
+  // picks up the wave-13 expansion automatically (no page-code change needed).
+  describe('RBAC guard — compliance + admin + advisor (wave-13)', () => {
     it('renders for compliance role (no redirect)', async () => {
       vi.stubGlobal('fetch', makePageFetch('compliance', VERIFIED_RESULT));
       const { redirected } = await renderPage();
       expect(redirected).toBe(false);
     });
 
-    it('redirects to / for advisor role', async () => {
+    it('renders for advisor role (no redirect, wave-13: own-outreach scope via API)', async () => {
       vi.stubGlobal('fetch', makePageFetch('advisor', VERIFIED_RESULT));
-      const { redirected, path } = await renderPage();
-      expect(redirected).toBe(true);
-      expect(path).toBe('/');
+      const { redirected } = await renderPage();
+      expect(redirected).toBe(false);
     });
 
-    it('redirects to / for analyst role', async () => {
+    it('redirects to / for analyst role (unchanged, analyst has no audit-log access)', async () => {
       vi.stubGlobal('fetch', makePageFetch('analyst', VERIFIED_RESULT));
       const { redirected, path } = await renderPage();
       expect(redirected).toBe(true);
       expect(path).toBe('/');
     });
 
-    it('redirects to / for admin role (compliance/audit-log is compliance-only)', async () => {
+    it('renders for admin role (no redirect, wave-13: admin added for org-wide access)', async () => {
       vi.stubGlobal('fetch', makePageFetch('admin', VERIFIED_RESULT));
-      const { redirected, path } = await renderPage();
-      expect(redirected).toBe(true);
-      expect(path).toBe('/');
+      const { redirected } = await renderPage();
+      expect(redirected).toBe(false);
     });
 
     it('redirects to /login when session is invalid (401)', async () => {
