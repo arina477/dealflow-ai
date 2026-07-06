@@ -1,0 +1,52 @@
+# Wave 16 — P-3 Plan (multi-spec: M7 admin-hardening, 6 blocks)
+
+## Approach
+### Action 1 — Architecture deltas
+- **MandateService (M4) ← firm-default cascade [seed 904a3c25].** `createAsActor` gains a firm-default resolution step: for each unset compliance field (jurisdiction / disclaimer_template / suppression_scope), read the firm `workspace_settings` default (WorkspaceSettingsService) and fill it AT CREATE TIME. Explicit value always wins. **Resolve-once-at-create** (no view-time join, no retroactive mutation). *Alt considered:* Postgres column DEFAULT / trigger — REJECTED (firm-scoped dynamic values aren't static column defaults; service-layer resolution is testable + keeps the no-retroactive invariant explicit + auditable). Failure domain: read-only cross-module dependency M7 settings → M4 mandate; NO transaction-scope expansion; the settings read is off the same tx snapshot (BUILD rule 7 — tx-scoped handle).
+- **InviteService (M1) dedup [c54db02d].** `createInvite` gains a pre-issue check: reject (409 ConflictException) when the email already belongs to an active user OR has a live (pending, **unexpired**) invite. **Concurrency [P-4 security-auditor rework — Finding 1, Medium]: `pg_advisory_xact_lock(hash(lower(email)))` held across the SELECT-live-then-INSERT critical section is the PRIMARY and only race-safe guard.** A partial unique index on `invites(email)` is REJECTED: a `WHERE consumed_at IS NULL` predicate would wrongly block re-inviting an email whose prior invite EXPIRED (violates AC3 expired→reinvite-allowed), and a correct "live" predicate needs `expiry > now()` which is non-immutable → Postgres refuses it in a partial index. So there is NO email index; the advisory lock is primary (this is the wave-15 write-skew/VERIFY-rule-3 class — a bare SELECT-then-INSERT is a TOCTOU race). The existing `invites_token_unconsumed_idx` is per-token, gives zero per-email liveness. Failure domain: invite path only.
+- **UserManagementService (M1) reactivate [042cf4e6].** New `reactivateAsActor` (deactivated_at → NULL), admin-only, audited last-in-txn under the NEW `user-reactivate` action. Mirrors the shipped deactivate path. Failure domain: user-mgmt.
+- **DataSourceAdminService (M3) config typed-boundary [2560fecc].** The shared data-source config Zod schema is tightened from free JSONB to a **typed/whitelisted shape** (problem-framer: typed boundary, NOT a runtime content-scanner); the service rejects (400) a secret-shaped value in config, directing to the encrypted credential field. **[P-4 security-auditor rework — Finding 2, Medium]:** (a) the 400 rejection MUST be a UNIFORM STATIC message that does NOT echo the offending config value — the shipped `scrubCredentialFromError` scopes redaction to `input.credential` NOT `input.config`, and a default Zod error echoes input, re-opening the wave-15 plaintext-secret-in-log leak (mirror the wave-15 B-6 M1 "no input echo" rework); (b) B-1 MUST ENUMERATE the per-field whitelist as constrained non-secret types (enum/bool/number/bounded-format) — a typed boundary with any free-text slot lets a secret land in plaintext `config`, defeating the encrypted-at-rest invariant. *Alt:* regex secret-scanner — REJECTED (validation-theater). Likely NO migration (validation-layer); if a CHECK/typing DDL is added it is additive + journaled. Failure domain: data-source admin write.
+- **AdminActivity read surface [8bb0a22f].** New read-only `GET /admin/activity-data` + `/admin/activity` page. **Reuses the existing audit.repository read path** (mirror the recordkeeping reader — do NOT fork a second audit reader), filtered to the 6 wave-15 admin actions + `user-reactivate`, newest-first, paginated. Reads the immutable audit_log (M2); writes NOTHING. **[P-4 security-auditor rework — Finding 3, Low]: the real controls are admin-only (advisor 403 / anon 401) + read-only-immutable (opening the view appends ZERO audit rows) + metadata-carries-no-secret/PII (return only actor/target/action/timestamp; never surface a payloadHash preimage or credential-bearing field).** "firm-scoped" is DROPPED as vacuous — the system is single-tenant (no `firm_id` column; `workspace_settings` singleton). T-8/e2e asserts these three real controls, NOT a phantom cross-tenant boundary. Failure domain: read-only.
+- **AppShell admin nav [6f1a96da].** Admin-only nav section links /admin/{users,settings,integrations,activity}; server-rendered RBAC visibility (not CSS hide). No API/data.
+
+### Action 2 — Data model (likely NO migration this wave — [P-4 security rework])
+- **invites live-uniqueness:** enforced by `pg_advisory_xact_lock` in the service (Finding 1), NOT a partial index → **no invites DDL.**
+- reactivate uses existing `users.deactivated_at`; `user-reactivate` is a shared Zod enum value (audit_log.action is text+Zod-guarded, not a PG enum → no ALTER TYPE); config-boundary + admin-activity are validation/read-layer.
+- **Net: this wave likely ships NO new migration.** IF any additive DDL becomes necessary at B-0, it is migration 0014 → **register idx 14 in _journal.json with when > 0013's 1783900800000** + .down + snapshot (the wave-14 Ghost-Green lesson; BUILD rule 4). B-0 records "no migration needed" explicitly if so (do not fabricate an empty migration).
+
+### Action 3 — API contracts
+- Mandate-create (existing): request/response shape UNCHANGED; server-side default-fill only.
+- POST /admin/users/invite: +409 branch (already-registered / already-pending); success shape unchanged.
+- POST /admin/users/:id/reactivate: NEW → 200 | 400 (already active) | 403 (advisor) | 404 (unknown) | 401 (anon); audited.
+- POST/PATCH /admin/integrations/:id: +400 (secret-shaped value in config).
+- GET /admin/activity-data: NEW read → 200 (filtered, paginated, admin-only; single-tenant so no firm-scope param) | 403 | 401.
+- Errors → Nest exceptions; DrizzleError.cause unwrap; read-passthrough.
+
+### Action 4 — Dependencies
+NONE new. NO SDK. NO new secret/env var. NO founder credential (sending-domain #141 stays out-of-wave).
+
+## Plan (file-level, by B-stage)
+**B-0 Schema** (backend-developer): **likely NO migration** (invite liveness = advisory lock, not index — P-4 Finding 1). Record "no migration needed" explicitly. IF additive DDL becomes necessary → 0014 JOURNALED idx-14 + when>0013 + .down + snapshot. NO new env var.
+**B-1 Contracts** (backend-developer): shared user-admin.ts (reactivate input/response); tighten data-source config Zod to a typed shape with an **ENUMERATED per-field non-secret whitelist (no free-text slot — P-4 Finding 2)**; admin-activity read schema (query + row shape returning ONLY actor/target/action/timestamp, no credential/PII/hash-preimage — P-4 Finding 3); **auditActionEnum += 'user-reactivate' (additive, appended at END of the CLOSED shared enum — wave-15 Inv-6)**; invite 409 envelope; rbac map (/admin/activity admin); AppShell nav config.
+**B-2 Backend** (backend-developer): MandateService cascade-fill (tx-scoped settings read, BUILD rule 7); InviteService dedup (409 + **pg_advisory_xact_lock(hash(lower(email))) held across SELECT-live-then-INSERT** — P-4 Finding 1, race-safe, real-service concurrency test not hollow); UserManagementService.reactivateAsActor (audited last-in-txn); DataSourceAdminService config typed-boundary (**400 uniform-static no-echo — P-4 Finding 2**, credential+config-never-logged); AdminActivityController+service (reuse audit.repository read, admin-guard, read-only-immutable, metadata-no-secret — P-4 Finding 3); register routes (DI: guard-injected repos exported by consuming modules — BUILD rules 2/3); specs.
+**B-3 Frontend** (nextjs-developer): /admin/activity page (reuse audit-log-view + admin-table pattern); admin nav section (RBAC-visible); reactivate action/button on /admin/users; verify config form still write-only; extend the black-box RBAC role-reverify test to /admin/activity + reactivate.
+**B-4/B-5/B-6:** head-builder polices cascade-inherits-firm-default (mandatory e2e), invite-dedup-both-cases + concurrency (real-service, not hollow — VERIFY rule 3), reactivate-audited-additive-enum, config-typed-boundary (not a scanner), admin-activity-READ-ONLY (opening writes no audit row), migration-0014-JOURNALED (Ghost-Green), WORM-safe test teardown (T-4 rule 1).
+
+### Action 6 — Specialists: backend-developer (B-0/B-1/B-2), nextjs-developer (B-3). Both in AGENTS.md (used wave-15).
+### Action 7 — Parallelization: B-0 → B-1 → B-2 (5 backend verticals independent: cascade / invite / reactivate / config / activity) → B-3 (page + nav + reactivate button). 
+### Action 8 — Self-consistency: CLEAN. Every AC → ≥1 step. LOAD-BEARING: cascade-e2e-inherits-default, invite-dedup-both-cases+concurrency, reactivate-additive-enum+audited, config-typed-boundary, admin-activity-read-only, migration-0014-journaled. design_gap_flag=false. F-5 prod-cleanup rides at C-2 (ops action, non-deferrable). security-scope: touches user-creation (invite) + user-state (reactivate) → security-adjacent; P-4 judges whether security-scope-tightened (lighter than wave-15 — no new credential/auth primitive; the config-boundary is a hardening of the wave-15 credential path).
+
+```yaml
+deps_new: []
+schema_change: false   # P-4 security rework: invite liveness = advisory lock (not a partial index); no other DDL. If B-0 finds additive DDL needed → 0014 journaled (BUILD rule 4)
+new_secret: false
+p4_security_rework: "Finding1 invite→advisory-lock-primary (drop email index); Finding2 config-400 uniform-static-no-echo + enumerated per-field whitelist; Finding3 drop vacuous firm-scope → admin-only+read-only-immutable+no-secret-metadata"
+new_sdk: false
+specialists: [backend-developer, nextjs-developer]
+reuse: [M1 InviteService/UserManagementService/RolesGuard, M2 AuditService+audit.repository, M3 DataSourceAdminService, M4 MandateService, wave-15 WorkspaceSettingsService, wave-3 AppShell, wave-13 audit-log-view pattern]
+compliance_invariants: [cascade-inherits-firm-default (e2e), invite-dedup-both-cases-and-concurrency, reactivate-audited-additive-enum, config-typed-boundary-no-secret, admin-activity-read-only-immutable-log, migration-0014-journaled, WORM-safe-teardown]
+hard_boundaries: "additive migration only; NO sending-domain/DKIM/email (#141 deferred); NO LLM; NO new secret; reuse only; F-5 prod-cleanup non-deferrable at C-2"
+design_gap_flag: false
+security_scope_tightened: candidate   # P-4 decides — user-creation/state touched but no new auth/credential primitive
+self_consistency: clean
+```
