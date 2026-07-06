@@ -3,6 +3,7 @@ import { WorkspaceModule } from './db/workspace.module';
 import { HealthModule } from './health/health.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AdminActivityModule } from './modules/admin-activity/admin-activity.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BuyerUniverseModule } from './modules/buyer-universe/buyer-universe.module';
@@ -26,6 +27,8 @@ import { SourcingModule } from './modules/sourcing/sourcing.module';
     AdminModule,
     // Wave-16 (task 8bb0a22f): admin-activity read surface (P-4 Finding 3).
     AdminActivityModule,
+    // Wave-18 (task a5ba8068): workspace-scoped analytics surface (M9).
+    AnalyticsModule,
     ComplianceModule,
     ComplianceGateModule,
     BuyerUniverseModule,
