@@ -153,3 +153,18 @@ Verified: CI real-DB e2e (gate reaches send_eligible only via a passing evaluate
 Entry: Pipeline board (`/pipeline`) → enroll an eligible deal (send-eligible outreach / accepted match) → move it through the 7 fixed stages → per-deal timeline records every transition + note (audited). No email/send; pipeline advance is human-driven (automated reply/open-driven advance stays deferred with the send/webhook bundle).
 
 Verified: CI real-DB e2e (audit-throw → real ROLLBACK → zero orphan; happy-path exactly-one-event+audit; idempotent-409) + C-2 deployed-authed (7 fixed columns render, RBAC, no send/AI, migration 0011 live). Deferred (founder-gated later M6 bundles): actual email send + webhook tracking; AI-assisted drafting.
+
+
+---
+
+## Wave-13 delivered — M6 audit-log / recordkeeping export (LIVE @ 2ec4953)
+
+The /compliance/audit-log page (F11) is now the full recordkeeping-defensibility surface:
+- **Filterable immutable-log table** — compliance/admin see org-wide, advisor sees own-outreach; filter by mandate (per-resource_type DERIVED), event type, actor, date range; paginated; read-only (no edit/delete of the immutable HMAC chain).
+- **Integrity badge** — bound to the hash-chain verify (real AuditVerifier: {ok, entriesChecked, firstBreakAt?, reason?}); "All entries verified (N)" or "break at #M (reason)" — tamper-evidence at a glance.
+- **Recordkeeping export** (compliance/admin only; advisor NO export) — mandate/time-scoped verifiable package: in-scope entries + per-entry hashes + full-chain verify result + a manifest for independent offline re-verification. The export action itself is audited (one export_generated row, last-in-txn).
+
+### F11 (updated) — Audit-log review & recordkeeping EXPORT (Compliance/Admin + Advisor read-only)
+Entry: /compliance/audit-log. Compliance reviews the filterable immutable audit trail + the integrity badge, and exports a mandate/time-scoped VERIFIABLE recordkeeping package (independently re-verifiable offline) — the regulator-facing compliance-defensibility wedge, the last clause of M6's success metric. Advisor: read-only own-outreach, no export.
+
+Verified: C-2 LIVE — verify {ok:true, entriesChecked:309} over the real production chain; export → package + verify 309→310 (export_generated appended last-in-txn); advisor export 403; M2 validation 400. Deferred (later): PDF/multi-format/multi-regulation presets, background jobs, producer-side gate mandate-attribution.
