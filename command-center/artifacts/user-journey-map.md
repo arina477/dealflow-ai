@@ -184,3 +184,10 @@ Verified: C-2 LIVE — verify {ok:true, entriesChecked:309} over the real produc
 These are distinct surfaces; the earlier F10 mapping to "/compliance/queue" (slash) is superseded by the shipped hyphen route + the new oversight route.
 
 Verified: C-2 LIVE — verifyChain {ok:true, entriesChecked:310} after the additive mandate_id column (tamper-evidence intact); gate no-regression; oversight read-only + advisor-blocked. CI: recordkeeping-gate e2e 9/9 real (mandate_id isolation).
+
+## Admin activity view (M7 wave-16, LIVE @d72d7cb) — role:admin only
+| Route | Purpose | Endpoints | Compliance |
+|---|---|---|---|
+| /admin/activity | read-only recent-admin-actions view | GET /admin/activity-data | reads immutable audit log; writes 0 rows; no hash/credential in response; advisor 403/anon 401 |
+| /admin/users (reactivate) | reverse a soft-deactivation | POST /admin/users/:id/reactivate | admin-only; audited (user-reactivate); UUID-validated; preserves role_id |
+Admin nav section links /admin/{users,settings,integrations,activity} (server-gated). Mandate-create inherits firm compliance defaults (cascade). Data-source config typed-boundary rejects secret-shaped values (400 no-echo).

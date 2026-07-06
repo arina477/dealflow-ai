@@ -40,7 +40,7 @@ Open non-gated M7 tasks = 3 (G-1/G-2/G-3; bfadcec1 is unparented testing-infra d
 - **Skipped.** No new env var, no user-facing quick-start/command change this wave. README Quick start delegates env/db/run to `project.yaml` (no inline env list to update); invite-only auth prose (README:40–42) is unchanged — dedup/race-safety is internal behavior, not a documented-flow change. Per L-block dispatcher: "L-1 README sub-action skips when nothing user-facing changed."
 
 ## Commit
-- **SHA:** __COMMIT_SHA__
+- **SHA:** 471d47f
 - **Message:** `docs: L-1 wave-16 closeout (changelog)`
 - **Pushed to:** main (automatic mode, direct push).
 
@@ -52,6 +52,6 @@ verdict_evidence:
   - "CHANGELOG.md lines 3-20 — [0.16.0] Admin hardening & compliance-default cascade (M7)"
   - "M7 (08d3053a) delta: in_progress→in_progress; 6 done this wave; 4 open (G-1 be2d9717, G-2 a65cf75e, G-3 8f24c4c7, carryover bfadcec1); no DB transition"
   - "README: skipped (no user-facing/env change)"
-  - "commit __COMMIT_SHA__ pushed to main"
+  - "commit 471d47f pushed to main"
 note: "M7 effectively complete-modulo-#141 (sending-domain leg founder-gated); status stays in_progress honestly. Backlog-stockout candidate flagged for N-1 (3 open non-gated tasks)."
 ```
