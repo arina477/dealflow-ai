@@ -234,3 +234,52 @@ B-6 phase-2 adversarial review found 4 defects (2 P0 isolation-critical). All 4 
 Updated `mockRepo` in all 11 spec files to expose `resolveRoleRlsExempt` alongside `resolveRoleBySupertokensUserId`.
 
 **Verification**: `pnpm -w typecheck`: 4 tasks successful, 0 errors. `pnpm --filter @dealflow/api test`: 775 passed (3 new tests), 52 skipped (e2e DB-gated), 0 failed.
+
+---
+
+## C-2 HOLD resolution (migration WORM-backfill fix)
+
+**Defect (diagnosed by postgres-pro at C-2)**: Migration `0014_workspace_isolation.sql` Step-3 backfill
+
+```sql
+UPDATE audit_log_entries SET workspace_id = '<default>' WHERE workspace_id IS NULL;
+```
+
+collides with the WORM `BEFORE UPDATE` trigger `audit_log_no_mutate` (function `audit_log_block_mutation`, installed in migration `0002_steep_boom_boom.sql`). CI is green only because it migrates an empty DB — the backfill matches 0 rows and the trigger never fires. Against populated prod (328 audit rows) migration 0014 fails: `ERROR: audit_log_entries is append-only: UPDATE blocked`.
+
+**Trigger name confirmed**: `audit_log_no_mutate` (trigger) / `audit_log_block_mutation` (function). Verified from `apps/api/src/db/migrations/0002_steep_boom_boom.sql` lines 92-96 and `apps/api/src/db/schema/audit-log.ts` immutability design comment.
+
+**Hash-exclusion safety confirmed**: `workspace_id` is NOT in `HashableEntryFields` / `canonicalSerialization` — see `audit-log.ts` wave-17 column comment and `audit.service.ts` `_appendCore` comment (mirrors `mandate_id` exclusion from wave-14 / migration 0012). The HMAC preimage is byte-identical before and after the backfill UPDATE. `verifyChain` stays `ok:true`.
+
+### Fix 1 — migration wrap (`apps/api/src/db/migrations/0014_workspace_isolation.sql`)
+
+Wrapped ONLY the `audit_log_entries` backfill UPDATE in a trigger-disable window (all other 27 tenant tables are unaffected — only `audit_log_entries` has a mutation-blocking trigger):
+
+```sql
+ALTER TABLE "audit_log_entries" DISABLE TRIGGER audit_log_no_mutate;
+UPDATE "audit_log_entries" SET "workspace_id" = 'a1b2c3d4-0000-4000-8000-000000000001' WHERE "workspace_id" IS NULL;
+ALTER TABLE "audit_log_entries" ENABLE TRIGGER audit_log_no_mutate;
+```
+
+`DISABLE TRIGGER` requires the table owner (the migration role). The runtime `dealflow_app` role never runs this migration. `ENABLE` in the same migration statement restores WORM protection atomically — even on rollback, the trigger is re-enabled at transaction abort.
+
+Prod is at journal 0013 (0014 NOT yet applied anywhere durable). CI uses fresh DBs. Editing `0014.sql` is the correct fix — prod applies the fixed version; CI re-runs it fresh. Schema state is unchanged (same columns, same NOT NULL, same RLS) — `0014_snapshot.json` NOT regenerated (no schema shape change).
+
+### Fix 2 — populated-DB migration test (`apps/api/test/audit-migration-populated-db.e2e-spec.ts`)
+
+New e2e test (5 assertions, UUID namespace `00000017-ab17-*`):
+
+- **AMP-1**: Seeds 3 real HMAC-chained audit rows via `AuditService.appendStandalone` — structurally identical to prod rows.
+- **AMP-2**: Replicates the exact migration 0014 `DISABLE TRIGGER / UPDATE / ENABLE TRIGGER` pattern against the live seeded rows — proves the fix resolves the populated-DB collision.
+- **AMP-3**: Seeded rows carry `workspace_id = DEFAULT_WORKSPACE_ID` after the backfill UPDATE (step 3 worked as intended).
+- **AMP-4**: `verifyChain` → `{ok:true}` over the seeded chain after `workspace_id` backfill — proves hash-exclusion holds end-to-end.
+- **AMP-5**: FAULT-KILLING — plain `UPDATE` WITHOUT `DISABLE TRIGGER` throws `SQLSTATE P0001` (WORM trigger active). This asserts: (a) `ENABLE TRIGGER` at end of the disable window is effective, AND (b) removing the wrap from 0014 would fail on any populated DB — exactly the regression this test catches.
+
+WORM-safe teardown: seeded user `deactivated_at = now()`, never deleted; `audit_log_entries` rows accumulate (WORM invariant). Skips without `TEST_DATABASE_URL`.
+
+### Verification
+
+- `pnpm -w typecheck`: 4 tasks successful, 0 errors.
+- `pnpm --filter @dealflow/api test --run`: 775 passed, 55 skipped (5 new AMP tests added to DB-gated skip count), 0 failed.
+- No local DB available — e2e assertions (AMP-1..AMP-5) run in CI with `TEST_DATABASE_URL` set. The new populated-DB test IS the proof of the fix.
+- Task: 0db154ff.
