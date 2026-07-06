@@ -130,6 +130,7 @@ let adminRoleId: string;
 // Seeded entity IDs — tracked for WORM-safe teardown.
 const seededUserIds: string[] = [];
 const seededMandateIds: string[] = [];
+const seededDisclaimerTemplateIds: string[] = [];
 const seededOutreachTemplateIds: string[] = [];
 const seededOutreachTemplateVersionIds: string[] = [];
 const seededMatchRunIds: string[] = [];
@@ -340,17 +341,21 @@ async function seedOutreachWithStatus(
     seededOutreachTemplateIds.push(templateId);
 
     // outreach_template_versions (need disclaimer_template_id → must exist)
-    // Seed a disclaimer_template (no workspace_id — global table).
+    // disclaimer_templates IS workspace-scoped (RLS + disclaimer_templates_workspace_id_fk).
+    // Real columns: id, jurisdiction(NN), body(NN), version(int NN), active(bool default true),
+    // created_at(default now), created_by(nullable), workspace_id(uuid NN).
     const disclaimerId = crypto.randomUUID();
     await client.query(
-      `INSERT INTO disclaimer_templates (id, jurisdiction, version, content, active)
-       VALUES ($1, 'ANA-TEST-JURIS', 1, 'ANA test disclaimer', true)
+      `INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active, workspace_id)
+       VALUES ($1, 'ANA-TEST-JURIS', 'ANA test disclaimer', 1, true, $2)
        ON CONFLICT DO NOTHING`,
-      [disclaimerId]
+      [disclaimerId, workspaceId]
     );
-    // Look up the disclaimer id (may already exist from prior run)
+    seededDisclaimerTemplateIds.push(disclaimerId);
+    // Look up the disclaimer id scoped to this workspace (workspace-scoped table).
     const discRes = await client.query<{ id: string }>(
-      `SELECT id FROM disclaimer_templates WHERE jurisdiction = 'ANA-TEST-JURIS' LIMIT 1`
+      `SELECT id FROM disclaimer_templates WHERE jurisdiction = 'ANA-TEST-JURIS' AND workspace_id = $1 LIMIT 1`,
+      [workspaceId]
     );
     const actualDisclaimerId = discRes.rows[0]?.id ?? disclaimerId;
 
@@ -608,8 +613,11 @@ describe.skipIf(shouldSkip)(
       // Delete in FK-safe order (children before parents).
       await tryDeleteBothWs('pipeline', seededPipelineIds);
       await tryDeleteBothWs('outreach', seededOutreachIds);
+      // outreach_template_versions references disclaimer_templates — delete versions first.
       await tryDeleteBothWs('outreach_template_versions', seededOutreachTemplateVersionIds);
       await tryDeleteBothWs('outreach_templates', seededOutreachTemplateIds);
+      // disclaimer_templates: delete after outreach_template_versions (FK ON DELETE RESTRICT).
+      await tryDeleteBothWs('disclaimer_templates', seededDisclaimerTemplateIds);
       await tryDeleteBothWs('match_candidates', seededMatchCandidateIds);
       await tryDeleteBothWs('match_run', seededMatchRunIds);
       await tryDeleteBothWs('buyer_universe_candidates', seededBuyerUniverseCandidateIds);
