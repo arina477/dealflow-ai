@@ -85,12 +85,12 @@ describe('rolesForRoute — exact routes', () => {
     expect(roles).not.toContain('analyst');
   });
 
-  it('/compliance/audit-log → compliance only', () => {
+  it('/compliance/audit-log → compliance + admin + advisor (wave-13: read + role-scoped)', () => {
     const roles = rolesForRoute('/compliance/audit-log');
     expect(roles).toContain('compliance');
-    expect(roles).not.toContain('advisor');
+    expect(roles).toContain('admin');
+    expect(roles).toContain('advisor');
     expect(roles).not.toContain('analyst');
-    expect(roles).not.toContain('admin');
   });
 
   it('/compliance/settings → compliance only', () => {
@@ -303,8 +303,8 @@ describe('canAccess', () => {
     expect(canAccess('advisor', '/admin/users')).toBe(false));
   it('advisor: denies /compliance/summary', () =>
     expect(canAccess('advisor', '/compliance/summary')).toBe(false));
-  it('advisor: denies /compliance/audit-log', () =>
-    expect(canAccess('advisor', '/compliance/audit-log')).toBe(false));
+  it('advisor: allows /compliance/audit-log (wave-13: own-outreach read, server-scoped)', () =>
+    expect(canAccess('advisor', '/compliance/audit-log')).toBe(true));
   it('advisor: denies /templates', () => expect(canAccess('advisor', '/templates')).toBe(false));
 
   // analyst
@@ -352,8 +352,8 @@ describe('canAccess', () => {
   it('admin: denies /sourcing', () => expect(canAccess('admin', '/sourcing')).toBe(false));
   it('admin: denies /compliance/queue', () =>
     expect(canAccess('admin', '/compliance/queue')).toBe(false));
-  it('admin: denies /compliance/audit-log', () =>
-    expect(canAccess('admin', '/compliance/audit-log')).toBe(false));
+  it('admin: allows /compliance/audit-log (wave-13: org-wide read access)', () =>
+    expect(canAccess('admin', '/compliance/audit-log')).toBe(true));
 
   // public routes bypass RBAC for every role and even for invalid input
   it('canAccess returns true for /auth/* regardless of role', () => {
@@ -556,8 +556,11 @@ describe('roleRoutes — completeness against pinned matrix', () => {
     ['/sourcing/connections', ['analyst', 'admin']],
     ['/templates', ['analyst', 'compliance']],
     ['/compliance/queue', ['compliance', 'advisor']],
-    ['/compliance/audit-log', ['compliance']],
+    // Wave-13: audit-log read now allows compliance + admin + advisor (role-scoped in service).
+    ['/compliance/audit-log', ['compliance', 'admin', 'advisor']],
     ['/compliance/audit-log/verify', ['compliance', 'admin']],
+    // Wave-13: export endpoint — compliance + admin ONLY (advisor 403).
+    ['/compliance/audit-log/export', ['compliance', 'admin']],
     ['/compliance/settings', ['compliance']],
     ['/compliance/summary', ['compliance', 'admin']],
     // Wave-5 CRUD routes (compliance + admin for config management)
@@ -608,12 +611,12 @@ describe('wave-4 — /compliance/audit-log/verify endpoint RBAC', () => {
     expect(canAccess('analyst', '/compliance/audit-log/verify')).toBe(false);
   });
 
-  it('verify endpoint does NOT resolve to the audit-log screen roles', () => {
-    // The screen (/compliance/audit-log) is compliance-only; the endpoint adds admin.
-    // Exact-match must win over any partial match.
+  it('verify endpoint does NOT resolve to the audit-log screen roles (wave-13 updated)', () => {
+    // Wave-13: the screen (/compliance/audit-log) now allows compliance+admin+advisor;
+    // the verify endpoint keeps compliance+admin. Exact-match must win over partial match.
     const screenRoles = rolesForRoute('/compliance/audit-log');
     const endpointRoles = rolesForRoute('/compliance/audit-log/verify');
-    expect([...screenRoles].sort()).toEqual(['compliance']);
+    expect([...screenRoles].sort()).toEqual(['admin', 'advisor', 'compliance']);
     expect([...endpointRoles].sort()).toEqual(['admin', 'compliance']);
   });
 });
@@ -634,9 +637,9 @@ describe('wave-4 — Audit Log nav item (compliance role only)', () => {
     expect(auditItem?.group).toBe('workspace');
   });
 
-  it('advisor does NOT see the Audit Log nav item', () => {
+  it('advisor DOES see the Audit Log nav item (wave-13: own-outreach read added)', () => {
     const items = navItemsForRole('advisor');
-    expect(items.some((i) => i.route === '/compliance/audit-log')).toBe(false);
+    expect(items.some((i) => i.route === '/compliance/audit-log')).toBe(true);
   });
 
   it('analyst does NOT see the Audit Log nav item', () => {
@@ -754,12 +757,16 @@ describe('wave-5 — /compliance/settings navItem (Rules sidebar item for compli
   });
 });
 
-describe('wave-5 — /compliance/audit-log + /compliance/audit-log/verify UNTOUCHED', () => {
-  it('/compliance/audit-log remains compliance-only', () => {
-    expect([...rolesForRoute('/compliance/audit-log')].sort()).toEqual(['compliance']);
+describe('wave-5 — /compliance/audit-log/verify UNTOUCHED; /compliance/audit-log extended by wave-13', () => {
+  it('/compliance/audit-log now includes compliance + admin + advisor (wave-13 extension)', () => {
+    expect([...rolesForRoute('/compliance/audit-log')].sort()).toEqual([
+      'admin',
+      'advisor',
+      'compliance',
+    ]);
   });
 
-  it('/compliance/audit-log/verify remains compliance + admin', () => {
+  it('/compliance/audit-log/verify remains compliance + admin (unchanged)', () => {
     expect([...rolesForRoute('/compliance/audit-log/verify')].sort()).toEqual([
       'admin',
       'compliance',
@@ -955,14 +962,20 @@ describe('wave-6 — /companies repoint (was analyst-only, now /sourcing/compani
   });
 });
 
-describe('wave-6 — /compliance/* routes UNTOUCHED', () => {
+describe('wave-6 — /compliance/* routes UNTOUCHED (except audit-log extended by wave-13)', () => {
   it('/compliance/queue remains compliance + advisor', () => {
     const roles = rolesForRoute('/compliance/queue');
     expect([...roles].sort()).toEqual(['advisor', 'compliance']);
   });
 
-  it('/compliance/audit-log remains compliance only', () => {
-    expect([...rolesForRoute('/compliance/audit-log')].sort()).toEqual(['compliance']);
+  // wave-13: /compliance/audit-log extended from compliance-only to
+  // compliance + admin + advisor (read; advisor gets own-outreach scope server-side).
+  it('/compliance/audit-log extended by wave-13 → compliance + admin + advisor', () => {
+    expect([...rolesForRoute('/compliance/audit-log')].sort()).toEqual([
+      'admin',
+      'advisor',
+      'compliance',
+    ]);
   });
 
   it('/compliance/rules remains compliance + admin', () => {
@@ -1309,6 +1322,108 @@ describe('wave-10 — /matches RBAC (advisor/admin create+mutate; analyst read)'
   });
 
   it('no nav item appears for a role denied at the route level (exhaustive post-wave-10)', () => {
+    for (const navItem of ALL_NAV_ITEMS) {
+      const deniedRoles = ALL_ROLES.filter((r) => !(navItem.allowedRoles as Role[]).includes(r));
+      for (const deniedRole of deniedRoles) {
+        const items = navItemsForRole(deniedRole);
+        const isShown = items.some((i) => i.route === navItem.route);
+        expect(isShown).toBe(false);
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave-13 additions — recordkeeping-export read + verify + export RBAC
+// ---------------------------------------------------------------------------
+
+describe('wave-13 — /compliance/audit-log read endpoint RBAC (compliance + admin + advisor)', () => {
+  it('/compliance/audit-log → compliance + admin + advisor', () => {
+    const roles = rolesForRoute('/compliance/audit-log');
+    expect([...roles].sort()).toEqual(['admin', 'advisor', 'compliance']);
+  });
+
+  it('compliance can access /compliance/audit-log (org-wide read)', () => {
+    expect(canAccess('compliance', '/compliance/audit-log')).toBe(true);
+  });
+
+  it('admin can access /compliance/audit-log (org-wide read)', () => {
+    expect(canAccess('admin', '/compliance/audit-log')).toBe(true);
+  });
+
+  it('advisor can access /compliance/audit-log (own-outreach read, server-scoped)', () => {
+    expect(canAccess('advisor', '/compliance/audit-log')).toBe(true);
+  });
+
+  it('analyst cannot access /compliance/audit-log', () => {
+    expect(canAccess('analyst', '/compliance/audit-log')).toBe(false);
+  });
+});
+
+describe('wave-13 — /compliance/audit-log/export endpoint RBAC (compliance + admin only)', () => {
+  it('/compliance/audit-log/export → compliance + admin (advisor excluded)', () => {
+    const roles = rolesForRoute('/compliance/audit-log/export');
+    expect([...roles].sort()).toEqual(['admin', 'compliance']);
+    expect(roles).not.toContain('advisor');
+    expect(roles).not.toContain('analyst');
+  });
+
+  it('compliance can access /compliance/audit-log/export', () => {
+    expect(canAccess('compliance', '/compliance/audit-log/export')).toBe(true);
+  });
+
+  it('admin can access /compliance/audit-log/export', () => {
+    expect(canAccess('admin', '/compliance/audit-log/export')).toBe(true);
+  });
+
+  it('advisor CANNOT access /compliance/audit-log/export (403 enforced at route + service)', () => {
+    expect(canAccess('advisor', '/compliance/audit-log/export')).toBe(false);
+  });
+
+  it('analyst cannot access /compliance/audit-log/export', () => {
+    expect(canAccess('analyst', '/compliance/audit-log/export')).toBe(false);
+  });
+
+  it('export endpoint has no navItem (it is an action, not a page)', () => {
+    const entry = roleRoutes.find((e) => e.pattern === '/compliance/audit-log/export');
+    expect(entry).toBeDefined();
+    expect(entry?.navItem).toBeUndefined();
+  });
+});
+
+describe('wave-13 — Audit Log nav item now shown for advisor', () => {
+  it('advisor sees the Audit Log nav item (wave-13: own-outreach read added)', () => {
+    const items = navItemsForRole('advisor');
+    const auditItem = items.find((i) => i.route === '/compliance/audit-log');
+    expect(auditItem).toBeDefined();
+    expect(auditItem?.label).toBe('Audit Log');
+    expect(auditItem?.icon).toBe('scroll');
+  });
+
+  it('admin still does NOT see the Audit Log nav item (API-only access, not page nav)', () => {
+    expect(navItemsForRole('admin').some((i) => i.route === '/compliance/audit-log')).toBe(false);
+  });
+
+  it('analyst does NOT see the Audit Log nav item', () => {
+    expect(navItemsForRole('analyst').some((i) => i.route === '/compliance/audit-log')).toBe(false);
+  });
+
+  it('compliance still sees the Audit Log nav item', () => {
+    expect(navItemsForRole('compliance').some((i) => i.route === '/compliance/audit-log')).toBe(true);
+  });
+});
+
+describe('wave-13 — nav ⊆ RBAC invariant preserved after wave-13 additions', () => {
+  for (const role of ALL_ROLES) {
+    it(`navItemsForRole('${role}') — every item still passes canAccess after wave-13 additions`, () => {
+      const items = navItemsForRole(role);
+      for (const item of items) {
+        expect(canAccess(role, item.route)).toBe(true);
+      }
+    });
+  }
+
+  it('no nav item appears for a role denied at the route level (exhaustive post-wave-13)', () => {
     for (const navItem of ALL_NAV_ITEMS) {
       const deniedRoles = ALL_ROLES.filter((r) => !(navItem.allowedRoles as Role[]).includes(r));
       for (const deniedRole of deniedRoles) {

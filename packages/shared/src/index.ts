@@ -236,6 +236,21 @@ export {
   rolesForRoute,
 } from './rbac';
 export type {
+  AuditLogEntryRead,
+  ExportManifest,
+  ExportScope,
+  ListFilter,
+} from './recordkeeping';
+export {
+  auditLogEntryReadSchema,
+  exportManifestSchema,
+  exportScopeSchema,
+  listFilterSchema,
+} from './recordkeeping';
+// auditVerifyResponseSchema is also re-exported from recordkeeping (do NOT
+// import it from there — import from ./audit directly to avoid double re-export
+// confusion; recordkeeping re-exports it for co-location convenience only).
+export type {
   CompaniesListFilter,
   Company,
   CompanyProvenance,

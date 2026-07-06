@@ -43,6 +43,10 @@ describe('auditActionEnum', () => {
     expect(auditActionEnum.parse('sourcing-dedupe-resolve')).toBe('sourcing-dedupe-resolve');
   });
 
+  it('accepts wave-13 export_generated action (additive extension)', () => {
+    expect(auditActionEnum.parse('export_generated')).toBe('export_generated');
+  });
+
   it('rejects unknown action values', () => {
     expect(() => auditActionEnum.parse('unknown-action')).toThrow();
     expect(() => auditActionEnum.parse('')).toThrow();
@@ -69,6 +73,16 @@ describe('auditActionEnum', () => {
     const wave6Idx = options.indexOf('sourcing-dedupe-resolve');
     expect(wave6Idx).toBeGreaterThan(-1);
     expect(lastWave5Idx).toBeLessThan(wave6Idx);
+  });
+
+  it('wave-12 pipeline-note appears before wave-13 export_generated (serialization order stable)', () => {
+    // Wave-13 value appended after all wave-12 values — existing ordinal positions unchanged.
+    const options = auditActionEnum.options;
+    const wave12Last = options.indexOf('pipeline-note');
+    const wave13Idx = options.indexOf('export_generated');
+    expect(wave12Last).toBeGreaterThan(-1);
+    expect(wave13Idx).toBeGreaterThan(-1);
+    expect(wave12Last).toBeLessThan(wave13Idx);
   });
 
   it('existing wave-4 action string values are unchanged (no rename)', () => {

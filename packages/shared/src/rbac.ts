@@ -112,12 +112,16 @@ const NAV_SETTINGS: NavItem = {
   allowedRoles: ['admin'],
 };
 
+// Wave-13: advisor added — advisor sees own-outreach entries (role-scoped in service);
+// compliance sees org-wide. admin is NOT in the nav (admin uses the API directly, not
+// the page UI). nav⊆RBAC holds: NAV_AUDIT_LOG.allowedRoles ⊆ the /compliance/audit-log
+// route allowedRoles below (compliance+advisor ⊆ compliance+admin+advisor).
 const NAV_AUDIT_LOG: NavItem = {
   label: 'Audit Log',
   route: '/compliance/audit-log',
   icon: 'scroll',
   group: 'workspace',
-  allowedRoles: ['compliance'],
+  allowedRoles: ['compliance', 'advisor'],
 };
 
 // Wave-5: Compliance Settings nav item (rules-engine config surface).
@@ -403,11 +407,12 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     navItem: NAV_COMPLIANCE,
   },
   {
-    // The human integrity PAGE is compliance-only (journey row 16, persona=Comp):
-    // the audit-log UI is compliance's surface. NAV is compliance-only by design —
-    // do NOT add admin here (keep the nav journey-faithful).
+    // Wave-13: READ endpoint + page now allows compliance (org-wide) + admin (org-wide)
+    // + advisor (own-outreach only, role-scoped server-side by RecordkeepingService).
+    // nav⊆RBAC: NAV_AUDIT_LOG.allowedRoles ['compliance','advisor'] ⊆ this set.
+    // admin excluded from the NAV item (admin accesses the API directly, not the page).
     pattern: '/compliance/audit-log',
-    allowedRoles: ['compliance'],
+    allowedRoles: ['compliance', 'admin', 'advisor'],
     navItem: NAV_AUDIT_LOG,
   },
   {
@@ -416,6 +421,13 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     // is API-only, not a page in admin's navigation). The page stays compliance's
     // human surface; the endpoint is the machine/ops surface. Not a bug.
     pattern: '/compliance/audit-log/verify',
+    allowedRoles: ['compliance', 'admin'],
+  },
+  {
+    // Wave-13: POST /compliance/audit-log/export — compliance + admin ONLY.
+    // advisor has NO export right (403) — enforced in RecordkeepingService + here.
+    // No navItem — the export is an action within the /compliance/audit-log page.
+    pattern: '/compliance/audit-log/export',
     allowedRoles: ['compliance', 'admin'],
   },
   {

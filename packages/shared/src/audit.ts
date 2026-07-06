@@ -175,6 +175,15 @@ export const auditActionEnum = z.enum([
    * Audited LAST-IN-TXN (rollback on audit fail).
    */
   'pipeline-note',
+  // --- Wave-13 recordkeeping-export actions (additive; serialization order preserved) ---
+  /**
+   * A compliance recordkeeping export package was generated.
+   * The package contains the in-scope audit entries (with tamper-evidence hashes),
+   * the full-chain AuditVerifier result, and a manifest for offline re-verification.
+   * Appended LAST-IN-TXN by RecordkeepingService.exportAsActor; rollback on audit fail
+   * (exactly-one-or-none: no package is delivered without its audit row).
+   */
+  'export_generated',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;
