@@ -14,7 +14,7 @@ BUILD:
 - [x] B-5 Verify
 - [x] B-6 — APPROVED (2-phase; H1 compliance-completeness honesty gap caught by /review + fixed + re-verified) Review
 CI/CD:
-- [ ] C-1 PR, CI & merge
+- [x] C-1 — PASS (ff-push ba745b4..5293045 → main; CI run 28777726235 all-green: test/audit/lint/typecheck/build; 0 fix-up cycles) PR, CI & merge
 - [ ] C-2 Deploy & verify
 TEST:
 - [ ] T-1 Static
