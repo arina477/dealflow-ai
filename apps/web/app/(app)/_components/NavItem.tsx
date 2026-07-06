@@ -18,12 +18,17 @@
 import {
   Briefcase,
   Database,
+  FileText,
+  Kanban,
   LayoutDashboard,
   Scroll,
+  Send,
   Settings,
   ShieldCheck,
   Sliders,
+  Target,
   Users,
+  UsersRound,
 } from 'lucide-react';
 import type { ComponentType, SVGProps } from 'react';
 
@@ -45,6 +50,16 @@ const ICON_MAP: Record<string, LucideIcon> = {
   scroll: Scroll as unknown as LucideIcon,
   // Wave-5: NAV_COMPLIANCE_SETTINGS icon (rbac.ts icon: 'sliders')
   sliders: Sliders as unknown as LucideIcon,
+  // Wave-9: NAV_BUYER_UNIVERSE icon
+  'users-round': UsersRound as unknown as LucideIcon,
+  // Wave-10: NAV_MATCHES icon
+  target: Target as unknown as LucideIcon,
+  // Wave-11: NAV_OUTREACH_TEMPLATES icon
+  'file-text': FileText as unknown as LucideIcon,
+  // Wave-11: NAV_OUTREACH icon
+  send: Send as unknown as LucideIcon,
+  // Wave-12: NAV_PIPELINE icon
+  kanban: Kanban as unknown as LucideIcon,
 };
 
 // ---------------------------------------------------------------------------

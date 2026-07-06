@@ -94,17 +94,29 @@ async function fetchMe(): Promise<FetchMeResult> {
 // ---------------------------------------------------------------------------
 
 /**
- * Derives the current pathname for active-nav highlighting.
+ * Derives the current pathname for active-nav highlighting and TopBar title.
  *
- * Next.js sets `x-invoke-path` in development (and some production
- * deployments). If absent (e.g. static export), fall back to '/'.
+ * Resolution order (most reliable first):
+ *   1. `x-pathname` — set by middleware.ts on every request with the actual
+ *      browser URL pathname. This is the correct source post-wave-15.
+ *   2. `x-invoke-path` — Next.js internal (present in some dev builds; may
+ *      return the file-system route path like `/(app)/admin/users` rather than
+ *      the URL path `/admin/users` — unreliable as the sole source).
+ *   3. '/' — safe fallback; dashboard is permitted for all roles.
+ *
  * The actual URL is always authoritative via usePathname() in client
- * components — this is server-side best-effort.
+ * components — this is the server-side resolution for initial render.
  */
 async function resolvePathname(): Promise<string> {
   try {
     const headersList = await headers();
-    return headersList.get('x-invoke-path') ?? headersList.get('x-pathname') ?? '/';
+    // x-pathname is set by middleware.ts — the most reliable source.
+    const xPathname = headersList.get('x-pathname');
+    if (xPathname) return xPathname;
+    // x-invoke-path is a Next.js internal — secondary fallback.
+    const xInvokePath = headersList.get('x-invoke-path');
+    if (xInvokePath) return xInvokePath;
+    return '/';
   } catch {
     return '/';
   }

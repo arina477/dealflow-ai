@@ -369,6 +369,64 @@ const nextConfig: NextConfig = {
           source: '/compliance/oversight-data',
           destination: `${apiProxyTarget}/outreach`,
         },
+        // Wave-15: admin proxy paths (page-route-collision fix).
+        //
+        // CRITICAL: /admin/users, /admin/settings, /admin/integrations have
+        // Next.js page files:
+        //   /admin/users        → app/(app)/admin/users/page.tsx
+        //   /admin/settings     → app/(app)/admin/settings/page.tsx
+        //   /admin/integrations → app/(app)/admin/integrations/page.tsx
+        //
+        // We must NOT rewrite those page routes. All client mutations use
+        // non-colliding -data prefix paths:
+        //   /admin/users-data/...         → admin user management
+        //   /admin/settings-data          → workspace settings PUT
+        //   /admin/integrations-data/...  → integrations CRUD + toggle
+        //
+        // Route-ordering: most-specific paths before /:id before bare root.
+        //
+        // Admin workspace-settings: /admin/workspace-settings has no page file
+        // (the page lives at /admin/settings) — proxy /admin/workspace-settings
+        // directly to the API for the SSR fetch in the page.
+        {
+          source: '/admin/workspace-settings',
+          destination: `${apiProxyTarget}/admin/workspace-settings`,
+        },
+        // Admin users mutations
+        {
+          source: '/admin/users-data/invite',
+          destination: `${apiProxyTarget}/admin/users/invite`,
+        },
+        {
+          source: '/admin/users-data/:id/role',
+          destination: `${apiProxyTarget}/admin/users/:id/role`,
+        },
+        {
+          source: '/admin/users-data/:id/deactivate',
+          destination: `${apiProxyTarget}/admin/users/:id/deactivate`,
+        },
+        {
+          source: '/admin/users-data',
+          destination: `${apiProxyTarget}/admin/users`,
+        },
+        // Admin workspace settings mutation
+        {
+          source: '/admin/settings-data',
+          destination: `${apiProxyTarget}/admin/workspace-settings`,
+        },
+        // Admin integrations mutations — most-specific first
+        {
+          source: '/admin/integrations-data/:id/toggle',
+          destination: `${apiProxyTarget}/admin/integrations/:id/toggle`,
+        },
+        {
+          source: '/admin/integrations-data/:id',
+          destination: `${apiProxyTarget}/admin/integrations/:id`,
+        },
+        {
+          source: '/admin/integrations-data',
+          destination: `${apiProxyTarget}/admin/integrations`,
+        },
         // Wave-13: audit-log data proxy (page-route-collision fix).
         //
         // CRITICAL: /compliance/audit-log has a Next.js page file:
