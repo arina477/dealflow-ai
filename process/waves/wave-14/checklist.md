@@ -34,7 +34,7 @@ BUILD:
 - [x] B-3 Frontend
 - [x] B-4 Wiring
 - [x] B-5 Verify
-- [ ] B-6 Review
+- [x] B-6 — APPROVED (2-phase; hash-chain-safety+gate-regression clean; Ghost-Green journal + e2e-isolation-gap caught+fixed) Review
 
 CI/CD:
 - [ ] C-1 PR, CI & merge
