@@ -1,20 +1,4 @@
 // --- Wave-18 analytics contracts (task a5ba8068) ---
-export type {
-  AdvisorActivityRow,
-  AdvisorProductivity,
-  AnalyticsSummary,
-  MatchDisposition,
-  MandateThroughput,
-  OutreachGateOutcomes,
-} from './analytics';
-export {
-  advisorActivityRowSchema,
-  advisorProductivitySchema,
-  analyticsSummarySchema,
-  matchDispositionSchema,
-  mandateThroughputSchema,
-  outreachGateOutcomesSchema,
-} from './analytics';
 
 // --- Wave-16 admin-hardening contracts ---
 export type {
@@ -29,6 +13,22 @@ export {
   adminActivityResponseSchema,
   adminActivityRowSchema,
 } from './admin-activity';
+export type {
+  AdvisorActivityRow,
+  AdvisorProductivity,
+  AnalyticsSummary,
+  MandateThroughput,
+  MatchDisposition,
+  OutreachGateOutcomes,
+} from './analytics';
+export {
+  advisorActivityRowSchema,
+  advisorProductivitySchema,
+  analyticsSummarySchema,
+  mandateThroughputSchema,
+  matchDispositionSchema,
+  outreachGateOutcomesSchema,
+} from './analytics';
 export type {
   AuditAction,
   AuditBreakReason,

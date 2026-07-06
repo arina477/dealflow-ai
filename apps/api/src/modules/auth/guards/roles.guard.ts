@@ -124,9 +124,7 @@ export class RolesGuard implements CanActivate {
     // A DB role change still takes effect on the NEXT guarded request (not only
     // after token rotation) — DB-authoritative property is preserved.
     const supertokensUserId = session.getUserId();
-    const role = (await this.authRepository.resolveRoleRlsExempt(
-      supertokensUserId
-    )) as Role | null;
+    const role = (await this.authRepository.resolveRoleRlsExempt(supertokensUserId)) as Role | null;
 
     if (role === null || !required.includes(role)) {
       throw new ForbiddenException();

@@ -28,7 +28,7 @@
  * environment — local dev, CI, or offline.
  */
 
-import { ExecutionContext } from '@nestjs/common';
+import type { ExecutionContext } from '@nestjs/common';
 import { firstValueFrom, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -55,9 +55,9 @@ vi.mock('drizzle-orm/node-postgres', () => ({
   }),
 }));
 
+import { AuthRepository } from '../modules/auth/auth.repository';
 // ── Import after mocks are installed ─────────────────────────────────────────
 import { WorkspaceInterceptor } from './workspace.interceptor';
-import { AuthRepository } from '../modules/auth/auth.repository';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

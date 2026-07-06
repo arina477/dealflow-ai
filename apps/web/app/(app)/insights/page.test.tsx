@@ -53,7 +53,13 @@ const EMPTY_ANALYTICS: AnalyticsSummary = {
     blockedRate: null,
   },
   advisorProductivity: { rows: [], total: 0 },
-  matchDisposition: { totalPending: 0, totalAccepted: 0, totalRejected: 0, totalFlagged: 0, total: 0 },
+  matchDisposition: {
+    totalPending: 0,
+    totalAccepted: 0,
+    totalRejected: 0,
+    totalFlagged: 0,
+    total: 0,
+  },
 };
 
 const POPULATED_ANALYTICS: AnalyticsSummary = {
@@ -81,15 +87,16 @@ const POPULATED_ANALYTICS: AnalyticsSummary = {
     ],
     total: 2,
   },
-  matchDisposition: { totalPending: 3, totalAccepted: 5, totalRejected: 1, totalFlagged: 2, total: 11 },
+  matchDisposition: {
+    totalPending: 3,
+    totalAccepted: 5,
+    totalRejected: 1,
+    totalFlagged: 2,
+    total: 11,
+  },
 };
 
-function makeFetch(
-  meBody: unknown,
-  meOk: boolean,
-  analyticsBody: unknown,
-  analyticsOk = true
-) {
+function makeFetch(meBody: unknown, meOk: boolean, analyticsBody: unknown, analyticsOk = true) {
   return vi.fn().mockImplementation((url: string) => {
     const s = String(url);
     if (s.includes('/auth/me')) {
@@ -317,9 +324,7 @@ describe('InsightsPage (/insights)', () => {
     it('renders advisor rows in the productivity table', async () => {
       vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
       await renderPage();
-      expect(
-        screen.getByRole('table', { name: /per-advisor activity breakdown/i })
-      ).toBeDefined();
+      expect(screen.getByRole('table', { name: /per-advisor activity breakdown/i })).toBeDefined();
     });
 
     it('renders "Mandates Created" column header', async () => {

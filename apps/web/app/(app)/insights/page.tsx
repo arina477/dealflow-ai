@@ -33,7 +33,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 // Note: explicit React import for the test-environment JSX transform (same
 // pattern as admin/activity/page.tsx — esbuild transform requires it).
-import React from 'react';
+import type React from 'react';
 import { assertRole } from '../_lib/assertRole';
 
 export const dynamic = 'force-dynamic';
@@ -325,9 +325,7 @@ export default async function InsightsPage() {
             <span style={METRIC_LABEL_STYLE}>Total outreach records</span>
           </div>
           <div style={METRIC_CELL_STYLE}>
-            <span style={METRIC_VALUE_EMERALD_STYLE}>
-              {outreachGateOutcomes.totalSendEligible}
-            </span>
+            <span style={METRIC_VALUE_EMERALD_STYLE}>{outreachGateOutcomes.totalSendEligible}</span>
             <span style={METRIC_LABEL_STYLE}>Gate-passed (send eligible)</span>
           </div>
           <div style={METRIC_CELL_STYLE}>
@@ -396,10 +394,22 @@ export default async function InsightsPage() {
                         {row.userId}
                       </span>
                     </td>
-                    <td style={{ ...TD_STYLE, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    <td
+                      style={{
+                        ...TD_STYLE,
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
                       {row.mandatesCreated}
                     </td>
-                    <td style={{ ...TD_STYLE, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                    <td
+                      style={{
+                        ...TD_STYLE,
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
                       {row.pipelineRows}
                     </td>
                   </tr>

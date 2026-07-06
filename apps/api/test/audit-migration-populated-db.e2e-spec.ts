@@ -177,12 +177,7 @@ describe.skipIf(shouldSkip)(
           `INSERT INTO users (supertokens_user_id, email, role_id, workspace_id, deactivated_at)
            VALUES ($1, $2, $3::uuid, $4::uuid, now())
            ON CONFLICT (supertokens_user_id) DO NOTHING`,
-          [
-            AMIG_ST_USER_ID,
-            'amig-test@audit-migration.test',
-            adminRoleId,
-            AMIG_WS_ID,
-          ]
+          [AMIG_ST_USER_ID, 'amig-test@audit-migration.test', adminRoleId, AMIG_WS_ID]
         );
       } finally {
         await insertClient.query('RESET app.workspace_id').catch(() => {});
@@ -224,114 +219,113 @@ describe.skipIf(shouldSkip)(
      *   parallel-suite interleaving (no global contiguity walk required).
      * These three assertions are coupled: we seed, read back, and verify in one test.
      */
-    it(
-      'AMP-1/AMP-3/AMP-4: seeds real chained audit rows → workspace_id populated → per-row HMAC hash-exclusion verified',
-      { timeout: 15000 },
-      async () => {
-        if (!dbReachable) return;
+    it('AMP-1/AMP-3/AMP-4: seeds real chained audit rows → workspace_id populated → per-row HMAC hash-exclusion verified', {
+      timeout: 15000,
+    }, async () => {
+      if (!dbReachable) return;
 
-        // Build AuditService against the live test DB.
-        const { AuditKeyring } = await import('../src/modules/audit/audit.keyring');
-        const { AuditRepository } = await import('../src/modules/audit/audit.repository');
-        const { AuditService } = await import('../src/modules/audit/audit.service');
+      // Build AuditService against the live test DB.
+      const { AuditKeyring } = await import('../src/modules/audit/audit.keyring');
+      const { AuditRepository } = await import('../src/modules/audit/audit.repository');
+      const { AuditService } = await import('../src/modules/audit/audit.service');
 
-        const keyring = new AuditKeyring(process.env);
-        const auditRepo = new AuditRepository(db);
-        const auditSvc = new AuditService(keyring, auditRepo);
+      const keyring = new AuditKeyring(process.env);
+      const auditRepo = new AuditRepository(db);
+      const auditSvc = new AuditService(keyring, auditRepo);
 
-        // Stable deterministic hashes for this test's rows. Not real HMAC — just
-        // distinct fixed values so multiple entries produce a real chain.
-        const h = (n: number) => `${n}`.repeat(64).slice(0, 64);
+      // Stable deterministic hashes for this test's rows. Not real HMAC — just
+      // distinct fixed values so multiple entries produce a real chain.
+      const h = (n: number) => `${n}`.repeat(64).slice(0, 64);
 
-        // Append 3 real HMAC-chained entries. appendStandalone opens its own tx
-        // (with advisory lock) — structurally identical to prod AuditService usage.
-        // workspace_id is set by _appendCore: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID.
-        // In e2e (no ALS context), this falls back to DEFAULT_WORKSPACE_ID.
-        const e1 = await auditSvc.appendStandalone({
-          actorUserId: seededUserId,
-          actorRole: 'admin',
-          action: 'user-invite',
-          resourceType: 'invite',
-          resourceId: `amig-seed-1-${Date.now()}`,
-          contentHash: h(1),
-          payloadHash: h(2),
-        });
-        const e2 = await auditSvc.appendStandalone({
-          actorUserId: seededUserId,
-          actorRole: 'admin',
-          action: 'workspace-settings-update',
-          resourceType: 'workspace_settings',
-          resourceId: `amig-seed-2-${Date.now()}`,
-          contentHash: h(3),
-          payloadHash: h(4),
-        });
-        const e3 = await auditSvc.appendStandalone({
-          actorUserId: seededUserId,
-          actorRole: 'admin',
-          action: 'role-change',
-          resourceType: 'user',
-          resourceId: `amig-seed-3-${Date.now()}`,
-          contentHash: h(5),
-          payloadHash: h(6),
-        });
+      // Append 3 real HMAC-chained entries. appendStandalone opens its own tx
+      // (with advisory lock) — structurally identical to prod AuditService usage.
+      // workspace_id is set by _appendCore: getWorkspaceId() ?? DEFAULT_WORKSPACE_ID.
+      // In e2e (no ALS context), this falls back to DEFAULT_WORKSPACE_ID.
+      const e1 = await auditSvc.appendStandalone({
+        actorUserId: seededUserId,
+        actorRole: 'admin',
+        action: 'user-invite',
+        resourceType: 'invite',
+        resourceId: `amig-seed-1-${Date.now()}`,
+        contentHash: h(1),
+        payloadHash: h(2),
+      });
+      const e2 = await auditSvc.appendStandalone({
+        actorUserId: seededUserId,
+        actorRole: 'admin',
+        action: 'workspace-settings-update',
+        resourceType: 'workspace_settings',
+        resourceId: `amig-seed-2-${Date.now()}`,
+        contentHash: h(3),
+        payloadHash: h(4),
+      });
+      const e3 = await auditSvc.appendStandalone({
+        actorUserId: seededUserId,
+        actorRole: 'admin',
+        action: 'role-change',
+        resourceType: 'user',
+        resourceId: `amig-seed-3-${Date.now()}`,
+        contentHash: h(5),
+        payloadHash: h(6),
+      });
 
-        // AMP-1: entries are real chained rows (sequenceNumbers contiguous, prev_hash linked).
-        expect(e2.sequenceNumber).toBe(e1.sequenceNumber + 1);
-        expect(e3.sequenceNumber).toBe(e2.sequenceNumber + 1);
-        expect(e2.prevHash).toBe(e1.entryHash);
-        expect(e3.prevHash).toBe(e2.entryHash);
+      // AMP-1: entries are real chained rows (sequenceNumbers contiguous, prev_hash linked).
+      expect(e2.sequenceNumber).toBe(e1.sequenceNumber + 1);
+      expect(e3.sequenceNumber).toBe(e2.sequenceNumber + 1);
+      expect(e2.prevHash).toBe(e1.entryHash);
+      expect(e3.prevHash).toBe(e2.entryHash);
 
-        // AMP-3: workspace_id is set (DEFAULT_WORKSPACE_ID in no-ALS path).
-        // Read the rows back via the superuser pool to confirm workspace_id.
-        const res = await pool.query<{ sequence_number: number; workspace_id: string }>(
-          `SELECT sequence_number, workspace_id
+      // AMP-3: workspace_id is set (DEFAULT_WORKSPACE_ID in no-ALS path).
+      // Read the rows back via the superuser pool to confirm workspace_id.
+      const res = await pool.query<{ sequence_number: number; workspace_id: string }>(
+        `SELECT sequence_number, workspace_id
            FROM audit_log_entries
            WHERE sequence_number IN ($1, $2, $3)
            ORDER BY sequence_number ASC`,
-          [e1.sequenceNumber, e2.sequenceNumber, e3.sequenceNumber]
-        );
-        expect(res.rows).toHaveLength(3);
-        for (const row of res.rows) {
-          // Falls back to DEFAULT_WORKSPACE_ID when no ALS context is set.
-          expect(row.workspace_id).toBe('a1b2c3d4-0000-4000-8000-000000000001');
-        }
+        [e1.sequenceNumber, e2.sequenceNumber, e3.sequenceNumber]
+      );
+      expect(res.rows).toHaveLength(3);
+      for (const row of res.rows) {
+        // Falls back to DEFAULT_WORKSPACE_ID when no ALS context is set.
+        expect(row.workspace_id).toBe('a1b2c3d4-0000-4000-8000-000000000001');
+      }
 
-        // AMP-4: per-row hash-exclusion proof — immune to parallel-suite interleaving.
-        //
-        // For each of the 3 seeded rows, recompute its entry_hash from stored fields
-        // using the SAME HashableEntryFields / computeEntryHash the AuditVerifier uses.
-        // workspace_id is NOT in HashableEntryFields, so the recomputed hash must equal
-        // the stored entry_hash regardless of the workspace_id value. This directly
-        // proves workspace_id is excluded from the HMAC preimage — the core invariant
-        // of the 0014 migration fix.
-        //
-        // Why per-row (not verifyEntries): verifyEntries walks entries assuming global
-        // contiguity starting at sequence_number=1. In the shared CI Postgres, other
-        // e2e suites append rows between e1/e2/e3, making the 3 seeded rows
-        // non-contiguous with the global chain → verifyEntries returns ok:false on the
-        // sequence-gap check (a parallel-suite artifact, not a hash failure). Per-row
-        // recompute avoids this entirely — each row is verified independently.
-        //
-        // Fault-killing: if workspace_id WERE in HashableEntryFields /
-        // canonicalSerialization, the recomputed hash would differ from the stored one
-        // → expect(recomputed).toBe(r.entry_hash) fails → CI red.
-        const { computeEntryHash } = await import('../src/modules/audit/audit.hash');
-        const ampRows = await pool.query<{
-          sequence_number: number;
-          actor_user_id: string | null;
-          actor_role: string;
-          action: string;
-          resource_type: string;
-          resource_id: string | null;
-          content_hash: string;
-          payload_hash: string;
-          prev_hash: string;
-          entry_hash: string;
-          chain_version: number;
-          created_at: string;
-          workspace_id: string;
-        }>(
-          `SELECT
+      // AMP-4: per-row hash-exclusion proof — immune to parallel-suite interleaving.
+      //
+      // For each of the 3 seeded rows, recompute its entry_hash from stored fields
+      // using the SAME HashableEntryFields / computeEntryHash the AuditVerifier uses.
+      // workspace_id is NOT in HashableEntryFields, so the recomputed hash must equal
+      // the stored entry_hash regardless of the workspace_id value. This directly
+      // proves workspace_id is excluded from the HMAC preimage — the core invariant
+      // of the 0014 migration fix.
+      //
+      // Why per-row (not verifyEntries): verifyEntries walks entries assuming global
+      // contiguity starting at sequence_number=1. In the shared CI Postgres, other
+      // e2e suites append rows between e1/e2/e3, making the 3 seeded rows
+      // non-contiguous with the global chain → verifyEntries returns ok:false on the
+      // sequence-gap check (a parallel-suite artifact, not a hash failure). Per-row
+      // recompute avoids this entirely — each row is verified independently.
+      //
+      // Fault-killing: if workspace_id WERE in HashableEntryFields /
+      // canonicalSerialization, the recomputed hash would differ from the stored one
+      // → expect(recomputed).toBe(r.entry_hash) fails → CI red.
+      const { computeEntryHash } = await import('../src/modules/audit/audit.hash');
+      const ampRows = await pool.query<{
+        sequence_number: number;
+        actor_user_id: string | null;
+        actor_role: string;
+        action: string;
+        resource_type: string;
+        resource_id: string | null;
+        content_hash: string;
+        payload_hash: string;
+        prev_hash: string;
+        entry_hash: string;
+        chain_version: number;
+        created_at: string;
+        workspace_id: string;
+      }>(
+        `SELECT
              sequence_number, actor_user_id, actor_role, action,
              resource_type, resource_id, content_hash, payload_hash,
              prev_hash, entry_hash, chain_version, created_at::text,
@@ -339,28 +333,27 @@ describe.skipIf(shouldSkip)(
            FROM audit_log_entries
            WHERE sequence_number IN ($1, $2, $3)
            ORDER BY sequence_number ASC`,
-          [e1.sequenceNumber, e2.sequenceNumber, e3.sequenceNumber]
-        );
-        expect(ampRows.rows).toHaveLength(3);
-        for (const r of ampRows.rows) {
-          const hashable = {
-            sequenceNumber: r.sequence_number,
-            actorUserId: r.actor_user_id,
-            actorRole: r.actor_role,
-            action: r.action,
-            resourceType: r.resource_type,
-            resourceId: r.resource_id,
-            contentHash: r.content_hash,
-            payloadHash: r.payload_hash,
-            chainVersion: r.chain_version,
-            createdAt: r.created_at,
-          };
-          const key = keyring.keyFor(r.chain_version);
-          const recomputed = computeEntryHash(hashable, r.prev_hash, key);
-          expect(recomputed).toBe(r.entry_hash);
-        }
+        [e1.sequenceNumber, e2.sequenceNumber, e3.sequenceNumber]
+      );
+      expect(ampRows.rows).toHaveLength(3);
+      for (const r of ampRows.rows) {
+        const hashable = {
+          sequenceNumber: r.sequence_number,
+          actorUserId: r.actor_user_id,
+          actorRole: r.actor_role,
+          action: r.action,
+          resourceType: r.resource_type,
+          resourceId: r.resource_id,
+          contentHash: r.content_hash,
+          payloadHash: r.payload_hash,
+          chainVersion: r.chain_version,
+          createdAt: r.created_at,
+        };
+        const key = keyring.keyFor(r.chain_version);
+        const recomputed = computeEntryHash(hashable, r.prev_hash, key);
+        expect(recomputed).toBe(r.entry_hash);
       }
-    );
+    });
 
     /**
      * AMP-2: Trigger-disable wrap is correct — DISABLE/UPDATE/ENABLE on
@@ -373,81 +366,76 @@ describe.skipIf(shouldSkip)(
      * then restore the original workspace_id (also wrapped in disable/enable).
      * This leaves the table in the same state as before and proves the wrap works.
      */
-    it(
-      'AMP-2: DISABLE TRIGGER + UPDATE + ENABLE TRIGGER succeeds on populated audit_log_entries',
-      { timeout: 15000 },
-      async () => {
-        if (!dbReachable) return;
+    it('AMP-2: DISABLE TRIGGER + UPDATE + ENABLE TRIGGER succeeds on populated audit_log_entries', {
+      timeout: 15000,
+    }, async () => {
+      if (!dbReachable) return;
 
-        // Seed one more entry to guarantee at least one row exists when we test the wrap.
-        const { AuditKeyring } = await import('../src/modules/audit/audit.keyring');
-        const { AuditRepository } = await import('../src/modules/audit/audit.repository');
-        const { AuditService } = await import('../src/modules/audit/audit.service');
+      // Seed one more entry to guarantee at least one row exists when we test the wrap.
+      const { AuditKeyring } = await import('../src/modules/audit/audit.keyring');
+      const { AuditRepository } = await import('../src/modules/audit/audit.repository');
+      const { AuditService } = await import('../src/modules/audit/audit.service');
 
-        const auditSvc = new AuditService(
-          new AuditKeyring(process.env),
-          new AuditRepository(db)
+      const auditSvc = new AuditService(new AuditKeyring(process.env), new AuditRepository(db));
+      const h = (n: number) => `${n}`.repeat(64).slice(0, 64);
+      const seeded = await auditSvc.appendStandalone({
+        actorUserId: seededUserId,
+        actorRole: 'admin',
+        action: 'user-invite',
+        resourceType: 'invite',
+        resourceId: `amig-amp2-${Date.now()}`,
+        contentHash: h(7),
+        payloadHash: h(8),
+      });
+
+      // Save the original workspace_id so we can restore it.
+      const beforeRes = await pool.query<{ workspace_id: string }>(
+        `SELECT workspace_id FROM audit_log_entries WHERE sequence_number = $1`,
+        [seeded.sequenceNumber]
+      );
+      const originalWorkspaceId = beforeRes.rows[0]?.workspace_id;
+      expect(originalWorkspaceId).toBeDefined();
+
+      // Sentinel workspace (AMIG_WS_ID) — use as the "migration backfill target".
+      // We set workspace_id = NULL (bypassing the FK constraint) would error;
+      // instead we UPDATE to AMIG_WS_ID (already seeded as a real workspace row).
+      //
+      // Replicate the exact migration 0014 DISABLE/UPDATE/ENABLE pattern:
+      await pool.query(`ALTER TABLE "audit_log_entries" DISABLE TRIGGER audit_log_no_mutate`);
+      let updateErr: Error | null = null;
+      try {
+        await pool.query(
+          `UPDATE audit_log_entries SET workspace_id = $1 WHERE sequence_number = $2`,
+          [AMIG_WS_ID, seeded.sequenceNumber]
         );
-        const h = (n: number) => `${n}`.repeat(64).slice(0, 64);
-        const seeded = await auditSvc.appendStandalone({
-          actorUserId: seededUserId,
-          actorRole: 'admin',
-          action: 'user-invite',
-          resourceType: 'invite',
-          resourceId: `amig-amp2-${Date.now()}`,
-          contentHash: h(7),
-          payloadHash: h(8),
-        });
-
-        // Save the original workspace_id so we can restore it.
-        const beforeRes = await pool.query<{ workspace_id: string }>(
-          `SELECT workspace_id FROM audit_log_entries WHERE sequence_number = $1`,
-          [seeded.sequenceNumber]
-        );
-        const originalWorkspaceId = beforeRes.rows[0]?.workspace_id;
-        expect(originalWorkspaceId).toBeDefined();
-
-        // Sentinel workspace (AMIG_WS_ID) — use as the "migration backfill target".
-        // We set workspace_id = NULL (bypassing the FK constraint) would error;
-        // instead we UPDATE to AMIG_WS_ID (already seeded as a real workspace row).
-        //
-        // Replicate the exact migration 0014 DISABLE/UPDATE/ENABLE pattern:
-        await pool.query(`ALTER TABLE "audit_log_entries" DISABLE TRIGGER audit_log_no_mutate`);
-        let updateErr: Error | null = null;
-        try {
-          await pool.query(
-            `UPDATE audit_log_entries SET workspace_id = $1 WHERE sequence_number = $2`,
-            [AMIG_WS_ID, seeded.sequenceNumber]
-          );
-        } catch (err) {
-          updateErr = err as Error;
-        } finally {
-          // Always re-enable — mirrors the migration's atomicity guarantee.
-          await pool.query(`ALTER TABLE "audit_log_entries" ENABLE TRIGGER audit_log_no_mutate`);
-        }
-
-        // AMP-2a: the UPDATE succeeded without WORM error.
-        expect(updateErr).toBeNull();
-
-        // Confirm the value was updated.
-        const afterRes = await pool.query<{ workspace_id: string }>(
-          `SELECT workspace_id FROM audit_log_entries WHERE sequence_number = $1`,
-          [seeded.sequenceNumber]
-        );
-        expect(afterRes.rows[0]?.workspace_id).toBe(AMIG_WS_ID);
-
-        // Restore original workspace_id (also wrapped in disable/enable — WORM-safe).
-        await pool.query(`ALTER TABLE "audit_log_entries" DISABLE TRIGGER audit_log_no_mutate`);
-        try {
-          await pool.query(
-            `UPDATE audit_log_entries SET workspace_id = $1 WHERE sequence_number = $2`,
-            [originalWorkspaceId, seeded.sequenceNumber]
-          );
-        } finally {
-          await pool.query(`ALTER TABLE "audit_log_entries" ENABLE TRIGGER audit_log_no_mutate`);
-        }
+      } catch (err) {
+        updateErr = err as Error;
+      } finally {
+        // Always re-enable — mirrors the migration's atomicity guarantee.
+        await pool.query(`ALTER TABLE "audit_log_entries" ENABLE TRIGGER audit_log_no_mutate`);
       }
-    );
+
+      // AMP-2a: the UPDATE succeeded without WORM error.
+      expect(updateErr).toBeNull();
+
+      // Confirm the value was updated.
+      const afterRes = await pool.query<{ workspace_id: string }>(
+        `SELECT workspace_id FROM audit_log_entries WHERE sequence_number = $1`,
+        [seeded.sequenceNumber]
+      );
+      expect(afterRes.rows[0]?.workspace_id).toBe(AMIG_WS_ID);
+
+      // Restore original workspace_id (also wrapped in disable/enable — WORM-safe).
+      await pool.query(`ALTER TABLE "audit_log_entries" DISABLE TRIGGER audit_log_no_mutate`);
+      try {
+        await pool.query(
+          `UPDATE audit_log_entries SET workspace_id = $1 WHERE sequence_number = $2`,
+          [originalWorkspaceId, seeded.sequenceNumber]
+        );
+      } finally {
+        await pool.query(`ALTER TABLE "audit_log_entries" ENABLE TRIGGER audit_log_no_mutate`);
+      }
+    });
 
     /**
      * AMP-5: FAULT-KILLING — trigger is re-enabled after the disable window.
@@ -461,39 +449,37 @@ describe.skipIf(shouldSkip)(
      * If this test fails (no error thrown), it means the trigger is not active,
      * which would indicate a regression in the trigger-disable/re-enable logic.
      */
-    it(
-      'AMP-5: fault-killing — UPDATE without DISABLE TRIGGER throws P0001 (WORM trigger active)',
-      { timeout: 10000 },
-      async () => {
-        if (!dbReachable) return;
+    it('AMP-5: fault-killing — UPDATE without DISABLE TRIGGER throws P0001 (WORM trigger active)', {
+      timeout: 10000,
+    }, async () => {
+      if (!dbReachable) return;
 
-        // Confirm at least one audit_log_entries row exists.
-        const countRes = await pool.query<{ count: string }>(
-          `SELECT COUNT(*)::text AS count FROM audit_log_entries`
+      // Confirm at least one audit_log_entries row exists.
+      const countRes = await pool.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM audit_log_entries`
+      );
+      const count = Number(countRes.rows[0]?.count ?? 0);
+      expect(count).toBeGreaterThan(0);
+
+      // Attempt a plain UPDATE — no DISABLE TRIGGER. Must be rejected by the WORM trigger.
+      let thrownError: Error | null = null;
+      try {
+        await pool.query(
+          `UPDATE audit_log_entries SET actor_role = 'advisor' WHERE sequence_number = 1`
         );
-        const count = Number(countRes.rows[0]?.count ?? 0);
-        expect(count).toBeGreaterThan(0);
-
-        // Attempt a plain UPDATE — no DISABLE TRIGGER. Must be rejected by the WORM trigger.
-        let thrownError: Error | null = null;
-        try {
-          await pool.query(
-            `UPDATE audit_log_entries SET actor_role = 'advisor' WHERE sequence_number = 1`
-          );
-        } catch (err) {
-          thrownError = err as Error;
-        }
-
-        // WORM trigger raises EXCEPTION → SQLSTATE P0001 (raise_exception).
-        expect(thrownError).not.toBeNull();
-        const errCode =
-          (thrownError as { code?: string })?.code ??
-          (thrownError as { cause?: { code?: string } })?.cause?.code;
-        expect(errCode).toBe('P0001');
-
-        // The error message must match the WORM trigger's message pattern.
-        expect(thrownError?.message).toMatch(/audit_log_entries is append-only/);
+      } catch (err) {
+        thrownError = err as Error;
       }
-    );
+
+      // WORM trigger raises EXCEPTION → SQLSTATE P0001 (raise_exception).
+      expect(thrownError).not.toBeNull();
+      const errCode =
+        (thrownError as { code?: string })?.code ??
+        (thrownError as { cause?: { code?: string } })?.cause?.code;
+      expect(errCode).toBe('P0001');
+
+      // The error message must match the WORM trigger's message pattern.
+      expect(thrownError?.message).toMatch(/audit_log_entries is append-only/);
+    });
   }
 );

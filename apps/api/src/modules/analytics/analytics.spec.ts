@@ -32,8 +32,8 @@ vi.mock('supertokens-node/recipe/session', () => ({
   },
 }));
 
-import { ROLES_KEY, RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthRepository } from '../auth/auth.repository';
+import { ROLES_KEY, RolesGuard } from '../auth/guards/roles.guard';
 import { AnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
 
@@ -259,16 +259,16 @@ describe('GET /analytics — RBAC matrix (DB-authoritative)', () => {
 
   it('compliance → DENY (403) — DB role compliance (not in ANALYTICS_ROLES)', async () => {
     const guard = guardWithDbRole('compliance');
-    await expect(
-      guard.canActivate(contextFor(analyticsHandler, 'compliance'))
-    ).rejects.toThrow(ForbiddenException);
+    await expect(guard.canActivate(contextFor(analyticsHandler, 'compliance'))).rejects.toThrow(
+      ForbiddenException
+    );
   });
 
   it('unauthenticated → 401 — no session', async () => {
     // DB role null = user not found (unauthenticated path — guard raises 401 via SessionGuard).
     const guard = guardWithDbRole(null);
-    await expect(
-      guard.canActivate(contextFor(analyticsHandler, undefined))
-    ).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(contextFor(analyticsHandler, undefined))).rejects.toThrow(
+      UnauthorizedException
+    );
   });
 });

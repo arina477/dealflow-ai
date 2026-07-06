@@ -123,10 +123,7 @@ export class WorkspaceInterceptor implements NestInterceptor {
           // PostgreSQL's SET command does NOT accept bind parameters; this is
           // the correct form. If this throws, the request fails-closed (the
           // catch below re-throws so GUC failures are never silently swallowed).
-          await client.query('SELECT set_config($1, $2, false)', [
-            'app.workspace_id',
-            workspaceId,
-          ]);
+          await client.query('SELECT set_config($1, $2, false)', ['app.workspace_id', workspaceId]);
         }
       } catch (err) {
         // Re-throw: resolver failure OR GUC-set failure → fail-closed loudly.

@@ -180,10 +180,7 @@ export class AnalyticsRepository {
     // Sort by total activity descending (most active advisor first).
     return Array.from(activityMap.entries())
       .map(([userId, activity]) => ({ userId, ...activity }))
-      .sort(
-        (a, b) =>
-          b.mandatesCreated + b.pipelineRows - (a.mandatesCreated + a.pipelineRows)
-      );
+      .sort((a, b) => b.mandatesCreated + b.pipelineRows - (a.mandatesCreated + a.pipelineRows));
   }
 
   // ---------------------------------------------------------------------------

@@ -170,10 +170,9 @@ async function seedUser(
   });
   // Read back the actual id (idempotent — ON CONFLICT may have preserved a prior row).
   const res = await withSuperuserGuc(workspaceId, async (client) =>
-    client.query<{ id: string }>(
-      'SELECT id FROM users WHERE supertokens_user_id = $1 LIMIT 1',
-      [supertokensUserId]
-    )
+    client.query<{ id: string }>('SELECT id FROM users WHERE supertokens_user_id = $1 LIMIT 1', [
+      supertokensUserId,
+    ])
   );
   const id = res.rows[0]?.id;
   if (!id) throw new Error(`seedUser: no row for stUserId=${supertokensUserId}`);
@@ -317,9 +316,14 @@ async function seedOutreachWithStatus(
     seededOutreachTemplateVersionIds.push(templateVersionId);
 
     // outreach
-    const gateVerdict = status === 'send_eligible'
-      ? JSON.stringify({ allowed: true, blocks: [], requiredDisclaimers: [] })
-      : JSON.stringify({ allowed: false, blocks: [{ code: 'sod-block' }], requiredDisclaimers: [] });
+    const gateVerdict =
+      status === 'send_eligible'
+        ? JSON.stringify({ allowed: true, blocks: [], requiredDisclaimers: [] })
+        : JSON.stringify({
+            allowed: false,
+            blocks: [{ code: 'sod-block' }],
+            requiredDisclaimers: [],
+          });
 
     await client.query(
       `INSERT INTO outreach
@@ -327,8 +331,14 @@ async function seedOutreachWithStatus(
           gate_verdict, status, created_by, workspace_id)
        VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)`,
       [
-        outreachId, mandateId, matchCandidateId, templateVersionId,
-        gateVerdict, status, userId, workspaceId,
+        outreachId,
+        mandateId,
+        matchCandidateId,
+        templateVersionId,
+        gateVerdict,
+        status,
+        userId,
+        workspaceId,
       ]
     );
     seededOutreachIds.push(outreachId);
@@ -517,11 +527,7 @@ describe.skipIf(shouldSkip)(
 
       // WORM-safe teardown: delete seeded rows in FK-safe order.
       // Uses superuser pool (no SET ROLE) + correct GUC for each workspace.
-      const deleteScoped = async (
-        wsId: string,
-        table: string,
-        ids: string[]
-      ): Promise<void> => {
+      const deleteScoped = async (wsId: string, table: string, ids: string[]): Promise<void> => {
         if (ids.length === 0) return;
         for (const id of ids) {
           const client = await pool.connect();
@@ -560,155 +566,143 @@ describe.skipIf(shouldSkip)(
 
     // ── AMP-1: Cross-firm negative read ──────────────────────────────────────
 
-    it(
-      'AMP-1: F1 mandate-throughput counts match WS_A seeded rows; WS_B mandates excluded',
-      async () => {
-        if (!dbReachable) return;
+    it('AMP-1: F1 mandate-throughput counts match WS_A seeded rows; WS_B mandates excluded', async () => {
+      if (!dbReachable) return;
 
-        // Import AnalyticsRepository and run it under WS_A's GUC.
-        // We instantiate it with a Drizzle handle backed by the superuser pool
-        // (module-level singleton), then run queries via withWorkspace so the
-        // ALS-bound GUC-handle is active. However, AnalyticsRepository.getMandateThroughput
-        // calls getDb(this.db) — which returns the ALS handle when in a request context.
-        // In this test context there is no ALS store (no WorkspaceInterceptor running).
-        //
-        // DIRECT QUERY APPROACH: we run the same SQL that AnalyticsRepository uses,
-        // but execute it via the withWorkspace client (dealflow_app role + GUC set).
-        // This is the fault-killing pattern: if the production code skipped getDb()
-        // and used a raw singleton, it would return a different count than this
-        // GUC-scoped query.
+      // Import AnalyticsRepository and run it under WS_A's GUC.
+      // We instantiate it with a Drizzle handle backed by the superuser pool
+      // (module-level singleton), then run queries via withWorkspace so the
+      // ALS-bound GUC-handle is active. However, AnalyticsRepository.getMandateThroughput
+      // calls getDb(this.db) — which returns the ALS handle when in a request context.
+      // In this test context there is no ALS store (no WorkspaceInterceptor running).
+      //
+      // DIRECT QUERY APPROACH: we run the same SQL that AnalyticsRepository uses,
+      // but execute it via the withWorkspace client (dealflow_app role + GUC set).
+      // This is the fault-killing pattern: if the production code skipped getDb()
+      // and used a raw singleton, it would return a different count than this
+      // GUC-scoped query.
 
-        // Count WS_A mandates via a dedicated GUC-set dealflow_app client.
-        const rows = await withWorkspace(WS_A_ID, async (client) => {
-          const res = await client.query<{ status: string; cnt: string }>(
-            `SELECT status, COUNT(*)::int AS cnt FROM mandates GROUP BY status`
-          );
-          return res.rows;
-        });
+      // Count WS_A mandates via a dedicated GUC-set dealflow_app client.
+      const rows = await withWorkspace(WS_A_ID, async (client) => {
+        const res = await client.query<{ status: string; cnt: string }>(
+          `SELECT status, COUNT(*)::int AS cnt FROM mandates GROUP BY status`
+        );
+        return res.rows;
+      });
 
-        let gotDraft = 0;
-        let gotActive = 0;
-        for (const row of rows) {
-          if (row.status === 'draft') gotDraft = Number(row.cnt);
-          else if (row.status === 'active') gotActive = Number(row.cnt);
-        }
-
-        // WS_A's seeded draft and active counts must be present.
-        // T-4 rule 2: we seed N drafts and M actives and assert exact counts.
-        // Since the DB may have pre-existing rows from other test runs, we assert
-        // that OUR seeded rows are all visible and that WS_B's rows are zero.
-        // Use ">= our seeded count" for presence; use a separate query to confirm
-        // WS_B rows are absent.
-        expect(gotDraft).toBeGreaterThanOrEqual(wsADraftMandates);
-        expect(gotActive).toBeGreaterThanOrEqual(wsAActiveMandates);
-
-        // Negative: WS_B mandates must NOT be returned under WS_A's GUC.
-        const wsBRows = await withWorkspace(WS_A_ID, async (client) => {
-          const res = await client.query<{ cnt: string }>(
-            `SELECT COUNT(*)::int AS cnt FROM mandates WHERE workspace_id = $1`,
-            [WS_B_ID]
-          );
-          return res.rows[0]?.cnt ?? '0';
-        });
-        // Under WS_A GUC with FORCE RLS, WS_B rows must return 0.
-        expect(Number(wsBRows)).toBe(0);
+      let gotDraft = 0;
+      let gotActive = 0;
+      for (const row of rows) {
+        if (row.status === 'draft') gotDraft = Number(row.cnt);
+        else if (row.status === 'active') gotActive = Number(row.cnt);
       }
-    );
 
-    it(
-      'AMP-1: F2 outreach gate-outcome — WS_B outreach excluded; WS_A counts correct',
-      async () => {
-        if (!dbReachable) return;
+      // WS_A's seeded draft and active counts must be present.
+      // T-4 rule 2: we seed N drafts and M actives and assert exact counts.
+      // Since the DB may have pre-existing rows from other test runs, we assert
+      // that OUR seeded rows are all visible and that WS_B's rows are zero.
+      // Use ">= our seeded count" for presence; use a separate query to confirm
+      // WS_B rows are absent.
+      expect(gotDraft).toBeGreaterThanOrEqual(wsADraftMandates);
+      expect(gotActive).toBeGreaterThanOrEqual(wsAActiveMandates);
 
-        const rows = await withWorkspace(WS_A_ID, async (client) => {
-          const res = await client.query<{ status: string; cnt: string }>(
-            `SELECT status, COUNT(*)::int AS cnt FROM outreach GROUP BY status`
-          );
-          return res.rows;
-        });
+      // Negative: WS_B mandates must NOT be returned under WS_A's GUC.
+      const wsBRows = await withWorkspace(WS_A_ID, async (client) => {
+        const res = await client.query<{ cnt: string }>(
+          `SELECT COUNT(*)::int AS cnt FROM mandates WHERE workspace_id = $1`,
+          [WS_B_ID]
+        );
+        return res.rows[0]?.cnt ?? '0';
+      });
+      // Under WS_A GUC with FORCE RLS, WS_B rows must return 0.
+      expect(Number(wsBRows)).toBe(0);
+    });
 
-        let gotSendEligible = 0;
-        let gotBlocked = 0;
-        for (const row of rows) {
-          if (row.status === 'send_eligible') gotSendEligible = Number(row.cnt);
-          else if (row.status === 'blocked') gotBlocked = Number(row.cnt);
-        }
+    it('AMP-1: F2 outreach gate-outcome — WS_B outreach excluded; WS_A counts correct', async () => {
+      if (!dbReachable) return;
 
-        // WS_A's seeded outreach counts must be present.
-        expect(gotSendEligible).toBeGreaterThanOrEqual(wsASendEligibleOutreach);
-        expect(gotBlocked).toBeGreaterThanOrEqual(wsABlockedOutreach);
+      const rows = await withWorkspace(WS_A_ID, async (client) => {
+        const res = await client.query<{ status: string; cnt: string }>(
+          `SELECT status, COUNT(*)::int AS cnt FROM outreach GROUP BY status`
+        );
+        return res.rows;
+      });
 
-        // Negative: WS_B outreach rows must not appear under WS_A's GUC.
-        const wsBOutreach = await withWorkspace(WS_A_ID, async (client) => {
-          const res = await client.query<{ cnt: string }>(
-            `SELECT COUNT(*)::int AS cnt FROM outreach WHERE workspace_id = $1`,
-            [WS_B_ID]
-          );
-          return res.rows[0]?.cnt ?? '0';
-        });
-        expect(Number(wsBOutreach)).toBe(0);
+      let gotSendEligible = 0;
+      let gotBlocked = 0;
+      for (const row of rows) {
+        if (row.status === 'send_eligible') gotSendEligible = Number(row.cnt);
+        else if (row.status === 'blocked') gotBlocked = Number(row.cnt);
       }
-    );
 
-    it(
-      'AMP-1: F3 advisor-productivity — WS_B pipeline rows excluded; WS_A pipeline visible',
-      async () => {
-        if (!dbReachable) return;
+      // WS_A's seeded outreach counts must be present.
+      expect(gotSendEligible).toBeGreaterThanOrEqual(wsASendEligibleOutreach);
+      expect(gotBlocked).toBeGreaterThanOrEqual(wsABlockedOutreach);
 
-        const rows = await withWorkspace(WS_A_ID, async (client) => {
-          const res = await client.query<{ user_id: string; cnt: string }>(
-            `SELECT created_by AS user_id, COUNT(*)::int AS cnt FROM pipeline GROUP BY created_by`
-          );
-          return res.rows;
-        });
+      // Negative: WS_B outreach rows must not appear under WS_A's GUC.
+      const wsBOutreach = await withWorkspace(WS_A_ID, async (client) => {
+        const res = await client.query<{ cnt: string }>(
+          `SELECT COUNT(*)::int AS cnt FROM outreach WHERE workspace_id = $1`,
+          [WS_B_ID]
+        );
+        return res.rows[0]?.cnt ?? '0';
+      });
+      expect(Number(wsBOutreach)).toBe(0);
+    });
 
-        const wsARow = rows.find((r) => r.user_id === wsAUserId);
-        expect(wsARow).toBeDefined();
-        expect(Number(wsARow?.cnt ?? 0)).toBeGreaterThanOrEqual(wsAPipelineRows);
+    it('AMP-1: F3 advisor-productivity — WS_B pipeline rows excluded; WS_A pipeline visible', async () => {
+      if (!dbReachable) return;
 
-        // WS_B user must not appear in WS_A's pipeline query.
-        const wsBRow = rows.find((r) => r.user_id === wsBUserId);
-        expect(wsBRow).toBeUndefined();
+      const rows = await withWorkspace(WS_A_ID, async (client) => {
+        const res = await client.query<{ user_id: string; cnt: string }>(
+          `SELECT created_by AS user_id, COUNT(*)::int AS cnt FROM pipeline GROUP BY created_by`
+        );
+        return res.rows;
+      });
 
-        // Negative: WS_B pipeline rows must not appear under WS_A's GUC.
-        const wsBPipeline = await withWorkspace(WS_A_ID, async (client) => {
-          const res = await client.query<{ cnt: string }>(
-            `SELECT COUNT(*)::int AS cnt FROM pipeline WHERE workspace_id = $1`,
-            [WS_B_ID]
-          );
-          return res.rows[0]?.cnt ?? '0';
-        });
-        expect(Number(wsBPipeline)).toBe(0);
-      }
-    );
+      const wsARow = rows.find((r) => r.user_id === wsAUserId);
+      expect(wsARow).toBeDefined();
+      expect(Number(wsARow?.cnt ?? 0)).toBeGreaterThanOrEqual(wsAPipelineRows);
 
-    it(
-      'AMP-1: F4 match-disposition — WS_B match_candidates excluded; WS_A counts visible',
-      async () => {
-        if (!dbReachable) return;
+      // WS_B user must not appear in WS_A's pipeline query.
+      const wsBRow = rows.find((r) => r.user_id === wsBUserId);
+      expect(wsBRow).toBeUndefined();
 
-        const rows = await withWorkspace(WS_A_ID, async (client) => {
-          const res = await client.query<{ disposition: string; cnt: string }>(
-            `SELECT disposition, COUNT(*)::int AS cnt FROM match_candidates GROUP BY disposition`
-          );
-          return res.rows;
-        });
+      // Negative: WS_B pipeline rows must not appear under WS_A's GUC.
+      const wsBPipeline = await withWorkspace(WS_A_ID, async (client) => {
+        const res = await client.query<{ cnt: string }>(
+          `SELECT COUNT(*)::int AS cnt FROM pipeline WHERE workspace_id = $1`,
+          [WS_B_ID]
+        );
+        return res.rows[0]?.cnt ?? '0';
+      });
+      expect(Number(wsBPipeline)).toBe(0);
+    });
 
-        // WS_A seeded at least wsAMatchCandidates 'pending' candidates.
-        const pendingRow = rows.find((r) => r.disposition === 'pending');
-        expect(Number(pendingRow?.cnt ?? 0)).toBeGreaterThanOrEqual(wsAMatchCandidates);
+    it('AMP-1: F4 match-disposition — WS_B match_candidates excluded; WS_A counts visible', async () => {
+      if (!dbReachable) return;
 
-        // Negative: WS_B match_candidates must not appear under WS_A's GUC.
-        const wsBMc = await withWorkspace(WS_A_ID, async (client) => {
-          const res = await client.query<{ cnt: string }>(
-            `SELECT COUNT(*)::int AS cnt FROM match_candidates WHERE workspace_id = $1`,
-            [WS_B_ID]
-          );
-          return res.rows[0]?.cnt ?? '0';
-        });
-        expect(Number(wsBMc)).toBe(0);
-      }
-    );
+      const rows = await withWorkspace(WS_A_ID, async (client) => {
+        const res = await client.query<{ disposition: string; cnt: string }>(
+          `SELECT disposition, COUNT(*)::int AS cnt FROM match_candidates GROUP BY disposition`
+        );
+        return res.rows;
+      });
+
+      // WS_A seeded at least wsAMatchCandidates 'pending' candidates.
+      const pendingRow = rows.find((r) => r.disposition === 'pending');
+      expect(Number(pendingRow?.cnt ?? 0)).toBeGreaterThanOrEqual(wsAMatchCandidates);
+
+      // Negative: WS_B match_candidates must not appear under WS_A's GUC.
+      const wsBMc = await withWorkspace(WS_A_ID, async (client) => {
+        const res = await client.query<{ cnt: string }>(
+          `SELECT COUNT(*)::int AS cnt FROM match_candidates WHERE workspace_id = $1`,
+          [WS_B_ID]
+        );
+        return res.rows[0]?.cnt ?? '0';
+      });
+      expect(Number(wsBMc)).toBe(0);
+    });
 
     // ── AMP-2: Positive control ───────────────────────────────────────────────
 
@@ -760,8 +754,10 @@ describe.skipIf(shouldSkip)(
 
         // WS_A seeded: 1 send_eligible + 2 blocked → gatePassRate = 1/3, blockedRate = 2/3.
         // Use "at least" to account for other rows that might exist from prior runs.
-        const expectedPassRate = wsASendEligibleOutreach / (wsASendEligibleOutreach + wsABlockedOutreach);
-        const expectedBlockRate = wsABlockedOutreach / (wsASendEligibleOutreach + wsABlockedOutreach);
+        const expectedPassRate =
+          wsASendEligibleOutreach / (wsASendEligibleOutreach + wsABlockedOutreach);
+        const expectedBlockRate =
+          wsABlockedOutreach / (wsASendEligibleOutreach + wsABlockedOutreach);
 
         // If only our seeded rows are present (total = seeded rows), rates must match exactly.
         if (total === wsASendEligibleOutreach + wsABlockedOutreach) {
