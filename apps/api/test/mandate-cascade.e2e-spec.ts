@@ -10,6 +10,11 @@
  *   Set a firm default (jurisdiction='EU', suppressionScope='firm') → create a
  *   mandate OMITTING jurisdiction and suppressionScope → assert the
  *   mandate_compliance_profile row carries the firm defaults.
+ *   Shape consistency proof (firm-default provenance):
+ *     workspace_settings.default_suppression_scope is a text column ('firm').
+ *     The cascade stamps this into the JSONB mandate_compliance_profile column.
+ *     Postgres stores it as a JSON string scalar; the driver returns a JS string.
+ *     Assert: profile.suppressionScope toBe('firm') — string scalar round-trip.
  *
  * CASCADE-2 (change-default-doesnt-mutate):
  *   Using the mandate from CASCADE-1, CHANGE the firm default jurisdiction to
@@ -20,6 +25,11 @@
  *   With a firm default jurisdiction='EU', create a mandate providing
  *   jurisdiction='US' explicitly → assert the profile row carries 'US'
  *   (firm default NOT applied over explicit user value).
+ *   CASCADE-3a: explicit string suppressionScope ('mandate') round-trips as string.
+ *   CASCADE-3b: explicit object suppressionScope ({ scope: 'mandate', version: 1 })
+ *     round-trips as the same object — proves object-provenance shape consistency.
+ *     Both provenances (firm-default string, client-supplied object) are valid JSONB
+ *     and each is internally consistent.
  *
  * CASCADE-4 (no-firm-default-null):
  *   With no workspace_settings row at all → create a mandate providing
@@ -34,6 +44,14 @@
  * CASCADE-2 assertion is fault-killing: if the service performed a view-time
  * join or retroactive mutation, the profile.jurisdiction would be 'APAC' after
  * the settings change → expect(profile.jurisdiction).toBe('EU') FAILS.
+ *
+ * CASCADE-3b is fault-killing for the shape-mismatch defect (B-6 Finding 1):
+ *   Prior to the fix, insertComplianceProfile cast suppressionScope as
+ *   ReturnType<typeof sql>, bypassing Drizzle's JSONB mapToDriverValue
+ *   serialization. An object like { scope: 'mandate', version: 1 } would be
+ *   coerced to the string '[object Object]' and stored as invalid JSONB.
+ *   With the fix (plain value, no cast), Drizzle serializes the object via
+ *   JSON.stringify and the round-trip produces the original object.
  *
  * ── UUID NAMESPACE ───────────────────────────────────────────────────────────
  * Wave-16 prefix '00000016-*' — disjoint from all prior suites:
@@ -418,15 +436,15 @@ describe.skipIf(shouldSkip)(
       }
     });
 
-    // ── CASCADE-3: explicit-value-wins ────────────────────────────────────────
+    // ── CASCADE-3a: explicit-string-wins ─────────────────────────────────────
 
-    it('CASCADE-3: explicitly provided jurisdiction overrides firm default', {
+    it('CASCADE-3a: explicitly provided string suppressionScope overrides firm default', {
       timeout: 15000,
     }, async () => {
       if (!dbReachable) return;
 
       const ts = Date.now();
-      const actorEmail = `cascade3-actor-${ts}@test.invalid`;
+      const actorEmail = `cascade3a-actor-${ts}@test.invalid`;
       const actorId = await createTestUser(actorEmail, 'advisor');
 
       const { sql } = await import('drizzle-orm');
@@ -455,10 +473,10 @@ describe.skipIf(shouldSkip)(
         // Provide jurisdiction='US' explicitly — firm default 'EU' must NOT override.
         const mandate = await svc.createAsActor(
           {
-            sellerName: 'Explicit Wins Corp',
+            sellerName: 'Explicit String Wins Corp',
             compliance: {
               jurisdiction: 'US', // explicit — firm 'EU' is ignored
-              suppressionScope: 'mandate', // explicit — firm 'firm' is ignored
+              suppressionScope: 'mandate', // explicit string — firm 'firm' is ignored
               acknowledgments: {
                 lawful_authorization: true as const,
                 ai_results_validated: true as const,
@@ -471,9 +489,78 @@ describe.skipIf(shouldSkip)(
         mandateId = mandate.id;
 
         // LOAD-BEARING: profile row must carry the CALLER'S values, not the firm defaults.
+        // String scalar round-trip: 'mandate' stored as JSON string → returned as JS string.
         const profile = await readComplianceProfile(mandateId);
         expect(profile.jurisdiction).toBe('US');
         expect(profile.suppressionScope).toBe('mandate');
+      } finally {
+        if (mandateId) await deleteMandateAndChildren(mandateId);
+        await clearFirmDefaults();
+      }
+    });
+
+    // ── CASCADE-3b: explicit-object-wins (shape-consistency proof) ────────────
+
+    it('CASCADE-3b: explicitly provided object suppressionScope round-trips as object (JSONB shape consistency)', {
+      timeout: 15000,
+    }, async () => {
+      if (!dbReachable) return;
+
+      const ts = Date.now();
+      const actorEmail = `cascade3b-actor-${ts}@test.invalid`;
+      const actorId = await createTestUser(actorEmail, 'advisor');
+
+      const { sql } = await import('drizzle-orm');
+
+      // Firm default: string 'firm' — caller overrides with an OBJECT shape.
+      // This is the B-6 Finding 1 fault-killing case: prior to the fix the
+      // object was coerced to '[object Object]' by the wrong sql cast.
+      await setFirmDefaults({
+        actorId,
+        defaultJurisdiction: 'EU',
+        defaultSuppressionScope: 'firm',
+      });
+
+      await ensureDisclaimerTemplate('US');
+
+      const stRows = await db.execute<{ supertokens_user_id: string }>(sql`
+        SELECT supertokens_user_id FROM users WHERE id = ${actorId}::uuid LIMIT 1
+      `);
+      const stUserId = (stRows.rows ?? stRows)[0]?.supertokens_user_id;
+      if (!stUserId) throw new Error('Could not resolve supertokens_user_id for actor');
+
+      const svc = await buildMandateService();
+
+      // Client-supplied object-shaped suppressionScope.
+      const objectScope = { scope: 'mandate', version: 1 };
+
+      let mandateId: string | undefined;
+
+      try {
+        const mandate = await svc.createAsActor(
+          {
+            sellerName: 'Explicit Object Wins Corp',
+            compliance: {
+              jurisdiction: 'US',
+              suppressionScope: objectScope, // object — firm string 'firm' is ignored
+              acknowledgments: {
+                lawful_authorization: true as const,
+                ai_results_validated: true as const,
+                conflict_dbs_reviewed: true as const,
+              },
+            },
+          },
+          stUserId
+        );
+        mandateId = mandate.id;
+
+        // LOAD-BEARING (B-6 Finding 1 fault-killing):
+        //   With the broken sql cast, this would return '[object Object]' or throw
+        //   a Postgres JSONB parse error. With the fix the object round-trips intact.
+        const profile = await readComplianceProfile(mandateId);
+        expect(profile.suppressionScope).toEqual(objectScope);
+        // Also confirm jurisdiction respected the explicit value.
+        expect(profile.jurisdiction).toBe('US');
       } finally {
         if (mandateId) await deleteMandateAndChildren(mandateId);
         await clearFirmDefaults();

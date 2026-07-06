@@ -439,7 +439,7 @@ export class MandateRepository {
           mandateId: input.mandateId,
           jurisdiction: input.jurisdiction,
           disclaimerTemplateId: input.disclaimerTemplateId,
-          suppressionScope: input.suppressionScope as ReturnType<typeof sql>,
+          suppressionScope: input.suppressionScope,
           lawfulAuthorization: input.lawfulAuthorization,
           aiResultsValidated: input.aiResultsValidated,
           conflictDbsReviewed: input.conflictDbsReviewed,
