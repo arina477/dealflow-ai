@@ -19,11 +19,11 @@
 - **P-block note:** M9 Class product-feature → P-0 runs mvp-thinner. This bundle IS a UI wave (/insights dashboard page) → D-block runs (design gap: new analytics/insights surface). Analytics reads over compliance-adjacent data → confirm whether the security-scope-tightened gate applies at P-4 (workspace-RLS-honoring reads; audit-log reads must stay read-only).
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame (discover + reframe)
+- [x] P-1 Decompose
+- [x] P-2 Spec
+- [x] P-3 Plan
+- [x] P-4 Gate
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
