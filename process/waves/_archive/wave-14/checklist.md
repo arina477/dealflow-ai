@@ -61,6 +61,6 @@ LEARN:
 - [x] L-2 Distill
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M6 in_progress→BLOCKED (external hold: email credential #141 + LLM-spend; Hallucinated-Milestone-Completion avoided); M7 todo→in_progress promoted; BOARD 7/7 APPROVE (slug N-1-milestone-disposition-wave-14); decomposition fired
+- [x] N-2 Seed — seed 82ec8724 (M7 user-mgmt admin vertical) + 3 siblings; validation PASS; buildable-without-credential
+- [x] N-3 Handoff — wave-14 closed+archived; wave-15 opened
