@@ -173,12 +173,15 @@ async function seedMandate(workspaceId: string, adminUserId: string): Promise<st
   const mandateId = crypto.randomUUID();
   // Seed via superuser pool with GUC set (FORCE RLS applies to owner too — FORCE RLS
   // means even the owner must satisfy the policy). Use set_config on the pool client.
+  // BUG A fix: mandates has no `name` or `stage` columns. Real required columns:
+  //   id (uuid PK), seller_name (text NOT NULL), created_by (uuid NOT NULL),
+  //   workspace_id (uuid NOT NULL). deal_type/status/etc are nullable/defaulted.
   const client = await pool.connect();
   try {
     await client.query('SELECT set_config($1, $2, false)', ['app.workspace_id', workspaceId]);
     await client.query(
-      `INSERT INTO mandates (id, name, deal_type, stage, created_by, workspace_id)
-       VALUES ($1, $2, 'pe_buyout', 'sourcing', $3, $4)`,
+      `INSERT INTO mandates (id, seller_name, created_by, workspace_id)
+       VALUES ($1, $2, $3, $4)`,
       [mandateId, `ISO-test mandate ${mandateId.slice(0, 8)}`, adminUserId, workspaceId]
     );
   } finally {
@@ -312,10 +315,7 @@ describe.skipIf(shouldSkip)(
             for (const wsId of [WS_A_ID, WS_B_ID]) {
               const client = await pool.connect();
               try {
-                await client.query('SELECT set_config($1, $2, false)', [
-                  'app.workspace_id',
-                  wsId,
-                ]);
+                await client.query('SELECT set_config($1, $2, false)', ['app.workspace_id', wsId]);
                 await client.query('DELETE FROM mandates WHERE id = $1', [mid]);
               } catch {
                 // Non-fatal — row may not be in this workspace.
@@ -335,125 +335,124 @@ describe.skipIf(shouldSkip)(
       await pool.end().catch(() => {});
     });
 
-    it(
-      'ISO-1: cross-tenant negative read — WS_B GUC cannot see WS_A mandates',
-      async () => {
-        if (!dbReachable) return;
-        // Seed a mandate in WS_A.
-        const mandateId = await seedMandate(WS_A_ID, wsAUserId);
+    it('ISO-1: cross-tenant negative read — WS_B GUC cannot see WS_A mandates', async () => {
+      if (!dbReachable) return;
+      // Seed a mandate in WS_A.
+      const mandateId = await seedMandate(WS_A_ID, wsAUserId);
 
-        // Open a WS_B connection and query mandates.
-        const rows = await withWorkspace(WS_B_ID, async (client) => {
-          const res = await client.query<{ id: string }>(`SELECT id FROM mandates WHERE id = $1`, [
-            mandateId,
-          ]);
-          return res.rows;
-        });
+      // Open a WS_B connection and query mandates.
+      const rows = await withWorkspace(WS_B_ID, async (client) => {
+        const res = await client.query<{ id: string }>(`SELECT id FROM mandates WHERE id = $1`, [
+          mandateId,
+        ]);
+        return res.rows;
+      });
 
-        // WS_B MUST NOT see WS_A's mandate row.
-        expect(rows).toHaveLength(0);
+      // WS_B MUST NOT see WS_A's mandate row.
+      expect(rows).toHaveLength(0);
+    });
+
+    it('ISO-2: positive control — WS_A GUC can see WS_A mandates', async () => {
+      if (!dbReachable) return;
+      // At least one mandate was seeded in WS_A by ISO-1 (above).
+      const rows = await withWorkspace(WS_A_ID, async (client) => {
+        const res = await client.query<{ id: string }>(
+          `SELECT id FROM mandates WHERE workspace_id = $1`,
+          [WS_A_ID]
+        );
+        return res.rows;
+      });
+
+      // WS_A MUST see its own rows.
+      expect(rows.length).toBeGreaterThan(0);
+    });
+
+    it('ISO-3: bidirectional isolation — WS_A cannot see WS_B mandates', async () => {
+      if (!dbReachable) return;
+      // Seed a mandate in WS_B.
+      const wsBMandateId = await seedMandate(WS_B_ID, wsBUserId);
+
+      // WS_A GUC should not see it.
+      const rows = await withWorkspace(WS_A_ID, async (client) => {
+        const res = await client.query<{ id: string }>(`SELECT id FROM mandates WHERE id = $1`, [
+          wsBMandateId,
+        ]);
+        return res.rows;
+      });
+
+      expect(rows).toHaveLength(0);
+    });
+
+    it('ISO-4: GUC-leak guard — RESET app.workspace_id → 0 rows (fail-closed)', async () => {
+      if (!dbReachable) return;
+      // Finding #2 (B-6 rework2): this assertion MUST run as dealflow_app (non-superuser)
+      // to be non-vacuous. A superuser bypasses FORCE RLS, so the GUC-unset check is only
+      // meaningful under the non-superuser role where RLS is enforced.
+      //
+      // Scenario: simulates a pool connection AFTER the interceptor's finalize RESET
+      // (app.workspace_id is unset). With SET ROLE dealflow_app and NO GUC:
+      //   current_setting('app.workspace_id', true) = NULL
+      //   NULL::uuid = workspace_id → false → 0 rows → fail-closed confirmed.
+      const client = await pool.connect();
+      try {
+        // SET ROLE: drop superuser privilege so RLS is enforced.
+        await client.query('SET ROLE dealflow_app');
+        // Ensure GUC is unset (mirrors interceptor post-RESET state).
+        await client.query('RESET app.workspace_id');
+
+        const res = await client.query<{ id: string }>(
+          `SELECT id FROM mandates WHERE workspace_id = $1 LIMIT 5`,
+          [WS_A_ID]
+        );
+
+        // With dealflow_app role + GUC unset: FORCE RLS applies, GUC is NULL,
+        // NULL = WS_A_ID → false → no rows returned (fail-closed).
+        expect(res.rows).toHaveLength(0);
+      } finally {
+        await client.query('RESET ROLE').catch(() => {});
+        client.release();
       }
-    );
-
-    it(
-      'ISO-2: positive control — WS_A GUC can see WS_A mandates',
-      async () => {
-        if (!dbReachable) return;
-        // At least one mandate was seeded in WS_A by ISO-1 (above).
-        const rows = await withWorkspace(WS_A_ID, async (client) => {
-          const res = await client.query<{ id: string }>(
-            `SELECT id FROM mandates WHERE workspace_id = $1`,
-            [WS_A_ID]
-          );
-          return res.rows;
-        });
-
-        // WS_A MUST see its own rows.
-        expect(rows.length).toBeGreaterThan(0);
-      }
-    );
-
-    it(
-      'ISO-3: bidirectional isolation — WS_A cannot see WS_B mandates',
-      async () => {
-        if (!dbReachable) return;
-        // Seed a mandate in WS_B.
-        const wsBMandateId = await seedMandate(WS_B_ID, wsBUserId);
-
-        // WS_A GUC should not see it.
-        const rows = await withWorkspace(WS_A_ID, async (client) => {
-          const res = await client.query<{ id: string }>(`SELECT id FROM mandates WHERE id = $1`, [
-            wsBMandateId,
-          ]);
-          return res.rows;
-        });
-
-        expect(rows).toHaveLength(0);
-      }
-    );
-
-    it(
-      'ISO-4: GUC-leak guard — RESET app.workspace_id → 0 rows (fail-closed)',
-      async () => {
-        if (!dbReachable) return;
-        // Finding #2 (B-6 rework2): this assertion MUST run as dealflow_app (non-superuser)
-        // to be non-vacuous. A superuser bypasses FORCE RLS, so the GUC-unset check is only
-        // meaningful under the non-superuser role where RLS is enforced.
-        //
-        // Scenario: simulates a pool connection AFTER the interceptor's finalize RESET
-        // (app.workspace_id is unset). With SET ROLE dealflow_app and NO GUC:
-        //   current_setting('app.workspace_id', true) = NULL
-        //   NULL::uuid = workspace_id → false → 0 rows → fail-closed confirmed.
-        const client = await pool.connect();
-        try {
-          // SET ROLE: drop superuser privilege so RLS is enforced.
-          await client.query('SET ROLE dealflow_app');
-          // Ensure GUC is unset (mirrors interceptor post-RESET state).
-          await client.query('RESET app.workspace_id');
-
-          const res = await client.query<{ id: string }>(
-            `SELECT id FROM mandates WHERE workspace_id = $1 LIMIT 5`,
-            [WS_A_ID]
-          );
-
-          // With dealflow_app role + GUC unset: FORCE RLS applies, GUC is NULL,
-          // NULL = WS_A_ID → false → no rows returned (fail-closed).
-          expect(res.rows).toHaveLength(0);
-        } finally {
-          await client.query('RESET ROLE').catch(() => {});
-          client.release();
-        }
-      }
-    );
+    });
 
     it('ISO-5: WORM trigger rejects UPDATE on audit_log_entries', async () => {
       if (!dbReachable) return;
       // Seed a minimal audit_log_entries row directly (bypassing the service to
       // avoid dependency on the keyring env var in CI). Use WS_A GUC.
-      const entryId = crypto.randomUUID();
+      //
+      // BUG C fix: audit_log_entries has NO `id` column. The PK is `sequence_number`
+      // BIGINT GENERATED ALWAYS AS IDENTITY — the app cannot supply it. Omit the PK
+      // from INSERT (DB assigns it) and RETURNING sequence_number to track the row.
+      // The UPDATE attempt uses WHERE sequence_number = $1.
       const fakeHash = 'a'.repeat(64);
+      // resource_id is text (not uuid) — use a stable label, not entryId.
+      const resourceLabel = `iso5-worm-test-${crypto.randomUUID().slice(0, 8)}`;
 
+      let seqNum: number | null = null;
       await withWorkspace(WS_A_ID, async (client) => {
-        await client.query(
+        const res = await client.query<{ sequence_number: number }>(
           `INSERT INTO audit_log_entries
-               (id, actor_user_id, actor_role, action, resource_type, resource_id,
+               (actor_user_id, actor_role, action, resource_type, resource_id,
                 content_hash, payload_hash, prev_hash, entry_hash, chain_version,
                 workspace_id)
              VALUES
-               ($1, $2, 'admin', 'workspace-settings-update', 'workspace_settings',
-                $3, $4, $4, $4, $4, 1, $5)
-             ON CONFLICT (id) DO NOTHING`,
-          [entryId, wsAUserId, entryId, fakeHash, WS_A_ID]
+               ($1, 'admin', 'workspace-settings-update', 'workspace_settings',
+                $2, $3, $3, $3, $3, 1, $4)
+             RETURNING sequence_number`,
+          [wsAUserId, resourceLabel, fakeHash, WS_A_ID]
         );
+        seqNum = res.rows[0]?.sequence_number ?? null;
       });
+
+      expect(seqNum).not.toBeNull();
 
       // Attempt UPDATE — must be rejected by the WORM BEFORE-UPDATE trigger.
       let thrownError: Error | null = null;
       try {
         await withWorkspace(WS_A_ID, async (client) => {
-          await client.query(`UPDATE audit_log_entries SET actor_role = 'advisor' WHERE id = $1`, [
-            entryId,
-          ]);
+          await client.query(
+            `UPDATE audit_log_entries SET actor_role = 'advisor' WHERE sequence_number = $1`,
+            [seqNum]
+          );
         });
       } catch (err) {
         thrownError = err as Error;
