@@ -423,6 +423,44 @@ describe.skipIf(shouldSkip)(
       // BIGINT GENERATED ALWAYS AS IDENTITY — the app cannot supply it. Omit the PK
       // from INSERT (DB assigns it) and RETURNING sequence_number to track the row.
       // The UPDATE attempt uses WHERE sequence_number = $1.
+      //
+      // SEQUENCE-RESYNC FIX (wave-17 fix-up cycle 3):
+      // AuditService.append() uses INSERT ... OVERRIDING SYSTEM VALUE to force an
+      // explicit sequence_number (required for the HMAC hash-chain: the predicted
+      // nextSeq is hashed BEFORE the INSERT, so the value must be supplied explicitly).
+      // PostgreSQL's GENERATED ALWAYS AS IDENTITY underlying sequence does NOT advance
+      // when rows are inserted via OVERRIDING SYSTEM VALUE — the sequence counter stays
+      // at 1. Other e2e suites (admin-activity, admin-concurrency, recordkeeping-gate,
+      // etc.) all write audit rows via AuditService.append() with OVERRIDING SYSTEM VALUE,
+      // accumulating rows with sequence_number = 1, 2, 3… while the identity sequence
+      // stays at 1. When ISO-5 does a plain INSERT (no explicit sequence_number), the
+      // sequence returns 1, which collides with the already-existing row 1 → SQLSTATE
+      // 23505 unique constraint violation, BEFORE the WORM UPDATE assertion is even reached.
+      //
+      // Fix: resync the identity sequence to MAX(sequence_number) present in the table
+      // immediately before the plain INSERT. Run as superuser on the pool (setval
+      // requires no special privilege on a sequence the caller owns; superuser has it
+      // unconditionally). The resync is idempotent and collision-proof on any DB state.
+      // setval three-argument form: setval(seq, value, is_called).
+      //   is_called=true  → last_value = N; next nextval() returns N+1.
+      //   is_called=false → last_value = N; next nextval() returns N (the start).
+      //
+      // Desired: next plain INSERT (no explicit sequence_number) gets MAX+1.
+      //   Empty table (MAX IS NULL): setval(seq, 1, false) → next nextval() = 1 ✓
+      //   Non-empty (MAX = N):       setval(seq, N, true)  → next nextval() = N+1 ✓
+      //
+      // Single query using COALESCE + boolean expression as the third arg:
+      //   COALESCE(MAX, 1) = 1 when empty, N when non-empty.
+      //   (MAX IS NOT NULL) = false when empty → is_called=false → next = 1 ✓
+      //   (MAX IS NOT NULL) = true when non-empty → is_called=true → next = N+1 ✓
+      await pool.query(`
+        SELECT setval(
+          pg_get_serial_sequence('audit_log_entries', 'sequence_number'),
+          COALESCE((SELECT MAX(sequence_number) FROM audit_log_entries), 1),
+          (SELECT MAX(sequence_number) FROM audit_log_entries) IS NOT NULL
+        )
+      `);
+
       const fakeHash = 'a'.repeat(64);
       // resource_id is text (not uuid) — use a stable label, not entryId.
       const resourceLabel = `iso5-worm-test-${crypto.randomUUID().slice(0, 8)}`;
