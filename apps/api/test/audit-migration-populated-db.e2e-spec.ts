@@ -32,9 +32,11 @@
  * AMP-3: Seeded audit rows carry workspace_id = DEFAULT_WORKSPACE_ID after
  *   the backfill UPDATE (migration step 3 worked as intended).
  *
- * AMP-4: verifyChain → {ok:true} over the seeded rows after workspace_id backfill.
- *   Proves workspace_id is hash-excluded: the HMAC preimage is byte-identical
- *   before and after the backfill UPDATE.
+ * AMP-4: per-row HMAC recompute over the seeded rows after workspace_id backfill.
+ *   For each row: computeEntryHash(HashableEntryFields, prevHash, key) == stored
+ *   entry_hash. Proves workspace_id is excluded from the HMAC preimage (it is not
+ *   in HashableEntryFields). Immune to parallel-suite interleaving — no global
+ *   contiguity walk; each row is verified independently.
  *
  * AMP-5: FAULT-KILLING — trigger is re-enabled after the disable window.
  *   Attempting an UPDATE on audit_log_entries WITHOUT the trigger-disable wrap
@@ -216,11 +218,14 @@ describe.skipIf(shouldSkip)(
      * AMP-1: Seed real HMAC-chained audit rows via AuditService.appendStandalone.
      * AMP-3: After seeding, rows carry workspace_id (set by AuditService via getWorkspaceId
      *        falling back to DEFAULT_WORKSPACE_ID since no ALS context is present in e2e).
-     * AMP-4: verifyChain → {ok:true} over the seeded chain.
+     * AMP-4: per-row HMAC recompute over the seeded rows after workspace_id backfill.
+     *   For each row: computeEntryHash(HashableEntryFields, prevHash, key) == stored
+     *   entry_hash. Proves workspace_id is hash-excluded and is immune to
+     *   parallel-suite interleaving (no global contiguity walk required).
      * These three assertions are coupled: we seed, read back, and verify in one test.
      */
     it(
-      'AMP-1/AMP-3/AMP-4: seeds real chained audit rows → workspace_id populated → verifyChain ok:true',
+      'AMP-1/AMP-3/AMP-4: seeds real chained audit rows → workspace_id populated → per-row HMAC hash-exclusion verified',
       { timeout: 15000 },
       async () => {
         if (!dbReachable) return;
@@ -229,12 +234,10 @@ describe.skipIf(shouldSkip)(
         const { AuditKeyring } = await import('../src/modules/audit/audit.keyring');
         const { AuditRepository } = await import('../src/modules/audit/audit.repository');
         const { AuditService } = await import('../src/modules/audit/audit.service');
-        const { AuditVerifier } = await import('../src/modules/audit/audit.verifier');
 
         const keyring = new AuditKeyring(process.env);
         const auditRepo = new AuditRepository(db);
         const auditSvc = new AuditService(keyring, auditRepo);
-        const auditVerifier = new AuditVerifier(keyring, auditRepo);
 
         // Stable deterministic hashes for this test's rows. Not real HMAC — just
         // distinct fixed values so multiple entries produce a real chain.
@@ -293,24 +296,26 @@ describe.skipIf(shouldSkip)(
           expect(row.workspace_id).toBe('a1b2c3d4-0000-4000-8000-000000000001');
         }
 
-        // AMP-4: verifyEntries → {ok:true} over the 3 AMP-seeded rows only.
+        // AMP-4: per-row hash-exclusion proof — immune to parallel-suite interleaving.
         //
-        // We intentionally call verifyEntries(rows) rather than verifyChain() here.
-        // verifyChain() walks the ENTIRE global audit_log_entries table. In the shared
-        // CI Postgres DB, other e2e suites (outreach-gate, pipeline-gate,
-        // workspace-isolation) also write audit rows — some with different HMAC keys,
-        // some with fake/fixed hashes — that are not valid under this test's keyring.
-        // A global walk would break on those foreign rows (content-hash-mismatch or
-        // sequence-gap) before it ever reaches the AMP rows, producing a false ok:false
-        // that has nothing to do with whether workspace_id is hash-excluded.
+        // For each of the 3 seeded rows, recompute its entry_hash from stored fields
+        // using the SAME HashableEntryFields / computeEntryHash the AuditVerifier uses.
+        // workspace_id is NOT in HashableEntryFields, so the recomputed hash must equal
+        // the stored entry_hash regardless of the workspace_id value. This directly
+        // proves workspace_id is excluded from the HMAC preimage — the core invariant
+        // of the 0014 migration fix.
         //
-        // The intent of AMP-4 is: the 3 rows THIS test seeded pass HMAC recompute
-        // with workspace_id present, proving workspace_id is excluded from the hash
-        // preimage. verifyEntries() over just these rows is the correct scope.
-        // The assertion remains genuinely fault-killing: if workspace_id were included
-        // in HashableEntryFields / canonicalSerialization, the HMAC recompute would
-        // fail on these exact rows (the stored entry_hash would not match the
-        // recomputed one using the modified serialization).
+        // Why per-row (not verifyEntries): verifyEntries walks entries assuming global
+        // contiguity starting at sequence_number=1. In the shared CI Postgres, other
+        // e2e suites append rows between e1/e2/e3, making the 3 seeded rows
+        // non-contiguous with the global chain → verifyEntries returns ok:false on the
+        // sequence-gap check (a parallel-suite artifact, not a hash failure). Per-row
+        // recompute avoids this entirely — each row is verified independently.
+        //
+        // Fault-killing: if workspace_id WERE in HashableEntryFields /
+        // canonicalSerialization, the recomputed hash would differ from the stored one
+        // → expect(recomputed).toBe(r.entry_hash) fails → CI red.
+        const { computeEntryHash } = await import('../src/modules/audit/audit.hash');
         const ampRows = await pool.query<{
           sequence_number: number;
           actor_user_id: string | null;
@@ -324,22 +329,21 @@ describe.skipIf(shouldSkip)(
           entry_hash: string;
           chain_version: number;
           created_at: string;
-          mandate_id: string | null;
           workspace_id: string;
         }>(
           `SELECT
              sequence_number, actor_user_id, actor_role, action,
              resource_type, resource_id, content_hash, payload_hash,
              prev_hash, entry_hash, chain_version, created_at::text,
-             mandate_id, workspace_id
+             workspace_id
            FROM audit_log_entries
            WHERE sequence_number IN ($1, $2, $3)
            ORDER BY sequence_number ASC`,
           [e1.sequenceNumber, e2.sequenceNumber, e3.sequenceNumber]
         );
         expect(ampRows.rows).toHaveLength(3);
-        const verifyResult = auditVerifier.verifyEntries(
-          ampRows.rows.map((r) => ({
+        for (const r of ampRows.rows) {
+          const hashable = {
             sequenceNumber: r.sequence_number,
             actorUserId: r.actor_user_id,
             actorRole: r.actor_role,
@@ -348,16 +352,13 @@ describe.skipIf(shouldSkip)(
             resourceId: r.resource_id,
             contentHash: r.content_hash,
             payloadHash: r.payload_hash,
-            prevHash: r.prev_hash,
-            entryHash: r.entry_hash,
             chainVersion: r.chain_version,
             createdAt: r.created_at,
-            mandateId: r.mandate_id,
-            workspaceId: r.workspace_id,
-          }))
-        );
-        expect(verifyResult.ok).toBe(true);
-        expect(verifyResult.entriesChecked).toBe(3);
+          };
+          const key = keyring.keyFor(r.chain_version);
+          const recomputed = computeEntryHash(hashable, r.prev_hash, key);
+          expect(recomputed).toBe(r.entry_hash);
+        }
       }
     );
 
