@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.15.0] — 2026-07-06 — Admin & settings (M7)
+
+### Added
+- **Admin console** (M7) — three admin-only pages let a firm run itself: **user management** (/admin/users) to invite teammates (invite-only), assign their role, and deactivate people who leave; **workspace & firm settings** (/admin/settings) for the firm profile and default compliance fields (jurisdiction, disclaimer, suppression); and **data-source connections** (/admin/integrations) to add, edit, enable, and disable the outside data feeds the product pulls from. Advisors and signed-out visitors are refused.
+- Shell polish — the app navigation now has real placeholder pages for Matches and Outreach (no more dead links), and the top bar shows the correct page title.
+
+### Correctness / compliance
+- **The firm can never lock itself out of administration** — a race-safe guard blocks removing or demoting the last remaining admin, even under two simultaneous requests (refused with a clear conflict response). Every admin action — invite, role change, deactivation, settings change, connection change — is written to the immutable audit trail. Deactivation is a reversible soft-disable, not a delete.
+- **Data-source credentials are encrypted at rest** (AES-256-GCM, per-record random IV + auth tag, key-id prefix for rotation, fail-closed if the key is missing). The credential form is write-only: the secret is never returned or echoed back, and reads expose only whether a credential is set. The audit hash-chain still verifies after this wave's additive schema change (confirmed live: 314 entries, integrity intact).
+
+### Provenance (transparency)
+- Admin plumbing only — no email is sent, no AI is used, and no audit record is edited or deleted. This wave adds one additive database migration (0013) and one new production-only secret (CREDENTIALS_ENC_KEY, self-generated, never committed).
+- **Known gap, tracked as a follow-up:** the firm's default compliance settings are saved but not yet applied when a new mandate is created — they are write-only for now. Reactivating a deactivated user, duplicate-invite handling, and an in-app link to the connections page are also deferred to follow-up tasks.
+
 ## [0.14.0] — 2026-07-06 — Compliance hardening (audit mandate-attribution + recordkeeping fidelity)
 
 ### Added

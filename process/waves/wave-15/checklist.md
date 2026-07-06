@@ -40,26 +40,26 @@ BUILD:
 
 CI/CD:
 - [x] C-1 PR/CI/merge — direct-push-to-main; ALL 5 CI jobs GREEN (596a78d); admin-concurrency e2e proves write-skew guard + credential-security (1 test-infra fix-forward)
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [x] C-2 Deploy & verify — both services immutable-deployed @ f5455d6 (api 68ee622b + web d5e1add6 SUCCESS; NEITHER SKIPPED); CREDENTIALS_ENC_KEY set (fresh 32B, live-proven 201-not-500); migration 0013 additive + LIVE (admin endpoints 200, deactivatedAt/workspace_settings/encrypted_credentials); credential WRITE-ONLY (never returned/rendered); RBAC admin-only (advisor 403, anon 401); AC-STRIP holds; canary skipped (0 DAU). Caught+fixed a stale-web-build (arg-less web deploy built wave-14 5754fbf; repinned via commitSha). Rollback armed to wave-14 5754fbf
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
-- [ ] T-9 Journey
+- [x] T-1 Static
+- [x] T-2 Unit
+- [x] T-3 Contract
+- [x] T-4 Integration
+- [x] T-5 E2E
+- [x] T-6 Layout
+- [x] T-7 Perf
+- [x] T-8 Security
+- [x] T-9 Journey
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-1 Independent reviews (Karen + jenny, parallel)
+- [x] V-2 Triage
+- [x] V-3 Fast-fix loop (or close)
 
 LEARN:
-- [ ] L-1 Docs
+- [x] L-1 Docs
 - [ ] L-2 Distill
 
 NEXT:
