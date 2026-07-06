@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.16.0] — 2026-07-06 — Admin hardening & compliance-default cascade (M7)
+
+### Added
+- **Firm compliance defaults now actually apply** — when an admin creates a new mandate and leaves a compliance field unset, it inherits the firm's default (the jurisdiction, and the disclaimer and suppression scope derived from it); any value set explicitly on the mandate still wins. This closes the write-only gap noted last release, where firm defaults were saved but never used. Existing mandates are never changed retroactively.
+- **Admin oversight of who did what** — a new read-only activity view (/admin/activity) lets an admin see recent admin actions — who invited, deactivated, reactivated, or changed the role of whom, plus settings and data-source changes — read straight from the immutable audit trail. It writes nothing and shows no secrets.
+- **Reversing a deactivation** — an admin can reactivate someone who was deactivated, restoring their access and prior role; the action is audited.
+- **Reachable admin section** — an admin-only navigation section now links the admin pages, fixing the previously-unreachable connections page.
+
+### Correctness / compliance
+- **Re-inviting an existing or pending person is safely refused** — a second invite to an email that is already registered or already invited is rejected with a clear conflict response, race-safe under two simultaneous requests; an expired invite can still be re-sent.
+- **The connection-config field rejects secret-shaped values** — secrets belong in the encrypted credential field only, so the plain config field now refuses values that look like secrets, without ever echoing the value back.
+- No schema change and no new secret this release — the one new admin action (reactivate) is additive to the existing audit trail.
+
+### Provenance (transparency)
+- Admin plumbing only — no email is sent and no AI is used; no audit record is edited or deleted, and the activity view is read-only.
+- **Still founder-gated:** verifying a firm's sending domain (the last step before compliant outreach can go out) remains blocked on the outside email-provider setup, so this piece of the admin milestone is not yet shippable.
+
 ## [0.15.0] — 2026-07-06 — Admin & settings (M7)
 
 ### Added
