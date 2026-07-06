@@ -26,6 +26,25 @@
  *   Seed an audit entry. Attempt UPDATE → expect SQLSTATE P0001 (raise_exception).
  *   Confirms the BEFORE-UPDATE trigger unconditionally rejects mutations.
  *
+ * ── NON-SUPERUSER ROLE (Finding #2, B-6 rework2) ────────────────────────────
+ * The cross-tenant isolation assertions (ISO-1..ISO-4) MUST run over a connection
+ * operating as a NON-SUPERUSER, non-BYPASSRLS role — otherwise FORCE ROW LEVEL
+ * SECURITY is bypassed and a real cross-tenant leak would NOT be caught (assertions
+ * would be vacuously true).
+ *
+ * In CI, TEST_DATABASE_URL connects as postgres (SUPERUSER). We cannot change the
+ * CI role or ci.yml (lacks Workflows:write). Instead, after migrations are applied
+ * via the superuser pool, we use SET ROLE dealflow_app on a dedicated client from
+ * the same superuser pool. SET ROLE changes the session's effective role to
+ * dealflow_app (NOSUPERUSER NOBYPASSRLS), making FORCE RLS apply for that client's
+ * queries. The superuser session retains the ability to RESET ROLE (so teardown can
+ * clean up using the superuser pool directly). This is the correct, standard
+ * PostgreSQL mechanism for testing RLS without a separate connection string.
+ *
+ * Migration 0016 (0016_dealflow_app_role.sql) creates the dealflow_app role and
+ * grants the minimal privileges. ensureMigrated() in beforeAll applies it via the
+ * superuser pool before appRoleClient is obtained.
+ *
  * ── UUID NAMESPACE ───────────────────────────────────────────────────────────
  * Wave-17 prefix '00000017-wspc-*'. Disjoint from prior suites:
  *   admin-activity:    00000016-acti-*
@@ -40,6 +59,8 @@
  * in finally blocks. The ISO-5 user is seeded with deactivated_at = now()
  * so the actor row stays alive (WORM-safe) across runs. audit_log_entries
  * rows from ISO-5 accumulate (intentional — WORM invariant).
+ * Teardown always uses the superuser pool (not the dealflow_app role), so
+ * FORCE RLS does not block cleanup.
  */
 
 import path from 'node:path';
@@ -59,14 +80,14 @@ if (shouldSkip) {
 }
 
 async function isDbReachable(url: string): Promise<boolean> {
-  const pool = new Pool({ connectionString: url, connectionTimeoutMillis: 3000 });
+  const p = new Pool({ connectionString: url, connectionTimeoutMillis: 3000 });
   try {
-    await pool.query('SELECT 1');
+    await p.query('SELECT 1');
     return true;
   } catch {
     return false;
   } finally {
-    await pool.end();
+    await p.end();
   }
 }
 
@@ -79,6 +100,7 @@ let adminRoleId: string;
 
 // biome-ignore lint/suspicious/noExplicitAny: drizzle handle is typed as any in e2e context
 let db: any;
+/** Superuser pool — used for migrations, seeding, teardown. NOT used for isolation assertions. */
 let pool: Pool;
 let dbReachable = false;
 
@@ -88,15 +110,29 @@ const seededMandateIds: string[] = [];
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Open a fresh dedicated PoolClient, SET app.workspace_id, run a callback,
- * then RESET app.workspace_id and release.
- * Mirrors the interceptor's F1 pattern: checkout → SET GUC → work → RESET GUC → release.
+ * Open a fresh dedicated PoolClient from the SUPERUSER pool, SET ROLE dealflow_app
+ * (NOSUPERUSER NOBYPASSRLS), then SET app.workspace_id, run a callback, RESET ROLE,
+ * RESET app.workspace_id, and release.
+ *
+ * Finding #2 (B-6 rework2) — Non-superuser isolation assertions:
+ *   CI connects as postgres (SUPERUSER). A superuser has implicit BYPASSRLS, so
+ *   FORCE RLS is bypassed and ISO-1/ISO-2/ISO-3/ISO-4 assertions would be vacuously
+ *   true (a real cross-tenant leak would NOT be caught). We cannot change ci.yml
+ *   (lacks Workflows:write). Instead, we use SET ROLE dealflow_app on a dedicated
+ *   client from the existing superuser pool. SET ROLE changes the session's effective
+ *   role to dealflow_app (NOSUPERUSER NOBYPASSRLS), making FORCE RLS apply for all
+ *   queries on that client until RESET ROLE. This is the standard PostgreSQL mechanism
+ *   for testing RLS without a separate connection string.
+ *
+ *   After SET ROLE, the client's effective user is dealflow_app. FORCE ROW LEVEL
+ *   SECURITY applies and the isolation policies are genuinely enforced. A real
+ *   cross-tenant leak WOULD fail the assertion.
  *
  * B-6 rework: uses SELECT set_config($1, $2, false) — the parameterized, injection-safe
- * form that matches production WorkspaceInterceptor exactly.  is_local=false → session-
- * scoped on the dedicated client.  PostgreSQL's SET command does NOT accept bind
+ * form that matches production WorkspaceInterceptor exactly. is_local=false → session-
+ * scoped on the dedicated client. PostgreSQL's SET command does NOT accept bind
  * parameters; the literal-interpolation form previously used here was diverging from the
- * production statement and masking the SQLSTATE 42P02 bug.
+ * production statement.
  */
 async function withWorkspace<T>(
   workspaceId: string,
@@ -104,34 +140,54 @@ async function withWorkspace<T>(
 ): Promise<T> {
   const client = await pool.connect();
   try {
+    // SET ROLE dealflow_app: drop superuser privilege, apply FORCE RLS.
+    // After this point, queries on this client see the same RLS enforcement
+    // as the production app running as dealflow_app.
+    await client.query('SET ROLE dealflow_app');
     await client.query('SELECT set_config($1, $2, false)', ['app.workspace_id', workspaceId]);
     return await fn(client);
   } finally {
-    // Surgical RESET — not DISCARD ALL (P-4 F1 CARRY [c]).
-    await client.query('RESET app.workspace_id');
-    client.release();
+    // RESET ROLE: return session to superuser for pool reuse.
+    // RESET app.workspace_id: surgical cleanup (P-4 F1 CARRY [c]).
+    try {
+      await client.query('RESET ROLE');
+      await client.query('RESET app.workspace_id');
+    } finally {
+      client.release();
+    }
   }
 }
 
 /**
- * Seed a mandate row with explicit workspaceId via direct SQL.
+ * Seed a mandate row via the SUPERUSER pool directly (no SET ROLE).
+ * Seeding uses the superuser to bypass RLS for setup — only the isolation
+ * ASSERTIONS run as dealflow_app (via withWorkspace). This matches the
+ * production model: the migration role creates/seeds data; the app role queries it.
  * Returns the seeded mandate id.
  */
 async function seedMandate(workspaceId: string, adminUserId: string): Promise<string> {
   const mandateId = crypto.randomUUID();
-  await withWorkspace(workspaceId, async (client) => {
+  // Seed via superuser pool with GUC set (FORCE RLS applies to owner too — FORCE RLS
+  // means even the owner must satisfy the policy). Use set_config on the pool client.
+  const client = await pool.connect();
+  try {
+    await client.query('SELECT set_config($1, $2, false)', ['app.workspace_id', workspaceId]);
     await client.query(
       `INSERT INTO mandates (id, name, deal_type, stage, created_by, workspace_id)
        VALUES ($1, $2, 'pe_buyout', 'sourcing', $3, $4)`,
       [mandateId, `ISO-test mandate ${mandateId.slice(0, 8)}`, adminUserId, workspaceId]
     );
-  });
+  } finally {
+    await client.query('RESET app.workspace_id');
+    client.release();
+  }
   seededMandateIds.push(mandateId);
   return mandateId;
 }
 
 /**
- * Seed a user row for the given workspace. Returns the user id.
+ * Seed a user row for the given workspace via the SUPERUSER pool.
+ * Returns the user id.
  * User is seeded as already-deactivated (deactivated_at = now()) so it is
  * safe if audit rows reference it — deactivated state is reset via UPDATE
  * in teardown, not DELETE (T-4 rule 1).
@@ -142,21 +198,36 @@ async function seedUser(
   email: string
 ): Promise<string> {
   const userId = crypto.randomUUID();
-  // roles table is NOT RLS-guarded (global RBAC lookup), so no GUC needed for this read.
-  await pool.query(
-    `INSERT INTO users (id, supertokens_user_id, email, role_id, workspace_id, deactivated_at)
-     VALUES ($1, $2, $3, $4, $5, now())
-     ON CONFLICT (supertokens_user_id) DO NOTHING`,
-    [userId, supertokensUserId, email, adminRoleId, workspaceId]
-  );
+  // Seed via superuser pool with GUC (users table has FORCE RLS; owner must also satisfy policy).
+  const client = await pool.connect();
+  try {
+    await client.query('SELECT set_config($1, $2, false)', ['app.workspace_id', workspaceId]);
+    await client.query(
+      `INSERT INTO users (id, supertokens_user_id, email, role_id, workspace_id, deactivated_at)
+       VALUES ($1, $2, $3, $4, $5, now())
+       ON CONFLICT (supertokens_user_id) DO NOTHING`,
+      [userId, supertokensUserId, email, adminRoleId, workspaceId]
+    );
+  } finally {
+    await client.query('RESET app.workspace_id');
+    client.release();
+  }
   // Return the actual id (may differ if ON CONFLICT fired).
-  const res = await pool.query<{ id: string }>(
-    'SELECT id FROM users WHERE supertokens_user_id = $1 LIMIT 1',
-    [supertokensUserId]
-  );
-  const id = res.rows[0]?.id;
-  if (!id) throw new Error(`seedUser: no row found for supertokensUserId=${supertokensUserId}`);
-  return id;
+  // Use a superuser-privileged client with GUC to read back the row.
+  const readClient = await pool.connect();
+  try {
+    await readClient.query('SELECT set_config($1, $2, false)', ['app.workspace_id', workspaceId]);
+    const res = await readClient.query<{ id: string }>(
+      'SELECT id FROM users WHERE supertokens_user_id = $1 LIMIT 1',
+      [supertokensUserId]
+    );
+    const id = res.rows[0]?.id;
+    if (!id) throw new Error(`seedUser: no row found for supertokensUserId=${supertokensUserId}`);
+    return id;
+  } finally {
+    await readClient.query('RESET app.workspace_id');
+    readClient.release();
+  }
 }
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
@@ -226,37 +297,33 @@ describe.skipIf(shouldSkip)(
     afterAll(async () => {
       if (!dbReachable) return;
 
-      // Teardown: soft-clean mandates seeded in this run.
-      // mandates is not FK-referenced by audit_log_entries in this test
-      // (we never called AuditService here), so DELETE is safe.
+      // Teardown uses the SUPERUSER pool directly (no SET ROLE) so FORCE RLS does
+      // not block cleanup. The owner (postgres superuser) must still set the GUC
+      // because FORCE RLS applies to everyone including the table owner.
       if (seededMandateIds.length > 0) {
-        // Use WS_A GUC for WS_A mandates — but since we're cleaning up, use
-        // a superuser-level approach: DISCARD ALL is not allowed; use direct pool
-        // queries per workspace to stay GUC-correct.
-        // Simpler: use pool.query with explicit WHERE workspace_id IN (...) which
-        // doesn't need RLS bypass because we hold a PoolClient that can SET GUC.
-        // For teardown, use a BYPASSRLS approach via the SECURITY DEFINER / direct
-        // pool if pool user has BYPASSRLS, otherwise use GUC per workspace.
-        //
-        // Since the test DB user is the table owner with FORCE RLS, we need to SET
-        // the GUC even in teardown. Use WS_A GUC to delete WS_A mandates, etc.
-        // Simpler approach: just clean them all using a single GUC cycle.
         try {
           for (const mid of seededMandateIds) {
-            // Read the workspace_id from the mandate to know which GUC to use.
-            // This query itself would need a GUC... which creates a chicken-and-egg.
-            // Use a dedicated admin function approach: since teardown needs to bypass
-            // RLS, use a raw client with BYPASSRLS attribute if available.
-            // Fallback: use WS_A and WS_B GUC in sequence and ignore 0-row deletes.
+            // Try each workspace GUC in sequence — only the matching one will find
+            // the row; the other DELETE is a no-op (0 rows, not an error).
             for (const wsId of [WS_A_ID, WS_B_ID]) {
-              await withWorkspace(wsId, async (client) => {
+              const client = await pool.connect();
+              try {
+                await client.query('SELECT set_config($1, $2, false)', [
+                  'app.workspace_id',
+                  wsId,
+                ]);
                 await client.query('DELETE FROM mandates WHERE id = $1', [mid]);
-              });
+              } catch {
+                // Non-fatal — row may not be in this workspace.
+              } finally {
+                await client.query('RESET app.workspace_id').catch(() => {});
+                client.release();
+              }
             }
           }
         } catch {
           // Teardown errors are non-fatal — rows are keyed by stable UUIDs
-          // and will be skipped on next run via ON CONFLICT DO NOTHING patterns.
+          // and will be cleaned on next run.
         }
       }
 
@@ -321,12 +388,19 @@ describe.skipIf(shouldSkip)(
     it.skipIf(!dbReachable)(
       'ISO-4: GUC-leak guard — RESET app.workspace_id → 0 rows (fail-closed)',
       async () => {
-        // Open a raw PoolClient without setting the GUC.
-        // This simulates a leaked connection where RESET was called.
+        // Finding #2 (B-6 rework2): this assertion MUST run as dealflow_app (non-superuser)
+        // to be non-vacuous. A superuser bypasses FORCE RLS, so the GUC-unset check is only
+        // meaningful under the non-superuser role where RLS is enforced.
+        //
+        // Scenario: simulates a pool connection AFTER the interceptor's finalize RESET
+        // (app.workspace_id is unset). With SET ROLE dealflow_app and NO GUC:
+        //   current_setting('app.workspace_id', true) = NULL
+        //   NULL::uuid = workspace_id → false → 0 rows → fail-closed confirmed.
         const client = await pool.connect();
         try {
-          // Explicitly RESET to ensure the GUC is unset (mirrors the interceptor
-          // RESET in the finally block — this is the state AFTER a request completes).
+          // SET ROLE: drop superuser privilege so RLS is enforced.
+          await client.query('SET ROLE dealflow_app');
+          // Ensure GUC is unset (mirrors interceptor post-RESET state).
           await client.query('RESET app.workspace_id');
 
           const res = await client.query<{ id: string }>(
@@ -334,10 +408,11 @@ describe.skipIf(shouldSkip)(
             [WS_A_ID]
           );
 
-          // With GUC unset: current_setting('app.workspace_id', true) = NULL
+          // With dealflow_app role + GUC unset: FORCE RLS applies, GUC is NULL,
           // NULL = WS_A_ID → false → no rows returned (fail-closed).
           expect(res.rows).toHaveLength(0);
         } finally {
+          await client.query('RESET ROLE').catch(() => {});
           client.release();
         }
       }

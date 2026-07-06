@@ -30,3 +30,50 @@ export async function checkDbHealth(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * assertNonSuperuserConnection — startup RLS-enforcement guard (Finding #2, B-6 rework2).
+ *
+ * PostgreSQL superusers and BYPASSRLS roles bypass FORCE ROW LEVEL SECURITY,
+ * making ALL workspace isolation unenforced and every isolation assertion vacuous.
+ * If the app boots as a superuser, isolation is silently off regardless of policies.
+ *
+ * This function is called during bootstrap (main.ts) BEFORE the app starts serving
+ * requests. On failure it throws, which causes process.exit(1) in the catch block of
+ * bootstrap() — fail-closed, no degraded boot.
+ *
+ * C-2 PROD HAND-OFF (Railway):
+ *   Set DATABASE_URL to authenticate as `dealflow_app` (non-superuser, non-BYPASSRLS).
+ *   See migration 0016 for the role definition and grant set.
+ *   If DATABASE_URL still points to the postgres superuser, this check fires and the
+ *   deploy fails loudly rather than running with broken isolation.
+ */
+export async function assertNonSuperuserConnection(): Promise<void> {
+  const result = await pool.query<{ is_superuser: string; has_bypassrls: boolean }>(
+    `SELECT
+       current_setting('is_superuser') AS is_superuser,
+       (SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user) AS has_bypassrls`
+  );
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error(
+      '[RLS-GUARD] Could not determine current DB role — refusing to start with unknown privileges.'
+    );
+  }
+  if (row.is_superuser === 'on') {
+    throw new Error(
+      `[RLS-GUARD] App is connected as a SUPERUSER — FORCE ROW LEVEL SECURITY is bypassed. ` +
+        `All workspace isolation is unenforced. ` +
+        `Set DATABASE_URL to authenticate as the dealflow_app role (non-superuser, NOBYPASSRLS). ` +
+        `See migration 0016 for role setup and Railway C-2 hand-off notes.`
+    );
+  }
+  if (row.has_bypassrls) {
+    throw new Error(
+      `[RLS-GUARD] App is connected as a BYPASSRLS role — FORCE ROW LEVEL SECURITY is bypassed. ` +
+        `All workspace isolation is unenforced. ` +
+        `Set DATABASE_URL to authenticate as the dealflow_app role (NOBYPASSRLS). ` +
+        `See migration 0016 for role setup and Railway C-2 hand-off notes.`
+    );
+  }
+}

@@ -90,12 +90,17 @@ const seededMandateIds: string[] = [];
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Open a dedicated PoolClient with app.workspace_id set, run fn, RESET + release.
+ * Open a dedicated PoolClient from the SUPERUSER pool, SET ROLE dealflow_app
+ * (NOSUPERUSER NOBYPASSRLS), SET app.workspace_id, run fn, RESET ROLE, RESET GUC, release.
+ *
+ * Finding #2 (B-6 rework2) — Non-superuser isolation assertions:
+ *   CI connects as postgres (SUPERUSER) with implicit BYPASSRLS — isolation assertions
+ *   over a superuser connection are vacuous. SET ROLE dealflow_app makes FORCE RLS apply
+ *   for this client's queries, so a real cross-tenant leak WOULD fail the assertion.
+ *   After SET ROLE, RESET ROLE returns the session to the superuser for pool reuse.
  *
  * B-6 rework: uses SELECT set_config() — the parameterized, injection-safe form.
  * is_local=false → session-scoped (mirrors WorkspaceInterceptor).
- * PostgreSQL's SET command does NOT accept bind parameters; this form matches the
- * production interceptor and runInTransactionWithWorkspace exactly.
  */
 async function withWorkspace<T>(
   workspaceId: string,
@@ -103,11 +108,17 @@ async function withWorkspace<T>(
 ): Promise<T> {
   const client = await pool.connect();
   try {
+    // SET ROLE: drop superuser privilege so FORCE RLS is enforced.
+    await client.query('SET ROLE dealflow_app');
     await client.query('SELECT set_config($1, $2, false)', ['app.workspace_id', workspaceId]);
     return await fn(client);
   } finally {
-    await client.query('RESET app.workspace_id');
-    client.release();
+    try {
+      await client.query('RESET ROLE');
+      await client.query('RESET app.workspace_id');
+    } finally {
+      client.release();
+    }
   }
 }
 
@@ -316,9 +327,21 @@ describe.skipIf(shouldSkip)(
 
         const client = await pool.connect();
         try {
-          // is_local=true → tx-scoped SET LOCAL, matches runInTransactionWithWorkspace.
-          await client.query('SELECT set_config($1, $2, true)', ['app.workspace_id', inviteWorkspaceId]);
+          // Finding #2 (B-6 rework2): SET ROLE dealflow_app so FORCE RLS is enforced.
+          // This makes the consume + create-user transaction run as the non-superuser
+          // application role — identical to the production runInTransactionWithWorkspace
+          // path. A failure to set the GUC correctly WOULD cause RLS denial and the test
+          // would fail, proving the assertion is non-vacuous.
+          await client.query('SET ROLE dealflow_app');
+          // B-6 rework2 (Finding #1 — GUC-inside-tx): set_config MUST be the FIRST
+          // statement INSIDE the BEGIN block (is_local=true = SET LOCAL, tx-scoped).
+          // Setting it before BEGIN runs it in its own autocommit tx — SET LOCAL then
+          // resets immediately at that tx end, so the GUC is gone before the BEGIN.
+          // This test now exercises the correct production path exactly: GUC set after
+          // BEGIN and before the tenant writes, matching runInTransactionWithWorkspace.
           await client.query('BEGIN');
+          // SET LOCAL (is_local=true) scopes the GUC to this transaction.
+          await client.query('SELECT set_config($1, $2, true)', ['app.workspace_id', inviteWorkspaceId]);
           // SELECT FOR UPDATE the invite (mirrors consumeInviteAndCreateUser).
           const lockRes = await client.query<{ id: string; workspace_id: string }>(
             `SELECT id, workspace_id FROM invites
@@ -347,7 +370,8 @@ describe.skipIf(shouldSkip)(
           await client.query('ROLLBACK');
           throw err;
         } finally {
-          await client.query('RESET app.workspace_id');
+          await client.query('RESET ROLE').catch(() => {});
+          await client.query('RESET app.workspace_id').catch(() => {});
           client.release();
         }
 

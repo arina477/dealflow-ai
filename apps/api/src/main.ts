@@ -9,7 +9,7 @@ import { errorHandler, middleware } from 'supertokens-node/framework/express';
 import { z } from 'zod';
 
 import { AppModule } from './app.module';
-import { db } from './db';
+import { assertNonSuperuserConnection, db } from './db';
 import { roles, users } from './db/schema';
 import { initSupertokens } from './modules/auth/supertokens.config';
 import { loadSupertokensEnv } from './modules/auth/supertokens.env';
@@ -21,6 +21,18 @@ const bootEnvSchema = z.object({
 
 async function bootstrap(): Promise<void> {
   const env = parseEnv(bootEnvSchema);
+
+  // ── RLS-enforcement guard (Finding #2, B-6 rework2) ─────────────────────────
+  // MUST run before any tenant DB access. Fails loudly if the app is connected as
+  // a superuser or BYPASSRLS role — isolation would be silently unenforced.
+  // See apps/api/src/db/index.ts § assertNonSuperuserConnection and migration 0016.
+  //
+  // In CI/test, TEST_DATABASE_URL connects as the superuser for migrations;
+  // the app's DATABASE_URL (set in Railway) MUST be the dealflow_app role URL.
+  // This check is skipped in unit tests (no DB connection needed for unit tests).
+  if (process.env.NODE_ENV !== 'test') {
+    await assertNonSuperuserConnection();
+  }
 
   // Fail-fast auth env validation + the no-alias assertion
   // (SUPERTOKENS_DATABASE_URL !== DATABASE_URL / TEST_DATABASE_URL). This runs
