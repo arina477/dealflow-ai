@@ -1,0 +1,3 @@
+wave-18 M9 advisor-insights CI trigger
+code-tree-preserved: apps/ + packages/ unchanged from 277487e (c18b7d0)
+tip: force real workflow run on push->main
