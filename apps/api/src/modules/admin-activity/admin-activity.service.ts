@@ -89,11 +89,11 @@ export class AdminActivityService {
   async getActivity(query: AdminActivityQuery): Promise<AdminActivityResponse> {
     const filter = {
       actions: ADMIN_ACTIONS as unknown as string[],
-      action: query.action,
-      since: query.since,
-      until: query.until,
-      cursor: query.cursor,
-      limit: query.limit,
+      ...(query.action !== undefined ? { action: query.action } : {}),
+      ...(query.since !== undefined ? { since: query.since } : {}),
+      ...(query.until !== undefined ? { until: query.until } : {}),
+      ...(query.cursor !== undefined ? { cursor: query.cursor } : {}),
+      ...(query.limit !== undefined ? { limit: query.limit } : {}),
     };
 
     // Fetch entries from the existing audit.repository read path.
@@ -102,9 +102,9 @@ export class AdminActivityService {
     // Count total matching entries (for pagination metadata) — same filter minus cursor.
     const total = await this.auditRepository.countAdminActivity({
       actions: filter.actions,
-      action: filter.action,
-      since: filter.since,
-      until: filter.until,
+      ...(filter.action !== undefined ? { action: filter.action } : {}),
+      ...(filter.since !== undefined ? { since: filter.since } : {}),
+      ...(filter.until !== undefined ? { until: filter.until } : {}),
     });
 
     // Collect all unique user UUIDs that need resolution:
