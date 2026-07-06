@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { WorkspaceModule } from './db/workspace.module';
 import { HealthModule } from './health/health.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AdminActivityModule } from './modules/admin-activity/admin-activity.module';
@@ -16,6 +17,9 @@ import { SourcingModule } from './modules/sourcing/sourcing.module';
 
 @Module({
   imports: [
+    // Wave-17 (task 96026365): workspace GUC interceptor — MUST be first so the
+    // dedicated-connection + GUC are set before any tenant repository runs.
+    WorkspaceModule,
     HealthModule,
     AuthModule,
     AuditModule,
