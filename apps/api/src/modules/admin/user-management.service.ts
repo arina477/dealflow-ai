@@ -1,10 +1,27 @@
 /**
- * UserManagementService (wave-15, task 82ec8724) — admin user management.
+ * UserManagementService (wave-15 task 82ec8724; wave-16 tasks c54db02d + 042cf4e6)
+ * — admin user management.
  *
- * Three mutations:
- *   inviteAsActor    — create an invite record (record-only; no email send).
+ * Four mutations:
+ *   inviteAsActor     — create an invite record (record-only; no email send).
+ *                       Wave-16 c54db02d: 409 when active user or live invite exists.
  *   assignRoleAsActor — change a user's role.
  *   deactivateAsActor — soft-deactivate a user (sets deactivated_at).
+ *   reactivateAsActor — reverse deactivation (sets deactivated_at = NULL).
+ *
+ * ── INVITE DEDUP (wave-16, P-4 Finding 1) ───────────────────────────────────
+ * createInvite MUST reject (409) when:
+ *   (a) the email belongs to an ACTIVE user, OR
+ *   (b) a LIVE invite exists (consumed_at IS NULL AND expiry > now()).
+ *
+ * Race-safe ordering (TOCTOU prevention):
+ *   1. pg_advisory_xact_lock(hashtext(lower(email))) — per-email, tx-scoped.
+ *      Serializes concurrent createInvite calls for the SAME email.
+ *   2. SELECT-live-check under the lock.
+ *   3. INSERT invite (or throw 409).
+ *
+ * A partial unique index is REJECTED (WHERE consumed_at IS NULL blocks re-inviting
+ * expired invites; WHERE expiry > now() is non-immutable → Postgres refuses it).
  *
  * ── RACE-SAFE last-admin guard (P-4 LOAD-BEARING) ───────────────────────────
  * EVERY admin-set mutation that could drop the active admin count to zero MUST:
@@ -32,13 +49,14 @@
 import { createHash } from 'node:crypto';
 import type { AuditEntryInput, Role } from '@dealflow/shared';
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
 import { invites, roles, users } from '../../db/schema/users-roles';
@@ -116,9 +134,21 @@ export class UserManagementService {
 
   /**
    * Create an invite record for `email` with `role`.
-   * Reuses the M1 AuthRepository invite flow: calls createInvite indirectly via the DB.
    * The invitedBy column is set to actorUserId (the admin's app users.id).
    * No email is sent (per spec: "NO email send — record only").
+   *
+   * ── Dedup + race-safe (wave-16 c54db02d, P-4 Finding 1) ──────────────────
+   * Rejects 409 when:
+   *   (a) `email` belongs to an ACTIVE (deactivated_at IS NULL) user, OR
+   *   (b) a LIVE invite exists: consumed_at IS NULL AND expiry > now().
+   *
+   * Race-safe ordering (advisory lock first, then check, then INSERT):
+   *   1. pg_advisory_xact_lock(hashtext(lower(email))) — serializes concurrent
+   *      calls for the same email within the same Postgres instance.
+   *   2. SELECT-live-check.
+   *   3. INSERT (or throw 409).
+   *
+   * Expired (expiry <= now()) and consumed invites → new invite IS allowed.
    */
   async inviteAsActor(
     input: { email: string; role: Role },
@@ -126,7 +156,42 @@ export class UserManagementService {
     actorRole: string
   ): Promise<{ inviteId: string; email: string; role: Role; expiry: string }> {
     return this.db.transaction(async (tx) => {
-      // Resolve the role id.
+      const normalizedEmail = input.email.toLowerCase();
+
+      // ── Step 1: per-email advisory lock (FIRST statement in tx) ──────────
+      // hashtext() is Postgres-native: maps any text to a stable int4.
+      // pg_advisory_xact_lock takes a bigint — cast to ensure correct overload.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${normalizedEmail})::bigint)`);
+
+      // ── Step 2: check for active user with this email ─────────────────────
+      const [activeUser] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.email, normalizedEmail), isNull(users.deactivatedAt)))
+        .limit(1);
+
+      if (activeUser) {
+        throw new ConflictException('An active user already exists for this email address');
+      }
+
+      // ── Step 3: check for a live (unconsumed + unexpired) invite ─────────
+      const [liveInvite] = await tx
+        .select({ id: invites.id })
+        .from(invites)
+        .where(
+          and(
+            eq(invites.email, normalizedEmail),
+            isNull(invites.consumedAt),
+            gt(invites.expiry, sql`now()`)
+          )
+        )
+        .limit(1);
+
+      if (liveInvite) {
+        throw new ConflictException('A pending invite already exists for this email address');
+      }
+
+      // ── Step 4: resolve the role id ───────────────────────────────────────
       const [roleRow] = await tx
         .select({ id: roles.id })
         .from(roles)
@@ -137,7 +202,8 @@ export class UserManagementService {
         throw new UnprocessableEntityException(`Role '${input.role}' not found in roles table`);
       }
 
-      // Generate a token. The hash is stored; the plaintext is discarded (same as M1 invite flow).
+      // ── Step 5: generate token and INSERT ─────────────────────────────────
+      // Token hashed at rest (same as M1 invite flow); plaintext discarded.
       const { randomBytes, createHash: cHash } = await import('node:crypto');
       const plaintext = randomBytes(32).toString('base64url');
       const tokenHash = cHash('sha256').update(plaintext).digest('hex');
@@ -148,7 +214,7 @@ export class UserManagementService {
         .insert(invites)
         .values({
           token: tokenHash,
-          email: input.email.toLowerCase(),
+          email: normalizedEmail,
           roleId: roleRow.id,
           invitedBy: actorUserId,
           expiry,
@@ -157,6 +223,7 @@ export class UserManagementService {
 
       if (!invite) throw new Error('Invite insert did not return a row');
 
+      // ── Step 6: audit LAST-IN-TXN ─────────────────────────────────────────
       const auditInput: AuditEntryInput = {
         actorUserId,
         actorRole,
@@ -310,6 +377,75 @@ export class UserManagementService {
       await this.auditService.append(auditInput, tx as unknown as Tx);
 
       return { id: userId, deactivatedAt };
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reactivate (wave-16, task 042cf4e6)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Reactivate a previously deactivated user by setting deactivated_at = NULL.
+   *
+   * Admin-only. Mirrors deactivateAsActor in structure; audited last-in-txn
+   * under the 'user-reactivate' action (new additive enum value).
+   *
+   * ── Invariants ────────────────────────────────────────────────────────────
+   * - Role is PRESERVED: reactivate restores the user with their existing role_id
+   *   (never elevates or changes the role).
+   * - Already-active (deactivated_at IS NULL) → 400 BadRequestException.
+   * - Unknown userId → 404 NotFoundException.
+   *
+   * ── Audit (BUILD rule 7 — tx-scoped) ─────────────────────────────────────
+   * Audit append is the LAST statement in the transaction. Audit failure rolls
+   * back the deactivated_at = NULL update — no silent reactivation without a
+   * corresponding audit row.
+   */
+  async reactivateAsActor(
+    userId: string,
+    actorUserId: string,
+    actorRole: string
+  ): Promise<{ id: string; email: string; deactivatedAt: null }> {
+    return this.db.transaction(async (tx) => {
+      // Step 1: Look up the target user (tx-scoped read — BUILD rule 7).
+      const [target] = await tx
+        .select({
+          id: users.id,
+          email: users.email,
+          roleId: users.roleId,
+          deactivatedAt: users.deactivatedAt,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!target) {
+        throw new NotFoundException(`User ${userId} not found`);
+      }
+
+      // Step 2: Reject if already active.
+      if (target.deactivatedAt === null) {
+        throw new BadRequestException(`User ${userId} is already active`);
+      }
+
+      // Step 3: Set deactivated_at = NULL (restore to active).
+      await tx.update(users).set({ deactivatedAt: null }).where(eq(users.id, userId));
+
+      // Step 4: Audit LAST-IN-TXN under 'user-reactivate'.
+      // role_id is preserved — we do NOT change it.
+      const auditInput: AuditEntryInput = {
+        actorUserId,
+        actorRole,
+        action: 'user-reactivate',
+        resourceType: 'user',
+        resourceId: userId,
+        contentHash: hashJson({ userId }),
+        payloadHash: hashJson({ op: 'user-reactivate', userId }),
+      };
+
+      await this.auditService.append(auditInput, tx as unknown as Tx);
+
+      return { id: userId, email: target.email, deactivatedAt: null };
     });
   }
 }

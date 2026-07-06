@@ -31,7 +31,7 @@
  * and admin.credential-security.spec.ts (real-DB, skipIf no TEST_DATABASE_URL).
  */
 
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decryptCredential, encryptCredential, loadEncKey } from './credential-crypto';
 import { DataSourceAdminService } from './data-source-admin.service';
@@ -177,19 +177,28 @@ describe('UserManagementService', () => {
   });
 
   it('A-1: inviteAsActor — happy path creates invite and audits', async () => {
-    // Setup: roles lookup returns a role row
+    // SELECT call order (wave-16 dedup):
+    //   1. active-user check → [] (no active user)
+    //   2. live-invite check → [] (no live invite)
+    //   3. role lookup → [{ id: 'role-id-1' }]
+    let selectCallCount = 0;
     const txMock = {
-      select: vi.fn().mockReturnValue({
+      execute: vi.fn().mockResolvedValue({ rows: [] }), // advisory lock
+      select: vi.fn().mockImplementation(() => ({
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue([{ id: 'role-id-1' }]),
-      }),
+        limit: vi.fn().mockImplementation(() => {
+          selectCallCount++;
+          if (selectCallCount === 1) return Promise.resolve([]); // no active user
+          if (selectCallCount === 2) return Promise.resolve([]); // no live invite
+          return Promise.resolve([{ id: 'role-id-1' }]); // role found
+        }),
+      })),
       insert: vi.fn().mockReturnValue({
         values: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([{ id: 'invite-abc' }]),
         }),
       }),
-      execute: vi.fn(),
     };
 
     mockDb.transaction = vi
@@ -210,15 +219,24 @@ describe('UserManagementService', () => {
     expect(auditCall.action).toBe('user-invite');
     // Credential NEVER in audit (no credential field on invite)
     expect(JSON.stringify(auditCall)).not.toContain('credential');
+    // Advisory lock must have been the first statement.
+    expect(txMock.execute).toHaveBeenCalledOnce();
   });
 
   it('A-1: inviteAsActor — role not found throws UnprocessableEntityException', async () => {
+    // SELECT call order (wave-16 dedup): active-user=[]; live-invite=[]; role=[].
+    let selectCallCount = 0;
     const txMock = {
-      select: vi.fn().mockReturnValue({
+      execute: vi.fn().mockResolvedValue({ rows: [] }), // advisory lock
+      select: vi.fn().mockImplementation(() => ({
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue([]), // no role row
-      }),
+        limit: vi.fn().mockImplementation(() => {
+          selectCallCount++;
+          if (selectCallCount <= 2) return Promise.resolve([]); // no active user / no live invite
+          return Promise.resolve([]); // role not found
+        }),
+      })),
     };
     mockDb.transaction = vi
       .fn()
@@ -387,6 +405,217 @@ describe('UserManagementService', () => {
     await expect(
       service.deactivateAsActor('self-admin', 'self-admin', 'admin')
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  // ── A-7: inviteAsActor dedup (wave-16, task c54db02d) ────────────────────
+
+  it('A-7a: inviteAsActor — active user with same email → 409 ConflictException', async () => {
+    // The advisory lock execute() runs first; then the SELECT for active users returns a row.
+    const txMock = {
+      execute: vi.fn().mockResolvedValue({ rows: [] }), // advisory lock
+      select: vi.fn().mockImplementation(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue([{ id: 'existing-user' }]), // active user found
+      })),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    await expect(
+      service.inviteAsActor({ email: 'active@example.com', role: 'advisor' }, 'actor', 'admin')
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    // Advisory lock must have been acquired (FIRST statement).
+    expect(txMock.execute).toHaveBeenCalledOnce();
+  });
+
+  it('A-7b: inviteAsActor — live pending invite for same email → 409 ConflictException', async () => {
+    // No active user; but a live invite exists.
+    let selectCallCount = 0;
+    const txMock = {
+      execute: vi.fn().mockResolvedValue({ rows: [] }), // advisory lock
+      select: vi.fn().mockImplementation(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockImplementation(() => {
+          selectCallCount++;
+          if (selectCallCount === 1) {
+            return Promise.resolve([]); // no active user
+          }
+          return Promise.resolve([{ id: 'live-invite-id' }]); // live invite found
+        }),
+      })),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    await expect(
+      service.inviteAsActor({ email: 'pending@example.com', role: 'advisor' }, 'actor', 'admin')
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(txMock.execute).toHaveBeenCalledOnce(); // advisory lock fired
+  });
+
+  it('A-7c: inviteAsActor — expired invite → new invite allowed (no 409)', async () => {
+    // No active user; no live invite (expired invites do NOT appear in the live-invite check).
+    // Role resolves; INSERT succeeds.
+    let selectCallCount = 0;
+    const txMock = {
+      execute: vi.fn().mockResolvedValue({ rows: [] }), // advisory lock
+      select: vi.fn().mockImplementation(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockImplementation(() => {
+          selectCallCount++;
+          if (selectCallCount === 1) return Promise.resolve([]); // no active user
+          if (selectCallCount === 2) return Promise.resolve([]); // no live invite
+          return Promise.resolve([{ id: 'role-id-7c' }]); // role found
+        }),
+      })),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([{ id: 'new-invite-expired-path' }]),
+        }),
+      }),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    const result = await service.inviteAsActor(
+      { email: 'expired@example.com', role: 'advisor' },
+      'actor',
+      'admin'
+    );
+
+    expect(result.inviteId).toBe('new-invite-expired-path');
+    expect(auditService.append).toHaveBeenCalledOnce();
+  });
+
+  it('A-7d: inviteAsActor — consumed invite → new invite allowed (no 409)', async () => {
+    // Same as A-7c: the live-invite query filters consumed_at IS NULL, so a consumed
+    // invite does NOT appear. No separate check needed — it collapses to the same
+    // "no live invite found" path.
+    let selectCallCount = 0;
+    const txMock = {
+      execute: vi.fn().mockResolvedValue({ rows: [] }), // advisory lock
+      select: vi.fn().mockImplementation(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockImplementation(() => {
+          selectCallCount++;
+          if (selectCallCount === 1) return Promise.resolve([]); // no active user
+          if (selectCallCount === 2) return Promise.resolve([]); // no live invite (consumed not live)
+          return Promise.resolve([{ id: 'role-id-7d' }]); // role found
+        }),
+      })),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([{ id: 'new-invite-consumed-path' }]),
+        }),
+      }),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    const result = await service.inviteAsActor(
+      { email: 'consumed@example.com', role: 'advisor' },
+      'actor',
+      'admin'
+    );
+
+    expect(result.inviteId).toBe('new-invite-consumed-path');
+    expect(auditService.append).toHaveBeenCalledOnce();
+  });
+
+  // ── A-8: reactivateAsActor (wave-16, task 042cf4e6) ─────────────────────
+
+  it('A-8a: reactivateAsActor — deactivated user → sets deactivatedAt null + audits', async () => {
+    const deactivatedAt = new Date(Date.now() - 3600_000).toISOString();
+    const txMock = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue([
+          {
+            id: 'user-deact',
+            email: 'deact@example.com',
+            roleId: 'role-advisor',
+            deactivatedAt,
+          },
+        ]),
+      }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    const result = await service.reactivateAsActor('user-deact', 'actor', 'admin');
+
+    expect(result.id).toBe('user-deact');
+    expect(result.email).toBe('deact@example.com');
+    expect(result.deactivatedAt).toBeNull();
+
+    // Audit must have been called ONCE, as the LAST statement.
+    expect(auditService.append).toHaveBeenCalledOnce();
+    const auditCall = auditService.append.mock.calls[0]![0];
+    expect(auditCall.action).toBe('user-reactivate');
+    expect(auditCall.resourceId).toBe('user-deact');
+  });
+
+  it('A-8b: reactivateAsActor — already-active user → 400 BadRequestException', async () => {
+    const txMock = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi
+          .fn()
+          .mockResolvedValue([
+            {
+              id: 'active-user',
+              email: 'active@example.com',
+              roleId: 'role-1',
+              deactivatedAt: null,
+            },
+          ]),
+      }),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    await expect(service.reactivateAsActor('active-user', 'actor', 'admin')).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+
+    // No audit row must be written for the 400 path.
+    expect(auditService.append).not.toHaveBeenCalled();
+  });
+
+  it('A-8c: reactivateAsActor — unknown userId → 404 NotFoundException', async () => {
+    const txMock = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue([]), // no user found
+      }),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    await expect(
+      service.reactivateAsActor('no-such-user', 'actor', 'admin')
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
@@ -754,9 +983,7 @@ describe('DataSourceAdminService', () => {
     // The secret value MUST NOT appear in the error message.
     expect(caughtError!.message).not.toContain(secretValue);
     // The static uniform message IS present.
-    expect(caughtError!.message).toContain(
-      'config contains an unsupported or disallowed field'
-    );
+    expect(caughtError!.message).toContain('config contains an unsupported or disallowed field');
   });
 
   it('C-4c: updateConnection — unknown key in config → 400 (no-echo, pre-transaction)', async () => {
@@ -782,9 +1009,7 @@ describe('DataSourceAdminService', () => {
     // Secret MUST NOT appear in error.
     expect(caughtError!.message).not.toContain(secretValue);
     // Static uniform message IS present.
-    expect(caughtError!.message).toContain(
-      'config contains an unsupported or disallowed field'
-    );
+    expect(caughtError!.message).toContain('config contains an unsupported or disallowed field');
     // DB transaction MUST NOT have been called.
     expect(mockDb.transaction).not.toHaveBeenCalled();
   });
@@ -899,9 +1124,7 @@ describe('DataSourceAdminService', () => {
 
     expect(caughtError).toBeDefined();
     expect(caughtError!.message).not.toContain(secretSlug);
-    expect(caughtError!.message).toContain(
-      'config contains an unsupported or disallowed field'
-    );
+    expect(caughtError!.message).toContain('config contains an unsupported or disallowed field');
     expect(mockDb.transaction).not.toHaveBeenCalled();
   });
 });

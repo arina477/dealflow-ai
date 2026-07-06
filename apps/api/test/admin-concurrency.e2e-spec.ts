@@ -458,6 +458,149 @@ describe.skipIf(shouldSkip)(
       }
     });
 
+    // ── INVITE-CONC-1: Concurrent invite dedup — exactly one invite row ────────
+    //
+    // FAULT-KILLING property (VERIFY rule 3):
+    // If pg_advisory_xact_lock(hashtext(email)::bigint) is removed from
+    // inviteAsActor, two concurrent calls for the same fresh email could
+    // both pass the SELECT-live-check (no live invite seen) and both INSERT.
+    // Two invite rows would then exist for the same email. The "exactly one
+    // invite row" assertion below would FAIL, catching the regression.
+    //
+    // We DO NOT re-implement the advisory lock inline — we call the REAL
+    // UserManagementService.inviteAsActor (VERIFY rule 3 compliance).
+
+    it('INVITE-CONC-1: two concurrent inviteAsActor for the same fresh email — exactly one invite row, the other gets 409', {
+      timeout: 15000,
+    }, async () => {
+      if (!dbReachable) return;
+
+      const { sql } = await import('drizzle-orm');
+      const { ConflictException } = await import('@nestjs/common');
+
+      const ts = Date.now();
+      const email = `invite-conc-${ts}@test.invalid`;
+
+      // Actor must exist in the DB so the invited_by FK is valid.
+      const actorId = await createTestUser(`invite-conc-actor-${ts}@test.invalid`, 'admin');
+
+      const svc = await buildUserManagementService();
+
+      // Two concurrent inviteAsActor calls for the SAME fresh email.
+      const results = await Promise.allSettled([
+        svc.inviteAsActor({ email, role: 'advisor' }, actorId, 'admin'),
+        svc.inviteAsActor({ email, role: 'advisor' }, actorId, 'admin'),
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r) => r.status === 'rejected');
+
+      // EXACTLY ONE must succeed (one invite row inserted).
+      expect(fulfilled).toHaveLength(1);
+      // EXACTLY ONE must be rejected with 409 ConflictException.
+      expect(rejected).toHaveLength(1);
+
+      const rejectedReason = (rejected[0] as PromiseRejectedResult).reason;
+      expect(rejectedReason).toBeInstanceOf(ConflictException);
+
+      // Verify the DB has exactly one invite row for this email.
+      const inviteRows = await db.execute<{ id: string }>(sql`
+        SELECT id FROM invites WHERE email = ${email} ORDER BY created_at
+      `);
+      const rows = (inviteRows.rows ?? inviteRows) as { id: string }[];
+      expect(rows).toHaveLength(1);
+
+      // Teardown: hard-delete the invite (not FK-referenced by audit_log_entries).
+      const inviteId = rows[0]!.id;
+      await db.execute(sql`DELETE FROM invites WHERE id = ${inviteId}::uuid`);
+      // WORM-SAFE: retain actorId (it was used as invitedBy FK for the audit row).
+    });
+
+    // ── REACTIVATE-1: Real-service reactivate integration ───────────────────
+    //
+    // Proves: deactivated_at → NULL, audit row appended, chain still verifies,
+    // already-active → 400, role_id preserved.
+
+    it('REACTIVATE-1: reactivateAsActor on a deactivated user sets deactivated_at=null + appends audit row', {
+      timeout: 15000,
+    }, async () => {
+      if (!dbReachable) return;
+
+      const { sql } = await import('drizzle-orm');
+
+      const ts = Date.now();
+      // Seed a deactivated user.
+      const userId = await createTestUser(`reactivate-1-${ts}@test.invalid`, 'advisor');
+      // Deactivate them directly (bypassing the service guard — they are not admin).
+      await db.execute(sql`UPDATE users SET deactivated_at = now() WHERE id = ${userId}::uuid`);
+
+      const actorId = await createTestUser(`reactivate-actor-${ts}@test.invalid`, 'admin');
+
+      const svc = await buildUserManagementService();
+
+      const result = await svc.reactivateAsActor(userId, actorId, 'admin');
+
+      // deactivatedAt must now be null.
+      expect(result.id).toBe(userId);
+      expect(result.deactivatedAt).toBeNull();
+
+      // Confirm the DB row has deactivated_at = NULL.
+      const userRows = await db.execute<{ deactivated_at: string | null }>(sql`
+        SELECT deactivated_at FROM users WHERE id = ${userId}::uuid
+      `);
+      const dbRow = (userRows.rows ?? userRows)[0] as { deactivated_at: string | null } | undefined;
+      expect(dbRow).toBeDefined();
+      expect(dbRow!.deactivated_at).toBeNull();
+
+      // An audit row with action='user-reactivate' must exist.
+      const auditRows = await db.execute<{ action: string }>(sql`
+        SELECT action FROM audit_log_entries
+        WHERE resource_type = 'user'
+          AND resource_id = ${userId}
+          AND action = 'user-reactivate'
+        ORDER BY sequence_number DESC
+        LIMIT 1
+      `);
+      const auditRow = (auditRows.rows ?? auditRows)[0] as { action: string } | undefined;
+      expect(auditRow).toBeDefined();
+      expect(auditRow!.action).toBe('user-reactivate');
+
+      // role_id must be unchanged (still advisor).
+      const roleRows = await db.execute<{ name: string }>(sql`
+        SELECT r.name FROM users u
+        INNER JOIN roles r ON u.role_id = r.id
+        WHERE u.id = ${userId}::uuid
+      `);
+      const roleName = ((roleRows.rows ?? roleRows)[0] as { name: string } | undefined)?.name;
+      expect(roleName).toBe('advisor');
+
+      // WORM-SAFE teardown: retain both users (audit rows reference actorId as actor_user_id).
+      // No DELETE — reset state via UPDATE.
+      await resetTestUser(userId, 'advisor');
+    });
+
+    it('REACTIVATE-2: reactivateAsActor on an already-active user → 400 BadRequestException', {
+      timeout: 10000,
+    }, async () => {
+      if (!dbReachable) return;
+
+      const { BadRequestException } = await import('@nestjs/common');
+      const ts = Date.now();
+      const userId = await createTestUser(`reactivate-2-${ts}@test.invalid`, 'advisor');
+      const actorId = await createTestUser(`reactivate-2-actor-${ts}@test.invalid`, 'admin');
+
+      const svc = await buildUserManagementService();
+
+      // User is active (deactivated_at IS NULL) — must throw 400.
+      await expect(svc.reactivateAsActor(userId, actorId, 'admin')).rejects.toBeInstanceOf(
+        BadRequestException
+      );
+
+      // WORM-SAFE: no audit rows were written (400 path); safe to reset.
+      await resetTestUser(userId, 'advisor');
+      await resetTestUser(actorId, 'admin');
+    });
+
     // ── SEC-1: Credential absent from audit row ──────────────────────────────
 
     it('SEC-1: credential is absent from the audit_log_entries row written during createConnection', {
