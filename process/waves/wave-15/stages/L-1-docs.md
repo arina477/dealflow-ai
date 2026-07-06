@@ -42,7 +42,7 @@ Task census (post L-2 done-marking):
 
 FS docs committed to main: CHANGELOG.md + .env.example + checklist.md. Direct push to main (automatic mode; main allows doc commits).
 
-- **Commit SHA:** 4a6dbf2
+- **Commit SHA:** b09a120 (docs content landed at 4a6dbf2; amended to b09a120 to backfill this deliverable's own SHA reference)
 
 ---
 
