@@ -19,6 +19,14 @@
  *      (a low-entropy key hash is brute-forceable).
  *   7. Audit rows record ACTION + non-secret metadata (source name, actor) ONLY.
  *
+ * ── CONFIG TYPED-BOUNDARY (wave-16, task 2560fecc — P-4 Finding 2) ──────────
+ *   8. config is validated against dataSourceConnectionConfigSchema BEFORE any
+ *      DB write. Invalid config → 400 UNIFORM STATIC message (no value echo).
+ *      The rejection message is a fixed string that NEVER includes the offending
+ *      config value — mirroring the wave-15 B-6 M1 no-input-echo pattern.
+ *   9. Config stays plaintext-by-contract for whitelisted fields only
+ *      (fieldMapping / syncBatchSize / regionSlug). Secrets MUST use credential.
+ *
  * MVP documented limitation (required by spec):
  *   Loss of CREDENTIALS_ENC_KEY = permanent loss of all stored credentials.
  *   Single-key = no rotation without re-encrypting all stored values.
@@ -38,8 +46,9 @@ import type {
   DataSourceConnectionToggleInput,
   DataSourceConnectionUpsertInput,
 } from '@dealflow/shared';
+import { dataSourceConnectionConfigSchema } from '@dealflow/shared';
 import {
-  ConflictException,
+  BadRequestException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -84,6 +93,38 @@ function scrubCredentialFromError(err: unknown, credential: string): Error {
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Uniform static message for config validation failures (P-4 Finding 2).
+ *
+ * CRITICAL: This message MUST NOT echo any part of the offending config value.
+ * It is a fixed string defined here so callers cannot accidentally interpolate
+ * user-supplied data into it. Mirrors the wave-15 B-6 M1 "no input echo" pattern.
+ */
+const CONFIG_VALIDATION_ERROR =
+  'config contains an unsupported or disallowed field; secrets must use the credential field';
+
+/**
+ * Validate input.config against the typed whitelist schema.
+ * Throws a uniform static BadRequestException (NO value echo) on failure.
+ *
+ * Called BEFORE any DB write in createConnection and updateConnection so that
+ * a secret-shaped or unknown-key config never reaches the database as plaintext.
+ *
+ * SECURITY CONTRACT:
+ *   - The error message is the fixed CONFIG_VALIDATION_ERROR constant.
+ *   - The ZodError (which may contain the offending value in .message/.issues)
+ *     is intentionally discarded — only the fixed constant is surfaced.
+ *   - Nothing about the config value is logged here (no console.error / logger call).
+ */
+function validateConfigOrThrow(config: unknown): void {
+  if (config === undefined || config === null) return;
+  const result = dataSourceConnectionConfigSchema.safeParse(config);
+  if (!result.success) {
+    // Discard result.error entirely — it may echo the offending value.
+    throw new BadRequestException(CONFIG_VALIDATION_ERROR);
+  }
 }
 
 /** Map a DB row to the shared read shape (NO credential included). */
@@ -135,6 +176,10 @@ export class DataSourceAdminService {
     actorUserId: string,
     actorRole: string
   ): Promise<DataSourceConnectionAdminRecord> {
+    // Enforce typed config boundary BEFORE entering the transaction.
+    // Throws uniform static 400 (no value echo) if config fails the whitelist schema.
+    validateConfigOrThrow(input.config);
+
     const plainCredential = input.credential;
 
     return this.db.transaction(async (tx) => {
@@ -214,6 +259,10 @@ export class DataSourceAdminService {
     actorUserId: string,
     actorRole: string
   ): Promise<DataSourceConnectionAdminRecord> {
+    // Enforce typed config boundary BEFORE entering the transaction.
+    // Throws uniform static 400 (no value echo) if config fails the whitelist schema.
+    validateConfigOrThrow(input.config);
+
     const plainCredential = input.credential;
 
     return this.db.transaction(async (tx) => {

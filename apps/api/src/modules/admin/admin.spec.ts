@@ -15,6 +15,10 @@
  *      C-1. listConnections — never includes credential.
  *      C-2. createConnection — encrypts credential, audit row has no credential.
  *      C-3. toggleConnection — state-only, audit row non-secret.
+ *      C-4. config typed-boundary (wave-16, task 2560fecc — P-4 Finding 2):
+ *           unknown/secret-shaped key → 400 uniform-static no-echo (pre-transaction);
+ *           legit config (fieldMapping/syncBatchSize/regionSlug) + empty {} → pass;
+ *           existing-row update without config field → pass (backward-compat).
  *
  *   D. credential-crypto — round-trip + tamper detection (pure, no DB).
  *      D-1. encrypt → decrypt round-trip.
@@ -703,5 +707,201 @@ describe('DataSourceAdminService', () => {
     expect(resultStr).not.toContain('encryptedCredentials');
     // The ciphertext itself must NOT appear.
     expect(resultStr).not.toContain('v1:iv:tag:ct');
+  });
+
+  // ── C-4: config typed-boundary (wave-16, task 2560fecc — P-4 Finding 2) ────
+
+  it('C-4a: createConnection — secret-shaped unknown key in config → 400 BadRequestException', async () => {
+    // SECURITY: an unknown key (potential secret) must be rejected BEFORE any DB write.
+    // The transaction mock must NOT be called (validation fires pre-transaction).
+    await expect(
+      service.createConnection(
+        {
+          providerKey: 'GRATA_API_KEY',
+          displayName: 'Grata',
+          config: { secretApiKey: 'sk-live-super-secret-value-12345' } as never,
+        },
+        'actor',
+        'admin'
+      )
+    ).rejects.toThrow('config contains an unsupported or disallowed field');
+
+    // DB transaction MUST NOT have been called (rejection is pre-transaction).
+    expect(mockDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it('C-4b: createConnection — error body does NOT contain the offending secret value (no-echo)', async () => {
+    // LOAD-BEARING: the error message must be a static string that does NOT echo
+    // any part of the secret-shaped config value.  Mirrors wave-15 B-6 M1 pattern.
+    const secretValue = 'my-plaintext-secret-should-never-appear-in-error';
+
+    let caughtError: Error | undefined;
+    try {
+      await service.createConnection(
+        {
+          providerKey: 'GRATA_API_KEY',
+          displayName: 'Grata',
+          config: { apiSecret: secretValue } as never,
+        },
+        'actor',
+        'admin'
+      );
+    } catch (err) {
+      caughtError = err instanceof Error ? err : new Error(String(err));
+    }
+
+    expect(caughtError).toBeDefined();
+    // The secret value MUST NOT appear in the error message.
+    expect(caughtError!.message).not.toContain(secretValue);
+    // The static uniform message IS present.
+    expect(caughtError!.message).toContain(
+      'config contains an unsupported or disallowed field'
+    );
+  });
+
+  it('C-4c: updateConnection — unknown key in config → 400 (no-echo, pre-transaction)', async () => {
+    const secretValue = 'update-secret-should-not-echo-8675309';
+
+    let caughtError: Error | undefined;
+    try {
+      await service.updateConnection(
+        'conn-1',
+        {
+          providerKey: 'GRATA_API_KEY',
+          displayName: 'Grata',
+          config: { token: secretValue } as never,
+        },
+        'actor',
+        'admin'
+      );
+    } catch (err) {
+      caughtError = err instanceof Error ? err : new Error(String(err));
+    }
+
+    expect(caughtError).toBeDefined();
+    // Secret MUST NOT appear in error.
+    expect(caughtError!.message).not.toContain(secretValue);
+    // Static uniform message IS present.
+    expect(caughtError!.message).toContain(
+      'config contains an unsupported or disallowed field'
+    );
+    // DB transaction MUST NOT have been called.
+    expect(mockDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it('C-4d: createConnection — legit config (fieldMapping + syncBatchSize + regionSlug) succeeds', async () => {
+    // Backward-compat: whitelisted fields must pass through without rejection.
+    const insertedRow = { ...fakeConnection, id: 'conn-legit' };
+    const txMock = {
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([insertedRow]),
+        }),
+      }),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    const result = await service.createConnection(
+      {
+        providerKey: 'GRATA_API_KEY',
+        displayName: 'Grata',
+        config: {
+          fieldMapping: { name: 'company_name', industry: 'sector' },
+          syncBatchSize: 500,
+          regionSlug: 'us-east-1',
+        },
+      },
+      'actor',
+      'admin'
+    );
+
+    expect(result.id).toBe('conn-legit');
+    // Transaction WAS called (no validation rejection).
+    expect(mockDb.transaction).toHaveBeenCalledOnce();
+  });
+
+  it('C-4e: createConnection — empty config ({}) passes (backward-compat for existing rows)', async () => {
+    // Existing stored rows with {} must continue to work (no migration needed).
+    const insertedRow = { ...fakeConnection, id: 'conn-empty-config' };
+    const txMock = {
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([insertedRow]),
+        }),
+      }),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    const result = await service.createConnection(
+      { providerKey: 'GRATA_API_KEY', displayName: 'Grata', config: {} },
+      'actor',
+      'admin'
+    );
+
+    expect(result.id).toBe('conn-empty-config');
+    expect(mockDb.transaction).toHaveBeenCalledOnce();
+  });
+
+  it('C-4f: updateConnection — omitting config entirely passes (backward-compat)', async () => {
+    // An update without a config field must not trigger validation rejection.
+    const updatedRow = { ...fakeConnection, displayName: 'Grata Updated' };
+    const txMock = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue([fakeConnection]),
+      }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([updatedRow]),
+          }),
+        }),
+      }),
+    };
+    mockDb.transaction = vi
+      .fn()
+      .mockImplementation(async (work: (tx: unknown) => unknown) => work(txMock));
+
+    const result = await service.updateConnection(
+      'conn-1',
+      { providerKey: 'GRATA_API_KEY', displayName: 'Grata Updated' },
+      'actor',
+      'admin'
+    );
+
+    expect(result.displayName).toBe('Grata Updated');
+    expect(mockDb.transaction).toHaveBeenCalledOnce();
+  });
+
+  it('C-4g: regionSlug with invalid chars → 400 (no-echo)', async () => {
+    // regionSlug must be lowercase alphanumeric + hyphens — any other char is rejected.
+    const secretSlug = 'US_EAST_1-contains-password=SUPERRRRRSECRET';
+
+    let caughtError: Error | undefined;
+    try {
+      await service.createConnection(
+        {
+          providerKey: 'GRATA_API_KEY',
+          displayName: 'Grata',
+          config: { regionSlug: secretSlug },
+        },
+        'actor',
+        'admin'
+      );
+    } catch (err) {
+      caughtError = err instanceof Error ? err : new Error(String(err));
+    }
+
+    expect(caughtError).toBeDefined();
+    expect(caughtError!.message).not.toContain(secretSlug);
+    expect(caughtError!.message).toContain(
+      'config contains an unsupported or disallowed field'
+    );
+    expect(mockDb.transaction).not.toHaveBeenCalled();
   });
 });
