@@ -112,6 +112,18 @@ const NAV_SETTINGS: NavItem = {
   allowedRoles: ['admin'],
 };
 
+// Wave-16: Admin Activity nav item (/admin/activity).
+// admin-only (advisor 403 / anon 401 — P-4 Finding 3).
+// nav⊆RBAC: NAV_ADMIN_ACTIVITY.allowedRoles references the same array literal
+// as the /admin/activity route entry below.
+const NAV_ADMIN_ACTIVITY: NavItem = {
+  label: 'Activity',
+  route: '/admin/activity',
+  icon: 'activity',
+  group: 'config',
+  allowedRoles: ['admin'],
+};
+
 // Wave-13: advisor added — advisor sees own-outreach entries (role-scoped in service);
 // compliance sees org-wide. admin is NOT in the nav (admin uses the API directly, not
 // the page UI). nav⊆RBAC holds: NAV_AUDIT_LOG.allowedRoles ⊆ the /compliance/audit-log
@@ -550,6 +562,12 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     allowedRoles: ['admin'],
   },
   {
+    // Wave-16 (task 042cf4e6): POST /admin/users/:id/reactivate — reactivate a user.
+    // Mirrors /admin/users/:id/deactivate (same RBAC). admin-only.
+    pattern: '/admin/users/:id/reactivate',
+    allowedRoles: ['admin'],
+  },
+  {
     // Wave-15: /admin/workspace-settings — firm profile + default compliance profile.
     // admin-only (full CRUD over firm settings). RBAC: admin.
     // nav⊆RBAC: NAV_SETTINGS references /admin/settings (shell placeholder);
@@ -579,6 +597,21 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
   {
     // PATCH /admin/integrations/:id/toggle — enable/disable a connection.
     pattern: '/admin/integrations/:id/toggle',
+    allowedRoles: ['admin'],
+  },
+  // Wave-16 (task 8bb0a22f): Admin Activity page + API.
+  // Admin-only (advisor 403 / anon 401 — P-4 Finding 3, real control).
+  // Read-only-immutable: opening this page/endpoint writes ZERO audit rows.
+  // nav⊆RBAC: NAV_ADMIN_ACTIVITY.allowedRoles references the same array literal.
+  {
+    pattern: '/admin/activity',
+    allowedRoles: ['admin'],
+    navItem: NAV_ADMIN_ACTIVITY,
+  },
+  {
+    // GET /admin/activity-data — REST API endpoint (non-page-colliding proxy path).
+    // No navItem — API-only endpoint; the sidebar nav is /admin/activity above.
+    pattern: '/admin/activity-data',
     allowedRoles: ['admin'],
   },
 ];
@@ -728,4 +761,6 @@ export const ALL_NAV_ITEMS: ReadonlyArray<NavItem> = [
   NAV_COMPLIANCE_SETTINGS,
   NAV_TEAM,
   NAV_SETTINGS,
+  // Wave-16: Admin Activity nav item.
+  NAV_ADMIN_ACTIVITY,
 ];

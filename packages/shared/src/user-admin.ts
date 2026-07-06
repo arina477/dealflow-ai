@@ -93,3 +93,43 @@ export const adminDeactivateResponseSchema = z
   .strict();
 
 export type AdminDeactivateResponse = z.infer<typeof adminDeactivateResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Reactivate input + response (Wave-16, task 042cf4e6)
+// ---------------------------------------------------------------------------
+
+/**
+ * AdminReactivateInput — POST /admin/users/:id/reactivate path param only.
+ * Body is empty; userId comes from the :id path parameter.
+ * Defined here for symmetry with the deactivate contract and to give B-2
+ * a Zod-validated param type.
+ */
+export const adminReactivateParamsSchema = z
+  .object({
+    /** The app users.id of the user to reactivate (UUID, from :id path param). */
+    id: z.string().uuid(),
+  })
+  .strict();
+
+export type AdminReactivateParams = z.infer<typeof adminReactivateParamsSchema>;
+
+/**
+ * AdminReactivateResponse — POST /admin/users/:id/reactivate response.
+ *
+ * Returns the full UserAdminRecord with deactivatedAt=null, confirming
+ * the user is now active. Mirrors the AdminDeactivateResponse shape but
+ * uses the full record so the frontend can refresh the row in-place.
+ *
+ * SECURITY: no credential, PII beyond the user's own stored fields, or
+ * audit hash/preimage is included. deactivatedAt=null is the only state change.
+ */
+export const adminReactivateResponseSchema = z
+  .object({
+    id: z.string().uuid(),
+    email: z.string().email(),
+    /** null = user is now active (deactivated_at was set to NULL). */
+    deactivatedAt: z.null(),
+  })
+  .strict();
+
+export type AdminReactivateResponse = z.infer<typeof adminReactivateResponseSchema>;

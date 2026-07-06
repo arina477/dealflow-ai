@@ -224,6 +224,14 @@ export const auditActionEnum = z.enum([
    * actor = admin app users.id.
    */
   'data-source-conn-toggle',
+  // --- Wave-16 admin-hardening actions (additive; serialization order preserved) ---
+  /**
+   * An admin reactivated a previously deactivated user (deactivated_at → NULL).
+   * Audited by UserManagementService.reactivateAsActor LAST-IN-TXN.
+   * actor = admin app users.id.
+   * Mirrors the wave-15 'deactivate' action — same service, inverse operation.
+   */
+  'user-reactivate',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;

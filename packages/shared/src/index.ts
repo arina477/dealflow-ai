@@ -1,3 +1,16 @@
+// --- Wave-16 admin-hardening contracts ---
+export type {
+  AdminActivityAction,
+  AdminActivityQuery,
+  AdminActivityResponse,
+  AdminActivityRow,
+} from './admin-activity';
+export {
+  adminActivityActionEnum,
+  adminActivityQuerySchema,
+  adminActivityResponseSchema,
+  adminActivityRowSchema,
+} from './admin-activity';
 export type {
   AuditAction,
   AuditBreakReason,
@@ -124,12 +137,14 @@ export {
 export type {
   DataSourceConnectionAdminListResponse,
   DataSourceConnectionAdminRecord,
+  DataSourceConnectionConfig,
   DataSourceConnectionToggleInput,
   DataSourceConnectionUpsertInput,
 } from './data-source-admin';
 export {
   dataSourceConnectionAdminListResponseSchema,
   dataSourceConnectionAdminRecordSchema,
+  dataSourceConnectionConfigSchema,
   dataSourceConnectionToggleSchema,
   dataSourceConnectionUpsertSchema,
 } from './data-source-admin';
@@ -300,6 +315,8 @@ export type {
   AdminDeactivateResponse,
   AdminInviteInput,
   AdminInviteResponse,
+  AdminReactivateParams,
+  AdminReactivateResponse,
   UserAdminListResponse,
   UserAdminRecord,
 } from './user-admin';
@@ -308,6 +325,8 @@ export {
   adminDeactivateResponseSchema,
   adminInviteInputSchema,
   adminInviteResponseSchema,
+  adminReactivateParamsSchema,
+  adminReactivateResponseSchema,
   userAdminListResponseSchema,
   userAdminRecordSchema,
 } from './user-admin';
