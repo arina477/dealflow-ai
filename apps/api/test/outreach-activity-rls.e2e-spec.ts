@@ -369,9 +369,10 @@ describe.skipIf(shouldSkip)('B-2 write-path RLS e2e — wave-20 outreach-activit
     const authRepo = new AuthRepository(db);
     const svc = new OutreachActivityService(oaRepo, auditSvc, authRepo);
 
-    // Capture chain length before.
+    // Capture chain length before — scoped to this workspace (T-4 rule 2).
     const before = await pool.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM audit_log_entries`
+      `SELECT COUNT(*)::text AS count FROM audit_log_entries WHERE workspace_id = $1`,
+      [OAE_WS_A]
     );
     const beforeCount = Number(before.rows[0]?.count ?? 0);
 
@@ -403,16 +404,18 @@ describe.skipIf(shouldSkip)('B-2 write-path RLS e2e — wave-20 outreach-activit
     // Track for teardown.
     if (result) seededActivityIds.push(result.id);
 
-    // Exactly ONE new audit entry.
+    // Exactly ONE new audit entry for this workspace (T-4 rule 2).
     const after = await pool.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM audit_log_entries`
+      `SELECT COUNT(*)::text AS count FROM audit_log_entries WHERE workspace_id = $1`,
+      [OAE_WS_A]
     );
     const afterCount = Number(after.rows[0]?.count ?? 0);
     expect(afterCount).toBe(beforeCount + 1);
 
-    // The last entry must be the create action.
+    // The last entry for this workspace must be the create action.
     const lastEntry = await pool.query<{ action: string }>(
-      `SELECT action FROM audit_log_entries ORDER BY sequence_number DESC LIMIT 1`
+      `SELECT action FROM audit_log_entries WHERE workspace_id = $1 ORDER BY sequence_number DESC LIMIT 1`,
+      [OAE_WS_A]
     );
     expect(lastEntry.rows[0]?.action).toBe('outreach-activity-create');
 
@@ -450,7 +453,8 @@ describe.skipIf(shouldSkip)('B-2 write-path RLS e2e — wave-20 outreach-activit
     const activityId = await seedActivity(OAE_WS_A, userAId, 'OAE-10 update audit test');
 
     const before = await pool.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM audit_log_entries`
+      `SELECT COUNT(*)::text AS count FROM audit_log_entries WHERE workspace_id = $1`,
+      [OAE_WS_A]
     );
     const beforeCount = Number(before.rows[0]?.count ?? 0);
 
@@ -471,12 +475,14 @@ describe.skipIf(shouldSkip)('B-2 write-path RLS e2e — wave-20 outreach-activit
     }
 
     const after = await pool.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM audit_log_entries`
+      `SELECT COUNT(*)::text AS count FROM audit_log_entries WHERE workspace_id = $1`,
+      [OAE_WS_A]
     );
     expect(Number(after.rows[0]?.count ?? 0)).toBe(beforeCount + 1);
 
     const lastEntry = await pool.query<{ action: string }>(
-      `SELECT action FROM audit_log_entries ORDER BY sequence_number DESC LIMIT 1`
+      `SELECT action FROM audit_log_entries WHERE workspace_id = $1 ORDER BY sequence_number DESC LIMIT 1`,
+      [OAE_WS_A]
     );
     expect(lastEntry.rows[0]?.action).toBe('outreach-activity-update');
 
@@ -513,7 +519,8 @@ describe.skipIf(shouldSkip)('B-2 write-path RLS e2e — wave-20 outreach-activit
     const activityId = await seedActivity(OAE_WS_A, userAId, 'OAE-11 status-transition test');
 
     const before = await pool.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM audit_log_entries`
+      `SELECT COUNT(*)::text AS count FROM audit_log_entries WHERE workspace_id = $1`,
+      [OAE_WS_A]
     );
     const beforeCount = Number(before.rows[0]?.count ?? 0);
 
@@ -537,14 +544,16 @@ describe.skipIf(shouldSkip)('B-2 write-path RLS e2e — wave-20 outreach-activit
       Number(
         (
           await pool.query<{ count: string }>(
-            `SELECT COUNT(*)::text AS count FROM audit_log_entries`
+            `SELECT COUNT(*)::text AS count FROM audit_log_entries WHERE workspace_id = $1`,
+            [OAE_WS_A]
           )
         ).rows[0]?.count ?? 0
       )
     ).toBe(beforeCount + 1);
 
     const lastEntry = await pool.query<{ action: string }>(
-      `SELECT action FROM audit_log_entries ORDER BY sequence_number DESC LIMIT 1`
+      `SELECT action FROM audit_log_entries WHERE workspace_id = $1 ORDER BY sequence_number DESC LIMIT 1`,
+      [OAE_WS_A]
     );
     expect(lastEntry.rows[0]?.action).toBe('outreach-activity-status-transition');
 
@@ -580,7 +589,8 @@ describe.skipIf(shouldSkip)('B-2 write-path RLS e2e — wave-20 outreach-activit
     const activityId = await seedActivity(OAE_WS_A, userAId, 'OAE-12 cancel test');
 
     const before = await pool.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM audit_log_entries`
+      `SELECT COUNT(*)::text AS count FROM audit_log_entries WHERE workspace_id = $1`,
+      [OAE_WS_A]
     );
     const beforeCount = Number(before.rows[0]?.count ?? 0);
 
@@ -604,14 +614,16 @@ describe.skipIf(shouldSkip)('B-2 write-path RLS e2e — wave-20 outreach-activit
       Number(
         (
           await pool.query<{ count: string }>(
-            `SELECT COUNT(*)::text AS count FROM audit_log_entries`
+            `SELECT COUNT(*)::text AS count FROM audit_log_entries WHERE workspace_id = $1`,
+            [OAE_WS_A]
           )
         ).rows[0]?.count ?? 0
       )
     ).toBe(beforeCount + 1);
 
     const lastEntry = await pool.query<{ action: string }>(
-      `SELECT action FROM audit_log_entries ORDER BY sequence_number DESC LIMIT 1`
+      `SELECT action FROM audit_log_entries WHERE workspace_id = $1 ORDER BY sequence_number DESC LIMIT 1`,
+      [OAE_WS_A]
     );
     expect(lastEntry.rows[0]?.action).toBe('outreach-activity-cancel');
 
