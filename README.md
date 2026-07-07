@@ -64,6 +64,12 @@ into a single record while preserving provenance from every source. Uncertain ma
 to a review queue that never auto-merges. Analysts view, filter, and resolve records at
 `/sourcing/companies`.
 
+**Firm recordkeeping export is live.** An admin or compliance officer can export their own
+firm's complete tamper-evident audit trail plus deal and pipeline activity as CSV or JSON at
+`/compliance/export`, with an integrity result that can be re-verified independently. The
+export is scoped to the firm (enforced in the database), audit-logged, and clearly flags a
+truncated download rather than silently cutting records short.
+
 ---
 
 ## Quick start

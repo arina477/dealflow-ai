@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.23.0] — 2026-07-07 — Firm recordkeeping export (M10)
+
+A firm admin or compliance officer can now export the firm's complete records for its own workspace, and independently prove the export was not tampered with. It's the first of the recordkeeping features and a compliance-first selling point — the record you hand an auditor or regulator, on demand, in a format they can open anywhere.
+
+### Added
+- **Export your firm's audit trail and deal activity as CSV or JSON** — a new export page (/compliance/export) lets an admin or compliance officer download their own firm's complete tamper-evident audit log plus deal and pipeline activity in a standard, portable format, with the download's integrity result shown so it can be re-verified independently. The export is itself recorded in the audit trail, so there's a record of who exported what and when.
+- **Honest about size limits** — if an export would exceed the safe row cap, the download is clearly flagged as truncated rather than silently cut short, so you never mistake a partial record for a complete one.
+
+### Correctness / compliance
+- **You only ever export your own firm's records** — the export is scoped to your firm and no other, enforced inside the database itself (per-firm isolation), and proven by a test that runs as the restricted app account and confirms one firm's export contains zero rows from any other firm. Only admins and compliance officers can export; everyone else is refused server-side.
+- **The record you export is the tamper-evident one** — the export carries a whole-chain integrity result computed over the immutable audit log, and each firm's entries are numbered locally so no firm-wide counter can leak between firms.
+
+### Provenance (transparency)
+- **Extends the existing recordkeeping export — no new database change, no new setup step, no new permission to grant.** No email is sent and no AI is used; nothing in the audit trail is edited or deleted.
+- **Scope is honest — this is the export half of the recordkeeping milestone.** A configurable retention window and an in-app records browser are still to come; formal regulator certification is deliberately held at a light posture until the founder raises the compliance classification.
+
 ## [0.22.0] — 2026-07-07 — Auth hardening (M10)
 
 Sign-in, sign-up, and password-reset are now protected against automated password-guessing, and a confusing error on a bad invite link now reads correctly. Invisible in normal day-to-day use; it matters most as the product opens up to outside users.

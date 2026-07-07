@@ -6,3 +6,4 @@
 - [x] P-4
 - [x] C-1  (CI green @ ff29cf4; SEC-8 isolation e2e 17/17 ran+passed; SEC-4 contract + no regression; 2 fix-up cycles)
 - [x] C-2  (both api+web deployed @ ff29cf4; prod healthy at new hash; health-mirage caught+resolved; export perimeter 401; rollback armed; canary skipped 0 DAU)
+- [x] L-1  (CHANGELOG 0.23.0 Added-note [user-facing export, live-reality-checked]; README export-live paragraph; M10 stays in_progress — exports vertical shipped, on-demand-export metric-half MET, retention next; decomposition-will-succeed-now)
