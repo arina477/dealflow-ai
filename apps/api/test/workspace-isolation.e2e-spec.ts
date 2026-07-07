@@ -416,72 +416,38 @@ describe.skipIf(shouldSkip)(
 
     it('ISO-5: WORM trigger rejects UPDATE on audit_log_entries', async () => {
       if (!dbReachable) return;
-      // Seed a minimal audit_log_entries row directly (bypassing the service to
-      // avoid dependency on the keyring env var in CI). Use WS_A GUC.
+      // Seed a real HMAC-chained audit row via AuditService.appendStandalone so
+      // the entry is correctly linked into the global chain. Using a raw INSERT
+      // with fake hash values (the previous approach) permanently corrupts the
+      // chain: the fake prev_hash / entry_hash values cause verifyChain() in any
+      // concurrent or subsequent suite (e.g. OAM-3, OAE-9..12) to return ok:false.
+      // Since audit_log_entries is WORM, that corruption cannot be undone.
       //
-      // BUG C fix: audit_log_entries has NO `id` column. The PK is `sequence_number`
-      // BIGINT GENERATED ALWAYS AS IDENTITY — the app cannot supply it. Omit the PK
-      // from INSERT (DB assigns it) and RETURNING sequence_number to track the row.
-      // The UPDATE attempt uses WHERE sequence_number = $1.
+      // AuditService.appendStandalone opens its own tx, acquires the advisory lock,
+      // reads the true global tail via read_audit_chain_rls_exempt (SECURITY DEFINER,
+      // RLS-exempt), and inserts with OVERRIDING SYSTEM VALUE — the same path every
+      // other e2e suite uses. The returned sequenceNumber is then used for the
+      // UPDATE attempt below.
       //
-      // SEQUENCE-RESYNC FIX (wave-17 fix-up cycle 3):
-      // AuditService.append() uses INSERT ... OVERRIDING SYSTEM VALUE to force an
-      // explicit sequence_number (required for the HMAC hash-chain: the predicted
-      // nextSeq is hashed BEFORE the INSERT, so the value must be supplied explicitly).
-      // PostgreSQL's GENERATED ALWAYS AS IDENTITY underlying sequence does NOT advance
-      // when rows are inserted via OVERRIDING SYSTEM VALUE — the sequence counter stays
-      // at 1. Other e2e suites (admin-activity, admin-concurrency, recordkeeping-gate,
-      // etc.) all write audit rows via AuditService.append() with OVERRIDING SYSTEM VALUE,
-      // accumulating rows with sequence_number = 1, 2, 3… while the identity sequence
-      // stays at 1. When ISO-5 does a plain INSERT (no explicit sequence_number), the
-      // sequence returns 1, which collides with the already-existing row 1 → SQLSTATE
-      // 23505 unique constraint violation, BEFORE the WORM UPDATE assertion is even reached.
-      //
-      // Fix: resync the identity sequence to MAX(sequence_number) present in the table
-      // immediately before the plain INSERT. Run as superuser on the pool (setval
-      // requires no special privilege on a sequence the caller owns; superuser has it
-      // unconditionally). The resync is idempotent and collision-proof on any DB state.
-      // setval three-argument form: setval(seq, value, is_called).
-      //   is_called=true  → last_value = N; next nextval() returns N+1.
-      //   is_called=false → last_value = N; next nextval() returns N (the start).
-      //
-      // Desired: next plain INSERT (no explicit sequence_number) gets MAX+1.
-      //   Empty table (MAX IS NULL): setval(seq, 1, false) → next nextval() = 1 ✓
-      //   Non-empty (MAX = N):       setval(seq, N, true)  → next nextval() = N+1 ✓
-      //
-      // Single query using COALESCE + boolean expression as the third arg:
-      //   COALESCE(MAX, 1) = 1 when empty, N when non-empty.
-      //   (MAX IS NOT NULL) = false when empty → is_called=false → next = 1 ✓
-      //   (MAX IS NOT NULL) = true when non-empty → is_called=true → next = N+1 ✓
-      await pool.query(`
-        SELECT setval(
-          pg_get_serial_sequence('audit_log_entries', 'sequence_number'),
-          COALESCE((SELECT MAX(sequence_number) FROM audit_log_entries), 1),
-          (SELECT MAX(sequence_number) FROM audit_log_entries) IS NOT NULL
-        )
-      `);
+      // AUDIT_LOG_HMAC_KEY is set in beforeAll (the ?? pattern ensures the test-
+      // default key is present), so AuditKeyring initialises without error.
+      const { AuditKeyring } = await import('../src/modules/audit/audit.keyring');
+      const { AuditRepository } = await import('../src/modules/audit/audit.repository');
+      const { AuditService } = await import('../src/modules/audit/audit.service');
 
-      const fakeHash = 'a'.repeat(64);
-      // resource_id is text (not uuid) — use a stable label, not entryId.
-      const resourceLabel = `iso5-worm-test-${crypto.randomUUID().slice(0, 8)}`;
-
-      let seqNum: number | null = null;
-      await withWorkspace(WS_A_ID, async (client) => {
-        const res = await client.query<{ sequence_number: number }>(
-          `INSERT INTO audit_log_entries
-               (actor_user_id, actor_role, action, resource_type, resource_id,
-                content_hash, payload_hash, prev_hash, entry_hash, chain_version,
-                workspace_id)
-             VALUES
-               ($1, 'admin', 'workspace-settings-update', 'workspace_settings',
-                $2, $3, $3, $3, $3, 1, $4)
-             RETURNING sequence_number`,
-          [wsAUserId, resourceLabel, fakeHash, WS_A_ID]
-        );
-        seqNum = res.rows[0]?.sequence_number ?? null;
+      const auditSvc = new AuditService(new AuditKeyring(process.env), new AuditRepository(db));
+      const h = (n: number) => `${n}`.repeat(64).slice(0, 64);
+      const seeded = await auditSvc.appendStandalone({
+        actorUserId: wsAUserId,
+        actorRole: 'admin',
+        action: 'workspace-settings-update',
+        resourceType: 'workspace_settings',
+        resourceId: `iso5-worm-test-${crypto.randomUUID().slice(0, 8)}`,
+        contentHash: h(9),
+        payloadHash: h(0),
       });
 
-      expect(seqNum).not.toBeNull();
+      const seqNum = seeded.sequenceNumber;
 
       // Attempt UPDATE — must be rejected by the WORM BEFORE-UPDATE trigger.
       let thrownError: Error | null = null;
