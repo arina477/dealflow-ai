@@ -123,7 +123,7 @@ verdict_evidence:
   - "milestones row: NO UPDATE — M10 (033f97e0) stays in_progress; open_count=2>0"
   - "tasks: fd8f2860 done (marked by L-2, wave d5379ac9)"
   - "README.md: SKIP (nothing user-facing changed)"
-  - "commit SHA: <SET_AT_COMMIT>"
+  - "commit SHA: ea6ec77 (docs: L-1 wave-24 closeout; direct push to main)"
 changelog_entry_added: false
 changelog_skip_reason: "internal compliance/testing-hardening (CI guard + policy + test helpers); no user-facing change, no schema, no deploy; app bundle unchanged @6c22919; consistent with wave-21/22 skip precedent"
 roadmap_milestones_progressed: [{milestone: "M10 (033f97e0)", before: in_progress, after: in_progress}]
