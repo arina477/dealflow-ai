@@ -41,8 +41,8 @@ BUILD:
 - [x] B-6 Review
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [x] C-1 PR, CI & merge — run 28850000460 conclusion=success @c168d3a, 5/5 jobs green; outreach-activity-rls suite ran+passed (9 tests) with scoped OAE-9..12 assertions
+- [x] C-2 Deploy & verify — test-only NO-OP (app bundle unchanged @86ddc29); prod healthy (api /health 200 version==86ddc29 db:ok, web 307); canary skipped (0 DAU)
 
 TEST:
 - [ ] T-1 Static
