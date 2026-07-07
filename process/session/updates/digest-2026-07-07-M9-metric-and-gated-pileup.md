@@ -34,3 +34,7 @@ Until you weigh in, we'll keep shipping features that need none of the above —
 ---
 
 *Related detail already on file: `founder-decision-llm-matching-spend.md`, `founder-decision-m6-send-credential.md`.*
+
+---
+
+*Status note (added at wave-20 close): the internal outreach-activity tracker mentioned above shipped and is live. The CRM/deal-source connection is now formally parked as "waiting on you" (it can't be built without your vendor pick + account) — it stays on this list and re-opens the moment you decide. Next up we're hardening our own spec/testing process (an internal quality task, no decision needed from you), then moving to seller-intent signals over data we already have. None of this needs anything from you; the two asks above are still the only open items on your side.*
