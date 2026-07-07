@@ -434,18 +434,36 @@ describe.skipIf(shouldSkip)(
       const { AuditKeyring } = await import('../src/modules/audit/audit.keyring');
       const { AuditRepository } = await import('../src/modules/audit/audit.repository');
       const { AuditService } = await import('../src/modules/audit/audit.service');
+      const { workspaceAls } = await import('../src/db/workspace-context');
 
+      // appendStandalone calls _appendCore which resolves workspace_id via
+      // getWorkspaceId() ?? DEFAULT_WORKSPACE_ID.  Outside a request context
+      // (no ALS store) getWorkspaceId() returns null, so the row lands with
+      // workspace_id = DEFAULT_WORKSPACE_ID — NOT WS_A_ID.  The subsequent
+      // UPDATE runs inside withWorkspace(WS_A_ID) which applies FORCE RLS
+      // scoped to WS_A_ID; if the seeded row is in DEFAULT_WORKSPACE_ID the
+      // UPDATE matches 0 rows, the WORM trigger never fires, and thrownError
+      // stays null.
+      //
+      // Fix: run appendStandalone inside workspaceAls.run() with
+      // workspaceId = WS_A_ID so getWorkspaceId() returns WS_A_ID and the
+      // row is inserted with workspace_id = WS_A_ID.  runInTransaction calls
+      // getDb(this.db) which — with the ALS store active — returns store.db
+      // (the same Drizzle handle), so the transaction is opened on the right
+      // db instance and getWorkspaceId() is WS_A_ID throughout _appendCore.
       const auditSvc = new AuditService(new AuditKeyring(process.env), new AuditRepository(db));
       const h = (n: number) => `${n}`.repeat(64).slice(0, 64);
-      const seeded = await auditSvc.appendStandalone({
-        actorUserId: wsAUserId,
-        actorRole: 'admin',
-        action: 'workspace-settings-update',
-        resourceType: 'workspace_settings',
-        resourceId: `iso5-worm-test-${crypto.randomUUID().slice(0, 8)}`,
-        contentHash: h(9),
-        payloadHash: h(0),
-      });
+      const seeded = await workspaceAls.run({ db, workspaceId: WS_A_ID }, () =>
+        auditSvc.appendStandalone({
+          actorUserId: wsAUserId,
+          actorRole: 'admin',
+          action: 'workspace-settings-update',
+          resourceType: 'workspace_settings',
+          resourceId: `iso5-worm-test-${crypto.randomUUID().slice(0, 8)}`,
+          contentHash: h(9),
+          payloadHash: h(0),
+        })
+      );
 
       const seqNum = seeded.sequenceNumber;
 
