@@ -8,3 +8,7 @@
 - [x] C-1 PR/CI/merge — PASS (run 28858565829 conclusion=success @6c22919; 5/5 jobs green; seller-intent-isolation.e2e 3 tests + scorer.spec 26 tests RAN+GREEN; audit gate exit 0; 2nd Actions hard-stop founder-cleared)
 - [x] C-2 Deploy & verify — PASS (both services @6c22919 SUCCESS, meta.commitHash verified; /health 200 version==tip db:ok; /seller-intent anon 401 mounted; /insights 307; audit-log/verify 401 intact; rollback armed @86ddc29; canary skip 0 DAU; NO migration)
 - [x] L-1 Docs — COMPLETE (CHANGELOG 0.21.0 seller-intent, lines 3-18; M9 delta {in_progress→in_progress, 17 done/1 blocked/0 buildable — buildable EXHAUSTED, stays open on blocked CRM 345dfbc6}; README skip [additive /insights read, no new env/quick-start/CLI]; N-block flags: M9-buildable-exhausted→M10-promotion + M9 _TBD success-metric poll DUE)
+- [x] L-2 Distill — COMPLETE (0 promotions enforcement-only; claimed_task_ids closed done)
+- [x] N-1 Survey & triggers — COMPLETE (M9 buildable EXHAUSTED → BOARD 7/7 APPROVE: M9 in_progress→blocked, M10 todo→in_progress; decomposition illegal @ seed_candidates=3)
+- [x] N-2 Seed — COMPLETE (wave-24 seed fd8f2860 M10 compliance-hardening, single-task bundle; head-next APPROVED)
+- [x] N-3 Handoff — COMPLETE (wave-24 opened; wave-23 waves-row status=ok; archived)
