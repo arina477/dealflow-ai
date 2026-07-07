@@ -470,6 +470,15 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     allowedRoles: ['compliance', 'admin'],
   },
   {
+    // Wave-27 (task f331a51c): /compliance/export — firm-admin recordkeeping export page.
+    // compliance + admin ONLY; advisor/analyst → redirect('/') (assertRole) + no nav entry.
+    // This is the standalone export page (M10 recordkeeping exports milestone); distinct
+    // from the ExportPanel embedded in /compliance/audit-log (which is a component, not a route).
+    // No navItem — the page is reached via the Compliance sidebar section, not a top-level nav item.
+    pattern: '/compliance/export',
+    allowedRoles: ['compliance', 'admin'],
+  },
+  {
     // Wave-14 (task f5074df8): /compliance/oversight — compliance + admin ONLY.
     // READ-focused gate-outcome oversight surface over outreach records.
     // DISTINCT from /compliance-queue (template version-approval; wave-11) and
