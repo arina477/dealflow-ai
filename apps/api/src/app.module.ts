@@ -13,6 +13,7 @@ import { MandateModule } from './modules/mandate/mandate.module';
 import { MatchFeedbackModule } from './modules/match-feedback/match-feedback.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
+import { OutreachActivityModule } from './modules/outreach-activity/outreach-activity.module';
 import { PipelineModule } from './modules/pipeline/pipeline.module';
 import { RecordkeepingModule } from './modules/recordkeeping/recordkeeping.module';
 import { SourcingModule } from './modules/sourcing/sourcing.module';
@@ -38,6 +39,8 @@ import { SourcingModule } from './modules/sourcing/sourcing.module';
     MandateModule,
     MatchingModule,
     OutreachModule,
+    // Wave-20 (task 5c12ac3a / b2acf4ce): outreach-activity tracker (M9).
+    OutreachActivityModule,
     PipelineModule,
     RecordkeepingModule,
     SourcingModule,
