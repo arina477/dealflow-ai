@@ -13,8 +13,9 @@
  *   7. matching          (wave-10 match spine — task 47ed7ddd)
  *   8. outreach          (wave-11 outreach spine — task 102a2f00)
  *   9. pipeline          (wave-12 pipeline spine — task 07989285)
- *  10. sourcing          (wave-6 deal-sourcing data spine — tasks ff378a95 + db274731)
- *  11. users-roles       (wave-2 auth data model)
+ *  10. outreach-activity (wave-20 M9 outreach-activity tracker — task d45c73b5)
+ *  11. sourcing          (wave-6 deal-sourcing data spine — tasks ff378a95 + db274731)
+ *  12. users-roles       (wave-2 auth data model)
  *
  * workspaces is exported first so all other tenant-table files can import it
  * without circular dependency. All tenant tables import ./workspaces directly.
@@ -28,6 +29,9 @@
  * buyer-universe.ts imports from './mandate' (mandates FK) and './sourcing' (companies FK).
  * matching.ts imports from './mandate', './buyer-universe', and './users-roles'.
  * pipeline.ts imports from './mandate', './matching', './outreach', and './users-roles'.
+ * outreach-activity.ts imports from './mandate', './matching', './outreach',
+ *   './pipeline', './users-roles', and './workspaces' — no circular dependency
+ *   (it is a leaf: nothing imports from outreach-activity.ts).
  */
 
 export * from './admin-settings';
@@ -38,6 +42,7 @@ export * from './compliance-rules';
 export * from './mandate';
 export * from './matching';
 export * from './outreach';
+export * from './outreach-activity';
 export * from './pipeline';
 export * from './sourcing';
 export * from './users-roles';
