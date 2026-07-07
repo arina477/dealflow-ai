@@ -5,6 +5,11 @@
  * no-store). The non-colliding /analytics proxy (next.config.ts afterFiles)
  * is used by any client-side re-fetch; the SSR fetch uses apiBase() directly.
  *
+ * Wave-19 addition (task 077974a2): Match score calibration section.
+ * SSR-fetches GET /match-feedback (same pattern: apiBase(), cookie-forwarded,
+ * no-store). The non-colliding /match-feedback proxy (next.config.ts afterFiles)
+ * is used for any client-side re-fetch.
+ *
  * RBAC: advisor + admin. assertRole('/insights', me.role).
  * Non-permitted roles (analyst, compliance, anon) → redirect('/') or '/login'.
  *
@@ -15,6 +20,13 @@
  *        gatePassRate / blockedRate are null when total=0 → rendered as "n/a".
  *   F3 — Advisor productivity: per-advisor mandates-created / pipeline-rows table.
  *   F4 — Match disposition:    pending / accepted / rejected / flagged counts.
+ *   C  — Match score calibration (wave-19):
+ *        4 fit_score bands (0-25/26-50/51-75/76-100): decidedCount + acceptRate.
+ *        2 per-dimension lifts (sectorMatch/contactCompleteness): high vs low cohort.
+ *        tieBreak is excluded (row-ID hash — noise, not signal; B-6 metric honesty).
+ *        G2: acceptRate null → "n/a" (0 decided); acceptRate 0 (number) → "0%".
+ *        Small-sample: decidedCount < LOW_SAMPLE_THRESHOLD → rate shown as "X% (low sample)".
+ *        Empty state when totalDecided=0.
  *
  * Empty state: graceful "No analytics data yet" when the firm has no rows.
  * Loading: N/A (SSR); error: graceful error banner (no white screen).
@@ -22,13 +34,18 @@
  * NO charts library, NO real-time/websocket, NO export affordance.
  * Read-only — no write side-effects.
  *
- * @see packages/shared/src/analytics.ts  (AnalyticsSummary shape)
- * @see packages/shared/src/rbac.ts       (NAV_INSIGHTS + /insights route entry)
- * @see apps/web/next.config.ts            (/analytics afterFiles rewrite)
+ * @see packages/shared/src/analytics.ts      (AnalyticsSummary shape)
+ * @see packages/shared/src/match-feedback.ts (CalibrationSummary shape)
+ * @see packages/shared/src/rbac.ts           (NAV_INSIGHTS + /insights route entry)
+ * @see apps/web/next.config.ts               (/analytics + /match-feedback afterFiles rewrites)
  */
 
-import type { AnalyticsSummary, MeResponse, Role } from '@dealflow/shared';
-import { analyticsSummarySchema, meResponseSchema } from '@dealflow/shared';
+import type { AnalyticsSummary, CalibrationSummary, MeResponse, Role } from '@dealflow/shared';
+import {
+  analyticsSummarySchema,
+  calibrationSummarySchema,
+  meResponseSchema,
+} from '@dealflow/shared';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 // Note: explicit React import for the test-environment JSX transform (same
@@ -98,6 +115,28 @@ async function fetchAnalytics(cookie: string): Promise<AnalyticsSummary | null> 
 }
 
 // ---------------------------------------------------------------------------
+// Match-feedback calibration fetch — GET /match-feedback (SSR, cookie-forwarded)
+//
+// Wave-19 (task 077974a2). Returns null on any failure.
+// The calibration section renders a graceful error state when null is received.
+// ---------------------------------------------------------------------------
+
+async function fetchCalibration(cookie: string): Promise<CalibrationSummary | null> {
+  try {
+    const res = await fetch(`${apiBase()}/match-feedback`, {
+      headers: { cookie },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const raw: unknown = await res.json();
+    const parsed = calibrationSummarySchema.safeParse(raw);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Design-system helpers
 // ---------------------------------------------------------------------------
 
@@ -105,6 +144,60 @@ async function fetchAnalytics(cookie: string): Promise<AnalyticsSummary | null> 
 function fmtRate(rate: number | null): string {
   if (rate === null) return 'n/a';
   return `${(rate * 100).toFixed(1)}%`;
+}
+
+/**
+ * G2: Honest accept-rate formatting (load-bearing — CODE-OF-CONDUCT §metric).
+ *
+ *   null   → "n/a"  (0 decided in cohort; measurement gap, NOT a 0% outcome)
+ *   0      → "0%"   (decided > 0 but 0 accepted; real 0% outcome)
+ *   number → "X.X%" (real rate)
+ *
+ * MUST NOT conflate null and 0 — rendering null as "0%" is a misleading metric.
+ */
+function fmtAcceptRate(rate: number | null): string {
+  if (rate === null) return 'n/a';
+  return `${(rate * 100).toFixed(1)}%`;
+}
+
+/**
+ * Small-sample threshold (B-6, CODE-OF-CONDUCT §metric honesty).
+ * A band or cohort with fewer than this many decided candidates is not a strong
+ * signal. Rates for these cohorts carry a visible "(low sample)" annotation so
+ * M&A advisors can calibrate confidence themselves.
+ */
+const LOW_SAMPLE_THRESHOLD = 5;
+
+/**
+ * G2 + small-sample: format an accept-rate cell value.
+ *
+ *   null              → "n/a"              (0 decided — measurement gap)
+ *   0/number, low n   → "X.X% (low sample)" (decidedCount < LOW_SAMPLE_THRESHOLD — weak signal)
+ *   0/number, ok n    → "X.X%"              (sufficient sample — normal display)
+ *
+ * decidedCount=0 must produce null acceptRate (caller invariant, G2). When
+ * decidedCount>0 AND rate is non-null AND decidedCount < LOW_SAMPLE_THRESHOLD,
+ * append "(low sample)" so advisors see the caveat.
+ */
+function fmtAcceptRateWithCaveat(rate: number | null, decidedCount: number): string {
+  if (rate === null) return 'n/a';
+  const pct = `${(rate * 100).toFixed(1)}%`;
+  if (decidedCount < LOW_SAMPLE_THRESHOLD) {
+    return `${pct} (n=${String(decidedCount)})`;
+  }
+  return pct;
+}
+
+/** Dimension name → human label (sectorMatch / contactCompleteness only — tieBreak excluded). */
+function dimensionLabel(dimension: string): string {
+  switch (dimension) {
+    case 'sectorMatch':
+      return 'Sector Match';
+    case 'contactCompleteness':
+      return 'Contact Completeness';
+    default:
+      return dimension;
+  }
 }
 
 /** Card container — zinc-50 bg, zinc-200 border, 8px radius, 4px grid padding */
@@ -205,8 +298,8 @@ export default async function InsightsPage() {
   // 2. Assert advisor + admin only — other roles → redirect('/').
   assertRole('/insights', me.role as Role);
 
-  // 3. SSR-fetch analytics summary.
-  const data = await fetchAnalytics(cookie);
+  // 3. SSR-fetch analytics summary + calibration (parallel — independent fetches).
+  const [data, calibration] = await Promise.all([fetchAnalytics(cookie), fetchCalibration(cookie)]);
 
   // ── Error / unavailable state ──────────────────────────────────────────────
   if (!data) {
@@ -280,6 +373,7 @@ export default async function InsightsPage() {
             Analytics will appear here once your firm has mandates, outreach, and matches.
           </p>
         </div>
+        <CalibrationSection calibration={calibration} />
       </div>
     );
   }
@@ -460,7 +554,255 @@ export default async function InsightsPage() {
           </div>
         </div>
       </section>
+
+      {/* ── C: Match Score Calibration (wave-19, task 077974a2) ───────── */}
+      <CalibrationSection calibration={calibration} />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Calibration section sub-component (wave-19, task 077974a2)
+//
+// G2 (load-bearing): acceptRate is `number | null`.
+//   null   → decidedCount = 0 → render "n/a" (measurement gap, not a 0% outcome).
+//   0      → decidedCount > 0 but 0 accepted → render "0%" (real outcome).
+// Never conflate null and 0 (CODE-OF-CONDUCT §metric).
+//
+// Small-sample honesty (B-6, CODE-OF-CONDUCT §metric):
+//   decidedCount > 0 but < LOW_SAMPLE_THRESHOLD → render "X.X% (n=N)" and mute
+//   the value (zinc-400 instead of emerald). A single-row cohort "100.0%" is not
+//   a strong signal — the n= annotation lets the advisor judge confidence themselves.
+//   Applies to BOTH bands (fit_score) AND dimension-lift cohorts.
+// ---------------------------------------------------------------------------
+
+interface CalibrationSectionProps {
+  calibration: CalibrationSummary | null;
+}
+
+function CalibrationSection({ calibration }: CalibrationSectionProps) {
+  // Error state: API failed or schema mismatch.
+  if (calibration === null) {
+    return (
+      <section aria-label="Match score calibration" style={CARD_STYLE}>
+        <h2 style={CARD_TITLE_STYLE}>Match Score Calibration</h2>
+        <div
+          role="alert"
+          style={{
+            backgroundColor: '#fef2f2', // red-50
+            border: '1px solid #fecaca', // red-200
+            borderRadius: '8px',
+            padding: '12px 16px',
+            fontSize: '13px',
+            color: '#dc2626',
+          }}
+        >
+          Unable to load calibration data. Please try refreshing the page.
+        </div>
+      </section>
+    );
+  }
+
+  // Empty state: no decided matches yet (all acceptRates will be null).
+  if (calibration.totalDecided === 0) {
+    return (
+      <section aria-label="Match score calibration" style={CARD_STYLE}>
+        <h2 style={CARD_TITLE_STYLE}>Match Score Calibration</h2>
+        <p
+          style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}
+          data-testid="calibration-empty"
+        >
+          Not enough decided matches yet to show calibration.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label="Match score calibration" style={CARD_STYLE}>
+      <h2 style={CARD_TITLE_STYLE}>Match Score Calibration</h2>
+      <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#6b7280' }}>
+        Does a higher fit score predict acceptance? Based on {calibration.totalDecided} decided
+        match
+        {calibration.totalDecided !== 1 ? 'es' : ''}.
+      </p>
+
+      {/* ── Overall calibration: 4 fit_score bands ───────────────────── */}
+      <div style={{ marginBottom: '24px' }}>
+        <h3
+          style={{
+            margin: '0 0 12px',
+            fontSize: '13px',
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            color: '#6b7280',
+          }}
+        >
+          Accept rate by fit score band
+        </h3>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={TABLE_STYLE} aria-label="Accept rate by fit score band">
+            <thead>
+              <tr>
+                <th style={TH_STYLE}>Score band</th>
+                <th style={{ ...TH_STYLE, textAlign: 'right' }}>Decided</th>
+                <th style={{ ...TH_STYLE, textAlign: 'right' }}>Accepted</th>
+                <th style={{ ...TH_STYLE, textAlign: 'right' }}>Accept rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {calibration.bands.map((band) => (
+                <tr key={band.band}>
+                  <td style={TD_STYLE}>
+                    <span
+                      style={{
+                        fontFamily: 'ui-monospace, monospace',
+                        fontSize: '12px',
+                        color: '#374151',
+                      }}
+                    >
+                      {band.band}
+                    </span>
+                  </td>
+                  <td
+                    style={{
+                      ...TD_STYLE,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {band.decidedCount}
+                  </td>
+                  <td
+                    style={{
+                      ...TD_STYLE,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {band.acceptedCount}
+                  </td>
+                  <td
+                    style={{
+                      ...TD_STYLE,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      // G2: null → muted "n/a"; low-sample → zinc-400 (not confident);
+                      // real 0 → zinc-500; positive → emerald-500.
+                      color:
+                        band.acceptRate === null
+                          ? '#9ca3af' // zinc-400 — measurement gap
+                          : band.decidedCount < LOW_SAMPLE_THRESHOLD
+                            ? '#9ca3af' // zinc-400 — low sample, not confident
+                            : band.acceptRate === 0
+                              ? '#6b7280' // zinc-500 — real 0%
+                              : '#10b981', // emerald-500 — positive rate
+                    }}
+                  >
+                    {/* G2 + small-sample: null → "n/a"; low n → "X.X% (n=N)"; else "X.X%" */}
+                    {fmtAcceptRateWithCaveat(band.acceptRate, band.decidedCount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Per-dimension lift: sectorMatch / contactCompleteness (tieBreak excluded — B-6) */}
+      <div>
+        <h3
+          style={{
+            margin: '0 0 12px',
+            fontSize: '13px',
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            color: '#6b7280',
+          }}
+        >
+          Accept rate by score dimension (high vs low cohort)
+        </h3>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={TABLE_STYLE} aria-label="Accept rate by score dimension">
+            <thead>
+              <tr>
+                <th style={TH_STYLE}>Dimension</th>
+                <th style={{ ...TH_STYLE, textAlign: 'right' }}>High cohort</th>
+                <th style={{ ...TH_STYLE, textAlign: 'right' }}>Low cohort</th>
+                <th style={{ ...TH_STYLE, textAlign: 'right' }}>High decided</th>
+                <th style={{ ...TH_STYLE, textAlign: 'right' }}>Low decided</th>
+              </tr>
+            </thead>
+            <tbody>
+              {calibration.dimensionLifts.map((lift) => (
+                <tr key={lift.dimension}>
+                  <td style={TD_STYLE}>{dimensionLabel(lift.dimension)}</td>
+                  <td
+                    style={{
+                      ...TD_STYLE,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      // G2 + small-sample: null → muted; low n → zinc-400 (not confident);
+                      // real 0 → zinc-500; positive → emerald-500.
+                      color:
+                        lift.high.acceptRate === null
+                          ? '#9ca3af'
+                          : lift.high.decidedCount < LOW_SAMPLE_THRESHOLD
+                            ? '#9ca3af'
+                            : lift.high.acceptRate === 0
+                              ? '#6b7280'
+                              : '#10b981',
+                    }}
+                  >
+                    {fmtAcceptRateWithCaveat(lift.high.acceptRate, lift.high.decidedCount)}
+                  </td>
+                  <td
+                    style={{
+                      ...TD_STYLE,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      // G2 + small-sample: same logic for low cohort.
+                      color:
+                        lift.low.acceptRate === null
+                          ? '#9ca3af'
+                          : lift.low.decidedCount < LOW_SAMPLE_THRESHOLD
+                            ? '#9ca3af'
+                            : lift.low.acceptRate === 0
+                              ? '#6b7280'
+                              : '#10b981',
+                    }}
+                  >
+                    {fmtAcceptRateWithCaveat(lift.low.acceptRate, lift.low.decidedCount)}
+                  </td>
+                  <td
+                    style={{
+                      ...TD_STYLE,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      color: '#374151',
+                    }}
+                  >
+                    {lift.high.decidedCount}
+                  </td>
+                  <td
+                    style={{
+                      ...TD_STYLE,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      color: '#374151',
+                    }}
+                  >
+                    {lift.low.decidedCount}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   );
 }
 

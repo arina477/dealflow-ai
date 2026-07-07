@@ -646,6 +646,16 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     pattern: '/analytics',
     allowedRoles: ['advisor', 'admin'],
   },
+
+  // Wave-19 (task 69387b56): Match-feedback calibration API.
+  // advisor + admin: workspace-scoped calibration over match_candidates.
+  // Read-only; GET /match-feedback returns the CalibrationSummary shape.
+  // analyst excluded (advisory calibration, same pattern as /analytics).
+  // No navItem — API-only endpoint; displayed as a section on /insights page.
+  {
+    pattern: '/match-feedback',
+    allowedRoles: ['advisor', 'admin'],
+  },
 ];
 
 // ---------------------------------------------------------------------------

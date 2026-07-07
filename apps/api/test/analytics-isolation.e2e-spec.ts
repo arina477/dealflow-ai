@@ -368,7 +368,10 @@ async function seedOutreachWithStatus(
       [disclaimerId, disclaimerJurisdiction, workspaceId]
     );
     const actualDisclaimerId = discRes.rows[0]?.id;
-    if (!actualDisclaimerId) throw new Error(`seedOutreachWithStatus: disclaimer INSERT returned no id for workspace=${workspaceId}`);
+    if (!actualDisclaimerId)
+      throw new Error(
+        `seedOutreachWithStatus: disclaimer INSERT returned no id for workspace=${workspaceId}`
+      );
     seededDisclaimerTemplateIds.push(actualDisclaimerId);
 
     await client.query(
@@ -662,7 +665,9 @@ describe.skipIf(shouldSkip)(
     // getDb code path. The fault-killing assertion (AMP-4) verifies this is load-bearing
     // by calling getSummary() outside workspaceAls.run with a raw singleton.
 
-    async function runServiceInAls(workspaceId: string): Promise<import('@dealflow/shared').AnalyticsSummary> {
+    async function runServiceInAls(
+      workspaceId: string
+    ): Promise<import('@dealflow/shared').AnalyticsSummary> {
       const { drizzle } = await import('drizzle-orm/node-postgres');
       const schema = await import('../src/db/schema');
       const { workspaceAls } = await import('../src/db/workspace-context');
