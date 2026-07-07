@@ -15,6 +15,7 @@ import { MatchingModule } from './modules/matching/matching.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
 import { OutreachActivityModule } from './modules/outreach-activity/outreach-activity.module';
 import { PipelineModule } from './modules/pipeline/pipeline.module';
+import { SellerIntentModule } from './modules/seller-intent/seller-intent.module';
 import { RecordkeepingModule } from './modules/recordkeeping/recordkeeping.module';
 import { SourcingModule } from './modules/sourcing/sourcing.module';
 
@@ -41,6 +42,8 @@ import { SourcingModule } from './modules/sourcing/sourcing.module';
     OutreachModule,
     // Wave-20 (task 5c12ac3a / b2acf4ce): outreach-activity tracker (M9).
     OutreachActivityModule,
+    // Wave-23 (tasks 9e54cc11 / 1188e7da / 12947422): seller-intent scoring (M9).
+    SellerIntentModule,
     PipelineModule,
     RecordkeepingModule,
     SourcingModule,
