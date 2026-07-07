@@ -344,20 +344,25 @@ async function seedOutreachWithStatus(
     // disclaimer_templates IS workspace-scoped (RLS + disclaimer_templates_workspace_id_fk).
     // Real columns: id, jurisdiction(NN), body(NN), version(int NN), active(bool default true),
     // created_at(default now), created_by(nullable), workspace_id(uuid NN).
+    //
+    // FIX (wave-18 23503): disclaimer_templates has NO unique constraint on
+    // (jurisdiction, workspace_id), so ON CONFLICT DO NOTHING never fires and every
+    // call inserts a fresh row. The prior LIMIT 1 lookback (no ORDER BY) could then
+    // return a stale row from a previous CI run's teardown — a UUID that no longer
+    // exists — causing the outreach_template_versions FK to fail with 23503.
+    // Solution: INSERT ... RETURNING id and use the returned id directly, with no
+    // separate lookback and no ON CONFLICT (the PK is always a fresh UUID so there is
+    // nothing to conflict on). This guarantees the FK references the row we just inserted.
     const disclaimerId = crypto.randomUUID();
-    await client.query(
+    const discRes = await client.query<{ id: string }>(
       `INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active, workspace_id)
        VALUES ($1, 'ANA-TEST-JURIS', 'ANA test disclaimer', 1, true, $2)
-       ON CONFLICT DO NOTHING`,
+       RETURNING id`,
       [disclaimerId, workspaceId]
     );
-    seededDisclaimerTemplateIds.push(disclaimerId);
-    // Look up the disclaimer id scoped to this workspace (workspace-scoped table).
-    const discRes = await client.query<{ id: string }>(
-      `SELECT id FROM disclaimer_templates WHERE jurisdiction = 'ANA-TEST-JURIS' AND workspace_id = $1 LIMIT 1`,
-      [workspaceId]
-    );
-    const actualDisclaimerId = discRes.rows[0]?.id ?? disclaimerId;
+    const actualDisclaimerId = discRes.rows[0]?.id;
+    if (!actualDisclaimerId) throw new Error(`seedOutreachWithStatus: disclaimer INSERT returned no id for workspace=${workspaceId}`);
+    seededDisclaimerTemplateIds.push(actualDisclaimerId);
 
     await client.query(
       `INSERT INTO outreach_template_versions
