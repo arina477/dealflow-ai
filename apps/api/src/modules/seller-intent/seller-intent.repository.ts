@@ -205,9 +205,7 @@ export class SellerIntentRepository {
       // Chronological comparison via Date.parse — correct regardless of UTC-offset variation
       // in the returned timestamptz strings (avoids the lexical-order-only-safe-for-UTC bug).
       // Date.parse of a fixed string is deterministic (NOT Date.now()).
-      referenceInstant = allTimestamps.reduce((a, b) =>
-        Date.parse(a) >= Date.parse(b) ? a : b
-      );
+      referenceInstant = allTimestamps.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b));
     } else {
       // No events: fall back to mandate max createdAt.
       referenceInstant = mandateRows.reduce((a, b) =>
