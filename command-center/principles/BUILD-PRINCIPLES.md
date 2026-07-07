@@ -85,3 +85,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
    Why: A partial index rejects non-immutable predicates; row FOR UPDATE misses disjoint members.
 9. Run any new real-DB e2e fixture against a migrated DB with the runtime role locally before B-6 approval.
    Why: Static review cannot detect non-hex UUIDs, wrong column names, or partial-index collisions.
+10. A migration that UPDATEs or DELETEs rows on a trigger-protected table must be tested on a pre-seeded populated DB.
+   Why: An empty-DB migration test cannot exercise triggers that fire only when rows already exist.
