@@ -62,7 +62,7 @@ VERIFY:
 
 LEARN:
 - [x] L-1 Docs — CHANGELOG SKIP (test-only, convention-consistent w/ wave-21); M9 in_progress→in_progress (open_count=1 blocked, seed_candidates=0 → seller-intent = wave-23 seed); README skip; head-learn APPROVED
-- [ ] L-2 Distill
+- [x] L-2 Distill
 
 NEXT:
 - [ ] N-1 Survey & triggers

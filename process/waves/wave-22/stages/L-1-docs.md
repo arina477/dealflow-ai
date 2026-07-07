@@ -65,7 +65,7 @@ Nothing user-facing changed. No new CLI command / flag, no new env var, no new i
 
 ## Action 4 — Commit
 
-`docs: L-1 wave-22 closeout` — FS docs (this deliverable + checklist L-1 tick). Direct push to `main`. SHA: `<filled post-commit>`.
+`docs: L-1 wave-22 closeout` — FS docs (this deliverable + checklist L-1 tick). Direct push to `main`. SHA: `8c5a3a3`.
 
 ---
 
@@ -84,7 +84,7 @@ verdict_evidence:
   - "milestones row: 099cee10-562d-4e56-9a57-0dade2914760 — NO transition (in_progress → in_progress; open_count=1 blocked)"
   - "tasks: 02f4e6a1 confirmed status='done' (wave_id 731e08c1)"
   - "README.md: SKIP (nothing user-facing changed)"
-  - "commit: docs: L-1 wave-22 closeout @<filled post-commit>"
+  - "commit: docs: L-1 wave-22 closeout @8c5a3a3"
 changelog_entry_added: false
 roadmap_milestones_progressed: [{milestone: M9, before: in_progress, after: in_progress}]
 roadmap_skip_reason: ""
@@ -110,6 +110,6 @@ note: "Internal test-reliability, not a user feature. CHANGELOG + README both sk
 - CHANGELOG entry appended → **SKIP recorded with reasoning** (test-only, convention-consistent). ✔
 - Milestone rows progressed in DB → **no transition needed**; M9 stays `in_progress` (recorded). ✔
 - README touched → **SKIP recorded** (nothing user-facing). ✔
-- Commits pushed → `docs: L-1 wave-22 closeout` @`<filled post-commit>`. ✔ (below)
+- Commits pushed → `docs: L-1 wave-22 closeout` @`8c5a3a3`. ✔ (below)
 - Deliverable carries `l_stage_verdict: COMPLETE`. ✔
 - `process/waves/wave-22/checklist.md` L-1 row checked. ✔ (below)
