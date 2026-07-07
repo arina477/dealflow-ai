@@ -100,7 +100,10 @@ export class OutreachActivityController {
     const validStatuses = ['planned', 'completed', 'cancelled'] as const;
     const statusParam = query.status;
     const filter: { status?: 'planned' | 'completed' | 'cancelled' } = {};
-    if (statusParam && validStatuses.includes(statusParam as 'planned' | 'completed' | 'cancelled')) {
+    if (
+      statusParam &&
+      validStatuses.includes(statusParam as 'planned' | 'completed' | 'cancelled')
+    ) {
       filter.status = statusParam as 'planned' | 'completed' | 'cancelled';
     }
     const activities = await this.outreachActivityService.list(filter);
@@ -132,9 +135,7 @@ export class OutreachActivityController {
 
     const session = req.session;
     if (!session) {
-      throw new Error(
-        'OutreachActivityController: session not present after SessionGuard'
-      );
+      throw new Error('OutreachActivityController: session not present after SessionGuard');
     }
 
     return this.outreachActivityService.create(input, session.getUserId());
@@ -154,11 +155,7 @@ export class OutreachActivityController {
   @Patch(':id')
   @UseGuards(SessionGuard, RolesGuard)
   @Roles(...OUTREACH_ACTIVITY_DETAIL_ROLES)
-  async update(
-    @Param('id') id: string,
-    @Body() body: unknown,
-    @Req() req: RequestWithSession
-  ) {
+  async update(@Param('id') id: string, @Body() body: unknown, @Req() req: RequestWithSession) {
     const result = updateOutreachActivitySchema.safeParse(body);
     if (!result.success) {
       throw new BadRequestException(
@@ -169,9 +166,7 @@ export class OutreachActivityController {
 
     const session = req.session;
     if (!session) {
-      throw new Error(
-        'OutreachActivityController: session not present after SessionGuard'
-      );
+      throw new Error('OutreachActivityController: session not present after SessionGuard');
     }
 
     const stUserId = session.getUserId();

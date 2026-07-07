@@ -104,23 +104,25 @@ async function fetchActivities(cookie: string): Promise<OutreachActivity[]> {
     // Fallback: try raw array
     const arrayParsed = z
       .array(
-        z.object({
-          id: z.string().uuid(),
-          workspaceId: z.string().uuid(),
-          channel: z.enum(['call', 'email', 'linkedin', 'other']),
-          status: z.enum(['planned', 'completed', 'cancelled']),
-          subject: z.string(),
-          notes: z.string().nullable(),
-          dueAt: z.string().nullable(),
-          completedAt: z.string().nullable(),
-          outreachId: z.string().uuid().nullable(),
-          matchCandidateId: z.string().uuid().nullable(),
-          pipelineId: z.string().uuid().nullable(),
-          mandateId: z.string().uuid().nullable(),
-          createdBy: z.string().uuid(),
-          createdAt: z.string(),
-          updatedAt: z.string().nullable(),
-        }).passthrough()
+        z
+          .object({
+            id: z.string().uuid(),
+            workspaceId: z.string().uuid(),
+            channel: z.enum(['call', 'email', 'linkedin', 'other']),
+            status: z.enum(['planned', 'completed', 'cancelled']),
+            subject: z.string(),
+            notes: z.string().nullable(),
+            dueAt: z.string().nullable(),
+            completedAt: z.string().nullable(),
+            outreachId: z.string().uuid().nullable(),
+            matchCandidateId: z.string().uuid().nullable(),
+            pipelineId: z.string().uuid().nullable(),
+            mandateId: z.string().uuid().nullable(),
+            createdBy: z.string().uuid(),
+            createdAt: z.string(),
+            updatedAt: z.string().nullable(),
+          })
+          .passthrough()
       )
       .safeParse(raw);
     return arrayParsed.success ? (arrayParsed.data as OutreachActivity[]) : [];

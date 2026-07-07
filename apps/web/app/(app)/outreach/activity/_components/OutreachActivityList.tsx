@@ -43,10 +43,7 @@ function channelLabel(channel: string): string {
 // Status badge
 // ---------------------------------------------------------------------------
 
-const STATUS_STYLES: Record<
-  OutreachActivityStatus,
-  { bg: string; text: string; label: string }
-> = {
+const STATUS_STYLES: Record<OutreachActivityStatus, { bg: string; text: string; label: string }> = {
   planned: { bg: '#FFFBEB', text: '#B45309', label: 'Planned' },
   completed: { bg: '#ECFDF5', text: '#047857', label: 'Completed' },
   cancelled: { bg: '#F9FAFB', text: '#6B7280', label: 'Cancelled' },

@@ -170,14 +170,13 @@ describe('[SF1] Empty-ALS create() rejection', () => {
     const { svc, mockRepo } = makeMocks();
 
     await expect(
-      svc.create(
-        { channel: 'call', subject: 'Test', status: 'planned' },
-        ST_USER_ID
-      )
+      svc.create({ channel: 'call', subject: 'Test', status: 'planned' }, ST_USER_ID)
     ).rejects.toThrow(ForbiddenException);
 
     // INSERT must NOT have been called — no row landed in any workspace.
-    expect((mockRepo as { insertActivity: ReturnType<typeof vi.fn> }).insertActivity).not.toHaveBeenCalled();
+    expect(
+      (mockRepo as { insertActivity: ReturnType<typeof vi.fn> }).insertActivity
+    ).not.toHaveBeenCalled();
 
     // Restore for subsequent tests.
     mockGetWorkspaceIdValue = WS_A_ID;
@@ -214,8 +213,9 @@ describe('[R3/SF4] Cross-firm FK tenancy', () => {
     const { svc, mockRepo } = makeMocks();
 
     // Simulate firm-B outreach invisible under firm-A GUC → null from RLS-scoped read.
-    (mockRepo as { findOutreachByIdInTx: ReturnType<typeof vi.fn> }).findOutreachByIdInTx
-      .mockResolvedValue(null);
+    (
+      mockRepo as { findOutreachByIdInTx: ReturnType<typeof vi.fn> }
+    ).findOutreachByIdInTx.mockResolvedValue(null);
 
     await expect(
       svc.create(
@@ -229,8 +229,9 @@ describe('[R3/SF4] Cross-firm FK tenancy', () => {
     mockGetWorkspaceIdValue = WS_A_ID;
     const { svc, mockRepo } = makeMocks();
 
-    (mockRepo as { findMatchCandidateByIdInTx: ReturnType<typeof vi.fn> }).findMatchCandidateByIdInTx
-      .mockResolvedValue(null);
+    (
+      mockRepo as { findMatchCandidateByIdInTx: ReturnType<typeof vi.fn> }
+    ).findMatchCandidateByIdInTx.mockResolvedValue(null);
 
     await expect(
       svc.create(
@@ -248,8 +249,9 @@ describe('[R3/SF4] Cross-firm FK tenancy', () => {
     mockGetWorkspaceIdValue = WS_A_ID;
     const { svc, mockRepo } = makeMocks();
 
-    (mockRepo as { findPipelineByIdInTx: ReturnType<typeof vi.fn> }).findPipelineByIdInTx
-      .mockResolvedValue(null);
+    (
+      mockRepo as { findPipelineByIdInTx: ReturnType<typeof vi.fn> }
+    ).findPipelineByIdInTx.mockResolvedValue(null);
 
     await expect(
       svc.create(
@@ -263,8 +265,9 @@ describe('[R3/SF4] Cross-firm FK tenancy', () => {
     mockGetWorkspaceIdValue = WS_A_ID;
     const { svc, mockRepo } = makeMocks();
 
-    (mockRepo as { findMandateByIdInTx: ReturnType<typeof vi.fn> }).findMandateByIdInTx
-      .mockResolvedValue(null);
+    (
+      mockRepo as { findMandateByIdInTx: ReturnType<typeof vi.fn> }
+    ).findMandateByIdInTx.mockResolvedValue(null);
 
     await expect(
       svc.create(
@@ -371,20 +374,14 @@ describe('[RBAC] outreach-activity role gates', () => {
 describe('[BOUNDARY] No external SDK imports', () => {
   it('OA-BNDRY-1: outreach-activity.service.ts does not import Anthropic/LLM/AI packages', async () => {
     const src = await import('node:fs/promises').then((fs) =>
-      fs.readFile(
-        new URL('./outreach-activity.service.ts', import.meta.url).pathname,
-        'utf8'
-      )
+      fs.readFile(new URL('./outreach-activity.service.ts', import.meta.url).pathname, 'utf8')
     );
     expect(src).not.toMatch(/anthropic|openai|@ai-sdk|langchain|llamaindex/i);
   });
 
   it('OA-BNDRY-2: outreach-activity.service.ts does not import email SDK packages', async () => {
     const src = await import('node:fs/promises').then((fs) =>
-      fs.readFile(
-        new URL('./outreach-activity.service.ts', import.meta.url).pathname,
-        'utf8'
-      )
+      fs.readFile(new URL('./outreach-activity.service.ts', import.meta.url).pathname, 'utf8')
     );
     expect(src).not.toMatch(/nodemailer|sendgrid|postmark|resend|@aws-sdk\/client-ses/i);
   });

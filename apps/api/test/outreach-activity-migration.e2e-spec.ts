@@ -58,9 +58,7 @@ const TEST_DB_URL = process.env.TEST_DATABASE_URL;
 const shouldSkip = !TEST_DB_URL || TEST_DB_URL.trim() === '';
 
 if (shouldSkip) {
-  console.info(
-    '[outreach-activity-migration] TEST_DATABASE_URL is not set — suite SKIPPED.'
-  );
+  console.info('[outreach-activity-migration] TEST_DATABASE_URL is not set — suite SKIPPED.');
 }
 
 async function isDbReachable(url: string): Promise<boolean> {
@@ -204,10 +202,7 @@ describe.skipIf(shouldSkip)(
       // Delete seeded outreach_activity rows (mutable table — not WORM).
       if (seededActivityIds.length > 0) {
         await pool
-          .query(
-            `DELETE FROM outreach_activity WHERE id = ANY($1::uuid[])`,
-            [seededActivityIds]
-          )
+          .query(`DELETE FROM outreach_activity WHERE id = ANY($1::uuid[])`, [seededActivityIds])
           .catch(() => {});
       }
       await pool.end().catch(() => {});
@@ -310,10 +305,7 @@ describe.skipIf(shouldSkip)(
       const { AuditRepository } = await import('../src/modules/audit/audit.repository');
       const { AuditService } = await import('../src/modules/audit/audit.service');
 
-      const auditSvc = new AuditService(
-        new AuditKeyring(process.env),
-        new AuditRepository(db)
-      );
+      const auditSvc = new AuditService(new AuditKeyring(process.env), new AuditRepository(db));
       const h = (n: number) => `${n}`.repeat(64).slice(0, 64);
       const before = await pool.query<{ count: string }>(
         `SELECT COUNT(*)::text AS count FROM audit_log_entries`

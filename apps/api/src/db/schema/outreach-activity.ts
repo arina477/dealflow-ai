@@ -1,13 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-  foreignKey,
-  index,
-  pgEnum,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { foreignKey, index, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 import { mandates } from './mandate';
 import { matchCandidates } from './matching';

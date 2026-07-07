@@ -33,17 +33,17 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { AuditEntryInput, CreateOutreachActivityInput, UpdateOutreachActivityInput } from '@dealflow/shared';
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import type {
+  AuditEntryInput,
+  CreateOutreachActivityInput,
+  UpdateOutreachActivityInput,
+} from '@dealflow/shared';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { getWorkspaceId } from '../../db/workspace-context';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
 import { AuditService } from '../audit/audit.service';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
 import { AuthRepository } from '../auth/auth.repository';
-import { getWorkspaceId } from '../../db/workspace-context';
 import type { OutreachActivityRow, Tx } from './outreach-activity.repository';
 // biome-ignore lint/style/useImportType: DI-injected, needs runtime metadata (emitDecoratorMetadata)
 import { OutreachActivityRepository } from './outreach-activity.repository';
@@ -86,9 +86,7 @@ export class OutreachActivityService {
     // 2. Translate ST id → app users.id.
     const actor = await this.authRepository.getUserWithRole(supertokensUserId);
     if (!actor) {
-      throw new ForbiddenException(
-        'Actor identity could not be resolved from app-DB users row'
-      );
+      throw new ForbiddenException('Actor identity could not be resolved from app-DB users row');
     }
     const appUserId = actor.id;
     const actorRole = actor.roleName;
@@ -211,19 +209,25 @@ export class OutreachActivityService {
       // R3/SF4: validate any updated FK targets.
       if (input.outreachId !== undefined && input.outreachId !== null) {
         const row = await this.repository.findOutreachByIdInTx(tx, input.outreachId);
-        if (!row) throw new NotFoundException(`outreach ${input.outreachId} not found or not accessible`);
+        if (!row)
+          throw new NotFoundException(`outreach ${input.outreachId} not found or not accessible`);
       }
       if (input.matchCandidateId !== undefined && input.matchCandidateId !== null) {
         const row = await this.repository.findMatchCandidateByIdInTx(tx, input.matchCandidateId);
-        if (!row) throw new NotFoundException(`match_candidate ${input.matchCandidateId} not found or not accessible`);
+        if (!row)
+          throw new NotFoundException(
+            `match_candidate ${input.matchCandidateId} not found or not accessible`
+          );
       }
       if (input.pipelineId !== undefined && input.pipelineId !== null) {
         const row = await this.repository.findPipelineByIdInTx(tx, input.pipelineId);
-        if (!row) throw new NotFoundException(`pipeline ${input.pipelineId} not found or not accessible`);
+        if (!row)
+          throw new NotFoundException(`pipeline ${input.pipelineId} not found or not accessible`);
       }
       if (input.mandateId !== undefined && input.mandateId !== null) {
         const row = await this.repository.findMandateByIdInTx(tx, input.mandateId);
-        if (!row) throw new NotFoundException(`mandate ${input.mandateId} not found or not accessible`);
+        if (!row)
+          throw new NotFoundException(`mandate ${input.mandateId} not found or not accessible`);
       }
 
       // Build update fields (only explicitly provided keys).
@@ -321,10 +325,7 @@ export class OutreachActivityService {
    * Audits 'outreach-activity-cancel' LAST-IN-TXN (separate verb from status-transition
    * for per-verb audit coverage per R4/SF5).
    */
-  async cancel(
-    activityId: string,
-    supertokensUserId: string
-  ): Promise<OutreachActivityRow> {
+  async cancel(activityId: string, supertokensUserId: string): Promise<OutreachActivityRow> {
     const actor = await this.authRepository.getUserWithRole(supertokensUserId);
     if (!actor) {
       throw new ForbiddenException('Actor identity could not be resolved from app-DB users row');

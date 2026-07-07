@@ -43,6 +43,7 @@ vi.mock('../../_lib/apiFetch', () => ({
 }));
 
 import { apiFetch } from '../../_lib/apiFetch';
+
 const mockApiFetch = vi.mocked(apiFetch);
 
 // ---------------------------------------------------------------------------
@@ -262,9 +263,7 @@ const noopOnTransitioned = vi.fn();
 describe('OutreachActivityList — empty state', () => {
   it('renders empty state when activities is empty', () => {
     render(<OutreachActivityList activities={[]} onTransitioned={noopOnTransitioned} />);
-    expect(
-      screen.getByRole('region', { name: /my open touches.*empty/i })
-    ).toBeDefined();
+    expect(screen.getByRole('region', { name: /my open touches.*empty/i })).toBeDefined();
     expect(screen.getByText(/no outreach touches logged yet/i)).toBeDefined();
   });
 
@@ -276,49 +275,61 @@ describe('OutreachActivityList — empty state', () => {
 
 describe('OutreachActivityList — with data', () => {
   it('renders the list with activity data', () => {
-    render(<OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />);
+    render(
+      <OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />
+    );
     expect(screen.getByRole('region', { name: /my open touches$/i })).toBeDefined();
     expect(screen.getByText('Follow-up with ABC Capital')).toBeDefined();
   });
 
   it('renders channel label', () => {
-    render(<OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />);
+    render(
+      <OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />
+    );
     expect(screen.getByText('Call')).toBeDefined();
   });
 
   it('renders status badge for planned activity', () => {
-    render(<OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />);
+    render(
+      <OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />
+    );
     expect(screen.getByText('Planned')).toBeDefined();
   });
 
   it('renders status badge for completed activity', () => {
-    render(<OutreachActivityList activities={[COMPLETED_ACTIVITY]} onTransitioned={noopOnTransitioned} />);
+    render(
+      <OutreachActivityList activities={[COMPLETED_ACTIVITY]} onTransitioned={noopOnTransitioned} />
+    );
     expect(screen.getByText('Completed')).toBeDefined();
   });
 
   it('renders Complete and Cancel action buttons for planned activities', () => {
-    render(<OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />);
-    expect(
-      screen.getByRole('button', { name: /mark.*as completed/i })
-    ).toBeDefined();
-    expect(
-      screen.getByRole('button', { name: /cancel.*follow-up/i })
-    ).toBeDefined();
+    render(
+      <OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />
+    );
+    expect(screen.getByRole('button', { name: /mark.*as completed/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /cancel.*follow-up/i })).toBeDefined();
   });
 
   it('does NOT render action buttons for completed activities', () => {
-    render(<OutreachActivityList activities={[COMPLETED_ACTIVITY]} onTransitioned={noopOnTransitioned} />);
+    render(
+      <OutreachActivityList activities={[COMPLETED_ACTIVITY]} onTransitioned={noopOnTransitioned} />
+    );
     expect(screen.queryByRole('button', { name: /complete/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /cancel/i })).toBeNull();
   });
 
   it('shows notes when present', () => {
-    render(<OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />);
+    render(
+      <OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />
+    );
     expect(screen.getByText('Discussed term sheet')).toBeDefined();
   });
 
   it('renders table with accessible column headers', () => {
-    render(<OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />);
+    render(
+      <OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />
+    );
     expect(screen.getByRole('table', { name: /outreach activity list/i })).toBeDefined();
     expect(screen.getByRole('columnheader', { name: /channel/i })).toBeDefined();
     expect(screen.getByRole('columnheader', { name: /subject/i })).toBeDefined();
@@ -337,7 +348,9 @@ describe('OutreachActivityList — status transitions', () => {
       })
     );
 
-    render(<OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={onTransitioned} />);
+    render(
+      <OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={onTransitioned} />
+    );
 
     const completeBtn = screen.getByRole('button', { name: /mark.*as completed/i });
     fireEvent.click(completeBtn);
@@ -359,7 +372,9 @@ describe('OutreachActivityList — status transitions', () => {
       })
     );
 
-    render(<OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={onTransitioned} />);
+    render(
+      <OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={onTransitioned} />
+    );
 
     const cancelBtn = screen.getByRole('button', { name: /cancel.*follow-up/i });
     fireEvent.click(cancelBtn);
@@ -379,7 +394,9 @@ describe('OutreachActivityList — status transitions', () => {
       })
     );
 
-    render(<OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />);
+    render(
+      <OutreachActivityList activities={[PLANNED_ACTIVITY]} onTransitioned={noopOnTransitioned} />
+    );
 
     const completeBtn = screen.getByRole('button', { name: /mark.*as completed/i });
     fireEvent.click(completeBtn);
@@ -396,23 +413,13 @@ describe('OutreachActivityList — status transitions', () => {
 
 describe('OutreachActivityPanel', () => {
   it('renders both the form and the list', () => {
-    render(
-      <OutreachActivityPanel
-        initialActivities={[PLANNED_ACTIVITY]}
-        mandateOptions={[]}
-      />
-    );
+    render(<OutreachActivityPanel initialActivities={[PLANNED_ACTIVITY]} mandateOptions={[]} />);
     expect(screen.getByRole('form', { name: /log outreach touch/i })).toBeDefined();
     expect(screen.getByRole('region', { name: /my open touches$/i })).toBeDefined();
   });
 
   it('renders empty list state when no initial activities', () => {
-    render(
-      <OutreachActivityPanel
-        initialActivities={[]}
-        mandateOptions={[]}
-      />
-    );
+    render(<OutreachActivityPanel initialActivities={[]} mandateOptions={[]} />);
     expect(screen.getByText(/no outreach touches logged yet/i)).toBeDefined();
   });
 
@@ -431,12 +438,7 @@ describe('OutreachActivityPanel', () => {
       })
     );
 
-    render(
-      <OutreachActivityPanel
-        initialActivities={[PLANNED_ACTIVITY]}
-        mandateOptions={[]}
-      />
-    );
+    render(<OutreachActivityPanel initialActivities={[PLANNED_ACTIVITY]} mandateOptions={[]} />);
 
     // Initially one activity
     expect(screen.getByText('Follow-up with ABC Capital')).toBeDefined();
@@ -465,12 +467,7 @@ describe('OutreachActivityPanel', () => {
       })
     );
 
-    render(
-      <OutreachActivityPanel
-        initialActivities={[PLANNED_ACTIVITY]}
-        mandateOptions={[]}
-      />
-    );
+    render(<OutreachActivityPanel initialActivities={[PLANNED_ACTIVITY]} mandateOptions={[]} />);
 
     const completeBtn = screen.getByRole('button', { name: /mark.*as completed/i });
     fireEvent.click(completeBtn);
@@ -482,12 +479,7 @@ describe('OutreachActivityPanel', () => {
   });
 
   it('does not render any AI, send, or notification affordance', () => {
-    render(
-      <OutreachActivityPanel
-        initialActivities={[]}
-        mandateOptions={[]}
-      />
-    );
+    render(<OutreachActivityPanel initialActivities={[]} mandateOptions={[]} />);
     expect(screen.queryByRole('button', { name: /send/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /ai/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /remind/i })).toBeNull();

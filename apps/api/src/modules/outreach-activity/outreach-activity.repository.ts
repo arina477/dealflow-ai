@@ -34,8 +34,8 @@ import type { Database } from '../../db/db.provider';
 import { DB } from '../../db/db.provider';
 import { mandates } from '../../db/schema/mandate';
 import { matchCandidates } from '../../db/schema/matching';
-import { outreachActivity } from '../../db/schema/outreach-activity';
 import { outreach } from '../../db/schema/outreach';
+import { outreachActivity } from '../../db/schema/outreach-activity';
 import { pipeline } from '../../db/schema/pipeline';
 import { getDb } from '../../db/workspace-context';
 
@@ -187,18 +187,20 @@ export class OutreachActivityRepository {
   async updateActivityInTx(
     tx: Tx,
     id: string,
-    fields: Partial<Pick<
-      OutreachActivityRow,
-      | 'status'
-      | 'subject'
-      | 'notes'
-      | 'dueAt'
-      | 'completedAt'
-      | 'outreachId'
-      | 'matchCandidateId'
-      | 'pipelineId'
-      | 'mandateId'
-    >>
+    fields: Partial<
+      Pick<
+        OutreachActivityRow,
+        | 'status'
+        | 'subject'
+        | 'notes'
+        | 'dueAt'
+        | 'completedAt'
+        | 'outreachId'
+        | 'matchCandidateId'
+        | 'pipelineId'
+        | 'mandateId'
+      >
+    >
   ): Promise<OutreachActivityRow> {
     const rows = await tx
       .update(outreachActivity)
