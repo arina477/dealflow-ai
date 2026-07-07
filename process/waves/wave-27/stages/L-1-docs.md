@@ -57,7 +57,7 @@ verdict_evidence:
   - "CHANGELOG.md:3-19 (## [0.23.0] section — headline + Added + Correctness/compliance + Provenance)"
   - "README.md:66-72 (Firm recordkeeping export is live. paragraph)"
   - "milestone 033f97e0 (M10): NO UPDATE — stays in_progress (open=0 but scope not shipped, 2/3 verticals remain); on-demand-export metric-half MET"
-  - "commit: docs: L-1 wave-27 closeout (SHA recorded below post-commit)"
+  - "commit: ddae337 (docs: L-1 wave-27 closeout) — pushed to main ff29cf4..ddae337"
 head_signoff:
   verdict: APPROVED
   stage: L-1
