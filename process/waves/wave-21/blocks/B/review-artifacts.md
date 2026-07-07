@@ -1,5 +1,5 @@
 # Wave 21 — B-block review artifacts
-**Block:** B (Build) | **Wave topic:** M9 process/DX hardening — (C) CI-e2e-authoritative testing artifact (docs wave, no code) | **Block exit gate:** B-6 | **Status:** in-progress
+**Block:** B (Build) | **Wave topic:** M9 process/DX hardening — (C) CI-e2e-authoritative testing artifact (docs wave, no code) | **Block exit gate:** B-6 | **Status:** gate-passed
 ## Stage deliverables
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
@@ -15,3 +15,16 @@
 - **DELIVERABLE:** a falsifiable CI-e2e-authoritative testing artifact. MUST: (1) NAME each isolation/RBAC/SoD/audit invariant CI-e2e is authoritative for + CITE the specific e2e test file per invariant (jenny B-block note — not just assert recurrence); (2) document the live-authed-deferral rationale (single-tenant prod + no-committable-prod-creds rule 2) ONCE; (3) set the later-trigger to add real authed live checks. CLOSE B/D/E as done-by-PRODUCT-#1 (one-line note, no re-doc). NO prod-cred provisioning, NO code/migration/UI.
 ## Gate verdict log
 <appended by head-builder at B-6>
+
+## Block exit handoff
+```yaml
+build_block_status: complete
+branch: wave-21-ci-authoritative-policy
+stages_run: [B-0, B-2, B-4, B-5, B-6]
+stages_skipped: [B-0 schema (docs), B-3 frontend (no UI)]
+review_verdict: APPROVE
+artifact: command-center/testing/ci-e2e-authoritative-policy.md
+last_commit_sha: 8f2287f
+ready_for_ci: true
+docs_only: true
+```
