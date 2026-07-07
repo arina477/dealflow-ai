@@ -190,20 +190,6 @@ function fmtRate(rate: number | null): string {
 }
 
 /**
- * G2: Honest accept-rate formatting (load-bearing — CODE-OF-CONDUCT §metric).
- *
- *   null   → "n/a"  (0 decided in cohort; measurement gap, NOT a 0% outcome)
- *   0      → "0%"   (decided > 0 but 0 accepted; real 0% outcome)
- *   number → "X.X%" (real rate)
- *
- * MUST NOT conflate null and 0 — rendering null as "0%" is a misleading metric.
- */
-function fmtAcceptRate(rate: number | null): string {
-  if (rate === null) return 'n/a';
-  return `${(rate * 100).toFixed(1)}%`;
-}
-
-/**
  * Small-sample threshold (B-6, CODE-OF-CONDUCT §metric honesty).
  * A band or cohort with fewer than this many decided candidates is not a strong
  * signal. Rates for these cohorts carry a visible "(low sample)" annotation so
@@ -344,19 +330,19 @@ function directionChip(direction: SellerIntentDirection): React.ReactElement {
   switch (direction) {
     case 'heating':
       return (
-        <span style={{ color: '#10b981', fontWeight: 600 }} aria-label="Heating">
+        <span role="img" style={{ color: '#10b981', fontWeight: 600 }} aria-label="Heating">
           ↑ Heating
         </span>
       );
     case 'cooling':
       return (
-        <span style={{ color: '#d97706', fontWeight: 600 }} aria-label="Cooling">
+        <span role="img" style={{ color: '#d97706', fontWeight: 600 }} aria-label="Cooling">
           ↓ Cooling
         </span>
       );
     case 'flat':
       return (
-        <span style={{ color: '#6b7280', fontWeight: 600 }} aria-label="Flat">
+        <span role="img" style={{ color: '#6b7280', fontWeight: 600 }} aria-label="Flat">
           — Flat
         </span>
       );
