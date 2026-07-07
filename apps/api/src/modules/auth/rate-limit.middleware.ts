@@ -25,6 +25,28 @@
  *                         guard or interceptor runs after the Nest router, which
  *                         itself runs after middleware() — too late.
  *
+ * BODY PARSING (SEC-4/SEC-6 fix, B-6 rework):
+ *   This middleware runs BEFORE SuperTokens middleware() and BEFORE Nest's body
+ *   parser. At that point req.body is undefined. Without reading the body, the
+ *   email cannot be extracted, causing fallback to req.ip (per-IP keying only —
+ *   SEC-4/SEC-6 defeated).
+ *
+ *   Fix: for rate-limited auth POST routes, the middleware buffers and parses
+ *   the raw body in-place, sets req.body to the parsed JSON object, and continues.
+ *   Downstream consumers (SuperTokens, Nest) see req.body already populated as
+ *   a plain object. SuperTokens' assertThatBodyParserHasBeenUsedForExpressLikeRequest
+ *   checks: if req.body is a non-empty object (not undefined / Buffer / {readable}),
+ *   it uses req.body directly WITHOUT reading the stream again. This is confirmed
+ *   in supertokens-node/lib/build/framework/utils.js § assertThatBodyParser…
+ *   (the else-if branch: request.body undefined OR Buffer OR empty+readable → stream
+ *   read; else → use existing object). Stream consumed once by this middleware;
+ *   zero double-consumption risk.
+ *
+ *   Body parsing is scoped to POST requests on the four rate-limited paths only.
+ *   Non-auth routes skip all body buffering.
+ *
+ *   reset/confirm has no email in its body ({ token, password }) — it uses req.ip.
+ *
  * WINDOW naming (SEC-2):
  *   SHORT_WINDOW_SECONDS = 60    — short fixed window (burst suppression).
  *   COARSE_WINDOW_SECONDS = 3600 — per-hour coarse window (sustained attack limit).
@@ -237,6 +259,62 @@ function resolveScope(method: string, path: string): string | null {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Body buffering (SEC-4/SEC-6 fix — parse body before keying)
+// ---------------------------------------------------------------------------
+
+/**
+ * Buffer and JSON-parse the request body if it has not been parsed yet.
+ *
+ * Sets req.body to the parsed JSON object in-place so downstream middleware
+ * (SuperTokens, Nest) can read it without consuming the stream a second time.
+ * SuperTokens' assertThatBodyParserHasBeenUsedForExpressLikeRequest checks
+ * whether req.body is a non-empty plain object: if it is, the SDK uses it
+ * directly without calling its internal stream reader. This prevents double-
+ * consumption.
+ *
+ * Returns the parsed body or an empty object on parse failure. Never throws.
+ * Only called for POST requests on rate-limited scopes.
+ */
+async function ensureBodyParsed(req: Request): Promise<Record<string, unknown>> {
+  // Already parsed by an upstream middleware (e.g. in tests that pre-populate req.body)
+  const existing = (req as Request & { body?: unknown }).body;
+  if (existing !== undefined && existing !== null && typeof existing === 'object') {
+    return existing as Record<string, unknown>;
+  }
+
+  // Check whether the request object is actually a readable stream.
+  // Unit-test mock objects (plain POJOs) do not implement EventEmitter; if 'on'
+  // is missing or not a function we treat the body as empty and fall back to IP.
+  if (typeof (req as unknown as { on?: unknown }).on !== 'function') {
+    return {};
+  }
+
+  // Buffer the raw body from the readable stream
+  return new Promise<Record<string, unknown>>((resolve) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      try {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        const parsed = raw.length > 0 ? (JSON.parse(raw) as Record<string, unknown>) : {};
+        // Attach to req.body so downstream (SuperTokens/Nest) sees it as pre-parsed.
+        // SuperTokens checks: req.body is defined object → uses directly (no re-read).
+        (req as Request & { body: unknown }).body = parsed;
+        resolve(parsed);
+      } catch {
+        // Malformed JSON — return empty object. The rate limiter falls back to IP.
+        resolve({});
+      }
+    });
+    req.on('error', () => {
+      resolve({});
+    });
+  });
+}
+
 /**
  * Extract the identifier for bucketing from the request body.
  *
@@ -246,55 +324,38 @@ function resolveScope(method: string, path: string): string | null {
  *
  * Falls back to the client IP (SEC-3: req.ip, trust-proxy-resolved) when no
  * email can be parsed from the body. This covers reset/confirm (no email in body).
+ *
+ * @param body - already-parsed body (from ensureBodyParsed)
+ * @param req  - for IP fallback
+ * @param scope - used to determine whether to attempt email extraction
  */
-function extractIdentifier(req: Request, scope: string): string {
+function extractIdentifier(body: Record<string, unknown>, req: Request, scope: string): string {
   // For reset/confirm the body has { token, password } — no email. Use IP.
   if (scope === 'reset/confirm') {
     return req.ip ?? 'unknown';
   }
 
-  // For all other scopes, attempt to pull the email from the request body.
-  // The body may not be parsed yet at this stage (we're before Nest body parsing)
-  // for the SuperTokens /auth/signin route. However, Express JSON body-parser
-  // runs before app.use() middleware if configured as a global parser — in this
-  // app body parsing is done by Nest's platform-express default which runs after
-  // middleware(). For /auth/signin, the body reaches the SuperTokens SDK which
-  // parses it internally.
-  //
-  // Solution: for POST paths where the body hasn't been parsed yet, fall back
-  // to the IP as the identifier. This is safe for signin (IP-based limiting
-  // is still effective — the attacker must use many IPs, which is a higher bar).
-  // For /auth/signup + /auth/reset/request, Nest parses the body BEFORE the
-  // handler, so the body IS available. But those routes go through the Nest
-  // router (after middleware()) — and this middleware runs BEFORE middleware().
-  // So body is NOT parsed for any of these routes at this point.
-  //
-  // Therefore: use IP as the primary identifier for all routes when email is
-  // unavailable. The raw body can be parsed from a buffer if needed. But for
-  // pragmatic correctness, we will buffer-parse the body in this middleware.
-  // See the rawBodyBuffer implementation below.
+  // Direct email field (our Nest-parsed bodies: signup, reset/request)
+  const emailField = body.email;
+  if (typeof emailField === 'string' && emailField.length > 0) {
+    return emailField;
+  }
 
-  // Try to get email from body if already parsed (e.g., in tests):
-  const body = (req as Request & { body?: unknown }).body as Record<string, unknown> | undefined;
-  if (body && typeof body === 'object') {
-    // Direct email field (our Nest-parsed bodies: signup, reset/request)
-    const emailField = body.email;
-    if (typeof emailField === 'string' && emailField.length > 0) {
-      return emailField;
-    }
-    // SuperTokens uses formFields array: [{ id: 'email', value: '...' }]
-    // This is the shape the SuperTokens SDK sends to its own auto-routes (/auth/signin).
-    const ff = body.formFields;
-    if (Array.isArray(ff)) {
-      for (const field of ff as Array<{ id?: string; value?: unknown }>) {
-        if (field.id === 'email' && typeof field.value === 'string' && field.value.length > 0) {
-          return field.value;
-        }
+  // SuperTokens uses formFields array: [{ id: 'email', value: '...' }]
+  // This is the shape the SuperTokens SDK sends to its own auto-routes (/auth/signin).
+  const ff = body.formFields;
+  if (Array.isArray(ff)) {
+    for (const field of ff as Array<{ id?: string; value?: unknown }>) {
+      if (field.id === 'email' && typeof field.value === 'string' && field.value.length > 0) {
+        return field.value;
       }
     }
   }
 
-  // Body not parsed yet — use client IP
+  // Body has no recognisable email field — use client IP as fallback.
+  // This should not happen for signin/signup/reset/request with well-formed requests,
+  // but defends against malformed bodies without blocking the request here
+  // (the handler will reject them with 400 downstream).
   return req.ip ?? 'unknown';
 }
 
@@ -345,7 +406,12 @@ export function createRateLimitMiddleware(opts: RateLimitMiddlewareOptions = {})
       return;
     }
 
-    const identifier = extractIdentifier(req, scope);
+    // SEC-4/SEC-6: parse the body BEFORE keying so we can extract the email.
+    // ensureBodyParsed buffers the stream and sets req.body in-place, making
+    // it available to downstream SuperTokens/Nest without double-consuming.
+    const body = await ensureBodyParsed(req);
+    const identifier = extractIdentifier(body, req, scope);
+
     const pool = getPool(opts.pool);
     const now = Math.floor(Date.now() / 1000); // epoch seconds
 

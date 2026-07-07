@@ -44,6 +44,7 @@ export * from './matching';
 export * from './outreach';
 export * from './outreach-activity';
 export * from './pipeline';
+export * from './rate-limit-hits';
 export * from './sourcing';
 export * from './users-roles';
 export * from './workspaces';
