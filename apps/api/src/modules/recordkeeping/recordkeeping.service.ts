@@ -70,18 +70,81 @@ import { AuditService } from '../audit/audit.service';
 import { AuditVerifier } from '../audit/audit.verifier';
 // biome-ignore lint/style/useImportType: NestJS DI needs the runtime value
 import { AuthRepository } from '../auth/auth.repository';
-import type { RecordkeepingFilter } from './recordkeeping.repository';
+import { serializeToCsv } from './csv.serializer';
+import type { DealExportRow, RecordkeepingFilter } from './recordkeeping.repository';
 // biome-ignore lint/style/useImportType: NestJS DI needs the runtime value
-import { RecordkeepingRepository } from './recordkeeping.repository';
+import {
+  defaultFromDate,
+  EXPORT_ROW_CAP,
+  RecordkeepingRepository,
+} from './recordkeeping.repository';
 
 // ---------------------------------------------------------------------------
 // Export package shape
 // ---------------------------------------------------------------------------
 
+/**
+ * A single audit entry prepared for export (SEC-6).
+ *
+ * The global `sequenceNumber` is MASKED (omitted) — it is a cross-tenant
+ * side-channel (reveals other firms' activity volume/timing via the global
+ * monotonic sequence). Instead, `firmLocalOrdinal` (1..N over the firm's own
+ * exported rows) is provided. `prevHash` and `entryHash` are retained for
+ * offline linkage verification with zero cross-tenant information leakage.
+ */
+export interface ExportAuditEntry {
+  /** SEC-6: firm-local ordinal (1..N), NOT the global sequence_number. */
+  firmLocalOrdinal: number;
+  actorUserId: string | null;
+  actorRole: string;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  contentHash: string;
+  payloadHash: string;
+  /** prev_hash — retained for offline chain linkage verification. */
+  prevHash: string;
+  /** entry_hash — retained for offline chain linkage verification. */
+  entryHash: string;
+  chainVersion: number;
+  createdAt: string;
+}
+
+/**
+ * A single deal/pipeline row prepared for export (SEC-3).
+ * The `firmLocalOrdinal` is assigned sequentially over the firm's deal rows.
+ */
+export interface ExportDealEntry extends DealExportRow {
+  firmLocalOrdinal: number;
+}
+
 export interface ExportPackage {
   manifest: ExportManifest;
+  /**
+   * verifyResult: the full-chain integrity check result.
+   * INVARIANT: this is computed via AuditVerifier.verifyChain (RLS-exempt global
+   * walk — this is PERMITTED for the boolean/summary; FORBIDDEN for payload rows).
+   */
   verifyResult: AuditVerifyResponse;
-  entries: StoredAuditEntry[];
+  /**
+   * Audit entries with firm-local ordinals (SEC-6).
+   * Global sequence_number is MASKED — not present in this shape.
+   */
+  entries: ExportAuditEntry[];
+  /**
+   * Deal/pipeline activity rows (SEC-3). Empty when scope='audit'.
+   */
+  dealEntries: ExportDealEntry[];
+  /**
+   * format from the input scope — 'csv' | 'json'.
+   * The controller uses this to set the Content-Type and serialize accordingly.
+   */
+  format: 'csv' | 'json';
+  /**
+   * CSV content when format='csv' (pre-serialized, injection-safe).
+   * Null when format='json'.
+   */
+  csvContent: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,7 +219,7 @@ export class RecordkeepingService {
   }
 
   // ---------------------------------------------------------------------------
-  // exportAsActor — deterministic package + exactly-one audit row last-in-txn
+  // exportAsActor — extended SEC-1..10 compliant export
   // ---------------------------------------------------------------------------
 
   /**
@@ -164,27 +227,36 @@ export class RecordkeepingService {
    *
    * Access: compliance/admin ONLY. Advisor 403 (NO export right).
    *
-   * The package contains:
-   *   (a) In-scope audit entries with sequence_number/prev_hash/entry_hash.
-   *   (b) Full-chain AuditVerifier.verifyChain() result (proves the slice sits
-   *       in an unbroken chain; verify is full-chain, NOT slice-only).
-   *   (c) A manifest: scope, generatedAt, generatingActor, chainRoot, tailHash,
-   *       entryCount.
+   * SEC-1: Audit rows read via getDb/RLS (FORCE RLS on audit_log_entries).
+   *   FORBID read_audit_chain_rls_exempt in payload path — it is used ONLY
+   *   for the verifyChain boolean, never to source payload rows.
+   *
+   * SEC-2: workspace is server-resolved (getWorkspaceId from ALS/session GUC).
+   *   The exportScopeSchema is .strict() — workspace_id/firmId/tenant → 400.
+   *
+   * SEC-3: deal/pipeline scope via getDb/RLS (mandates/pipeline are RLS-covered).
+   *
+   * SEC-4: bounded export (default 12-month from, max EXPORT_ROW_CAP rows).
+   *   On cap-hit → manifest.truncated:true + rowsReturned + rowsAvailable.
+   *   NEVER a silently-short "complete" file.
+   *
+   * SEC-5: CSV injection-safe serialization via csv.serializer.ts.
+   *
+   * SEC-6: exported audit entries carry firmLocalOrdinal (1..N over firm's own
+   *   rows), NOT the global sequence_number (cross-tenant side-channel). The
+   *   global sequence_number is MASKED/dropped from the export payload.
+   *   prev_hash/entry_hash are retained for offline linkage verification.
+   *
+   * SEC-7: RBAC compliance+admin enforced here + at the controller layer.
+   *
+   * SEC-9: export-audit-log — scope/format/count/range only (never the DATA);
+   *   actor.id (app users.id, not raw ST id); appended LAST-IN-TXN.
+   *
+   * SEC-10: deal/pipeline export joins ONLY RLS-covered tenant tables.
    *
    * Exactly-one-or-none:
-   *   ONE 'export_generated' audit row is appended LAST-IN-TXN. If the audit
-   *   append throws, the tx rolls back → no package is delivered without its
-   *   audit row. No package is returned from this method in the rollback case
-   *   (the exception propagates to the controller → 500).
-   *
-   * Determinism:
-   *   Scoped entries are read in sequence_number ASC (stable order from the
-   *   immutable chain). Hashes are read from the DB (never recomputed here).
-   *   manifest.generatedAt and manifest.generatingActor vary per call. Manifest
-   *   scope/chainRoot/tailHash/entryCount are deterministic for the same scope.
-   *   verifyResult.entriesChecked is NOT deterministic — it reflects the live
-   *   full chain length at export time, which grows as entries are appended.
-   *   This is by design: verify proves the full unbroken chain at export time.
+   *   ONE 'export_generated' audit row appended LAST-IN-TXN. Rollback-on-audit-fail:
+   *   no package without its audit row.
    */
   async exportAsActor(scope: ExportScope, stUserId: string): Promise<ExportPackage> {
     const actor = await this.authRepository.getUserWithRole(stUserId);
@@ -192,48 +264,160 @@ export class RecordkeepingService {
       throw new UnauthorizedException('User account not found');
     }
 
-    // Advisor 403: export is restricted to compliance/admin
+    // SEC-7: Advisor 403 — export is restricted to compliance/admin
     if (!EXPORT_ALLOWED_ROLES.has(actor.roleName)) {
       throw new ForbiddenException('Export requires compliance or admin role');
     }
 
+    // SEC-4: apply default from-date (last 12 months) when from is omitted.
+    // This prevents unbounded exports that silently omit rows beyond the cap.
+    const effectiveFrom = scope.from ?? defaultFromDate();
+    const effectiveTo = scope.to;
+
     // Build the filter for the export scope.
     // exactOptionalPropertyTypes: true — conditionally include fields.
-    const exportFilter: Parameters<RecordkeepingRepository['findForExport']>[0] = {
+    const exportFilter: Omit<RecordkeepingFilter, 'limit' | 'offset' | 'advisorUserId'> = {
       ...(scope.mandateId !== undefined && { mandateId: scope.mandateId }),
-      ...(scope.from !== undefined && { from: scope.from }),
-      ...(scope.to !== undefined && { to: scope.to }),
+      from: effectiveFrom,
+      ...(effectiveTo !== undefined && { to: effectiveTo }),
     };
 
-    // Step (b): Full-chain verify OUTSIDE the tx (read-only, stateless).
+    const dealFilter = {
+      ...(scope.mandateId !== undefined && { mandateId: scope.mandateId }),
+      from: effectiveFrom,
+      ...(effectiveTo !== undefined && { to: effectiveTo }),
+    };
+
+    // SEC-1: Full-chain verify OUTSIDE the tx (read-only, stateless).
+    // verifyChain uses read_audit_chain_rls_exempt — this is PERMITTED for the
+    // boolean/summary only. It MUST NOT be called inside the payload export path.
     // Done before the tx so verify cost is not held inside the write tx.
     const verifyResult = await this.auditVerifier.verifyChain();
 
-    // Steps (a) + (c) + audit row inside ONE transaction
+    // Steps: read-scope + assemble manifest + audit row inside ONE transaction
     const pkg = await this.repository.runInTransaction(async (tx) => {
-      // (a) Read in-scope entries inside the tx (BUILD rule 7: tx-scoped read)
-      const entries = await this.repository.findForExport(exportFilter, tx);
+      // -----------------------------------------------------------------------
+      // SEC-1: Read audit entries via getDb/RLS (tx handle; FORCE RLS applies).
+      // FORBID read_audit_chain_rls_exempt here — RLS is the load-bearing guard.
+      // -----------------------------------------------------------------------
+      // Default scope='both' and format='csv' when not set (Zod defaults apply
+      // at the controller layer; guard here for direct service invocations).
+      const resolvedScope = scope.scope ?? 'both';
+      const resolvedFormat = scope.format ?? 'csv';
+      const includeAudit = resolvedScope === 'audit' || resolvedScope === 'both';
+      const includeDeal = resolvedScope === 'deal' || resolvedScope === 'both';
 
-      const entryCount = entries.length;
-      // entries.at(-1) returns undefined for empty arrays; ?? null handles the
-      // exactOptionalPropertyTypes constraint (tailHash: string | null in manifest).
-      const tailHash = entries.at(-1)?.entryHash ?? null;
+      let auditRows: StoredAuditEntry[] = [];
+      let auditTruncated = false;
+      let auditRowsAvailable = 0;
+
+      if (includeAudit) {
+        const auditResult = await this.repository.findForExportBounded(
+          exportFilter,
+          tx,
+          EXPORT_ROW_CAP
+        );
+        auditRows = auditResult.rows;
+        auditTruncated = auditResult.truncated;
+        auditRowsAvailable = auditResult.rowsAvailable;
+      }
+
+      // -----------------------------------------------------------------------
+      // SEC-3: Deal/pipeline rows via getDb/RLS (tx handle; FORCE RLS on pipeline).
+      // SEC-10: joins ONLY RLS-covered tenant tables (pipeline, mandates).
+      // -----------------------------------------------------------------------
+      let dealRows: DealExportRow[] = [];
+      let dealTruncated = false;
+      let dealRowsAvailable = 0;
+
+      if (includeDeal) {
+        const dealResult = await this.repository.findDealRowsBounded(
+          dealFilter,
+          tx,
+          EXPORT_ROW_CAP
+        );
+        dealRows = dealResult.rows;
+        dealTruncated = dealResult.truncated;
+        dealRowsAvailable = dealResult.rowsAvailable;
+      }
+
+      // -----------------------------------------------------------------------
+      // SEC-6: Assign firm-local ordinals; MASK global sequence_number.
+      // prev_hash/entry_hash are retained for offline linkage verification.
+      // -----------------------------------------------------------------------
+      const exportAuditEntries: ExportAuditEntry[] = auditRows.map((row, idx) => ({
+        firmLocalOrdinal: idx + 1,
+        // Global sequenceNumber is deliberately OMITTED (cross-tenant side-channel).
+        actorUserId: row.actorUserId,
+        actorRole: row.actorRole,
+        action: row.action,
+        resourceType: row.resourceType,
+        resourceId: row.resourceId,
+        contentHash: row.contentHash,
+        payloadHash: row.payloadHash,
+        prevHash: row.prevHash,
+        entryHash: row.entryHash,
+        chainVersion: row.chainVersion,
+        createdAt: row.createdAt,
+      }));
+
+      const exportDealEntries: ExportDealEntry[] = dealRows.map((row, idx) => ({
+        firmLocalOrdinal: idx + 1,
+        ...row,
+      }));
+
+      // -----------------------------------------------------------------------
+      // SEC-4: Explicit truncation manifest fields.
+      // total rowsReturned and rowsAvailable across both scopes.
+      // -----------------------------------------------------------------------
+      const totalRowsReturned = exportAuditEntries.length + exportDealEntries.length;
+      const totalRowsAvailable =
+        (includeAudit ? auditRowsAvailable : 0) + (includeDeal ? dealRowsAvailable : 0);
+      const truncated = auditTruncated || dealTruncated;
+
+      // Tail hash: last audit entry's entryHash (for offline chain linkage).
+      const tailHash = exportAuditEntries.at(-1)?.entryHash ?? null;
       const generatedAt = new Date().toISOString();
 
-      // (c) Assemble manifest
+      // Build the manifest with SEC-4 truncation fields.
       const manifest: ExportManifest = {
         scope,
         generatedAt,
         generatingActor: actor.id,
         chainRoot: GENESIS_PREV_HASH,
         tailHash,
-        entryCount,
+        entryCount: exportAuditEntries.length,
+        truncated,
+        rowsReturned: totalRowsReturned,
+        rowsAvailable: totalRowsAvailable,
       };
 
-      // Compute content/payload hashes for the audit entry (wave-5 pattern)
+      // -----------------------------------------------------------------------
+      // SEC-5: CSV serialization (injection-safe). Only when format='csv'.
+      // -----------------------------------------------------------------------
+      let csvContent: string | null = null;
+      if (resolvedFormat === 'csv') {
+        csvContent = buildCsvExport(exportAuditEntries, exportDealEntries, manifest);
+      }
+
+      // -----------------------------------------------------------------------
+      // SEC-9: export-audit-log — log scope/format/count/range ONLY.
+      // Never log the exported DATA. actor.id (app users.id, NOT raw ST id).
+      // Appended LAST-IN-TXN so rollback-on-audit-fail applies.
+      // -----------------------------------------------------------------------
       const contentHash = createHash('sha256').update(JSON.stringify(scope)).digest('hex');
       const payloadHash = createHash('sha256')
-        .update(JSON.stringify({ entryCount, tailHash, chainRoot: GENESIS_PREV_HASH }))
+        .update(
+          JSON.stringify({
+            scope: resolvedScope,
+            format: resolvedFormat,
+            entryCount: exportAuditEntries.length,
+            dealCount: exportDealEntries.length,
+            from: effectiveFrom,
+            to: effectiveTo ?? null,
+            truncated,
+          })
+        )
         .digest('hex');
 
       const auditInput: AuditEntryInput = {
@@ -250,9 +434,129 @@ export class RecordkeepingService {
       // no package without its audit row (exactly-one-or-none).
       await this.auditService.append(auditInput, tx);
 
-      return { manifest, verifyResult, entries };
+      return {
+        manifest,
+        verifyResult,
+        entries: exportAuditEntries,
+        dealEntries: exportDealEntries,
+        format: resolvedFormat,
+        csvContent,
+      };
     });
 
     return pkg;
   }
+}
+
+// ---------------------------------------------------------------------------
+// CSV builder (SEC-5) — module-level helper, outside the class
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the full CSV content for an export package (SEC-5).
+ *
+ * Audit entries and deal entries are emitted in separate sections with
+ * clearly labeled headers. The manifest metadata is prepended as comment rows
+ * (# prefix lines are not injection-risk since # is not a formula trigger).
+ */
+function buildCsvExport(
+  auditEntries: ExportAuditEntry[],
+  dealEntries: ExportDealEntry[],
+  manifest: ExportManifest
+): string {
+  const sections: string[] = [];
+
+  // ── Manifest metadata section ────────────────────────────────────────────
+  sections.push(
+    serializeToCsv(
+      ['manifestField', 'value'],
+      [
+        ['generatedAt', manifest.generatedAt],
+        ['generatingActor', manifest.generatingActor ?? ''],
+        ['chainRoot', manifest.chainRoot],
+        ['tailHash', manifest.tailHash ?? ''],
+        ['entryCount', manifest.entryCount],
+        ['truncated', manifest.truncated],
+        ['rowsReturned', manifest.rowsReturned],
+        ['rowsAvailable', manifest.rowsAvailable],
+        ['scopeFormat', manifest.scope.format],
+        ['scopeDataScope', manifest.scope.scope],
+        ['scopeFrom', manifest.scope.from ?? ''],
+        ['scopeTo', manifest.scope.to ?? ''],
+        ['scopeMandateId', manifest.scope.mandateId ?? ''],
+      ]
+    )
+  );
+
+  // ── Audit entries section ────────────────────────────────────────────────
+  if (auditEntries.length > 0) {
+    sections.push(
+      serializeToCsv(
+        [
+          'firmLocalOrdinal',
+          'actorUserId',
+          'actorRole',
+          'action',
+          'resourceType',
+          'resourceId',
+          'contentHash',
+          'payloadHash',
+          'prevHash',
+          'entryHash',
+          'chainVersion',
+          'createdAt',
+        ],
+        auditEntries.map((e) => [
+          e.firmLocalOrdinal,
+          e.actorUserId,
+          e.actorRole,
+          e.action,
+          e.resourceType,
+          e.resourceId,
+          e.contentHash,
+          e.payloadHash,
+          e.prevHash,
+          e.entryHash,
+          e.chainVersion,
+          e.createdAt,
+        ])
+      )
+    );
+  }
+
+  // ── Deal/pipeline entries section ────────────────────────────────────────
+  if (dealEntries.length > 0) {
+    sections.push(
+      serializeToCsv(
+        [
+          'firmLocalOrdinal',
+          'pipelineId',
+          'mandateId',
+          'dealSourceType',
+          'outreachId',
+          'matchCandidateId',
+          'stage',
+          'createdBy',
+          'createdAt',
+          'updatedAt',
+          'mandateSellerName',
+        ],
+        dealEntries.map((e) => [
+          e.firmLocalOrdinal,
+          e.pipelineId,
+          e.mandateId,
+          e.dealSourceType,
+          e.outreachId,
+          e.matchCandidateId,
+          e.stage,
+          e.createdBy,
+          e.createdAt,
+          e.updatedAt,
+          e.mandateSellerName,
+        ])
+      )
+    );
+  }
+
+  return sections.join('\r\n\r\n');
 }

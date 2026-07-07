@@ -89,6 +89,8 @@ function makeEntry(seq: number): StoredAuditEntry {
     entryHash: 'd'.repeat(64),
     chainVersion: 1,
     createdAt: `2026-07-0${seq}T00:00:00.000Z`,
+    mandateId: null,
+    workspaceId: 'workspace-uuid',
   };
 }
 
@@ -109,12 +111,30 @@ const MOCK_VERIFY_BROKEN: AuditVerifyResponse = {
 function makeRepoMock(entries: StoredAuditEntry[] = MOCK_ENTRIES) {
   const findFiltered = vi.fn().mockResolvedValue(entries);
   const findForExport = vi.fn().mockResolvedValue(entries);
+  // findForExportBounded — returns the bounded shape (SEC-4).
+  const findForExportBounded = vi.fn().mockResolvedValue({
+    rows: entries,
+    truncated: false,
+    rowsAvailable: entries.length,
+  });
+  // findDealRowsBounded — returns empty deal rows (unit tests don't test deal scope).
+  const findDealRowsBounded = vi.fn().mockResolvedValue({
+    rows: [],
+    truncated: false,
+    rowsAvailable: 0,
+  });
   const runInTransaction = vi
     .fn()
     .mockImplementation(async (work: (tx: unknown) => Promise<unknown>) =>
       work({} /* mock tx handle */)
     );
-  return { findFiltered, findForExport, runInTransaction } as unknown as RecordkeepingRepository;
+  return {
+    findFiltered,
+    findForExport,
+    findForExportBounded,
+    findDealRowsBounded,
+    runInTransaction,
+  } as unknown as RecordkeepingRepository;
 }
 
 function makeAuditVerifierMock(verifyResult: AuditVerifyResponse = MOCK_VERIFY_OK) {
@@ -432,7 +452,7 @@ describe('RecordkeepingService.exportAsActor — rollback on audit failure', () 
 // ---------------------------------------------------------------------------
 
 describe('RecordkeepingService.exportAsActor — deterministic entries', () => {
-  it('returns entries in the same order as repo.findForExport (ASC from repo)', async () => {
+  it('returns entries in the same order as repo.findForExportBounded (ASC from repo)', async () => {
     const ascEntries = [makeEntry(1), makeEntry(2), makeEntry(3)];
     const repo = makeRepoMock(ascEntries);
     const svc = makeService({ repo });
@@ -440,8 +460,8 @@ describe('RecordkeepingService.exportAsActor — deterministic entries', () => {
     const pkg = await svc.exportAsActor({}, MOCK_ST_USER_ID);
 
     expect(pkg.entries).toHaveLength(3);
-    // Use map to avoid biome noNonNullAssertion — we already asserted length=3.
-    expect(pkg.entries.map((e) => e.sequenceNumber)).toEqual([1, 2, 3]);
+    // entries are ExportAuditEntry with firmLocalOrdinal (1..N), NOT sequenceNumber.
+    expect(pkg.entries.map((e) => e.firmLocalOrdinal)).toEqual([1, 2, 3]);
   });
 
   it('manifest entryCount matches entries.length', async () => {
@@ -899,5 +919,152 @@ describe('RecordkeepingRepository — L4 audit-log-export branch in mandate deri
     const sqlText = extractSqlText(result.mandateFragment);
     expect(sqlText).toContain('audit-log-export');
     expect(sqlText).toContain('specific-mandate-uuid');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SEC-4 HTTP CONTRACT — controller sets X-Export-Manifest on BOTH branches
+//
+// This tests the HTTP boundary (the layer SEC-4 e2e died at) not the pkg level.
+// The service computes manifest.truncated correctly (SEC-8 e2e verifies pkg);
+// this suite proves the invariant survives the controller → HTTP response edge.
+//
+// Test strategy: build a minimal mock Response and verify setHeader is called
+// with 'X-Export-Manifest' before the response body is flushed. Exercises both
+// the CSV and JSON branches independently. A capped export (truncated:true)
+// must also carry the header with the correct manifest payload.
+//
+// These tests FAIL before the B-6 controller fix (setHeader not called) and
+// PASS after (setHeader called on both branches).
+// ---------------------------------------------------------------------------
+
+describe('RecordkeepingController.export — SEC-4 HTTP contract: X-Export-Manifest header', () => {
+  /** Build a mock Express Response that records setHeader calls. */
+  function makeMockRes() {
+    const headers: Record<string, string> = {};
+    const res = {
+      setHeader: vi.fn((name: string, value: string) => {
+        headers[name.toLowerCase()] = value;
+        return res;
+      }),
+      status: vi.fn().mockReturnThis(),
+      send: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+      _headers: headers,
+    };
+    return res as unknown as import('express').Response & { _headers: Record<string, string> };
+  }
+
+  function makeReqWithSession(): RequestWithSession {
+    return {
+      session: { getUserId: () => MOCK_ST_USER_ID },
+    } as unknown as RequestWithSession;
+  }
+
+  it('CSV branch: controller sets X-Export-Manifest header (SEC-4 — fails before B-6 fix)', async () => {
+    const repo = makeRepoMock(MOCK_ENTRIES);
+    const ctrl = new RecordkeepingController(
+      makeService({ repo, authRepo: makeAuthRepoMock(MOCK_COMPLIANCE_USER) })
+    );
+    const res = makeMockRes();
+
+    await ctrl.export({ scope: 'audit', format: 'csv' }, makeReqWithSession(), res);
+
+    // The header must be set — its absence is the SEC-4 compliance bug.
+    expect(res.setHeader).toHaveBeenCalledWith('X-Export-Manifest', expect.any(String));
+    // The header value must be valid JSON containing a manifest.
+    const headerCalls = (res.setHeader as ReturnType<typeof vi.fn>).mock.calls as [
+      string,
+      string,
+    ][];
+    const manifestCall = headerCalls.find(([name]) => name === 'X-Export-Manifest');
+    expect(manifestCall).toBeDefined();
+    const manifest = JSON.parse(manifestCall![1]);
+    expect(typeof manifest.truncated).toBe('boolean');
+    expect(typeof manifest.rowsReturned).toBe('number');
+    expect(typeof manifest.rowsAvailable).toBe('number');
+  });
+
+  it('JSON branch: controller sets X-Export-Manifest header (SEC-4 — fails before B-6 fix)', async () => {
+    const repo = makeRepoMock(MOCK_ENTRIES);
+    const ctrl = new RecordkeepingController(
+      makeService({ repo, authRepo: makeAuthRepoMock(MOCK_COMPLIANCE_USER) })
+    );
+    const res = makeMockRes();
+
+    await ctrl.export({ scope: 'audit', format: 'json' }, makeReqWithSession(), res);
+
+    expect(res.setHeader).toHaveBeenCalledWith('X-Export-Manifest', expect.any(String));
+    const headerCalls = (res.setHeader as ReturnType<typeof vi.fn>).mock.calls as [
+      string,
+      string,
+    ][];
+    const manifestCall = headerCalls.find(([name]) => name === 'X-Export-Manifest');
+    const manifest = JSON.parse(manifestCall![1]);
+    expect(typeof manifest.truncated).toBe('boolean');
+    expect(typeof manifest.rowsReturned).toBe('number');
+    expect(typeof manifest.rowsAvailable).toBe('number');
+  });
+
+  it('capped export (truncated:true): X-Export-Manifest header carries truncated:true (SEC-4 end-to-end)', async () => {
+    // Build a bounded repo that reports truncation.
+    const repo = makeRepoMock(MOCK_ENTRIES);
+    // Override findForExportBounded to report a capped result.
+    (repo.findForExportBounded as ReturnType<typeof vi.fn>).mockResolvedValue({
+      rows: MOCK_ENTRIES,
+      truncated: true,
+      rowsAvailable: 99999,
+    });
+    const ctrl = new RecordkeepingController(
+      makeService({ repo, authRepo: makeAuthRepoMock(MOCK_COMPLIANCE_USER) })
+    );
+    const res = makeMockRes();
+
+    await ctrl.export({ scope: 'audit', format: 'csv' }, makeReqWithSession(), res);
+
+    const headerCalls = (res.setHeader as ReturnType<typeof vi.fn>).mock.calls as [
+      string,
+      string,
+    ][];
+    const manifestCall = headerCalls.find(([name]) => name === 'X-Export-Manifest');
+    expect(manifestCall).toBeDefined();
+    const manifest = JSON.parse(manifestCall![1]);
+    // The critical invariant: truncated:true must reach the HTTP header.
+    expect(manifest.truncated).toBe(true);
+    expect(manifest.rowsAvailable).toBe(99999);
+  });
+
+  it('uncapped export (truncated:false): X-Export-Manifest header carries truncated:false', async () => {
+    const repo = makeRepoMock(MOCK_ENTRIES);
+    const ctrl = new RecordkeepingController(
+      makeService({ repo, authRepo: makeAuthRepoMock(MOCK_COMPLIANCE_USER) })
+    );
+    const res = makeMockRes();
+
+    await ctrl.export({ scope: 'audit', format: 'csv' }, makeReqWithSession(), res);
+
+    const headerCalls = (res.setHeader as ReturnType<typeof vi.fn>).mock.calls as [
+      string,
+      string,
+    ][];
+    const manifestCall = headerCalls.find(([name]) => name === 'X-Export-Manifest');
+    expect(manifestCall).toBeDefined();
+    const manifest = JSON.parse(manifestCall![1]);
+    expect(manifest.truncated).toBe(false);
+  });
+
+  it('controller also sets Access-Control-Expose-Headers: X-Export-Manifest (cross-origin readable)', async () => {
+    const repo = makeRepoMock(MOCK_ENTRIES);
+    const ctrl = new RecordkeepingController(
+      makeService({ repo, authRepo: makeAuthRepoMock(MOCK_COMPLIANCE_USER) })
+    );
+    const res = makeMockRes();
+
+    await ctrl.export({ scope: 'audit', format: 'csv' }, makeReqWithSession(), res);
+
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Access-Control-Expose-Headers',
+      'X-Export-Manifest'
+    );
   });
 });

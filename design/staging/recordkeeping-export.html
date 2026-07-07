@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DealFlow AI | Export Records</title>
+
+  <!-- Inter for UI (DESIGN-SYSTEM §2: UI = Inter, ui-sans-serif, system-ui) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Lucide icons (DESIGN-SYSTEM §7: lucide ONLY, outline, 1.5px stroke) -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+  <style>
+    /* ── Design-system token reset ──────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* Neutral — zinc/grey scale */
+      --zinc-25:  #FCFCFD;
+      --zinc-50:  #F9FAFB;
+      --zinc-100: #F3F4F6;
+      --zinc-200: #E5E7EB;
+      --zinc-300: #D1D5DB;
+      --zinc-400: #9CA3AF;
+      --zinc-500: #6B7280;
+      --zinc-600: #4B5563;
+      --zinc-700: #374151;
+      --zinc-800: #1F2937;
+      --zinc-900: #111827;
+      --zinc-950: #030712;
+
+      /* Accent — emerald */
+      --emerald-50:  #ECFDF5;
+      --emerald-100: #D1FAE5;
+      --emerald-600: #10B981;
+      --emerald-700: #047857;
+
+      /* Status */
+      --status-warn:    #D97706;
+      --status-warn-bg: #FFFBEB;
+      --status-warn-border: #FDE68A;
+      --status-danger:    #DC2626;
+      --status-danger-bg: #FEF2F2;
+      --status-danger-border: #FECACA;
+
+      /* Semantic */
+      --bg-app:     var(--zinc-25);
+      --bg-surface: #FFFFFF;
+      --bg-muted:   var(--zinc-50);
+      --bg-sidebar: var(--zinc-900);
+      --border:     var(--zinc-200);
+      --border-strong: var(--zinc-300);
+      --text-primary: var(--zinc-800);
+      --text-body:    var(--zinc-700);
+      --text-muted:   var(--zinc-500);
+      --text-on-dark: var(--zinc-50);
+      --primary:      var(--emerald-600);
+      --primary-hover: var(--emerald-700);
+      --focus-ring:   rgba(16,185,129,0.40);
+
+      /* Shape */
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-pill: 9999px;
+
+      /* Elevation */
+      --shadow-xs: 0 1px 2px rgb(16 24 40 / 0.05);
+      --shadow-sm: 0 1px 3px rgb(16 24 40 / 0.08);
+
+      /* Motion */
+      --anim-speed: 0.6s;
+      --anim-ease:  cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* ── Base ────────────────────────────────────────────────────────────── */
+    html, body {
+      height: 100%;
+      background-color: var(--bg-app);
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 20px;
+      color: var(--text-body);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Scrollbar ───────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--zinc-300); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--zinc-400); }
+
+    /* ── Layout shell ────────────────────────────────────────────────────── */
+    .app-shell {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar — DESIGN-SYSTEM §10 ────────────────────────────────────── */
+    .sidebar {
+      width: 256px;
+      flex-shrink: 0;
+      background-color: var(--bg-sidebar);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 16px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .logo-mark {
+      width: 32px;
+      height: 32px;
+      background-color: var(--emerald-600);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: #fff;
+    }
+
+    .logo-text {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-on-dark);
+      letter-spacing: -0.01em;
+    }
+
+    .sidebar-section-label {
+      padding: 16px 16px 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--zinc-500);
+    }
+
+    .sidebar-nav {
+      padding: 0 8px;
+      flex: 1;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      color: var(--zinc-400);
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 150ms, color 150ms;
+      position: relative;
+      margin-bottom: 2px;
+      border: none;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-item:hover {
+      background-color: rgba(255,255,255,0.05);
+      color: var(--zinc-200);
+    }
+
+    .nav-item:focus-visible {
+      outline: 2px solid var(--emerald-600);
+      outline-offset: 2px;
+    }
+
+    .nav-item.active {
+      background-color: rgba(255,255,255,0.06);
+      color: #6EE7B7;
+    }
+
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 6px;
+      bottom: 6px;
+      width: 3px;
+      background-color: var(--emerald-600);
+      border-radius: 0 2px 2px 0;
+    }
+
+    .nav-item.active .nav-icon { color: #6EE7B7; }
+
+    .nav-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      stroke: currentColor;
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      background-color: var(--status-warn);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: var(--radius-pill);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .sidebar-footer {
+      padding: 12px 8px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .user-button {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background-color 150ms;
+      width: 100%;
+      border: none;
+      background: transparent;
+      text-align: left;
+    }
+
+    .user-button:hover { background-color: rgba(255,255,255,0.05); }
+    .user-button:focus-visible { outline: 2px solid var(--emerald-600); outline-offset: 2px; }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background-color: var(--zinc-700);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--zinc-200);
+      flex-shrink: 0;
+    }
+
+    .user-meta { min-width: 0; }
+    .user-name  { font-size: 13px; font-weight: 500; color: var(--zinc-200); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-role  { font-size: 11px; color: var(--zinc-500); }
+
+    /* ── Main content area ───────────────────────────────────────────────── */
+    .main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* ── Top bar — DESIGN-SYSTEM §10 ─────────────────────────────────────── */
+    .topbar {
+      height: 64px;
+      background-color: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .breadcrumb-sep { color: var(--zinc-300); }
+
+    .breadcrumb-current {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .topbar-icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background-color 150ms;
+    }
+
+    .topbar-icon-btn:hover { background-color: var(--zinc-100); }
+    .topbar-icon-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+    /* ── Page content scroll area ────────────────────────────────────────── */
+    .page-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px;
+    }
+
+    .page-content {
+      max-width: 720px;
+    }
+
+    /* ── Page header ─────────────────────────────────────────────────────── */
+    .page-header {
+      margin-bottom: 28px;
+    }
+
+    .page-title {
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 28px;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+      margin-bottom: 4px;
+    }
+
+    .page-subtitle {
+      font-size: 14px;
+      line-height: 20px;
+      color: var(--text-muted);
+    }
+
+    /* ── Card ────────────────────────────────────────────────────────────── */
+    .card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-xs);
+      overflow: hidden;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background-color: var(--bg-muted);
+    }
+
+    .card-header-icon {
+      color: var(--emerald-600);
+      width: 16px;
+      height: 16px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .card-body {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ── Form field ──────────────────────────────────────────────────────── */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--zinc-700);
+    }
+
+    .field-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 16px;
+    }
+
+    /* ── Segmented control (scope + format pickers) ──────────────────────── */
+    .segmented-control {
+      display: inline-flex;
+      background-color: var(--zinc-100);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .seg-btn {
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 150ms, color 150ms, box-shadow 150ms;
+      white-space: nowrap;
+      line-height: 20px;
+    }
+
+    .seg-btn:focus-visible {
+      outline: 2px solid var(--emerald-600);
+      outline-offset: 2px;
+    }
+
+    .seg-btn[aria-pressed="true"],
+    .seg-btn.selected {
+      background-color: var(--bg-surface);
+      color: var(--text-primary);
+      font-weight: 600;
+      box-shadow: var(--shadow-xs);
+    }
+
+    .seg-btn:hover:not([aria-pressed="true"]):not(.selected) {
+      color: var(--text-body);
+    }
+
+    /* ── Date range row ──────────────────────────────────────────────────── */
+    .date-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .input {
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--text-body);
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      transition: border-color 150ms, box-shadow 150ms;
+      width: 100%;
+      line-height: 20px;
+    }
+
+    .input:focus {
+      outline: none;
+      border-color: var(--emerald-600);
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+
+    .input:disabled {
+      background-color: var(--zinc-50);
+      color: var(--zinc-400);
+      cursor: not-allowed;
+    }
+
+    /* ── Bounds note ─────────────────────────────────────────────────────── */
+    .bounds-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 10px 12px;
+      background-color: var(--zinc-50);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 18px;
+    }
+
+    .bounds-note-icon {
+      flex-shrink: 0;
+      margin-top: 1px;
+      color: var(--zinc-400);
+      width: 14px;
+      height: 14px;
+    }
+
+    /* ── Primary CTA button ──────────────────────────────────────────────── */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      line-height: 20px;
+      color: #ffffff;
+      background-color: var(--primary);
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background-color 150ms, box-shadow 150ms;
+      width: 100%;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-primary:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+
+    .btn-primary:disabled,
+    .btn-primary[aria-disabled="true"] {
+      background-color: #6EE7B7;
+      cursor: not-allowed;
+      opacity: 0.85;
+    }
+
+    /* ── Spinner animation ───────────────────────────────────────────────── */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      animation: spin 0.9s linear infinite;
+      width: 16px;
+      height: 16px;
+    }
+
+    /* ── Result panel ────────────────────────────────────────────────────── */
+    .result-panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background-color: var(--bg-surface);
+    }
+
+    /* Success result ─────────────────────────────────────────────────────── */
+    .result-integrity-band {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 20px;
+      background-color: var(--emerald-50);
+      border-bottom: 1px solid var(--emerald-100);
+    }
+
+    .integrity-icon-wrap {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background-color: var(--emerald-100);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--emerald-700);
+    }
+
+    .integrity-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--emerald-700);
+    }
+
+    .integrity-sub {
+      font-size: 12px;
+      color: #059669;
+      margin-top: 1px;
+    }
+
+    .result-body {
+      padding: 16px 20px;
+    }
+
+    .result-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .result-meta-item {}
+
+    .result-meta-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .result-meta-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .result-meta-value.mono {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .download-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--emerald-700);
+      background-color: var(--emerald-50);
+      border: 1px solid var(--emerald-100);
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      transition: background-color 150ms, border-color 150ms;
+      cursor: pointer;
+    }
+
+    .download-link:hover {
+      background-color: var(--emerald-100);
+      border-color: #A7F3D0;
+    }
+
+    .download-link:focus-visible {
+      outline: 2px solid var(--emerald-600);
+      outline-offset: 2px;
+    }
+
+    /* Truncation warning ─────────────────────────────────────────────────── */
+    .truncation-warning {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 16px;
+      background-color: var(--status-warn-bg);
+      border: 1px solid var(--status-warn-border);
+      border-radius: var(--radius-sm);
+    }
+
+    .warn-icon-wrap {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background-color: #FEF3C7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--status-warn);
+      margin-top: 1px;
+    }
+
+    .warn-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #92400E;
+      margin-bottom: 2px;
+    }
+
+    .warn-body {
+      font-size: 12px;
+      color: #78350F;
+      line-height: 18px;
+    }
+
+    /* Error state ────────────────────────────────────────────────────────── */
+    .error-panel {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 16px;
+      background-color: var(--status-danger-bg);
+      border: 1px solid var(--status-danger-border);
+      border-radius: var(--radius-md);
+    }
+
+    .error-icon { color: var(--status-danger); flex-shrink: 0; }
+    .error-title { font-size: 13px; font-weight: 600; color: #991B1B; }
+    .error-body  { font-size: 12px; color: #B91C1C; margin-top: 2px; }
+
+    .btn-retry {
+      margin-top: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--status-danger);
+      background-color: var(--bg-surface);
+      border: 1px solid var(--status-danger-border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background-color 150ms;
+    }
+
+    .btn-retry:hover { background-color: var(--status-danger-bg); }
+    .btn-retry:focus-visible { outline: 2px solid var(--status-danger); outline-offset: 2px; }
+
+    /* Empty state ────────────────────────────────────────────────────────── */
+    .empty-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 36px 24px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      width: 40px;
+      height: 40px;
+      color: var(--zinc-300);
+      margin-bottom: 12px;
+    }
+
+    .empty-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .empty-body {
+      font-size: 13px;
+      color: var(--zinc-400);
+    }
+
+    /* ── State annotation labels (mockup scaffold) ─────────────────────── */
+    .state-annotation {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      border-radius: var(--radius-pill);
+      border: 1px dashed var(--zinc-300);
+      color: var(--zinc-500);
+      background-color: var(--zinc-50);
+      margin-bottom: 12px;
+    }
+
+    .section-divider {
+      margin: 32px 0;
+      border: none;
+      border-top: 1px dashed var(--zinc-200);
+      position: relative;
+    }
+
+    .section-divider-label {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: var(--bg-app);
+      padding: 0 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--zinc-400);
+    }
+
+    /* ── Generating skeleton ─────────────────────────────────────────────── */
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--zinc-100) 25%, var(--zinc-50) 50%, var(--zinc-100) 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.5s infinite linear;
+      border-radius: var(--radius-sm);
+    }
+
+    .generating-panel {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background-color: var(--bg-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .generating-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    /* ── Reduced motion ──────────────────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      .spinner, .skeleton { animation: none; }
+      *, *::before, *::after { transition-duration: 0ms !important; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="app-shell">
+
+  <!-- ── Sidebar ────────────────────────────────────────────────────────── -->
+  <nav class="sidebar" aria-label="Main navigation">
+
+    <div class="sidebar-logo">
+      <div class="logo-mark" aria-hidden="true">
+        <!-- lucide: network icon -->
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="16" y="16" width="6" height="6" rx="1"/>
+          <rect x="2" y="16" width="6" height="6" rx="1"/>
+          <rect x="9" y="2" width="6" height="6" rx="1"/>
+          <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/>
+          <path d="M12 12V8"/>
+        </svg>
+      </div>
+      <span class="logo-text">DealFlow AI</span>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="sidebar-section-label">Workspace</div>
+
+      <button class="nav-item" type="button">
+        <!-- lucide: layout-dashboard -->
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+        Dashboard
+      </button>
+
+      <button class="nav-item" type="button">
+        <!-- lucide: briefcase -->
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        Mandates
+      </button>
+
+      <button class="nav-item" type="button">
+        <!-- lucide: database -->
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+        Sourcing
+      </button>
+
+      <!-- Compliance: active (current section) -->
+      <button class="nav-item active" type="button" aria-current="page">
+        <!-- lucide: shield-check -->
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+        Compliance
+        <span class="nav-badge" aria-label="3 pending items">3</span>
+      </button>
+
+      <div class="sidebar-section-label" style="margin-top: 8px;">Config</div>
+
+      <button class="nav-item" type="button">
+        <!-- lucide: users -->
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Team
+      </button>
+
+      <button class="nav-item" type="button">
+        <!-- lucide: settings -->
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        Settings
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="user-button" type="button" aria-label="User menu: Sarah Chen, Compliance">
+        <div class="avatar" aria-hidden="true">SC</div>
+        <div class="user-meta">
+          <div class="user-name">Sarah Chen</div>
+          <div class="user-role">Compliance</div>
+        </div>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── Main area ──────────────────────────────────────────────────────── -->
+  <div class="main-area">
+
+    <!-- Top bar -->
+    <header class="topbar" role="banner">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span>Compliance</span>
+        <span class="breadcrumb-sep" aria-hidden="true">/</span>
+        <span class="breadcrumb-current">Export records</span>
+      </nav>
+      <div class="topbar-actions">
+        <button class="topbar-icon-btn" type="button" aria-label="Search">
+          <!-- lucide: search -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </button>
+        <button class="topbar-icon-btn" type="button" aria-label="Notifications">
+          <!-- lucide: bell -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Page scroll area -->
+    <main class="page-scroll" id="main-content">
+      <div class="page-content">
+
+        <!-- ── Page header ──────────────────────────────────────────────── -->
+        <div class="page-header">
+          <h1 class="page-title">Export records</h1>
+          <p class="page-subtitle">Download your firm's audit log and deal activity as a verifiable file.</p>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             STATE 1 — IDLE (the default form)
+             ════════════════════════════════════════════════════════════════ -->
+        <div class="state-annotation" aria-hidden="true">
+          <!-- lucide: circle-dot -->
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+          State: Idle (default)
+        </div>
+
+        <div class="card" role="region" aria-label="Export form">
+
+          <div class="card-header">
+            <!-- lucide: file-down (file + download) -->
+            <svg class="card-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
+            <span class="card-title">Configure export</span>
+          </div>
+
+          <div class="card-body">
+
+            <!-- Scope picker -->
+            <div class="field">
+              <div class="field-label" id="scope-label">Scope</div>
+              <div
+                class="segmented-control"
+                role="group"
+                aria-labelledby="scope-label"
+              >
+                <button
+                  class="seg-btn"
+                  type="button"
+                  role="radio"
+                  aria-checked="false"
+                  data-scope="audit"
+                  onclick="selectScope(this)"
+                >Audit log</button>
+                <button
+                  class="seg-btn"
+                  type="button"
+                  role="radio"
+                  aria-checked="false"
+                  data-scope="deal"
+                  onclick="selectScope(this)"
+                >Deal &amp; pipeline activity</button>
+                <button
+                  class="seg-btn selected"
+                  type="button"
+                  role="radio"
+                  aria-checked="true"
+                  data-scope="both"
+                  onclick="selectScope(this)"
+                >Both</button>
+              </div>
+            </div>
+
+            <!-- Format picker -->
+            <div class="field">
+              <div class="field-label" id="format-label">Format</div>
+              <div
+                class="segmented-control"
+                role="group"
+                aria-labelledby="format-label"
+              >
+                <button
+                  class="seg-btn selected"
+                  type="button"
+                  role="radio"
+                  aria-checked="true"
+                  data-fmt="csv"
+                  onclick="selectFormat(this)"
+                >CSV</button>
+                <button
+                  class="seg-btn"
+                  type="button"
+                  role="radio"
+                  aria-checked="false"
+                  data-fmt="json"
+                  onclick="selectFormat(this)"
+                >JSON</button>
+              </div>
+            </div>
+
+            <!-- Date range -->
+            <div class="field">
+              <div class="field-label">Date range <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--text-muted);">(optional)</span></div>
+              <div class="date-row">
+                <div>
+                  <label for="date-from" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">From</label>
+                  <input
+                    class="input"
+                    id="date-from"
+                    type="date"
+                    aria-label="Export start date"
+                    aria-describedby="date-hint"
+                  />
+                </div>
+                <div>
+                  <label for="date-to" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">To</label>
+                  <input
+                    class="input"
+                    id="date-to"
+                    type="date"
+                    aria-label="Export end date"
+                    aria-describedby="date-hint"
+                  />
+                </div>
+              </div>
+
+              <!-- Bounds note: visible, plain-language -->
+              <div class="bounds-note" id="date-hint" role="note">
+                <!-- lucide: info -->
+                <svg class="bounds-note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <span>If no range is set, the export covers the <strong>last 12 months</strong> by default. Very large date ranges may be capped at 50,000 rows — narrow the range and re-export if you see a truncation warning.</span>
+              </div>
+            </div>
+
+            <!-- Primary CTA — one per view, emerald -->
+            <button
+              class="btn-primary"
+              type="button"
+              id="export-btn"
+              aria-label="Export records"
+              onclick="simulateExport()"
+            >
+              <!-- lucide: download -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export
+            </button>
+
+          </div><!-- /card-body -->
+        </div><!-- /card -->
+
+        <!-- ── Section divider (mockup annotation only) ─────────────────── -->
+        <hr class="section-divider" aria-hidden="true">
+        <div style="position:relative;top:-32px;text-align:center;">
+          <span class="section-divider-label" aria-hidden="true">Result states below — shown stacked for design review</span>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             STATE 2 — GENERATING
+             ════════════════════════════════════════════════════════════════ -->
+        <div class="state-annotation" aria-hidden="true">
+          <!-- lucide: loader -->
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          State: Generating
+        </div>
+
+        <!-- Button (disabled/loading) -->
+        <div class="card" style="margin-bottom: 12px;">
+          <div class="card-header">
+            <svg class="card-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
+            <span class="card-title">Configure export</span>
+          </div>
+          <div class="card-body">
+            <!-- Scope -->
+            <div class="field">
+              <div class="field-label" id="scope-label-gen">Scope</div>
+              <div class="segmented-control" role="group" aria-labelledby="scope-label-gen">
+                <button class="seg-btn" type="button" role="radio" aria-checked="false" disabled>Audit log</button>
+                <button class="seg-btn" type="button" role="radio" aria-checked="false" disabled>Deal &amp; pipeline activity</button>
+                <button class="seg-btn selected" type="button" role="radio" aria-checked="true" disabled>Both</button>
+              </div>
+            </div>
+            <!-- Format -->
+            <div class="field">
+              <div class="field-label" id="format-label-gen">Format</div>
+              <div class="segmented-control" role="group" aria-labelledby="format-label-gen">
+                <button class="seg-btn selected" type="button" role="radio" aria-checked="true" disabled>CSV</button>
+                <button class="seg-btn" type="button" role="radio" aria-checked="false" disabled>JSON</button>
+              </div>
+            </div>
+            <!-- Date inputs disabled -->
+            <div class="field">
+              <div class="field-label">Date range</div>
+              <div class="date-row">
+                <div>
+                  <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">From</label>
+                  <input class="input" type="date" value="2025-01-01" disabled aria-label="Export start date (locked while generating)" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">To</label>
+                  <input class="input" type="date" value="2026-07-07" disabled aria-label="Export end date (locked while generating)" />
+                </div>
+              </div>
+            </div>
+            <!-- CTA in loading state -->
+            <button
+              class="btn-primary"
+              type="button"
+              disabled
+              aria-disabled="true"
+              aria-busy="true"
+              aria-label="Generating export, please wait"
+            >
+              <svg class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              Generating…
+            </button>
+          </div>
+        </div>
+
+        <!-- Generating result placeholder (skeleton) -->
+        <div class="result-panel" role="status" aria-label="Export is being generated, please wait" aria-live="polite">
+          <div class="generating-panel">
+            <svg class="spinner" style="color:var(--emerald-600);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            <span class="generating-label">Building your export&hellip;</span>
+          </div>
+          <div style="padding:16px 20px;display:flex;flex-direction:column;gap:10px;">
+            <div class="skeleton" style="height:14px;width:60%;border-radius:4px;"></div>
+            <div class="skeleton" style="height:14px;width:40%;border-radius:4px;"></div>
+            <div class="skeleton" style="height:32px;width:140px;border-radius:6px;margin-top:4px;"></div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             STATE 3 — SUCCESS WITH INTEGRITY VERIFIED
+             ════════════════════════════════════════════════════════════════ -->
+        <div class="state-annotation" style="margin-top:32px;" aria-hidden="true">
+          <!-- lucide: shield-check -->
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+          State: Success — integrity verified
+        </div>
+
+        <div
+          class="result-panel"
+          role="region"
+          aria-label="Export result"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <!-- Integrity band — the compliance differentiator -->
+          <div class="result-integrity-band">
+            <div class="integrity-icon-wrap" aria-hidden="true">
+              <!-- lucide: shield-check -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+            </div>
+            <div>
+              <!-- Icon + text — NOT color-only per DESIGN-SYSTEM a11y requirement -->
+              <div class="integrity-label">Integrity verified</div>
+              <div class="integrity-sub">HMAC-SHA256 hash chain intact across all exported entries</div>
+            </div>
+            <!-- Accessible status role for SR announcement -->
+            <span role="status" class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">
+              Export complete. Integrity verified. Hash chain intact.
+            </span>
+          </div>
+
+          <!-- Result metadata + download -->
+          <div class="result-body">
+            <div class="result-meta-grid">
+              <div class="result-meta-item">
+                <div class="result-meta-label">Rows exported</div>
+                <div class="result-meta-value mono">12,847</div>
+              </div>
+              <div class="result-meta-item">
+                <div class="result-meta-label">Applied range</div>
+                <div class="result-meta-value" style="font-size:13px;font-weight:500;">Jan 1 – Jul 7, 2026</div>
+              </div>
+              <div class="result-meta-item">
+                <div class="result-meta-label">Format</div>
+                <div class="result-meta-value" style="font-size:13px;font-weight:500;">CSV</div>
+              </div>
+            </div>
+
+            <a
+              class="download-link"
+              href="#"
+              role="link"
+              aria-label="Download export file: dealflow-export-2026-07-07.csv"
+              download="dealflow-export-2026-07-07.csv"
+            >
+              <!-- lucide: download -->
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              dealflow-export-2026-07-07.csv
+            </a>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             STATE 4 — SUCCESS BUT TRUNCATED (compliance-honesty signal)
+             ════════════════════════════════════════════════════════════════ -->
+        <div class="state-annotation" style="margin-top:32px;" aria-hidden="true">
+          <!-- lucide: alert-triangle -->
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          State: Success — truncated (partial export warning)
+        </div>
+
+        <div
+          class="result-panel"
+          role="region"
+          aria-label="Export result — truncated"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <!-- Integrity band — still verified even when truncated -->
+          <div class="result-integrity-band">
+            <div class="integrity-icon-wrap" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+            </div>
+            <div>
+              <div class="integrity-label">Integrity verified</div>
+              <div class="integrity-sub">HMAC-SHA256 hash chain intact across exported entries</div>
+            </div>
+          </div>
+
+          <!-- Result body + truncation warning -->
+          <div class="result-body">
+            <div class="result-meta-grid">
+              <div class="result-meta-item">
+                <div class="result-meta-label">Rows exported</div>
+                <div class="result-meta-value mono" style="color:var(--status-warn);">50,000</div>
+              </div>
+              <div class="result-meta-item">
+                <div class="result-meta-label">Total rows matched</div>
+                <div class="result-meta-value mono">183,492</div>
+              </div>
+              <div class="result-meta-item">
+                <div class="result-meta-label">Applied range</div>
+                <div class="result-meta-value" style="font-size:13px;font-weight:500;">Jan 1, 2023 – Jul 7, 2026</div>
+              </div>
+            </div>
+
+            <!-- Truncation warning — icon + text, NOT color-only; role="alert" for SR -->
+            <div class="truncation-warning" role="alert" aria-live="assertive">
+              <div class="warn-icon-wrap" aria-hidden="true">
+                <!-- lucide: alert-triangle -->
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              </div>
+              <div>
+                <div class="warn-title">Partial export — 50,000 of 183,492 rows included</div>
+                <div class="warn-body">This file does not contain your complete record set. Narrow the date range and re-export to retrieve all records. The integrity indicator above covers only the rows in this file.</div>
+              </div>
+            </div>
+
+            <div style="margin-top:14px;">
+              <a
+                class="download-link"
+                href="#"
+                role="link"
+                aria-label="Download partial export file: dealflow-export-2026-07-07-partial.csv"
+                download="dealflow-export-2026-07-07-partial.csv"
+              >
+                <!-- lucide: download -->
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                dealflow-export-2026-07-07-partial.csv
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             STATE 5 — EMPTY (0 rows in range)
+             ════════════════════════════════════════════════════════════════ -->
+        <div class="state-annotation" style="margin-top:32px;" aria-hidden="true">
+          <!-- lucide: inbox -->
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+          State: Empty (0 rows in range)
+        </div>
+
+        <div
+          class="result-panel"
+          role="region"
+          aria-label="Export result — no records"
+          aria-live="polite"
+        >
+          <div class="empty-panel">
+            <!-- lucide: file-text -->
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+            <div class="empty-title">No records in this range</div>
+            <div class="empty-body">No audit or deal activity was found for the selected date range. Try widening the range or selecting "Both" as the scope.</div>
+          </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             STATE 6 — ERROR
+             ════════════════════════════════════════════════════════════════ -->
+        <div class="state-annotation" style="margin-top:32px;" aria-hidden="true">
+          <!-- lucide: x-circle -->
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+          State: Error
+        </div>
+
+        <div class="error-panel" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="error-icon">
+            <!-- lucide: alert-triangle -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          </div>
+          <div>
+            <div class="error-title">Export failed</div>
+            <div class="error-body">The server could not generate the export (500 Internal Server Error). Your records were not modified. Please try again or contact support if the issue persists.</div>
+            <button class="btn-retry" type="button" aria-label="Retry export">
+              <!-- lucide: refresh-cw -->
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+              Retry export
+            </button>
+          </div>
+        </div>
+
+        <!-- Bottom padding -->
+        <div style="height:48px;"></div>
+
+      </div><!-- /page-content -->
+    </main>
+  </div><!-- /main-area -->
+</div><!-- /app-shell -->
+
+<script>
+  /* ── Lucide icon hydration ─────────────────────────────────────────────── */
+  if (window.lucide) { lucide.createIcons(); }
+
+  /* ── Segmented control: scope ──────────────────────────────────────────── */
+  function selectScope(btn) {
+    var group = btn.closest('.segmented-control');
+    group.querySelectorAll('.seg-btn').forEach(function(b) {
+      b.classList.remove('selected');
+      b.setAttribute('aria-checked', 'false');
+    });
+    btn.classList.add('selected');
+    btn.setAttribute('aria-checked', 'true');
+  }
+
+  /* ── Segmented control: format ─────────────────────────────────────────── */
+  function selectFormat(btn) {
+    var group = btn.closest('.segmented-control');
+    group.querySelectorAll('.seg-btn').forEach(function(b) {
+      b.classList.remove('selected');
+      b.setAttribute('aria-checked', 'false');
+    });
+    btn.classList.add('selected');
+    btn.setAttribute('aria-checked', 'true');
+  }
+
+  /* ── Keyboard nav for segmented controls (arrow keys) ─────────────────── */
+  document.querySelectorAll('.segmented-control').forEach(function(group) {
+    group.addEventListener('keydown', function(e) {
+      var btns = Array.from(group.querySelectorAll('.seg-btn:not(:disabled)'));
+      var idx  = btns.indexOf(document.activeElement);
+      if (idx === -1) return;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        btns[(idx + 1) % btns.length].focus();
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        btns[(idx - 1 + btns.length) % btns.length].focus();
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        document.activeElement.click();
+      }
+    });
+  });
+
+  /* ── Simulate export (demo only — scrolls to success state) ────────────── */
+  function simulateExport() {
+    var btn = document.getElementById('export-btn');
+    btn.disabled = true;
+    btn.setAttribute('aria-disabled', 'true');
+    btn.setAttribute('aria-busy', 'true');
+    btn.setAttribute('aria-label', 'Generating export, please wait');
+    btn.innerHTML = '<svg class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Generating…';
+    setTimeout(function() {
+      btn.disabled = false;
+      btn.removeAttribute('aria-disabled');
+      btn.removeAttribute('aria-busy');
+      btn.setAttribute('aria-label', 'Export records');
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export';
+      /* Scroll to the success state for demo */
+      document.querySelector('[aria-label="Export result"]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 2200);
+  }
+</script>
+
+</body>
+</html>
