@@ -1,0 +1,7 @@
+# Wave 28 — B-0/B-1/B-2 (retention policy backend)
+Commit a63c96b. All obligations honored:
+- B-0 migration 0020_retention_policy: explicit ENABLE+FORCE RLS + workspace_isolation USING-only policy (NULLIF(current_setting(app.workspace_id,true),) shape → PG auto-WITH-CHECK) + SEC-B GRANT to dealflow_app + UNIQUE(workspace_id) [SEC-A conflict-target] + journaled (idx 20 + 0020_snapshot.json). retention_period_days default 2555 (~7yr). NO deletion path/DOWN.
+- B-1 retention.ts (.strict, bounds 30..10950); setRetentionPolicySchema no workspace_id; SEC-C retention.policy.updated added to auditActionEnum; RBAC /compliance/retention = [compliance,admin].
+- B-2 retention-policy module (repo/service/controller/module, registered): SEC-A getWorkspaceId() server-resolved upsert ON CONFLICT(workspace_id), workspace_id never from client; SEC-C appendStandalone(retention.policy.updated, old→new) only when changed (WORM-preserving HMAC append); RBAC boot-fail-closed (rolesForRoute throw-on-empty); NO deletion path.
+- Tests: RET-ISO-1/2 (isolation as dealflow_app NOT postgres + foreign-workspace_id-write REJECTED by RLS WITH-CHECK), RET-WORM-1/2 (verifyChain ok:true after config change + audit-count-never-decreases), RET-RBAC, RET-BOUNDS, RET-AUDIT-ENUM. 12 unit pass + 8 DB-gated skip; api 991 + shared 509 pass; typecheck+lint clean. Deviations: none.
+new_files: 0020_retention_policy.sql, schema/retention-policy.ts, packages/shared/src/retention.ts, retention-policy/*, retention-policy-isolation.e2e-spec.ts
