@@ -28,7 +28,12 @@
  *   - RBAC for /seller-intent: same gate as /insights (advisor+admin; page-level redirect).
  */
 
-import type { AnalyticsSummary, CalibrationSummary, Role, SellerIntentListResponse } from '@dealflow/shared';
+import type {
+  AnalyticsSummary,
+  CalibrationSummary,
+  Role,
+  SellerIntentListResponse,
+} from '@dealflow/shared';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -792,9 +797,7 @@ describe('InsightsPage (/insights)', () => {
       it('renders the seller intent per-mandate table', async () => {
         vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
         await renderPage();
-        expect(
-          screen.getByRole('table', { name: /seller intent per mandate/i })
-        ).toBeDefined();
+        expect(screen.getByRole('table', { name: /seller intent per mandate/i })).toBeDefined();
       });
 
       it('renders "Intent score" column header', async () => {

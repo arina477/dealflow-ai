@@ -49,19 +49,19 @@
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { sellerIntentBreakdownSchema, rolesForRoute } from '@dealflow/shared';
+import { rolesForRoute, sellerIntentBreakdownSchema } from '@dealflow/shared';
 import { describe, expect, it } from 'vitest';
-import {
-  DIRECTION_EPSILON,
-  WINDOW_DAYS,
-  MS_PER_DAY,
-  scoreMandateIntent,
-} from './seller-intent.scorer';
 import type {
   MatchCandidateScorerInput,
   OutreachActivityScorerInput,
   PipelineEventScorerInput,
   SellerIntentScorerInput,
+} from './seller-intent.scorer';
+import {
+  DIRECTION_EPSILON,
+  MS_PER_DAY,
+  scoreMandateIntent,
+  WINDOW_DAYS,
 } from './seller-intent.scorer';
 
 // ---------------------------------------------------------------------------
@@ -71,8 +71,8 @@ import type {
 
 const REF = '2024-06-15T12:00:00.000Z'; // fixed referenceInstant
 const REF_MS = Date.parse(REF);
-const RECENT_START = REF_MS - WINDOW_DAYS * MS_PER_DAY;      // 2024-05-16
-const PRIOR_START = REF_MS - 2 * WINDOW_DAYS * MS_PER_DAY;  // 2024-04-16
+const RECENT_START = REF_MS - WINDOW_DAYS * MS_PER_DAY; // 2024-05-16
+const PRIOR_START = REF_MS - 2 * WINDOW_DAYS * MS_PER_DAY; // 2024-04-16
 
 // 10 days before REF (within recent window)
 const TS_RECENT = new Date(REF_MS - 10 * MS_PER_DAY).toISOString();
@@ -185,14 +185,12 @@ describe('B. NO Date.now() / NO Math.random() in scorer source', () => {
     // we only care that the executable code path has no Date.now() call.
     const codeOnly = scorerSource
       .replace(/\/\*[\s\S]*?\*\//g, '') // block comments (includes /** … */ JSDoc)
-      .replace(/\/\/.*/g, '');           // line comments
+      .replace(/\/\/.*/g, ''); // line comments
     expect(codeOnly).not.toMatch(/Date\.now\s*\(/);
   });
 
   it('scorer source does NOT call Math.random()', () => {
-    const codeOnly = scorerSource
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/\/\/.*/g, '');
+    const codeOnly = scorerSource.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
     expect(codeOnly).not.toMatch(/Math\.random\s*\(/);
   });
 });
@@ -203,11 +201,13 @@ describe('B. NO Date.now() / NO Math.random() in scorer source', () => {
 
 describe('C. [SI1] NO tieBreak anywhere', () => {
   it('scoreMandateIntent output breakdown has no tieBreak field', () => {
-    const out = scoreMandateIntent(baseInput({
-      outreachActivities: [makeActivity()],
-      pipelineEvents: [makePipelineEvent()],
-      matchCandidates: [makeCandidate()],
-    }));
+    const out = scoreMandateIntent(
+      baseInput({
+        outreachActivities: [makeActivity()],
+        pipelineEvents: [makePipelineEvent()],
+        matchCandidates: [makeCandidate()],
+      })
+    );
     expect('tieBreak' in out.breakdown).toBe(false);
     expect(out.breakdown).not.toHaveProperty('tieBreak');
   });
@@ -227,9 +227,13 @@ describe('C. [SI1] NO tieBreak anywhere', () => {
   it('breakdown keys match the exact SI1 shape (no extra fields in scorer output)', () => {
     const out = scoreMandateIntent(baseInput());
     const keys = Object.keys(out.breakdown).sort();
-    expect(keys).toEqual(
-      ['matchDisposition', 'notApplied', 'outreachEngagement', 'pipelineVelocity', 'total']
-    );
+    expect(keys).toEqual([
+      'matchDisposition',
+      'notApplied',
+      'outreachEngagement',
+      'pipelineVelocity',
+      'total',
+    ]);
   });
 });
 
@@ -281,7 +285,11 @@ describe('D. [SI2] direction and epsilon boundary', () => {
     //   prior:  1 stage_changed to 'shortlisted' (depth=0) → stageScore=0, velocityScore=3 → 3
     //   delta = 8 - 3 = 5 === DIRECTION_EPSILON → 'flat'
     const recentEvt = makePipelineEvent({ toStage: 'contacted', createdAt: TS_RECENT });
-    const priorEvt = makePipelineEvent({ toStage: 'shortlisted', fromStage: null, createdAt: TS_PRIOR });
+    const priorEvt = makePipelineEvent({
+      toStage: 'shortlisted',
+      fromStage: null,
+      createdAt: TS_PRIOR,
+    });
     const out = scoreMandateIntent(baseInput({ pipelineEvents: [recentEvt, priorEvt] }));
     // delta = 8 - 3 = 5 = DIRECTION_EPSILON exactly → 'flat' (not strictly >)
     expect(out.direction).toBe('flat');
@@ -332,7 +340,7 @@ describe('D. [SI2] direction and epsilon boundary', () => {
     const delta_at_epsilon = DIRECTION_EPSILON;
     const delta_above_epsilon = DIRECTION_EPSILON + 1;
     expect(delta_at_epsilon > DIRECTION_EPSILON).toBe(false); // boundary: flat
-    expect(delta_above_epsilon > DIRECTION_EPSILON).toBe(true);  // just above: heating
+    expect(delta_above_epsilon > DIRECTION_EPSILON).toBe(true); // just above: heating
   });
 });
 
@@ -371,9 +379,11 @@ describe('E. [SI3] empty-data boundary (0 events)', () => {
 
 describe('F. [SI3] single-event boundary', () => {
   it('1 completed activity → outreachEngagement > 0, others in notApplied, direction defined', () => {
-    const out = scoreMandateIntent(baseInput({
-      outreachActivities: [makeActivity({ completedAt: TS_RECENT })],
-    }));
+    const out = scoreMandateIntent(
+      baseInput({
+        outreachActivities: [makeActivity({ completedAt: TS_RECENT })],
+      })
+    );
     expect(out.breakdown.outreachEngagement).toBeGreaterThan(0);
     expect(out.breakdown.pipelineVelocity).toBe(0);
     expect(out.breakdown.matchDisposition).toBe(0);
@@ -387,7 +397,11 @@ describe('F. [SI3] single-event boundary', () => {
   });
 
   it('1 pipeline event (enrolled) → pipelineVelocity defined, no crash', () => {
-    const enrolledEvt = makePipelineEvent({ eventType: 'enrolled', toStage: null, fromStage: null });
+    const enrolledEvt = makePipelineEvent({
+      eventType: 'enrolled',
+      toStage: null,
+      fromStage: null,
+    });
     const out = scoreMandateIntent(baseInput({ pipelineEvents: [enrolledEvt] }));
     // 'enrolled' is not a 'stage_changed' event → stageScore=0, velocityScore=0 → pipelineVelocity=0
     expect(out.breakdown.pipelineVelocity).toBe(0);
@@ -399,17 +413,21 @@ describe('F. [SI3] single-event boundary', () => {
   });
 
   it('1 match candidate (pending) → matchDisposition = 0 (no positive), no crash', () => {
-    const out = scoreMandateIntent(baseInput({
-      matchCandidates: [makeCandidate({ disposition: 'pending', createdAt: TS_RECENT })],
-    }));
+    const out = scoreMandateIntent(
+      baseInput({
+        matchCandidates: [makeCandidate({ disposition: 'pending', createdAt: TS_RECENT })],
+      })
+    );
     expect(out.breakdown.matchDisposition).toBe(0);
     expect(out.breakdown.notApplied).not.toContain(
       'matchDisposition: not applied — no match candidate data'
     );
     expect(() =>
-      scoreMandateIntent(baseInput({
-        matchCandidates: [makeCandidate({ disposition: 'pending' })],
-      }))
+      scoreMandateIntent(
+        baseInput({
+          matchCandidates: [makeCandidate({ disposition: 'pending' })],
+        })
+      )
     ).not.toThrow();
   });
 });
@@ -439,9 +457,7 @@ describe('G. Signal weights and boundary values', () => {
 
   it('completionScore capped at 25 for 5+ completed activities', () => {
     // 6 completed, 1 channel → base=30 → capped at 25; channelScore=3; recency=3 → 31, but max 40 → 31
-    const acts = Array.from({ length: 6 }, () =>
-      makeActivity({ completedAt: TS_RECENT })
-    );
+    const acts = Array.from({ length: 6 }, () => makeActivity({ completedAt: TS_RECENT }));
     const out = scoreMandateIntent(baseInput({ outreachActivities: acts }));
     // base=25 (capped), channel=3 (1 unique=email), recency=3 → 31
     expect(out.breakdown.outreachEngagement).toBe(31);
@@ -507,11 +523,13 @@ describe('G. Signal weights and boundary values', () => {
       makeCandidate({ disposition: 'accepted' }),
       makeCandidate({ disposition: 'accepted' }),
     ];
-    const out = scoreMandateIntent(baseInput({
-      outreachActivities: acts,
-      pipelineEvents: evts,
-      matchCandidates: cands,
-    }));
+    const out = scoreMandateIntent(
+      baseInput({
+        outreachActivities: acts,
+        pipelineEvents: evts,
+        matchCandidates: cands,
+      })
+    );
     expect(out.score).toBe(100);
     expect(out.breakdown.total).toBe(100);
     expect(out.breakdown.outreachEngagement).toBe(40);

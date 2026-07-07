@@ -135,10 +135,7 @@ export class SellerIntentRepository {
       })
       .from(outreachActivity)
       .where(
-        and(
-          isNotNull(outreachActivity.mandateId),
-          inArray(outreachActivity.mandateId, mandateIds)
-        )
+        and(isNotNull(outreachActivity.mandateId), inArray(outreachActivity.mandateId, mandateIds))
       )
       .then((rows) =>
         rows.map((r) => ({

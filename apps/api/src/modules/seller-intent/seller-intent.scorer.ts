@@ -405,9 +405,17 @@ export function scoreMandateIntent(input: SellerIntentScorerInput): SellerIntent
   const recentCands = filterCandidatesByWindow(matchCandidates, recentWindowStartMs, refMs);
   const recentWindowScore = computeWindowScore(recentActs, recentEvts, recentCands);
 
-  const priorActs = filterActivitiesByWindow(outreachActivities, priorWindowStartMs, priorWindowEndMs);
+  const priorActs = filterActivitiesByWindow(
+    outreachActivities,
+    priorWindowStartMs,
+    priorWindowEndMs
+  );
   const priorEvts = filterEventsByWindow(pipelineEvents, priorWindowStartMs, priorWindowEndMs);
-  const priorCands = filterCandidatesByWindow(matchCandidates, priorWindowStartMs, priorWindowEndMs);
+  const priorCands = filterCandidatesByWindow(
+    matchCandidates,
+    priorWindowStartMs,
+    priorWindowEndMs
+  );
   const priorWindowScore = computeWindowScore(priorActs, priorEvts, priorCands);
 
   const delta = recentWindowScore - priorWindowScore;

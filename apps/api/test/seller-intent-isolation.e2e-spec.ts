@@ -176,10 +176,9 @@ async function seedUser(
   });
   // Read back the actual id (idempotent — ON CONFLICT may preserve a prior row).
   const res = await withSuperuserGuc(workspaceId, async (client) =>
-    client.query<{ id: string }>(
-      'SELECT id FROM users WHERE supertokens_user_id = $1 LIMIT 1',
-      [supertokensUserId]
-    )
+    client.query<{ id: string }>('SELECT id FROM users WHERE supertokens_user_id = $1 LIMIT 1', [
+      supertokensUserId,
+    ])
   );
   const id = res.rows[0]?.id;
   if (!id) throw new Error(`seedUser: no row for stUserId=${supertokensUserId}`);

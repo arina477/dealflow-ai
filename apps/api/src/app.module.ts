@@ -15,8 +15,8 @@ import { MatchingModule } from './modules/matching/matching.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
 import { OutreachActivityModule } from './modules/outreach-activity/outreach-activity.module';
 import { PipelineModule } from './modules/pipeline/pipeline.module';
-import { SellerIntentModule } from './modules/seller-intent/seller-intent.module';
 import { RecordkeepingModule } from './modules/recordkeeping/recordkeeping.module';
+import { SellerIntentModule } from './modules/seller-intent/seller-intent.module';
 import { SourcingModule } from './modules/sourcing/sourcing.module';
 
 @Module({
