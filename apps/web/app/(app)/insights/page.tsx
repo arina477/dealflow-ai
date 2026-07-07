@@ -10,6 +10,11 @@
  * no-store). The non-colliding /match-feedback proxy (next.config.ts afterFiles)
  * is used for any client-side re-fetch.
  *
+ * Wave-23 addition (task 6840c25d): Seller intent section.
+ * SSR-fetches GET /seller-intent (same pattern: apiBase(), cookie-forwarded,
+ * no-store). The non-colliding /seller-intent proxy (next.config.ts afterFiles)
+ * is used for any client-side re-fetch.
+ *
  * RBAC: advisor + admin. assertRole('/insights', me.role).
  * Non-permitted roles (analyst, compliance, anon) → redirect('/') or '/login'.
  *
@@ -27,6 +32,13 @@
  *        G2: acceptRate null → "n/a" (0 decided); acceptRate 0 (number) → "0%".
  *        Small-sample: decidedCount < LOW_SAMPLE_THRESHOLD → rate shown as "X% (low sample)".
  *        Empty state when totalDecided=0.
+ *   SI — Seller intent (wave-23, task 6840c25d):
+ *        Per-mandate: score (0-100), direction (heating/cooling/flat), 3-signal breakdown.
+ *        direction color: heating=emerald-600, cooling=amber-600, flat=zinc-500.
+ *        Sorted by score descending (hottest mandates first).
+ *        SI1: NO tieBreak shown — API does not return it, never surfaced.
+ *        notApplied: signal with zero data → renders "—" (not "0" or NaN/undefined).
+ *        Empty state when list is empty.
  *
  * Empty state: graceful "No analytics data yet" when the firm has no rows.
  * Loading: N/A (SSR); error: graceful error banner (no white screen).
@@ -36,15 +48,24 @@
  *
  * @see packages/shared/src/analytics.ts      (AnalyticsSummary shape)
  * @see packages/shared/src/match-feedback.ts (CalibrationSummary shape)
+ * @see packages/shared/src/seller-intent.ts  (SellerIntentListResponse shape)
  * @see packages/shared/src/rbac.ts           (NAV_INSIGHTS + /insights route entry)
- * @see apps/web/next.config.ts               (/analytics + /match-feedback afterFiles rewrites)
+ * @see apps/web/next.config.ts               (/analytics + /match-feedback + /seller-intent afterFiles rewrites)
  */
 
-import type { AnalyticsSummary, CalibrationSummary, MeResponse, Role } from '@dealflow/shared';
+import type {
+  AnalyticsSummary,
+  CalibrationSummary,
+  MeResponse,
+  Role,
+  SellerIntentDirection,
+  SellerIntentListResponse,
+} from '@dealflow/shared';
 import {
   analyticsSummarySchema,
   calibrationSummarySchema,
   meResponseSchema,
+  sellerIntentListResponseSchema,
 } from '@dealflow/shared';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -137,25 +158,33 @@ async function fetchCalibration(cookie: string): Promise<CalibrationSummary | nu
 }
 
 // ---------------------------------------------------------------------------
+// Seller-intent fetch — GET /seller-intent (SSR, cookie-forwarded)
+//
+// Wave-23 (task 6840c25d). Returns null on any failure.
+// The seller-intent section renders a graceful error state when null is received.
+// ---------------------------------------------------------------------------
+
+async function fetchSellerIntent(cookie: string): Promise<SellerIntentListResponse | null> {
+  try {
+    const res = await fetch(`${apiBase()}/seller-intent`, {
+      headers: { cookie },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const raw: unknown = await res.json();
+    const parsed = sellerIntentListResponseSchema.safeParse(raw);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Design-system helpers
 // ---------------------------------------------------------------------------
 
 /** Format a rate (0–1 or null) as a percentage string. null → "n/a" */
 function fmtRate(rate: number | null): string {
-  if (rate === null) return 'n/a';
-  return `${(rate * 100).toFixed(1)}%`;
-}
-
-/**
- * G2: Honest accept-rate formatting (load-bearing — CODE-OF-CONDUCT §metric).
- *
- *   null   → "n/a"  (0 decided in cohort; measurement gap, NOT a 0% outcome)
- *   0      → "0%"   (decided > 0 but 0 accepted; real 0% outcome)
- *   number → "X.X%" (real rate)
- *
- * MUST NOT conflate null and 0 — rendering null as "0%" is a misleading metric.
- */
-function fmtAcceptRate(rate: number | null): string {
   if (rate === null) return 'n/a';
   return `${(rate * 100).toFixed(1)}%`;
 }
@@ -285,6 +314,55 @@ const TD_STYLE: React.CSSProperties = {
 };
 
 // ---------------------------------------------------------------------------
+// Seller-intent helpers (wave-23, task 6840c25d)
+// ---------------------------------------------------------------------------
+
+/**
+ * Direction indicator chip — color-coded per the design system:
+ *   heating → emerald-600 (#10b981) + ↑
+ *   cooling → amber-600  (#d97706) + ↓
+ *   flat    → zinc-500   (#6b7280) + —
+ *
+ * SI1 invariant: tieBreak is NEVER a direction; direction is one of the
+ * three real values above, always present (never null/undefined).
+ */
+function directionChip(direction: SellerIntentDirection): React.ReactElement {
+  switch (direction) {
+    case 'heating':
+      return (
+        <span role="img" style={{ color: '#10b981', fontWeight: 600 }} aria-label="Heating">
+          ↑ Heating
+        </span>
+      );
+    case 'cooling':
+      return (
+        <span role="img" style={{ color: '#d97706', fontWeight: 600 }} aria-label="Cooling">
+          ↓ Cooling
+        </span>
+      );
+    case 'flat':
+      return (
+        <span role="img" style={{ color: '#6b7280', fontWeight: 600 }} aria-label="Flat">
+          — Flat
+        </span>
+      );
+  }
+}
+
+/**
+ * Returns true when a signal key (e.g. 'outreachEngagement') appears in the
+ * notApplied array. Each notApplied entry is a description string that starts
+ * with the signal key, e.g. 'outreachEngagement: not applied — no data'.
+ *
+ * When a signal is not applied its numeric score is 0 — but "0" (zero engagement)
+ * and "—" (no engagement data at all) are different facts. Render "—" for
+ * notApplied signals to avoid conflating absence-of-data with zero-activity.
+ */
+function isSignalNotApplied(notApplied: string[], signalKey: string): boolean {
+  return notApplied.some((s) => s.startsWith(signalKey));
+}
+
+// ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 
@@ -298,8 +376,12 @@ export default async function InsightsPage() {
   // 2. Assert advisor + admin only — other roles → redirect('/').
   assertRole('/insights', me.role as Role);
 
-  // 3. SSR-fetch analytics summary + calibration (parallel — independent fetches).
-  const [data, calibration] = await Promise.all([fetchAnalytics(cookie), fetchCalibration(cookie)]);
+  // 3. SSR-fetch analytics summary + calibration + seller-intent (parallel — independent fetches).
+  const [data, calibration, sellerIntent] = await Promise.all([
+    fetchAnalytics(cookie),
+    fetchCalibration(cookie),
+    fetchSellerIntent(cookie),
+  ]);
 
   // ── Error / unavailable state ──────────────────────────────────────────────
   if (!data) {
@@ -374,6 +456,7 @@ export default async function InsightsPage() {
           </p>
         </div>
         <CalibrationSection calibration={calibration} />
+        <SellerIntentSection sellerIntent={sellerIntent} />
       </div>
     );
   }
@@ -557,7 +640,159 @@ export default async function InsightsPage() {
 
       {/* ── C: Match Score Calibration (wave-19, task 077974a2) ───────── */}
       <CalibrationSection calibration={calibration} />
+
+      {/* ── SI: Seller Intent (wave-23, task 6840c25d) ────────────────── */}
+      <SellerIntentSection sellerIntent={sellerIntent} />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Seller-intent section sub-component (wave-23, task 6840c25d)
+//
+// Per-mandate: score (0-100), direction (heating/cooling/flat) + 3-signal breakdown
+// (outreachEngagement/pipelineVelocity/matchDisposition). NO tieBreak (SI1).
+// Sorted by score descending (hottest mandates first).
+//
+// notApplied signals: a signal present in the notApplied array had zero source
+// data — render "—" (absence of data) NOT "0" (zero-activity). See isSignalNotApplied.
+//
+// direction: always one of 'heating' | 'cooling' | 'flat' — never null/undefined.
+// ---------------------------------------------------------------------------
+
+interface SellerIntentSectionProps {
+  sellerIntent: SellerIntentListResponse | null;
+}
+
+function SellerIntentSection({ sellerIntent }: SellerIntentSectionProps) {
+  // Error state: API failed or schema mismatch.
+  if (sellerIntent === null) {
+    return (
+      <section aria-label="Seller intent" style={CARD_STYLE}>
+        <h2 style={CARD_TITLE_STYLE}>Seller Intent</h2>
+        <div
+          role="alert"
+          style={{
+            backgroundColor: '#fef2f2', // red-50
+            border: '1px solid #fecaca', // red-200
+            borderRadius: '8px',
+            padding: '12px 16px',
+            fontSize: '13px',
+            color: '#dc2626',
+          }}
+        >
+          Unable to load seller-intent data. Please try refreshing the page.
+        </div>
+      </section>
+    );
+  }
+
+  // Sort by score descending — hottest mandates first (actionable "which deals are hot" view).
+  const sorted = [...sellerIntent].sort((a, b) => b.score - a.score);
+
+  // Empty state: workspace has no scored mandates yet.
+  if (sorted.length === 0) {
+    return (
+      <section aria-label="Seller intent" style={CARD_STYLE}>
+        <h2 style={CARD_TITLE_STYLE}>Seller Intent</h2>
+        <p
+          style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}
+          data-testid="seller-intent-empty"
+        >
+          No seller-intent signals yet. Signals will appear once your firm has scored mandates.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label="Seller intent" style={CARD_STYLE}>
+      <h2 style={CARD_TITLE_STYLE}>Seller Intent</h2>
+      {/* Signals: outreachEngagement / pipelineVelocity / matchDisposition only.
+          SI1: tieBreak is NEVER surfaced — not in the API response, not rendered. */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={TABLE_STYLE} aria-label="Seller intent per mandate">
+          <thead>
+            <tr>
+              <th style={TH_STYLE}>Mandate</th>
+              <th style={{ ...TH_STYLE, textAlign: 'right' }}>Intent score</th>
+              <th style={TH_STYLE}>Direction</th>
+              <th style={{ ...TH_STYLE, textAlign: 'right' }}>Outreach Eng.</th>
+              <th style={{ ...TH_STYLE, textAlign: 'right' }}>Pipeline Vel.</th>
+              <th style={{ ...TH_STYLE, textAlign: 'right' }}>Match Disp.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((item) => {
+              const { breakdown } = item;
+              const oeNA = isSignalNotApplied(breakdown.notApplied, 'outreachEngagement');
+              const pvNA = isSignalNotApplied(breakdown.notApplied, 'pipelineVelocity');
+              const mdNA = isSignalNotApplied(breakdown.notApplied, 'matchDisposition');
+              return (
+                <tr key={item.mandateId}>
+                  <td style={TD_STYLE}>
+                    <span
+                      style={{
+                        fontFamily: 'ui-monospace, monospace',
+                        fontSize: '12px',
+                        color: '#6b7280',
+                      }}
+                    >
+                      {item.mandateId.slice(0, 8)}&hellip;
+                    </span>
+                  </td>
+                  <td
+                    style={{
+                      ...TD_STYLE,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      fontWeight: 700,
+                      color: '#111827',
+                    }}
+                    data-testid="si-score"
+                  >
+                    {item.score}
+                  </td>
+                  <td style={TD_STYLE} data-testid="si-direction">
+                    {directionChip(item.direction)}
+                  </td>
+                  <td
+                    style={{
+                      ...TD_STYLE,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      color: oeNA ? '#9ca3af' : '#374151',
+                    }}
+                  >
+                    {oeNA ? '—' : breakdown.outreachEngagement}
+                  </td>
+                  <td
+                    style={{
+                      ...TD_STYLE,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      color: pvNA ? '#9ca3af' : '#374151',
+                    }}
+                  >
+                    {pvNA ? '—' : breakdown.pipelineVelocity}
+                  </td>
+                  <td
+                    style={{
+                      ...TD_STYLE,
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      color: mdNA ? '#9ca3af' : '#374151',
+                    }}
+                  >
+                    {mdNA ? '—' : breakdown.matchDisposition}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

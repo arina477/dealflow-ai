@@ -695,6 +695,16 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     pattern: '/match-feedback',
     allowedRoles: ['advisor', 'admin'],
   },
+
+  // Wave-23 (task 12947422): Seller-intent scoring API.
+  // advisor + admin: workspace-scoped seller-intent scoring (FORCE RLS; no cross-firm leak).
+  // Read-only; GET /seller-intent returns the SellerIntentListResponse shape.
+  // analyst excluded (advisory scoring surface, same RBAC pattern as /analytics and /match-feedback).
+  // No navItem — API-only endpoint; displayed as a section on /insights page (B-3).
+  {
+    pattern: '/seller-intent',
+    allowedRoles: ['advisor', 'admin'],
+  },
 ];
 
 // ---------------------------------------------------------------------------
