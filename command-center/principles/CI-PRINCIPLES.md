@@ -132,3 +132,5 @@ pr_conventions:
 
 1. Verify deployed commit via the deployment's commitHash field, not the app self-reported /health version.
    Why: The /health version reads a static env var that can lag the actual deployed commit.
+2. Before trusting green CI, confirm a workflow run executed on the exact pushed headSha, not that the push landed.
+   Why: An empty commit or [skip ci] message yields no run; the push returns 200 but nothing runs.

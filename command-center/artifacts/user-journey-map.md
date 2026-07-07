@@ -191,3 +191,9 @@ Verified: C-2 LIVE — verifyChain {ok:true, entriesChecked:310} after the addit
 | /admin/activity | read-only recent-admin-actions view | GET /admin/activity-data | reads immutable audit log; writes 0 rows; no hash/credential in response; advisor 403/anon 401 |
 | /admin/users (reactivate) | reverse a soft-deactivation | POST /admin/users/:id/reactivate | admin-only; audited (user-reactivate); UUID-validated; preserves role_id |
 Admin nav section links /admin/{users,settings,integrations,activity} (server-gated). Mandate-create inherits firm compliance defaults (cascade). Data-source config typed-boundary rejects secret-shaped values (400 no-echo).
+
+## Advisor insights / analytics (M9 wave-18, LIVE @5c86cf5) — role:advisor + admin
+| Route | Purpose | Endpoints | Scope |
+|---|---|---|---|
+| /insights | read-only advisor analytics dashboard (metric cards: mandate throughput, outreach compliance-gate outcomes, advisor productivity, match disposition) | GET /analytics (via /analytics proxy) | workspace-scoped (own-firm only, FORCE RLS as dealflow_app); RBAC advisor+admin (analyst/compliance 403, anon 401); read-only; no charts-lib/real-time/export |
+Nav: /insights entry (bar-chart-2, server-role-gated). Analytics is read-only over already-live mandates/outreach/pipeline/matches data; the CRM DataSourceAdapter remains founder-gated (#deferred).
