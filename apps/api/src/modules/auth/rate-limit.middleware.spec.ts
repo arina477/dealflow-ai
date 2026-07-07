@@ -27,7 +27,7 @@
  * Tests that use the mock pool run unconditionally (fast path).
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ── Module-level mocks ──────────────────────────────────────────────────────
 
@@ -45,15 +45,20 @@ vi.mock('@nestjs/common', async () => {
   };
 });
 
+import { EventEmitter } from 'node:events';
 import type { NextFunction, Request, Response } from 'express';
 import {
   __resetSoftBucketsForTest,
+  __resetSweeperForTest,
+  BODY_READ_TIMEOUT_MS,
+  BODY_SIZE_LIMIT_BYTES,
   COARSE_WINDOW_SECONDS,
   createRateLimitMiddleware,
   FAIL_CLOSED_SOFT_SCOPES,
   FAIL_OPEN_SCOPES,
   SHORT_WINDOW_SECONDS,
   SOFT_FALLBACK_LIMIT,
+  SWEEPER_INTERVAL_MS,
 } from './rate-limit.middleware';
 
 // ---------------------------------------------------------------------------
@@ -796,6 +801,349 @@ describe('Non-rate-limited paths are not affected', () => {
     const r = await sendRequest(middleware, method, path, { ip: '10.0.0.50' });
     expect(r.nextCalled).toBe(true);
     expect(r.statusCode).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P2-A: ensureBodyParsed — body-size cap + read timeout (DoS hardening)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a fake readable stream (EventEmitter) that emits controllable data/end
+ * events. Used to drive ensureBodyParsed through the middleware without a real
+ * HTTP server.
+ */
+function makeBodyStream(opts: {
+  chunks?: Buffer[];
+  /** If true, never emits 'end' (slow-loris simulation). */
+  neverEnds?: boolean;
+}): Request {
+  const emitter = new EventEmitter() as EventEmitter & {
+    method: string;
+    path: string;
+    ip: string;
+    headers: Record<string, string>;
+    body?: unknown;
+    destroy?: () => void;
+  };
+  emitter.method = 'POST';
+  emitter.path = '/auth/signin';
+  emitter.ip = '1.2.3.4';
+  emitter.headers = {};
+  let destroyed = false;
+  emitter.destroy = () => {
+    destroyed = true;
+    emitter.emit('error', new Error('stream destroyed'));
+  };
+
+  // Emit data chunks asynchronously then optionally emit 'end'
+  setImmediate(() => {
+    if (destroyed) return;
+    for (const chunk of opts.chunks ?? []) {
+      if (destroyed) return;
+      emitter.emit('data', chunk);
+    }
+    if (!opts.neverEnds && !destroyed) {
+      emitter.emit('end');
+    }
+    // neverEnds=true: stream stays open — timeout will fire
+  });
+
+  return emitter as unknown as Request;
+}
+
+describe('P2-A: ensureBodyParsed — body-size cap prevents OOM', () => {
+  afterEach(() => {
+    __resetSoftBucketsForTest();
+    __resetSweeperForTest();
+  });
+
+  it('constants are sane: BODY_SIZE_LIMIT_BYTES=100KB, BODY_READ_TIMEOUT_MS=5s', () => {
+    expect(BODY_SIZE_LIMIT_BYTES).toBe(100 * 1024);
+    expect(BODY_READ_TIMEOUT_MS).toBe(5_000);
+  });
+
+  it('Content-Length > cap → resolves to {} immediately (no stream read) → fallback to IP', async () => {
+    // When Content-Length declares an oversized body, ensureBodyParsed must
+    // short-circuit without reading any bytes. The middleware must not OOM.
+    const { pool } = makeCountingPool();
+    const middleware = createRateLimitMiddleware({ pool });
+
+    // Build a req with a large declared Content-Length but no actual stream data
+    const req: Request = {
+      method: 'POST',
+      path: '/auth/signin',
+      ip: '1.2.3.4',
+      headers: { 'content-length': String(BODY_SIZE_LIMIT_BYTES + 1) },
+      // body is undefined — no pre-parsed body
+    } as unknown as Request;
+
+    const { res, capture } = makeRes();
+    const next = makeNext();
+    await middleware(req, res, next);
+
+    // Should pass through (no 429; rate limiter keyed on IP which is under limit)
+    expect(next.called).toBe(true);
+    expect(capture.statusCode).toBeNull();
+  });
+
+  it('streaming body exceeds cap mid-stream → resolves to {} (not OOM) → fallback to IP', async () => {
+    // This test uses a real (non-fake-timer) stream so that the EventEmitter
+    // fires naturally — fake timers and setImmediate interact poorly.
+    const { pool } = makeCountingPool();
+    const middleware = createRateLimitMiddleware({ pool });
+
+    // Build a body stream that sends cap+1 bytes
+    const oversizedChunk = Buffer.alloc(BODY_SIZE_LIMIT_BYTES + 1, 0x41); // 'A' * (cap+1)
+    const req = makeBodyStream({ chunks: [oversizedChunk] });
+
+    const { res, capture } = makeRes();
+    const next = makeNext();
+
+    await middleware(req, res, next);
+
+    // Middleware must have called next() (keyed on IP — no 429 on first hit)
+    expect(next.called).toBe(true);
+    expect(capture.statusCode).toBeNull();
+  });
+
+  it('never-ending body (slow-loris) → times out and resolves to {} → fallback to IP', async () => {
+    vi.useFakeTimers();
+    try {
+      const { pool } = makeCountingPool();
+      const middleware = createRateLimitMiddleware({ pool });
+
+      // Stream that never emits 'end'
+      const req = makeBodyStream({ neverEnds: true });
+
+      const { res, capture } = makeRes();
+      const next = makeNext();
+
+      const promise = middleware(req, res, next);
+
+      // Advance past the read timeout
+      await vi.advanceTimersByTimeAsync(BODY_READ_TIMEOUT_MS + 100);
+      await promise;
+
+      // Middleware must not hang — next() is called (IP keyed, under limit)
+      expect(next.called).toBe(true);
+      expect(capture.statusCode).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P2-B: cleanup sweeper — expired rows are deleted
+// ---------------------------------------------------------------------------
+
+describe('P2-B: cleanup sweeper — deletes expired rows on interval', () => {
+  afterEach(() => {
+    __resetSoftBucketsForTest();
+    __resetSweeperForTest();
+  });
+
+  it('SWEEPER_INTERVAL_MS is 5 minutes', () => {
+    expect(SWEEPER_INTERVAL_MS).toBe(5 * 60 * 1000);
+  });
+
+  it('sweeper fires the DELETE after the interval elapses', async () => {
+    vi.useFakeTimers();
+    try {
+      let deleteCallCount = 0;
+      const pool = makeMockPool(async (sql) => {
+        if (sql.includes('DELETE FROM rate_limit_hits')) {
+          deleteCallCount++;
+          return { rows: [], rowCount: 3 } as unknown as { rows: { count: string }[] };
+        }
+        // Normal UPSERT — return count=1
+        return { rows: [{ count: '1' }] };
+      });
+      const middleware = createRateLimitMiddleware({ pool });
+
+      // Trigger middleware once to start the sweeper
+      const req = makeReq('POST', '/auth/signin', { ip: '1.2.3.4', body: { email: 'x@y.com' } });
+      const { res } = makeRes();
+      const next = makeNext();
+      await middleware(req, res, next);
+
+      expect(deleteCallCount).toBe(0); // sweeper has not fired yet
+
+      // Advance past one sweeper interval
+      await vi.advanceTimersByTimeAsync(SWEEPER_INTERVAL_MS + 100);
+
+      expect(deleteCallCount).toBeGreaterThanOrEqual(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('multiple createRateLimitMiddleware calls do NOT start multiple sweeper intervals', async () => {
+    vi.useFakeTimers();
+    try {
+      let deleteCallCount = 0;
+      const pool = makeMockPool(async (sql) => {
+        if (sql.includes('DELETE FROM rate_limit_hits')) {
+          deleteCallCount++;
+          return { rows: [], rowCount: 0 } as unknown as { rows: { count: string }[] };
+        }
+        return { rows: [{ count: '1' }] };
+      });
+
+      // Create two middleware instances (simulates calling the factory twice)
+      const mw1 = createRateLimitMiddleware({ pool });
+      const mw2 = createRateLimitMiddleware({ pool });
+
+      // Trigger both once to start the sweeper
+      const req = makeReq('POST', '/auth/signin', { ip: '1.2.3.4', body: { email: 'a@b.com' } });
+      await mw1(req, makeRes().res, makeNext());
+      await mw2(req, makeRes().res, makeNext());
+
+      await vi.advanceTimersByTimeAsync(SWEEPER_INTERVAL_MS + 100);
+
+      // Only ONE interval should be running — deleteCallCount should be 1, not 2
+      expect(deleteCallCount).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P2-C: fail-open narrowed to connection-class errors
+// ---------------------------------------------------------------------------
+
+describe('P2-C: fail-open narrowed to connection errors — non-connection errors use soft fallback', () => {
+  afterEach(() => {
+    __resetSoftBucketsForTest();
+    __resetSweeperForTest();
+  });
+
+  it('signup: connection error → fail-OPEN (allow)', async () => {
+    // A genuine connection error on a FAIL_OPEN scope still allows the request.
+    const connErr = new Error('connect ECONNREFUSED 127.0.0.1:5432');
+    (connErr as Error & { code: string }).code = 'ECONNREFUSED';
+    const pool = makeFailingPool(connErr);
+    const middleware = createRateLimitMiddleware({ pool });
+
+    const r = await sendRequest(middleware, 'POST', '/auth/signup', { ip: '1.2.3.4' });
+    expect(r.nextCalled).toBe(true);
+    expect(r.statusCode).toBeNull();
+  });
+
+  it('signup: non-connection error (programming bug) → NOT fail-open — degrades to soft fallback', async () => {
+    // A latent programming error (e.g. bad SQL) must NOT silently allow unlimited requests.
+    // The middleware should degrade to the in-process soft bucket, not fail-open.
+    const bugErr = new Error('column "nonexistent" does not exist');
+    // No code property — simulates a Postgres query error without a connection-class SQLSTATE
+    const pool = makeFailingPool(bugErr);
+    const middleware = createRateLimitMiddleware({ pool });
+
+    // Send requests up to SOFT_FALLBACK_LIMIT (all should pass via soft bucket)
+    const results: boolean[] = [];
+    for (let i = 0; i <= SOFT_FALLBACK_LIMIT; i++) {
+      const r = await sendRequest(middleware, 'POST', '/auth/signup', { ip: '10.0.0.30' });
+      results.push(r.nextCalled);
+    }
+
+    // First SOFT_FALLBACK_LIMIT pass; the (SOFT_FALLBACK_LIMIT+1)th is blocked
+    // (NOT unlimited as it would be with fail-open)
+    expect(results.slice(0, SOFT_FALLBACK_LIMIT).every((v) => v === true)).toBe(true);
+    expect(results[SOFT_FALLBACK_LIMIT]).toBe(false);
+  });
+
+  it('reset/request: non-connection error → NOT fail-open — degrades to soft fallback', async () => {
+    const bugErr = new Error('relation "rate_limit_hits" does not exist');
+    const pool = makeFailingPool(bugErr);
+    const middleware = createRateLimitMiddleware({ pool });
+
+    const results: boolean[] = [];
+    for (let i = 0; i <= SOFT_FALLBACK_LIMIT; i++) {
+      const r = await sendRequest(middleware, 'POST', '/auth/reset/request', {
+        ip: '10.0.0.31',
+        body: { email: 'test@x.com' },
+      });
+      results.push(r.nextCalled);
+    }
+
+    expect(results.slice(0, SOFT_FALLBACK_LIMIT).every((v) => v === true)).toBe(true);
+    expect(results[SOFT_FALLBACK_LIMIT]).toBe(false);
+  });
+
+  it('signin: connection error → still uses soft fallback (not affected by P2-C change)', async () => {
+    // signin was already fail-CLOSED-SOFT before P2-C — behaviour unchanged.
+    const connErr = new Error('connection terminated unexpectedly');
+    (connErr as Error & { code: string }).code = '57P01';
+    const pool = makeFailingPool(connErr);
+    const middleware = createRateLimitMiddleware({ pool });
+
+    const results: boolean[] = [];
+    for (let i = 0; i <= SOFT_FALLBACK_LIMIT; i++) {
+      const r = await sendRequest(middleware, 'POST', '/auth/signin', { ip: '10.0.0.32' });
+      results.push(r.nextCalled);
+    }
+
+    expect(results.slice(0, SOFT_FALLBACK_LIMIT).every((v) => v === true)).toBe(true);
+    expect(results[SOFT_FALLBACK_LIMIT]).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P2-D: signup keyed per-IP (no email in body) — comment accuracy check
+// ---------------------------------------------------------------------------
+
+describe('P2-D: signup is keyed per-IP (inviteToken body, no email field)', () => {
+  afterEach(() => {
+    __resetSoftBucketsForTest();
+    __resetSweeperForTest();
+  });
+
+  it('two signup requests from the same IP with different inviteTokens share one bucket', async () => {
+    const { pool, counters } = makeCountingPool();
+    const middleware = createRateLimitMiddleware({ pool });
+
+    await sendRequest(middleware, 'POST', '/auth/signup', {
+      ip: '10.0.0.40',
+      body: { inviteToken: 'token-aaa', password: 'pw1' },
+    });
+    await sendRequest(middleware, 'POST', '/auth/signup', {
+      ip: '10.0.0.40',
+      body: { inviteToken: 'token-bbb', password: 'pw2' },
+    });
+
+    // Both requests from the same IP → same bucket key (signup:<ip>:...)
+    const shortEntries = [...counters.entries()].filter(
+      ([k]) => k.startsWith('signup:10.0.0.40:') && k.includes(`:${SHORT_WINDOW_SECONDS}:`)
+    );
+    expect(shortEntries.length).toBe(1);
+    expect(shortEntries[0]?.[1]).toBe(2);
+  });
+
+  it('two signup requests from different IPs with the same inviteToken get independent buckets', async () => {
+    const { pool, counters } = makeCountingPool();
+    const middleware = createRateLimitMiddleware({ pool });
+
+    await sendRequest(middleware, 'POST', '/auth/signup', {
+      ip: '10.0.0.41',
+      body: { inviteToken: 'shared-token', password: 'pw1' },
+    });
+    await sendRequest(middleware, 'POST', '/auth/signup', {
+      ip: '10.0.0.42',
+      body: { inviteToken: 'shared-token', password: 'pw2' },
+    });
+
+    // Different IPs → different buckets (per-IP keying for signup)
+    const ip1Entries = [...counters.entries()].filter(
+      ([k]) => k.startsWith('signup:10.0.0.41:') && k.includes(`:${SHORT_WINDOW_SECONDS}:`)
+    );
+    const ip2Entries = [...counters.entries()].filter(
+      ([k]) => k.startsWith('signup:10.0.0.42:') && k.includes(`:${SHORT_WINDOW_SECONDS}:`)
+    );
+    expect(ip1Entries.length).toBe(1);
+    expect(ip2Entries.length).toBe(1);
+    expect(ip1Entries[0]?.[1]).toBe(1);
+    expect(ip2Entries[0]?.[1]).toBe(1);
   });
 });
 

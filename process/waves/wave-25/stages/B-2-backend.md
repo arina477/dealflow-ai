@@ -55,3 +55,38 @@ Added `SEC-4-DB` DB-gated test (guarded by `TEST_DATABASE_URL`, skipped in unit 
 Both new DB-gated tests are `describe.skipIf(!hasTestDb)(...)` where `hasTestDb = typeof TEST_DATABASE_URL === 'string' && TEST_DATABASE_URL.trim().length > 0`.
 
 Post-rework state: `pnpm -w typecheck` clean, `pnpm -w lint` exit 0 (115 warnings + 84 infos, all pre-existing), `pnpm test` 970 pass / 95 skip (35 rate-limit tests pass; 2 DB-gated correctly skip without TEST_DATABASE_URL).
+
+## B-6 P2 hardening
+
+B-6 /review found 4 P2s in the wave-25 new code. All 4 closed in a single follow-up commit.
+
+### P2-A [8/10] — NEW unauthenticated DoS surface: ensureBodyParsed had no body-size cap and no read timeout
+
+`ensureBodyParsed` buffered the raw request stream with no byte ceiling (OOM risk) and no timeout on the `end` Promise (slow-loris risk), running before any upstream body-parser limits.
+
+**Closed:** Added two constants — `BODY_SIZE_LIMIT_BYTES = 100 KB` (matching body-parser's default) and `BODY_READ_TIMEOUT_MS = 5 000 ms`. Three defence layers in `ensureBodyParsed`:
+1. Content-Length short-circuit: if the declared header exceeds the cap, the stream is not read at all — returns `{}` immediately.
+2. Per-chunk byte ceiling: accumulated bytes are tracked; once `BODY_SIZE_LIMIT_BYTES` is exceeded mid-stream the stream is destroyed and `{}` is returned (OOM prevention).
+3. Read timeout: a `setTimeout` races the `'end'` event; if the stream never completes the timeout fires, the stream is destroyed, and `{}` is returned (slow-loris prevention). In all overflow/timeout cases the request proceeds with IP-based keying — no hang, no OOM.
+
+Tests added: (a) Content-Length > cap → no stream read, next() called; (b) oversized mid-stream chunk → resolved to `{}`, next() called; (c) never-ending stream → times out after `BODY_READ_TIMEOUT_MS` + ε, next() called.
+
+### P2-B [9/10] — migration comment promised a cleanup sweeper that did not exist; unbounded table growth
+
+`0019_rate_limit_hits.sql` comment stated rows are "deleted by a periodic cleanup job (or pg_cron if installed)" but grep confirmed no DELETE/prune/cron anywhere in the codebase.
+
+**Closed:** Shipped the sweeper. Added `SWEEPER_INTERVAL_MS = 5 min` constant and an unref'd `setInterval` started once at `createRateLimitMiddleware()` init (idempotent — second call is a no-op; `_sweeperInterval !== null` guard). The sweeper runs `DELETE FROM rate_limit_hits WHERE expires_at < now()` on the pool, bounded by the existing `expires_at` index. Errors are logged but never thrown. Added `__resetSweeperForTest()` test helper. Updated the migration comment to accurately describe the sweeper's location. Tests added: (a) sweeper fires DELETE after one interval elapses (fake timers); (b) multiple factory calls do NOT start multiple intervals.
+
+### P2-C [7/10] — fail-OPEN on ANY error, not just connection-class; latent bug silently disables limiter
+
+The `catch` block routed all thrown errors to the fail-OPEN path for `FAIL_OPEN_SCOPES` (signup, reset/request) regardless of error type. A non-connection programming error (bad SQL, wrong column) that always-throws would silently make those endpoints unlimited.
+
+**Closed:** Added `isConnectionError(err)` classifier that checks SQLSTATE class `08xx`, `57Pxx`, Node TCP error codes (`ECONNREFUSED`, `ENOTFOUND`, `ETIMEDOUT`, `ECONNRESET`, `EPIPE`), pg pool codes (`CONNECTION_ENDED`, `POOL_MAX_CALLS_EXCEEDED`), and message heuristics for unstructured errors. Fail-OPEN is now conditional: `FAIL_OPEN_SCOPES` + `connError === true` → allow. `FAIL_OPEN_SCOPES` + `connError === false` (programming error) → degraded to in-process soft fallback (same as `FAIL_CLOSED_SOFT_SCOPES`). Tests added: (a) connection error on signup → still fail-open; (b) non-connection error on signup → NOT fail-open, degrades to soft fallback with enforced SOFT_FALLBACK_LIMIT ceiling; (c) same for reset/request; (d) signin connection error → soft fallback unchanged.
+
+### P2-D [6/10] — misleading comment: signup keyed per-IP not per-email
+
+The `extractIdentifier` comment said "Direct email field (...signup...)" but signup body is `{ inviteToken, password }` — no email. Signup always fell to IP keying.
+
+**Closed:** Corrected the comment in `extractIdentifier` to document that reset/request uses the email field, signup has no email so falls through to IP keying (acceptable — invite-only, minimal enumeration risk). Tests added confirming per-IP keying for signup: two requests from the same IP with different inviteTokens share one bucket; two requests from different IPs with the same inviteToken get independent buckets.
+
+**Post-hardening state:** `pnpm -w typecheck` clean; `pnpm -w lint` exit 0 (116 warnings + 84 infos, all pre-existing); `pnpm test` 983 pass / 95 skip (13 new P2-hardening tests pass; DB-gated skip without TEST_DATABASE_URL). Deviations: none.

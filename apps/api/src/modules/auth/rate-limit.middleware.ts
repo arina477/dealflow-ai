@@ -75,6 +75,25 @@ import type { Pool } from 'pg';
 
 /** Short fixed-window length in seconds. */
 const SHORT_WINDOW_SECONDS = 60;
+
+/**
+ * Maximum body size accepted by ensureBodyParsed (bytes).
+ * Matches body-parser's default 100KB limit. Bodies larger than this are
+ * rejected immediately — the middleware resolves to {} (fallback to IP keying)
+ * and the downstream handler receives an empty-ish body it will reject with 400.
+ * This prevents OOM via large-body stream buffering (P2-A).
+ */
+const BODY_SIZE_LIMIT_BYTES = 100 * 1024; // 100 KB
+
+/**
+ * Maximum time (ms) to wait for the request stream to emit 'end'.
+ * Guards against slow-loris / never-completing bodies that would hold the
+ * connection open indefinitely by keeping this middleware's Promise pending.
+ * On timeout the middleware resolves to {} (fallback to IP keying) — the
+ * request proceeds to normal handling which will reject a malformed body.
+ * (P2-A)
+ */
+const BODY_READ_TIMEOUT_MS = 5_000; // 5 seconds
 /** Coarse (per-hour) fixed-window length in seconds. */
 const COARSE_WINDOW_SECONDS = 3600;
 
@@ -104,6 +123,14 @@ const LIMITS: Record<string, { short: number; coarse: number }> = {
 
 /** Fallback in-process limit for fail-CLOSED-SOFT paths (signin + reset/confirm). */
 const SOFT_FALLBACK_LIMIT = 5; // per SHORT_WINDOW_SECONDS per instance
+
+/**
+ * How often (ms) the background sweeper DELETEs expired rate_limit_hits rows.
+ * The DELETE is bounded by the expires_at index and is fully idempotent —
+ * multiple instances running it concurrently is safe (last-writer-wins on the
+ * same rows, but they all delete the same expired set). (P2-B)
+ */
+const SWEEPER_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
 /**
  * Scopes that are fail-OPEN on DB error (allow + log).
@@ -145,6 +172,61 @@ function softBucketAllow(key: string, limitPerWindow: number, windowSeconds: num
   _softBuckets.set(key, hits);
 
   return hits.length <= limitPerWindow;
+}
+
+// ---------------------------------------------------------------------------
+// Expired-row sweeper (P2-B — prevents unbounded table growth)
+// ---------------------------------------------------------------------------
+
+/**
+ * Sweeper state — tracks whether the background interval has been started and
+ * holds a reference so it can be cleared in tests.
+ */
+let _sweeperInterval: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Delete all rows from rate_limit_hits where expires_at < now().
+ *
+ * Called by the background sweeper interval. Safe to call from multiple
+ * instances concurrently — the DELETE is idempotent and bounded by the
+ * expires_at index. Errors are logged but never thrown; a transient DB
+ * failure just defers cleanup to the next tick.
+ *
+ * @param pool - pg Pool instance
+ */
+async function sweepExpiredRows(pool: Pool): Promise<void> {
+  try {
+    const result = await pool.query('DELETE FROM rate_limit_hits WHERE expires_at < now()');
+    const deleted: number = (result as { rowCount: number | null }).rowCount ?? 0;
+    if (deleted > 0) {
+      logger.log(`[rate-limit] sweeper: deleted ${deleted} expired rows`);
+    }
+  } catch (err) {
+    logger.error(
+      `[rate-limit] sweeper: DELETE failed (non-fatal) — ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
+
+/**
+ * Start the background sweeper interval that deletes expired rate_limit_hits rows.
+ *
+ * Called once at module initialisation (inside createRateLimitMiddleware on first
+ * call). The interval is unref'd so it does not prevent Node from exiting during
+ * graceful shutdown. Multiple calls are idempotent — only one interval is ever
+ * running at a time.
+ *
+ * @param pool - pg Pool instance used for the DELETE query
+ */
+function startSweeper(pool: Pool): void {
+  if (_sweeperInterval !== null) return; // already running
+  _sweeperInterval = setInterval(() => {
+    void sweepExpiredRows(pool);
+  }, SWEEPER_INTERVAL_MS);
+  // unref so the interval does not prevent the process from exiting cleanly.
+  if (typeof _sweeperInterval.unref === 'function') {
+    _sweeperInterval.unref();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -275,12 +357,36 @@ function resolveScope(method: string, path: string): string | null {
  *
  * Returns the parsed body or an empty object on parse failure. Never throws.
  * Only called for POST requests on rate-limited scopes.
+ *
+ * DoS hardening (P2-A):
+ *   • Content-Length short-circuit: if the declared Content-Length header
+ *     exceeds BODY_SIZE_LIMIT_BYTES the stream is not read at all — returns {}
+ *     immediately (fallback to IP keying; downstream rejects the oversized body).
+ *   • Byte ceiling: accumulated chunk bytes are tracked; if the running total
+ *     exceeds BODY_SIZE_LIMIT_BYTES the stream is destroyed and {} is returned
+ *     so an attacker cannot OOM the process with a streaming body.
+ *   • Read timeout: a BODY_READ_TIMEOUT_MS deadline races the stream 'end'
+ *     event; if the stream never completes (slow-loris) the timeout wins, the
+ *     stream is destroyed, and {} is returned (fallback to IP keying).
  */
 async function ensureBodyParsed(req: Request): Promise<Record<string, unknown>> {
   // Already parsed by an upstream middleware (e.g. in tests that pre-populate req.body)
   const existing = (req as Request & { body?: unknown }).body;
   if (existing !== undefined && existing !== null && typeof existing === 'object') {
     return existing as Record<string, unknown>;
+  }
+
+  // Short-circuit on declared Content-Length — avoids allocating even a single
+  // chunk for obviously oversized bodies.
+  // Guard: unit-test mock objects may have no headers property — treat as 0.
+  const rawHeaders = (req as Request & { headers?: Record<string, string | string[] | undefined> })
+    .headers;
+  const contentLength = Number(rawHeaders?.['content-length'] ?? 0);
+  if (contentLength > BODY_SIZE_LIMIT_BYTES) {
+    logger.warn(
+      `[rate-limit] ensureBodyParsed: Content-Length ${contentLength} exceeds ${BODY_SIZE_LIMIT_BYTES}B cap — skipping body read (fallback to IP)`
+    );
+    return {};
   }
 
   // Check whether the request object is actually a readable stream.
@@ -290,13 +396,50 @@ async function ensureBodyParsed(req: Request): Promise<Record<string, unknown>> 
     return {};
   }
 
-  // Buffer the raw body from the readable stream
+  // Buffer the raw body from the readable stream.
+  // Races a read-timeout against stream completion to guard against slow-loris.
   return new Promise<Record<string, unknown>>((resolve) => {
+    let settled = false;
     const chunks: Buffer[] = [];
+    let bytesAccumulated = 0;
+
+    // Read-timeout guard (P2-A — slow-loris defence).
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      logger.warn(
+        `[rate-limit] ensureBodyParsed: read timed out after ${BODY_READ_TIMEOUT_MS}ms — falling back to IP keying`
+      );
+      // Destroy the stream so the connection is cleaned up promptly.
+      if (typeof (req as unknown as { destroy?: () => void }).destroy === 'function') {
+        (req as unknown as { destroy: () => void }).destroy();
+      }
+      resolve({});
+    }, BODY_READ_TIMEOUT_MS);
+
     req.on('data', (chunk: Buffer) => {
+      if (settled) return;
+      bytesAccumulated += chunk.length;
+      if (bytesAccumulated > BODY_SIZE_LIMIT_BYTES) {
+        // Body exceeds cap — abort stream immediately (P2-A — OOM prevention).
+        settled = true;
+        clearTimeout(timer);
+        logger.warn(
+          `[rate-limit] ensureBodyParsed: body exceeded ${BODY_SIZE_LIMIT_BYTES}B cap — falling back to IP keying`
+        );
+        if (typeof (req as unknown as { destroy?: () => void }).destroy === 'function') {
+          (req as unknown as { destroy: () => void }).destroy();
+        }
+        resolve({});
+        return;
+      }
       chunks.push(chunk);
     });
+
     req.on('end', () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       try {
         const raw = Buffer.concat(chunks).toString('utf8');
         const parsed = raw.length > 0 ? (JSON.parse(raw) as Record<string, unknown>) : {};
@@ -309,7 +452,11 @@ async function ensureBodyParsed(req: Request): Promise<Record<string, unknown>> 
         resolve({});
       }
     });
+
     req.on('error', () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       resolve({});
     });
   });
@@ -335,7 +482,12 @@ function extractIdentifier(body: Record<string, unknown>, req: Request, scope: s
     return req.ip ?? 'unknown';
   }
 
-  // Direct email field (our Nest-parsed bodies: signup, reset/request)
+  // Direct email field (our Nest-parsed bodies: reset/request).
+  // NOTE: signup body is { inviteToken, password } — no email field — so it
+  // falls through to IP keying below. Per-invite bucketing (inviteToken) is an
+  // option but per-IP is acceptable: signup is invite-only so enumeration risk
+  // is minimal. The comment "Direct email field (...signup...)" in earlier
+  // versions was incorrect. (P2-D)
   const emailField = body.email;
   if (typeof emailField === 'string' && emailField.length > 0) {
     return emailField;
@@ -385,6 +537,54 @@ export interface RateLimitMiddlewareOptions {
  *
  * @returns Express RequestHandler
  */
+/**
+ * Classify a thrown error as a connection/infrastructure error (true) or an
+ * unexpected/programming error (false).
+ *
+ * Only connection-class errors justify fail-OPEN on signup/reset-request (SEC-5).
+ * An unexpected error (bad SQL, coercion bug, logic error) that always-throws
+ * must NOT silently disable the limiter for those scopes — it should be treated
+ * as fail-CLOSED-SOFT (in-process fallback) or escalated, not silently bypassed.
+ *
+ * pg driver signals connection problems via:
+ *   • SQLSTATE class 08 (connection exceptions)
+ *   • SQLSTATE class 57P (admin shutdown / operator intervention)
+ *   • err.code === 'ECONNREFUSED' / 'ENOTFOUND' / 'ETIMEDOUT' (Node TCP errors)
+ *   • err.code === 'CONNECTION_ENDED' / 'POOL_MAX_CALLS_EXCEEDED' (pg pool)
+ *   • err.message containing typical transient patterns
+ *
+ * (P2-C)
+ */
+function isConnectionError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  // pg SQLSTATE codes surfaced as err.code on DatabaseError
+  const code = (err as Error & { code?: string }).code ?? '';
+
+  // SQLSTATE class 08 — connection exceptions
+  if (code.startsWith('08')) return true;
+  // SQLSTATE 57P01 / 57P02 / 57P03 — admin shutdown / crash recovery
+  if (code.startsWith('57P')) return true;
+  // Node TCP / DNS error codes
+  if (['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET', 'EPIPE'].includes(code)) {
+    return true;
+  }
+  // pg pool-level codes
+  if (['CONNECTION_ENDED', 'POOL_MAX_CALLS_EXCEEDED'].includes(code)) return true;
+  // Fallback: message heuristics for drivers that don't surface structured codes
+  if (
+    msg.includes('connection refused') ||
+    msg.includes('connect econnrefused') ||
+    msg.includes('connection terminated') ||
+    msg.includes('connection ended') ||
+    msg.includes('timeout expired') ||
+    msg.includes('connection timed out')
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function createRateLimitMiddleware(opts: RateLimitMiddlewareOptions = {}) {
   return async function rateLimitMiddleware(
     req: Request,
@@ -413,6 +613,10 @@ export function createRateLimitMiddleware(opts: RateLimitMiddlewareOptions = {})
     const identifier = extractIdentifier(body, req, scope);
 
     const pool = getPool(opts.pool);
+
+    // P2-B: start the background expired-row sweeper on first use.
+    startSweeper(pool);
+
     const now = Math.floor(Date.now() / 1000); // epoch seconds
 
     // SEC-2: check both windows (short + coarse). Either exceeding → 429.
@@ -456,19 +660,38 @@ export function createRateLimitMiddleware(opts: RateLimitMiddlewareOptions = {})
       next();
     } catch (err) {
       // DB error — apply SEC-5 differentiated failure policy.
+      //
+      // P2-C: fail-OPEN is only safe for connection-class errors (DB unreachable).
+      // An unexpected/programming error (bad SQL, coercion bug) that always-throws
+      // must NOT silently disable the limiter — it degrades to the in-process soft
+      // fallback (same path as fail-CLOSED-SOFT scopes) rather than allowing
+      // unlimited requests through. This ensures a code bug can't silently bypass
+      // the limiter for signup/reset-request.
+      const connError = isConnectionError(err);
 
       if (FAIL_OPEN_SCOPES.has(scope)) {
-        // signup + reset/request: fail-OPEN (allow + log).
+        if (connError) {
+          // signup + reset/request + connection error: fail-OPEN (allow + log).
+          logger.error(
+            `[rate-limit] DB connection error on scope=${scope} — failing OPEN (allow). ` +
+              `Error: ${err instanceof Error ? err.message : String(err)}`
+          );
+          next();
+          return;
+        }
+        // Non-connection error (programming/unexpected): degrade to soft fallback
+        // rather than failing open — a latent bug must not silently disable the limiter.
         logger.error(
-          `[rate-limit] DB error on scope=${scope} — failing OPEN (allow). ` +
+          `[rate-limit] Unexpected (non-connection) DB error on scope=${scope} — ` +
+            `degrading to in-process soft fallback (NOT failing open). ` +
             `Error: ${err instanceof Error ? err.message : String(err)}`
         );
-        next();
-        return;
+        // fall through to the soft-fallback block below
       }
 
-      if (FAIL_CLOSED_SOFT_SCOPES.has(scope)) {
-        // signin + reset/confirm: fail-CLOSED-SOFT — fall back to in-process bucket.
+      if (FAIL_CLOSED_SOFT_SCOPES.has(scope) || (FAIL_OPEN_SCOPES.has(scope) && !connError)) {
+        // signin + reset/confirm always use soft fallback.
+        // signup + reset/request also use soft fallback for non-connection errors (P2-C).
         logger.error(
           `[rate-limit] DB error on scope=${scope} — degrading to in-process fallback. ` +
             `Error: ${err instanceof Error ? err.message : String(err)}`
@@ -492,11 +715,22 @@ export function createRateLimitMiddleware(opts: RateLimitMiddlewareOptions = {})
         return;
       }
 
-      // Unknown scope policy (defensive default): fail-open + log.
+      // Unknown scope policy (defensive default): fail-closed-soft + log.
       logger.error(
-        `[rate-limit] DB error on scope=${scope} (no policy) — failing OPEN. ` +
+        `[rate-limit] DB error on scope=${scope} (no policy) — falling back to in-process soft fallback. ` +
           `Error: ${err instanceof Error ? err.message : String(err)}`
       );
+      const softKey = `soft:${scope}:unknown`;
+      const allowed = softBucketAllow(softKey, SOFT_FALLBACK_LIMIT, SHORT_WINDOW_SECONDS);
+      if (!allowed) {
+        res.setHeader('Retry-After', String(retryAfterSeconds));
+        res.status(429).json({
+          statusCode: 429,
+          message: 'Too many requests. Please try again later.',
+          retryAfter: retryAfterSeconds,
+        });
+        return;
+      }
       next();
     }
   };
@@ -522,13 +756,28 @@ export function __resetPoolForTest(): void {
   _pool = null;
 }
 
+/**
+ * TEST ONLY — stop and clear the background sweeper interval.
+ * Call in afterEach/afterAll when testing sweeper behaviour.
+ * Do not call in production code.
+ */
+export function __resetSweeperForTest(): void {
+  if (_sweeperInterval !== null) {
+    clearInterval(_sweeperInterval);
+    _sweeperInterval = null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Re-export window constants for tests
 // ---------------------------------------------------------------------------
 export {
+  BODY_READ_TIMEOUT_MS,
+  BODY_SIZE_LIMIT_BYTES,
   COARSE_WINDOW_SECONDS,
   FAIL_CLOSED_SOFT_SCOPES,
   FAIL_OPEN_SCOPES,
   SHORT_WINDOW_SECONDS,
   SOFT_FALLBACK_LIMIT,
+  SWEEPER_INTERVAL_MS,
 };

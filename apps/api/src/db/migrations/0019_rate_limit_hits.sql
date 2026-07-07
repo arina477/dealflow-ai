@@ -24,8 +24,10 @@
 --
 -- SECURITY PROPERTIES:
 --   • NOT tenant-scoped: pre-auth path has no workspace_id. NOT under RLS.
---   • NOT WORM: rows are deleted by a periodic cleanup job (or pg_cron if
---     installed). This is NOT an audit table.
+--   • NOT WORM: expired rows are deleted by an unref'd interval sweeper started
+--     in createRateLimitMiddleware() (apps/api/src/modules/auth/rate-limit.middleware.ts).
+--     The sweeper runs DELETE FROM rate_limit_hits WHERE expires_at < now() every
+--     5 minutes, bounded by the expires_at index below. This is NOT an audit table.
 --   • Additive only: no existing table is altered.
 --
 -- INDEX: a partial index on expires_at so a future cleanup job can efficiently
