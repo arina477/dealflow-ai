@@ -66,6 +66,51 @@ import { getDb } from '../../db/workspace-context';
 import type { StoredAuditEntry, Tx } from '../audit/audit.repository';
 
 // ---------------------------------------------------------------------------
+// Export cap constant (SEC-4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Maximum number of rows returned in a single export across all scopes.
+ * On cap-hit, the manifest carries truncated:true + rowsAvailable so the
+ * caller can narrow the date range. NEVER emit a silently-short "complete" file.
+ */
+export const EXPORT_ROW_CAP = 50_000;
+
+/**
+ * Default date-range lookback when from/to are omitted (SEC-4).
+ * Returns an ISO string for 12 months ago from now.
+ */
+export function defaultFromDate(): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 1);
+  return d.toISOString();
+}
+
+// ---------------------------------------------------------------------------
+// Deal/pipeline export row shape (SEC-3)
+// ---------------------------------------------------------------------------
+
+/**
+ * A single row from the deal/pipeline scope export.
+ * Joins pipeline (RLS-covered) → mandates (RLS-covered).
+ * The `firmLocalOrdinal` is assigned in the service layer (SEC-6).
+ * No global sequence_number — that is the audit log's cross-tenant side-channel.
+ */
+export interface DealExportRow {
+  pipelineId: string;
+  mandateId: string;
+  dealSourceType: string;
+  outreachId: string | null;
+  matchCandidateId: string | null;
+  stage: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string | null;
+  /** Seller name from the joined mandate — no cross-workspace join; mandates is RLS-covered. */
+  mandateSellerName: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Query filter shape
 // ---------------------------------------------------------------------------
 
@@ -178,12 +223,15 @@ export class RecordkeepingRepository {
   }
 
   /**
-   * Tx-scoped read for the export path.
+   * Tx-scoped read for the export path (original, unbounded).
    *
    * Same filter logic as findFiltered but:
    *   - runs inside the caller's transaction (BUILD rule 7)
    *   - orders by sequence_number ASC (for chain traversal / manifest tailHash)
    *   - no pagination (export fetches all matching entries)
+   *
+   * NOTE: Use findForExportBounded for all new export code paths. This method
+   * is retained for internal use (count queries, verifyChain).
    */
   async findForExport(
     filter: Omit<RecordkeepingFilter, 'limit' | 'offset' | 'advisorUserId'>,
@@ -210,6 +258,192 @@ export class RecordkeepingRepository {
     }
 
     return tx.select().from(auditLogEntries).orderBy(asc(auditLogEntries.sequenceNumber));
+  }
+
+  /**
+   * SEC-4: bounded tx-scoped read for audit export.
+   *
+   * Same as findForExport but applies an explicit row cap (EXPORT_ROW_CAP + 1)
+   * so the caller can detect truncation: if returned.length > EXPORT_ROW_CAP,
+   * the cap was hit. The extra row is trimmed by the service; it is used only
+   * to detect the truncation condition.
+   *
+   * SEC-1: runs via the tx handle (getDb-RLS path — audit_log_entries HAS FORCE
+   * RLS; FORBID read_audit_chain_rls_exempt in this path).
+   * Defense-in-depth workspace_id filter is NOT applied here (RLS is the load-bearing
+   * guard); it is optionally applied at the service layer if desired.
+   */
+  async findForExportBounded(
+    filter: Omit<RecordkeepingFilter, 'limit' | 'offset' | 'advisorUserId'>,
+    tx: Tx,
+    cap: number = EXPORT_ROW_CAP
+  ): Promise<{ rows: StoredAuditEntry[]; truncated: boolean; rowsAvailable: number }> {
+    // Fetch cap+1 to detect truncation without a separate COUNT(*) query.
+    const conditions = this.buildConditions(filter);
+    let fetched: StoredAuditEntry[];
+
+    if (conditions.mandateFragment) {
+      fetched = await tx
+        .select()
+        .from(auditLogEntries)
+        .where(
+          sql`${conditions.mandateFragment}${conditions.simpleConditions.length > 0 ? sql` AND ${and(...conditions.simpleConditions)}` : sql``}`
+        )
+        .orderBy(asc(auditLogEntries.sequenceNumber))
+        .limit(cap + 1);
+    } else if (conditions.simpleConditions.length > 0) {
+      fetched = await tx
+        .select()
+        .from(auditLogEntries)
+        .where(and(...conditions.simpleConditions))
+        .orderBy(asc(auditLogEntries.sequenceNumber))
+        .limit(cap + 1);
+    } else {
+      fetched = await tx
+        .select()
+        .from(auditLogEntries)
+        .orderBy(asc(auditLogEntries.sequenceNumber))
+        .limit(cap + 1);
+    }
+
+    const truncated = fetched.length > cap;
+    const rows = truncated ? fetched.slice(0, cap) : fetched;
+
+    // If truncated, we need the real count. Do a COUNT query.
+    let rowsAvailable: number;
+    if (truncated) {
+      rowsAvailable = await this.countAuditRows(filter, tx);
+    } else {
+      rowsAvailable = rows.length;
+    }
+
+    return { rows, truncated, rowsAvailable };
+  }
+
+  /**
+   * SEC-4: count audit rows matching the filter for the rowsAvailable field.
+   * Only called on cap-hit to populate the manifest truncation signal.
+   */
+  private async countAuditRows(
+    filter: Omit<RecordkeepingFilter, 'limit' | 'offset' | 'advisorUserId'>,
+    tx: Tx
+  ): Promise<number> {
+    const conditions = this.buildConditions(filter);
+    let result: Array<{ count: unknown }>;
+
+    if (conditions.mandateFragment) {
+      result = await tx
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(auditLogEntries)
+        .where(
+          sql`${conditions.mandateFragment}${conditions.simpleConditions.length > 0 ? sql` AND ${and(...conditions.simpleConditions)}` : sql``}`
+        );
+    } else if (conditions.simpleConditions.length > 0) {
+      result = await tx
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(auditLogEntries)
+        .where(and(...conditions.simpleConditions));
+    } else {
+      result = await tx.select({ count: sql<number>`COUNT(*)` }).from(auditLogEntries);
+    }
+
+    return Number(result[0]?.count ?? 0);
+  }
+
+  /**
+   * SEC-3: bounded deal/pipeline export via getDb/RLS (FORCE RLS scoped to
+   * the current workspace; mandates and pipeline are RLS-covered tenant tables).
+   *
+   * SEC-10: joins ONLY RLS-covered tenant tables (pipeline, mandates). The
+   * `mandates.seller_name` field is the only cross-join field and belongs to the
+   * caller's own workspace (RLS ensures this). No join to global tables
+   * (roles, workspaces, app_meta) for any non-caller-scoped fields.
+   *
+   * SEC-4: bounded by cap (cap+1 fetch → truncation signal).
+   *
+   * The from/to filter is applied on pipeline.created_at.
+   * mandateId scopes the export to a single mandate's pipeline rows.
+   */
+  async findDealRowsBounded(
+    filter: { mandateId?: string; from?: string; to?: string },
+    tx: Tx,
+    cap: number = EXPORT_ROW_CAP
+  ): Promise<{ rows: DealExportRow[]; truncated: boolean; rowsAvailable: number }> {
+    // Build WHERE conditions for pipeline
+    const whereConditions: ReturnType<typeof eq>[] = [];
+    if (filter.from) {
+      // pipeline.created_at >= from
+      whereConditions.push(
+        sql`pipeline.created_at >= ${filter.from}` as unknown as ReturnType<typeof eq>
+      );
+    }
+    if (filter.to) {
+      whereConditions.push(
+        sql`pipeline.created_at <= ${filter.to}` as unknown as ReturnType<typeof eq>
+      );
+    }
+    if (filter.mandateId) {
+      whereConditions.push(
+        sql`pipeline.mandate_id = ${filter.mandateId}::uuid` as unknown as ReturnType<typeof eq>
+      );
+    }
+
+    const whereClause =
+      whereConditions.length > 0 ? sql`WHERE ${sql.join(whereConditions, sql` AND `)}` : sql``;
+
+    // SEC-10: JOIN only RLS-covered tenant tables — pipeline + mandates.
+    // mandates.workspace_id is enforced by FORCE RLS policy; no global-table joins.
+    const rawQuery = sql`
+      SELECT
+        pipeline.id              AS "pipelineId",
+        pipeline.mandate_id      AS "mandateId",
+        pipeline.deal_source_type AS "dealSourceType",
+        pipeline.outreach_id     AS "outreachId",
+        pipeline.match_candidate_id AS "matchCandidateId",
+        pipeline.stage           AS "stage",
+        pipeline.created_by      AS "createdBy",
+        pipeline.created_at      AS "createdAt",
+        pipeline.updated_at      AS "updatedAt",
+        mandates.seller_name     AS "mandateSellerName"
+      FROM pipeline
+      LEFT JOIN mandates ON mandates.id = pipeline.mandate_id
+      ${whereClause}
+      ORDER BY pipeline.created_at ASC
+      LIMIT ${cap + 1}
+    `;
+
+    const result = await tx.execute<Record<string, unknown>>(rawQuery);
+    const fetched: DealExportRow[] = result.rows.map((r) => ({
+      pipelineId: r.pipelineId as string,
+      mandateId: r.mandateId as string,
+      dealSourceType: r.dealSourceType as string,
+      outreachId: (r.outreachId as string | null) ?? null,
+      matchCandidateId: (r.matchCandidateId as string | null) ?? null,
+      stage: r.stage as string,
+      createdBy: r.createdBy as string,
+      createdAt: r.createdAt as string,
+      updatedAt: (r.updatedAt as string | null) ?? null,
+      mandateSellerName: (r.mandateSellerName as string | null) ?? null,
+    }));
+
+    const truncated = fetched.length > cap;
+    const rows = truncated ? fetched.slice(0, cap) : fetched;
+
+    let rowsAvailable: number;
+    if (truncated) {
+      // Separate COUNT query on cap-hit
+      const countQuery = sql`
+        SELECT COUNT(*) AS cnt
+        FROM pipeline
+        ${whereClause}
+      `;
+      const countResult = await tx.execute<{ cnt: unknown }>(countQuery);
+      rowsAvailable = Number(countResult.rows[0]?.cnt ?? 0);
+    } else {
+      rowsAvailable = rows.length;
+    }
+
+    return { rows, truncated, rowsAvailable };
   }
 
   /** Expose runInTransaction for service-level tx composition. */

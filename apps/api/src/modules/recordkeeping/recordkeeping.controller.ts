@@ -33,6 +33,16 @@
  * 400 BadRequestException before reaching the repository — mirroring the export
  * path's exportScopeSchema.safeParse pattern.
  *
+ * ── SEC-2 ENFORCEMENT ────────────────────────────────────────────────────────
+ * The export body is parsed through exportScopeSchema.strict() — any request
+ * carrying workspace_id / firmId / tenant → 400 (unknown key rejected by .strict()).
+ * Workspace is server-resolved from the session GUC (ALS) — never a client param.
+ *
+ * ── SEC-5 CSV RESPONSE ───────────────────────────────────────────────────────
+ * When format='csv' the response Content-Type is text/csv and the pre-serialized
+ * csvContent string is returned directly. When format='json' the original JSON
+ * ExportPackage shape is returned.
+ *
  * ── HARD BOUNDARY ────────────────────────────────────────────────────────────
  * NO email send, NO Anthropic/LLM import, NO new external SDK.
  */
@@ -44,14 +54,15 @@ import {
   Body,
   Controller,
   Get,
-  Header,
   HttpCode,
   HttpStatus,
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import type { ZodError } from 'zod';
 import { Roles, RolesGuard } from '../auth/guards/roles.guard';
 import type { RequestWithSession } from '../auth/guards/session.guard';
@@ -144,23 +155,36 @@ export class RecordkeepingController {
   // ---------------------------------------------------------------------------
 
   /**
-   * export — assemble and download a deterministic recordkeeping export package.
+   * export — assemble and download a deterministic, SEC-compliant recordkeeping
+   * export package (wave-27 M10 extension).
    *
-   * Body: ExportScope { mandateId?, from?, to? } (.strict — unknown keys → 400).
-   * Returns 200 with JSON attachment containing:
-   *   { manifest, verifyResult, entries } (deterministic for same scope).
+   * Body: ExportScope { mandateId?, from?, to?, format?, scope? }
+   *   .strict() — unknown keys (workspace_id, firmId, tenant, etc.) → 400 (SEC-2).
    *
-   * Appends EXACTLY ONE 'export_generated' audit row LAST-IN-TXN.
+   * format='csv' (default): returns text/csv attachment (injection-safe, SEC-5).
+   * format='json': returns JSON attachment { manifest, verifyResult, entries, dealEntries }.
+   *
+   * scope='audit': audit log entries only.
+   * scope='deal': deal/pipeline activity only.
+   * scope='both' (default): audit + deal.
+   *
+   * Bounded: default 12-month from-date if omitted; max EXPORT_ROW_CAP rows (SEC-4).
+   * On cap-hit: manifest.truncated=true + rowsReturned + rowsAvailable (SEC-4).
+   *
+   * Appends EXACTLY ONE 'export_generated' audit row LAST-IN-TXN (SEC-9).
    * Rollback-on-audit-fail: no package without its audit row.
    *
-   * Auth: compliance, admin ONLY (advisor → 403 from RolesGuard).
+   * Auth: compliance, admin ONLY (advisor → 403 from RolesGuard) (SEC-7).
    */
   @Post('audit-log/export')
   @HttpCode(HttpStatus.OK)
   @UseGuards(SessionGuard, RolesGuard)
   @Roles(...EXPORT_ROLES)
-  @Header('Content-Disposition', 'attachment; filename="audit-log-export.json"')
-  async export(@Body() body: unknown, @Req() req: RequestWithSession): Promise<ExportPackage> {
+  async export(
+    @Body() body: unknown,
+    @Req() req: RequestWithSession,
+    @Res() res: Response
+  ): Promise<void> {
     const result = exportScopeSchema.safeParse(body);
     if (!result.success) {
       throw new BadRequestException(
@@ -174,7 +198,24 @@ export class RecordkeepingController {
       throw new Error('RecordkeepingController: session not present after SessionGuard');
     }
 
-    return this.recordkeepingService.exportAsActor(scope, session.getUserId());
+    const pkg: ExportPackage = await this.recordkeepingService.exportAsActor(
+      scope,
+      session.getUserId()
+    );
+
+    if (pkg.format === 'csv') {
+      // SEC-5: CSV response — injection-safe, RFC-4180 serialized.
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="audit-log-export.csv"');
+      res.status(HttpStatus.OK).send(pkg.csvContent ?? '');
+    } else {
+      // JSON response: return manifest + verifyResult + entries + dealEntries.
+      // csvContent is not included in the JSON response (internal artifact).
+      const { csvContent: _csv, format: _fmt, ...jsonPkg } = pkg;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', 'attachment; filename="audit-log-export.json"');
+      res.status(HttpStatus.OK).json(jsonPkg);
+    }
   }
 
   // ---------------------------------------------------------------------------

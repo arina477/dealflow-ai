@@ -109,7 +109,13 @@ export type ListFilter = z.infer<typeof listFilterSchema>;
  * Input schema for POST /compliance/audit-log/export.
  *
  * .strict(): any extra keys on the request body are rejected with 400.
- * All fields are optional; an empty scope {  } exports the full chain.
+ * All fields are optional. Notably: workspace_id / firmId / tenant are FORBIDDEN
+ * (SEC-2 — workspace is server-resolved from the session GUC; client must not supply it).
+ *
+ * format: 'csv' | 'json' — output serialization (default 'csv').
+ * scope:  'audit' | 'deal' | 'both' — what data to include (default 'both').
+ * from / to: optional ISO datetime bounds (default: last 12 months if omitted).
+ * mandateId: optional scoping to a single mandate.
  */
 export const exportScopeSchema = z
   .object({
@@ -119,6 +125,21 @@ export const exportScopeSchema = z
     from: z.string().optional(),
     /** Optional ISO datetime upper bound (inclusive) on createdAt. */
     to: z.string().optional(),
+    /**
+     * Output format.
+     *   'csv'  — RFC-4180 CSV with injection-safe escaping (SEC-5).
+     *   'json' — JSON manifest + entries array (original format).
+     * Default: 'csv'.
+     */
+    format: z.enum(['csv', 'json']).default('csv'),
+    /**
+     * Scope of data to export.
+     *   'audit' — audit log entries only.
+     *   'deal'  — deal/pipeline activity only (SEC-3).
+     *   'both'  — audit log entries + deal/pipeline activity (default).
+     * Default: 'both'.
+     */
+    scope: z.enum(['audit', 'deal', 'both']).default('both'),
   })
   .strict();
 
@@ -138,6 +159,11 @@ export type ExportScope = z.infer<typeof exportScopeSchema>;
  *   3. `verifyResult` (in the full package, not in this manifest schema) proves
  *      the FULL chain was intact at export time.
  *   4. `scope` records the exact filter criteria so the export is reproducible.
+ *   5. `truncated` / `rowsReturned` / `rowsAvailable` (SEC-4) — EXPLICIT cap
+ *      signal. When truncated=true the export hit the row cap and the file is
+ *      NOT a "complete" export — caller must narrow the date range.
+ *   6. `firmLocalOrdinal` note: exported rows carry a per-firm ordinal (1..N),
+ *      NOT the global sequence_number (cross-tenant side-channel, SEC-6).
  *
  * tailHash is nullable because an export with zero entries has no tail.
  */
@@ -159,8 +185,25 @@ export const exportManifestSchema = z
      * Null when entryCount is 0 (empty scope export).
      */
     tailHash: z.string().min(1).nullable(),
-    /** Number of audit entries in this export. */
+    /** Number of audit entries in this export (rows actually returned). */
     entryCount: z.number().int().nonnegative(),
+    /**
+     * SEC-4: true when the row cap was hit and the export is NOT a complete dataset.
+     * When true, the caller MUST narrow the date range to obtain a complete export.
+     * Never silently emit a short "complete" file — this flag makes truncation explicit.
+     */
+    truncated: z.boolean(),
+    /**
+     * SEC-4: total rows returned in this export (across all scopes).
+     * Equal to or less than rowsAvailable.
+     */
+    rowsReturned: z.number().int().nonnegative(),
+    /**
+     * SEC-4: total rows available in the date range (before cap was applied).
+     * When truncated=false this equals rowsReturned.
+     * When truncated=true this exceeds rowsReturned — indicates how many were skipped.
+     */
+    rowsAvailable: z.number().int().nonnegative(),
   })
   .strict();
 

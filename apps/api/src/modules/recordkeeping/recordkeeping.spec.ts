@@ -89,6 +89,8 @@ function makeEntry(seq: number): StoredAuditEntry {
     entryHash: 'd'.repeat(64),
     chainVersion: 1,
     createdAt: `2026-07-0${seq}T00:00:00.000Z`,
+    mandateId: null,
+    workspaceId: 'workspace-uuid',
   };
 }
 
@@ -109,12 +111,30 @@ const MOCK_VERIFY_BROKEN: AuditVerifyResponse = {
 function makeRepoMock(entries: StoredAuditEntry[] = MOCK_ENTRIES) {
   const findFiltered = vi.fn().mockResolvedValue(entries);
   const findForExport = vi.fn().mockResolvedValue(entries);
+  // findForExportBounded — returns the bounded shape (SEC-4).
+  const findForExportBounded = vi.fn().mockResolvedValue({
+    rows: entries,
+    truncated: false,
+    rowsAvailable: entries.length,
+  });
+  // findDealRowsBounded — returns empty deal rows (unit tests don't test deal scope).
+  const findDealRowsBounded = vi.fn().mockResolvedValue({
+    rows: [],
+    truncated: false,
+    rowsAvailable: 0,
+  });
   const runInTransaction = vi
     .fn()
     .mockImplementation(async (work: (tx: unknown) => Promise<unknown>) =>
       work({} /* mock tx handle */)
     );
-  return { findFiltered, findForExport, runInTransaction } as unknown as RecordkeepingRepository;
+  return {
+    findFiltered,
+    findForExport,
+    findForExportBounded,
+    findDealRowsBounded,
+    runInTransaction,
+  } as unknown as RecordkeepingRepository;
 }
 
 function makeAuditVerifierMock(verifyResult: AuditVerifyResponse = MOCK_VERIFY_OK) {
@@ -432,7 +452,7 @@ describe('RecordkeepingService.exportAsActor — rollback on audit failure', () 
 // ---------------------------------------------------------------------------
 
 describe('RecordkeepingService.exportAsActor — deterministic entries', () => {
-  it('returns entries in the same order as repo.findForExport (ASC from repo)', async () => {
+  it('returns entries in the same order as repo.findForExportBounded (ASC from repo)', async () => {
     const ascEntries = [makeEntry(1), makeEntry(2), makeEntry(3)];
     const repo = makeRepoMock(ascEntries);
     const svc = makeService({ repo });
@@ -440,8 +460,8 @@ describe('RecordkeepingService.exportAsActor — deterministic entries', () => {
     const pkg = await svc.exportAsActor({}, MOCK_ST_USER_ID);
 
     expect(pkg.entries).toHaveLength(3);
-    // Use map to avoid biome noNonNullAssertion — we already asserted length=3.
-    expect(pkg.entries.map((e) => e.sequenceNumber)).toEqual([1, 2, 3]);
+    // entries are ExportAuditEntry with firmLocalOrdinal (1..N), NOT sequenceNumber.
+    expect(pkg.entries.map((e) => e.firmLocalOrdinal)).toEqual([1, 2, 3]);
   });
 
   it('manifest entryCount matches entries.length', async () => {
