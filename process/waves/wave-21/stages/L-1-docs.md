@@ -69,7 +69,7 @@ Nothing user-facing changed. No new CLI command / flag, no new env var, no new i
 
 ## Action 4 — Commit
 
-`docs: L-1 wave-21 closeout` — FS docs (this deliverable + checklist L-1 tick). Direct push to `main`. SHA: <FILLED_ON_COMMIT>.
+`docs: L-1 wave-21 closeout` — FS docs (this deliverable + checklist L-1 tick). Direct push to `main`. SHA: `281681b`.
 
 ---
 
@@ -108,7 +108,7 @@ verdict_evidence:
   - "CHANGELOG.md: NO entry — skip-with-reasoning (internal process wave; user-facing convention preserved)"
   - "milestones row: M9 099cee10 — NO UPDATE (open_count=2>0 → stays in_progress)"
   - "shipped artifact: command-center/testing/ci-e2e-authoritative-policy.md @ 8f2287f (B-2)"
-  - "L-1 deliverable + checklist commit: <FILLED_ON_COMMIT>"
+  - "L-1 deliverable + checklist commit: 281681b"
 changelog_entry_added: false
 changelog_skip_reason: "Internal testing-verification policy, no user-facing product change; project changelog is a user-facing release log (0.16.0..0.20.0 all user-facing) — a pure internal-process wave does not warrant a product-changelog entry."
 roadmap_milestones_progressed: [{milestone: M9, before: in_progress, after: in_progress}]
