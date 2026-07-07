@@ -103,6 +103,10 @@ let pool: Pool;
 let dbReachable = false;
 let adminRoleId: string;
 let advisorRoleId: string;
+// AuditService instance constructed in beforeAll for HMAC-chained seeding.
+let auditService: import('../src/modules/audit/audit.service').AuditService;
+// Drizzle db handle (superuser pool) used by AuditRepository.
+let drizzleDb: ReturnType<typeof import('drizzle-orm/node-postgres').drizzle>;
 
 // Seeded entity IDs for WORM-safe teardown.
 const seededUserIds: string[] = [];
@@ -209,81 +213,39 @@ async function seedMandate(workspaceId: string, userId: string): Promise<string>
 }
 
 /**
- * Seed an audit log entry via the superuser pool (bypasses FORCE RLS for seeding).
- * Uses INSERT ... OVERRIDING SYSTEM VALUE to supply an explicit sequence_number that
- * is collision-safe against a shared DB where other suites may have inserted rows via
- * OVERRIDING SYSTEM VALUE (which does NOT advance the identity sequence counter).
+ * Seed an audit log entry via the REAL AuditService.appendStandalone().
  *
- * Pattern: read MAX(sequence_number) inside the same superuser transaction, then
- * insert at MAX+1 with OVERRIDING SYSTEM VALUE, then call setval() to advance the
- * identity sequence so subsequent DEFAULT-based inserts (from the real AuditService)
- * do not collide either. All three steps are in one serialisable transaction on a
- * single client so concurrent test suite runs cannot interleave between the read and
- * the write.
+ * This maintains a valid HMAC hash chain — acquires the advisory lock, reads the
+ * true global tail via read_audit_chain_rls_exempt, computes real hashes, and
+ * inserts with OVERRIDING SYSTEM VALUE. Using raw INSERT with fake hashes (the
+ * prior approach) corrupted the shared hash chain and caused verifyChain() to
+ * return ok:false in sibling suites (outreach-activity-rls, recordkeeping-gate,
+ * outreach-activity-migration).
  *
- * This is the collision-safe raw-seed pattern for a GENERATED ALWAYS AS IDENTITY
- * primary key shared across all workspaces — matching what the real
- * AuditRepository.insertEntry does (advisory lock + read_audit_chain_rls_exempt +
- * OVERRIDING SYSTEM VALUE), adapted for superuser test seeding that doesn't go
- * through the advisory-lock path.
+ * Wrapped in workspaceAls.run() so getWorkspaceId() resolves to the correct
+ * workspace_id inside _appendCore — without the ALS context the row lands in
+ * DEFAULT_WORKSPACE_ID.
  *
  * WORM: audit_log_entries rows are NOT tracked for cleanup (immutable).
  */
 async function seedAuditEntry(
   workspaceId: string,
   actorUserId: string,
-  action: string
+  action: import('@dealflow/shared').AuditAction
 ): Promise<void> {
-  const fakeHash = 'b'.repeat(64);
-  const genesisHash = '0'.repeat(64);
-
-  // Open a single client, run the MAX-read + INSERT + setval in one transaction
-  // so no concurrent writer can slip in between the SELECT MAX and the INSERT.
-  const client = await pool.connect();
-  try {
-    await client.query('SELECT set_config($1, $2, false)', ['app.workspace_id', workspaceId]);
-    await client.query('BEGIN');
-
-    // Read the current global max; use COALESCE so an empty table yields 0.
-    const maxRes = await client.query<{ maxseq: string }>(
-      `SELECT COALESCE(MAX(sequence_number), 0) AS maxseq FROM audit_log_entries`
-    );
-    const nextSeq = Number(maxRes.rows[0]?.maxseq ?? 0) + 1;
-
-    // Insert with OVERRIDING SYSTEM VALUE at the collision-safe next value.
-    // sequence_number is GENERATED ALWAYS AS IDENTITY — DEFAULT cannot be used
-    // without risk of collision against rows inserted via OVERRIDING SYSTEM VALUE
-    // by other suites (the identity counter is not auto-advanced by those inserts).
-    await client.query(
-      `INSERT INTO audit_log_entries
-         (sequence_number,
-          actor_user_id, actor_role, action, resource_type, resource_id,
-          content_hash, payload_hash, prev_hash, entry_hash, chain_version,
-          workspace_id)
-       OVERRIDING SYSTEM VALUE
-       VALUES ($1, $2, 'compliance', $3, 'audit-log-export', NULL,
-               $4, $4, $5, $4, 1, $6)`,
-      [nextSeq, actorUserId, action, fakeHash, genesisHash, workspaceId]
-    );
-
-    // Advance the identity sequence past nextSeq so the real AuditService's
-    // DEFAULT-based inserts (via appendStandalone / insertEntry) also do not collide.
-    await client.query(
-      `SELECT setval(
-         pg_get_serial_sequence('audit_log_entries', 'sequence_number'),
-         $1
-       )`,
-      [nextSeq]
-    );
-
-    await client.query('COMMIT');
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw err;
-  } finally {
-    await client.query('RESET app.workspace_id').catch(() => {});
-    client.release();
-  }
+  const { workspaceAls } = await import('../src/db/workspace-context');
+  const h = (s: string) => s.repeat(64).slice(0, 64);
+  await workspaceAls.run({ db: drizzleDb, workspaceId }, () =>
+    auditService.appendStandalone({
+      actorUserId,
+      actorRole: 'compliance',
+      action,
+      resourceType: 'audit-log-export',
+      resourceId: null,
+      contentHash: h('c'),
+      payloadHash: h('d'),
+    })
+  );
 }
 
 /**
@@ -495,10 +457,18 @@ describe.skipIf(shouldSkip)(
       const { drizzle } = await import('drizzle-orm/node-postgres');
       const schema = await import('../src/db/schema');
       const db = drizzle(pool, { schema });
+      drizzleDb = db;
       await ensureMigrated(
         db,
         apiMigrationsFolder(path.resolve(import.meta.url.replace('file://', ''), '..'))
       );
+
+      // Construct real AuditService for HMAC-chained seeding (green-suite pattern).
+      const { AuditKeyring } = await import('../src/modules/audit/audit.keyring');
+      const { AuditRepository } = await import('../src/modules/audit/audit.repository');
+      const { AuditService } = await import('../src/modules/audit/audit.service');
+      // KEYRING FIRST, REPOSITORY SECOND — wave-11 constructor-order lesson.
+      auditService = new AuditService(new AuditKeyring(process.env), new AuditRepository(db));
 
       // Resolve role ids.
       const roleRes = await pool.query<{ id: string; name: string }>(
@@ -531,9 +501,10 @@ describe.skipIf(shouldSkip)(
       );
 
       // ── Seed firm A: 3 audit entries + 2 pipeline rows ──────────────────────
-      await seedAuditEntry(WS_A_ID, wsAUserId, 'reiso-test-action-a1');
-      await seedAuditEntry(WS_A_ID, wsAUserId, 'reiso-test-action-a2');
-      await seedAuditEntry(WS_A_ID, wsAUserId, 'reiso-test-action-a3');
+      // Actions must be valid AuditAction enum values.
+      await seedAuditEntry(WS_A_ID, wsAUserId, 'mandate-create');
+      await seedAuditEntry(WS_A_ID, wsAUserId, 'mandate-configure');
+      await seedAuditEntry(WS_A_ID, wsAUserId, 'verify-chain');
       wsAAuditCount = 3;
 
       const mandateA1 = await seedMandate(WS_A_ID, wsAUserId);
@@ -543,8 +514,8 @@ describe.skipIf(shouldSkip)(
       wsAPipelineCount = 2;
 
       // ── Seed firm B: 2 audit entries + 1 pipeline row (must NOT appear in A export) ──
-      await seedAuditEntry(WS_B_ID, wsBUserId, 'reiso-test-action-b1');
-      await seedAuditEntry(WS_B_ID, wsBUserId, 'reiso-test-action-b2');
+      await seedAuditEntry(WS_B_ID, wsBUserId, 'mandate-create');
+      await seedAuditEntry(WS_B_ID, wsBUserId, 'mandate-configure');
 
       const mandateB = await seedMandate(WS_B_ID, wsBUserId);
       await seedPipelineRow(WS_B_ID, wsBUserId, mandateB);
@@ -668,8 +639,8 @@ describe.skipIf(shouldSkip)(
 
     // ── REISO-4: SEC-2 negative — workspace_id in body → 400 ─────────────────
 
-    it('REISO-4 (SEC-2): exportScopeSchema rejects workspace_id in body (unknown key)', () => {
-      const { exportScopeSchema } = require('@dealflow/shared');
+    it('REISO-4 (SEC-2): exportScopeSchema rejects workspace_id in body (unknown key)', async () => {
+      const { exportScopeSchema } = await import('@dealflow/shared');
 
       // workspace_id is an unknown key — .strict() rejects it.
       const result = exportScopeSchema.safeParse({
