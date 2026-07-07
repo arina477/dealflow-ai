@@ -547,6 +547,26 @@ const nextConfig: NextConfig = {
           source: '/seller-intent',
           destination: `${apiProxyTarget}/seller-intent`,
         },
+        // Wave-28 (task ce75c6c6): retention-policy proxy (page-route-collision fix).
+        //
+        // CRITICAL: /compliance/retention has a Next.js page file:
+        //   /compliance/retention → app/(app)/compliance/retention/page.tsx
+        //
+        // We must NOT rewrite /compliance/retention (GET — served as the React page).
+        // The client component fetches via the non-colliding /compliance/retention-data
+        // path (no matching Next.js page file), which afterFiles always proxies to the
+        // API's GET + PUT /compliance/retention endpoint.
+        //
+        // compliance + admin only (RBAC enforced by B-2 controller guard + assertRole
+        // on the page). workspace_id is ALWAYS resolved server-side (SEC-A / SEC-2).
+        //
+        // Client callers (RetentionPolicyForm):
+        //   GET /compliance/retention-data → GET /compliance/retention (read policy)
+        //   PUT /compliance/retention-data → PUT /compliance/retention (set policy)
+        {
+          source: '/compliance/retention-data',
+          destination: `${apiProxyTarget}/compliance/retention`,
+        },
       ],
       beforeFiles: [],
       fallback: [],
