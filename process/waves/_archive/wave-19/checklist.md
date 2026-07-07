@@ -65,6 +65,6 @@ LEARN:
 - [x] L-2 Distill
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M9 stays in_progress; decompose-M9-more fired (outreach-activity bundle); metric+gated-pileup to digest
+- [x] N-2 Seed — seed d45c73b5 + 3 siblings (skipped gated 345dfbc6); validated
+- [x] N-3 Handoff — wave-19 archived; waves row 19 status=ok; wave-20 seeded; loop ready
