@@ -1,0 +1,8 @@
+# CI-trigger marker — wave-25 C-1 resume
+# Founder raised GitHub Actions spending limit (3rd same-day clear) and replied Continue.
+# This real, non-[skip ci] commit re-fires CI on the wave-25 auth-hardening code tree
+# (migration 0019_rate_limit_hits + rate-limit middleware + trust-proxy + auth validation
+#  + DB-gated SEC-1-DB / SEC-4-DB) to VERIFY GitHub Actions dispatches a run this time.
+fired_at: "2026-07-07T13:40:00Z"
+purpose: verify-actions-dispatch-after-billing-raise
+carries_code_tree_of: 704ba83  # == 6476bc5 tree (wave-25 auth-hardening)
