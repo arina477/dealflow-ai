@@ -22,7 +22,7 @@
  *
  * ── SI2: DIRECTION — PINNED CONSTANTS ────────────────────────────────────────
  *   WINDOW_DAYS = 30      — each trend window is exactly 30 calendar days.
- *   DIRECTION_EPSILON = 5 — |delta| < 5 → 'flat'; delta ≥ 5 → 'heating'; delta ≤ -5 → 'cooling'.
+ *   DIRECTION_EPSILON = 5 — |delta| ≤ EPSILON → 'flat'; delta > EPSILON → 'heating'; delta < -EPSILON → 'cooling'.
  *   MS_PER_DAY = 86_400_000 — deterministic constant (NOT Date.now()).
  *   direction = sign of (recentWindowScore − priorWindowScore) with epsilon guard.
  *   Unit-tested at the epsilon boundary.
@@ -309,12 +309,17 @@ export function scoreMandateIntent(input: SellerIntentScorerInput): SellerIntent
 
     // Recency bonus: based on most-recent completed activity vs referenceInstant.
     // Uses Date.parse (deterministic, pure) — NOT Date.now().
+    // Chronological comparison via Date.parse — correct regardless of UTC-offset variation
+    // in the returned timestamptz strings (avoids the lexical-order-only-safe-for-UTC bug).
     let recencyBonus = 0;
     if (completed.length > 0) {
-      const mostRecentTs = completed.reduce((best, a) => {
+      // Seed with the first element's effective ts so the initial accumulator is a valid
+      // timestamp — Date.parse('') === NaN, which breaks the >= comparison.
+      const seedTs = completed[0]!.completedAt ?? completed[0]!.createdAt;
+      const mostRecentTs = completed.slice(1).reduce((best, a) => {
         const ts = a.completedAt ?? a.createdAt;
-        return ts > best ? ts : best;
-      }, '');
+        return Date.parse(ts) >= Date.parse(best) ? ts : best;
+      }, seedTs);
       if (mostRecentTs.length > 0) {
         const daysSince = (refMs - Date.parse(mostRecentTs)) / MS_PER_DAY;
         if (daysSince <= WINDOW_DAYS) {
