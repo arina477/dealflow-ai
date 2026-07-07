@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.18.0] — 2026-07-07 — Advisor insights analytics (M9)
+
+### Added
+- **See your firm's activity at a glance** — a new insights dashboard (/insights) gives advisors and admins read-only analytics on their own firm's live data across four areas: mandate throughput (drafts vs active), how outreach drafts fared at the compliance gate, per-advisor activity, and how introductions were dispositioned (accepted, rejected, still pending). It's numbers you can read, not a report you have to run.
+- **Honest outreach metric, not a vanity number** — the outreach measure shows compliance-gate outcomes (how many drafts cleared the gate vs were blocked), not a "response rate," because the product doesn't send email yet. We report what actually happens, not a number we can't stand behind.
+
+### Correctness / compliance
+- **You only ever see your own firm's numbers** — every figure on the dashboard is scoped to your firm and no other, built on the existing per-firm isolation so one firm's analytics can never include another firm's data; this was proven by a test that confirms the cross-firm case is impossible.
+- **Nothing was written or changed to produce these numbers** — the dashboard only reads existing records; it writes nothing, sends no email, uses no AI, and leaves the immutable audit trail untouched. Access is limited to advisors and admins.
+
+### Provenance (transparency)
+- **Read-only over data you already had.** No database change, no new setup step, and no new permission to grant. Additive-only: turning the page off removes nothing from your data.
+- **Scope is honest — this is the analytics half of the milestone.** Syncing your existing CRM into DealFlow AI, multi-channel outreach, seller intent signals, and a matching feedback loop are still to come, and the CRM connection depends on a founder decision on which provider to use. The specific numeric success target for this area is still to be set by the founder.
+
 ## [0.17.0] — 2026-07-06 — Pilot-partner workspace data-isolation (M8)
 
 ### Added
