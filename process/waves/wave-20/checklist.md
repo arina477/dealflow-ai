@@ -28,7 +28,7 @@
 - [x] P-3 Plan
 - [x] P-4 Gate
 - [ ] D-block (if UI design gap)
-- [ ] B-0..B-6
+- [x] B-0..B-6
 - [ ] C-1 / C-2
 - [ ] T-1..T-9
 - [ ] V-1..V-3
