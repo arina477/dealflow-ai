@@ -495,6 +495,19 @@ const nextConfig: NextConfig = {
           source: '/analytics',
           destination: `${apiProxyTarget}/analytics`,
         },
+        // Wave-19 (task 077974a2): match-feedback calibration read proxy.
+        //
+        // /match-feedback has NO Next.js page file (it is a section on /insights).
+        // afterFiles always falls through to this rule and proxies it to
+        // GET /match-feedback on the API.
+        //
+        // Read-only. Workspace-scoped (FORCE RLS in the service).
+        // advisor + admin only (RBAC enforced by the B-2 controller guard and
+        // as part of the /insights page's assertRole gate).
+        {
+          source: '/match-feedback',
+          destination: `${apiProxyTarget}/match-feedback`,
+        },
       ],
       beforeFiles: [],
       fallback: [],

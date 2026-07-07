@@ -59,6 +59,8 @@ const NON_ADMIN_ROLE_ROUTES: Array<{ route: string; allowedRoles: Role[] }> = [
   // Wave-18: /insights (advisor + admin) and /analytics API proxy (advisor + admin)
   { route: '/insights', allowedRoles: ['advisor', 'admin'] },
   { route: '/analytics', allowedRoles: ['advisor', 'admin'] },
+  // Wave-19: /match-feedback calibration API (advisor + admin; analyst + compliance denied)
+  { route: '/match-feedback', allowedRoles: ['advisor', 'admin'] },
 ];
 
 const ALL_ROLES: Role[] = ['advisor', 'analyst', 'compliance', 'admin'];
@@ -341,6 +343,61 @@ describe('RBAC role-reverify — changing role changes live access (wave-15, tas
       const activityItem = navItemsForRole('admin').find((i) => i.route === '/admin/activity');
       expect(activityItem).toBeDefined();
       expect(canAccess('admin', '/admin/activity')).toBe(true);
+    });
+  });
+
+  // ── Wave-19: /match-feedback calibration API endpoint ────────────────────
+
+  describe('wave-19 match-feedback calibration API (task 077974a2)', () => {
+    it('/match-feedback allows advisor', () => {
+      expect(canAccess('advisor', '/match-feedback')).toBe(true);
+    });
+
+    it('/match-feedback allows admin', () => {
+      expect(canAccess('admin', '/match-feedback')).toBe(true);
+    });
+
+    it('/match-feedback denies analyst (403-class)', () => {
+      expect(canAccess('analyst', '/match-feedback')).toBe(false);
+    });
+
+    it('/match-feedback denies compliance (403-class)', () => {
+      expect(canAccess('compliance', '/match-feedback')).toBe(false);
+    });
+
+    it('rolesForRoute(/match-feedback) returns [advisor, admin]', () => {
+      const roles = rolesForRoute('/match-feedback') as Role[];
+      expect(roles).toContain('advisor');
+      expect(roles).toContain('admin');
+      expect(roles).not.toContain('analyst');
+      expect(roles).not.toContain('compliance');
+    });
+
+    it('advisor→analyst demotion revokes /match-feedback access', () => {
+      let role: Role = 'advisor';
+      expect(canAccess(role, '/match-feedback')).toBe(true);
+      role = 'analyst';
+      expect(canAccess(role, '/match-feedback')).toBe(false);
+    });
+
+    it('analyst→advisor promotion grants /match-feedback access', () => {
+      let role: Role = 'analyst';
+      expect(canAccess(role, '/match-feedback')).toBe(false);
+      role = 'advisor';
+      expect(canAccess(role, '/match-feedback')).toBe(true);
+    });
+
+    it('advisor→admin promotion retains /match-feedback access', () => {
+      let role: Role = 'advisor';
+      expect(canAccess(role, '/match-feedback')).toBe(true);
+      role = 'admin';
+      expect(canAccess(role, '/match-feedback')).toBe(true);
+    });
+
+    it('/match-feedback RBAC mirrors /analytics (same role set)', () => {
+      for (const role of ALL_ROLES) {
+        expect(canAccess(role, '/match-feedback')).toBe(canAccess(role, '/analytics'));
+      }
     });
   });
 
