@@ -3,104 +3,114 @@
 ## Summary
 
 Direct-push-to-main model (PAT lacks PR:write; CI fires on `push: branches:[main]`).
-Squash-merged `wave-23-seller-intent` (B-6 APPROVED code tree @854bad5; the `[skip ci]`
-B-6-close tip 445b3cb differs from 854bad5 by process-docs ONLY — apps/ tree identical)
-into main as a **CI-triggering commit** (message NOT `[skip ci]`), carrying the real
-seller-intent code tree (deterministic scorer + workspace-scoped service + repository +
-controller + module + /seller-intent API + /insights UI + shared-Zod contracts + the two
-KEY test files). Pushed to origin/main: `1e78421..a1bc858`.
+The wave-23 seller-intent code tree (deterministic scorer + workspace-scoped service +
+repository + controller + module + /seller-intent API + /insights UI + shared-Zod contracts
++ the two KEY test files) is on `origin/main` at tip **`6c22919`**. A tiny non-code marker
+(`.ci/wave-23-resume-probe.txt`, outside apps/packages) sits on top of the seller-intent
+code @a1bc858 — a harmless CI-triggering probe. The apps/ tree at 6c22919 is the full
+seller-intent module.
 
-**NO migration this wave** — verified: `git diff --name-only main wave-23-seller-intent --
-apps/api/src/db/migrations/` returns 0 files. Additive-only Drizzle static-analysis check
-passes vacuously (nothing destructive because nothing schema-changed). App already runs as
-non-superuser `dealflow_app`; DATABASE_URL unchanged.
+**NO migration this wave** — read-only scoring. Additive-only Drizzle static-analysis check
+passes vacuously (0 migration files in the wave delta). App already runs as non-superuser
+`dealflow_app`; DATABASE_URL unchanged.
 
-## Ghost-Green guard (CI #2) — the decisive verification
+## Resume disposition — the 2nd GitHub-Actions hard-stop was founder-cleared
 
-Pushed a real code tree on a non-`[skip ci]` tip, then verified whether a workflow run
-actually FIRED on the exact pushed headSha (webhook-independent commits API), NOT merely
-that the push landed. **It did not fire.**
+The prior C-1 verdict was ESCALATE/FAIL: GitHub Actions dispatched 0 runs on the pushed tip
+(minutes/spending-limit hard-stop, recurrence of wave-22). **The founder raised the Actions
+spending limit; dispatch is restored.** On resume, a CI run fired on the exact tip and was
+watched to a queryable green — no fabricated or extrapolated green.
 
-- Pushed headSha: `a1bc85819fa71815002296c7dc837179e01fc806` (origin/main tip, confirmed).
-- GitHub confirms receipt: repo `pushed_at: 2026-07-07T09:27:52Z` matches the push.
-- `GET /repos/arina477/dealflow-ai/commits/a1bc858/check-suites` → **`total_count: 0`**
-  (re-queried across ~90s + a final poll; stayed 0).
-- `GET .../commits/a1bc858/check-runs` → **`0`**.
-- `gh run list` newest run repo-wide remains `28850000460 @c168d3a` (07:42Z, the wave-22
-  green tip) — **nothing has fired since the wave-23 push**.
-- Workflow `CI` id=306022757 is `state: active`; `ci.yml` present on tip; actor `arina477`
-  identical to the last-firing run — so this is NOT a `[skip ci]` / disabled-workflow /
-  actor / workflow-file issue. Check-suites are simply not being CREATED on push.
+## Ghost-Green guard — SHA-provenance verified
 
-**Diagnosis:** identical signature to the wave-22 C-1 GitHub-Actions-minutes / spending-limit
-hard-stop (founder-cleared earlier today, now recurred). Actions accepts pushes but dispatches
-zero runs. `GET /repos/.../actions/permissions` returns **HTTP 403** for this PAT — the brain
-cannot confirm or clear the billing/spending state; that is an account-owner (money) action.
+- Run **28858565829** (`event: push`) fired on `head_sha` **`6c229197f4dfb12352e766e1754502a9f76b51e9`**.
+- That head_sha == `git rev-parse origin/main` == `git rev-parse HEAD` (local synced) == **6c22919**.
+- Queryable conclusion (NOT extrapolated from `gh run watch` exit): `gh api runs/28858565829 -> conclusion: "success"`.
 
-## The 5 required jobs (would-be checks; UNRUN)
+The CI signal corresponds to the EXACT deployed artifact — the SHA the wave-23 seller-intent
+code sits on. No stale-cache Ghost-Green, no intermediate-commit blindness.
 
-`ci.yml` defines: **lint, typecheck, test (postgres:18), audit (`pnpm audit --audit-level=high`),
-build**. The KEY deliverable-verification suites — the `seller-intent-isolation.e2e-spec`
-(cross-firm scoping via the REAL SellerIntentService as dealflow_app, SIT-3 fault-killing) and
-the `seller-intent.scorer.spec` (26 tests: determinism + epsilon + empty-data + no-tieBreak +
-no-Date.now) — run inside the `test` job. Both files are present in the pushed tree
-(`apps/api/test/seller-intent-isolation.e2e-spec.ts`,
-`apps/api/src/modules/seller-intent/seller-intent.scorer.spec.ts`), but **CI never executed**,
-so their green is UNOBTAINABLE. Iron Law forbids fabricating or extrapolating one.
+## The 5 required jobs — all GREEN (queryable per-job conclusions)
+
+`gh api runs/28858565829/jobs`:
+
+| Job | conclusion |
+|---|---|
+| lint | success |
+| typecheck | success |
+| test (postgres:18) | success |
+| audit (`pnpm audit --audit-level=high`) | success |
+| build | success |
+
+- **audit gate:** the `Run pnpm audit --audit-level=high` step conclusion is `success` (exit 0)
+  — supply-chain high-severity gate passed on the real workspace.
+
+## KEY CHECKS — the wave's deliverable-verification, RAN + GREEN (grep'd from test-job log)
+
+Test job id 85591120642, `/tmp/test-job.log`:
+
+- **`test/seller-intent-isolation.e2e-spec.ts` (3 tests) ✓ 2288ms** — cross-firm scoping via the
+  REAL `SellerIntentService` as `dealflow_app`:
+  `SIT-1 (real service): WS_A mandateIds appear in results; WS_B mandateIds are fully absent`.
+  The e2e RAN (not skipped) and all 3 tests passed. This is the authoritative cross-firm
+  isolation proof (SIT fault-killing suite).
+- **`src/modules/seller-intent/seller-intent.scorer.spec.ts` (26 tests) ✓ 17ms** — the determinism
+  + epsilon + empty-data + no-tieBreak + no-`Date.now` scorer suite, RAN + passed.
+- Aggregate test tallies across the test job: `509 passed (509)`, `950 passed (950)`,
+  `837 passed (837)` — **zero skipped, zero failed** in any of the 5 test files / suites.
 
 ## Iron Law disposition
 
-This is NOT a code defect → NO B-stage route. It is an infra-readiness hard-stop (money /
-account-owner decision). head-ci-cd verdict: **FAIL / ESCALATE**. C-1/C-2 checklist rows left
-unchecked; C-2 NOT entered. origin/main tip is `a1bc858` (code physically on main but
-UNVERIFIED by CI — tip presence is NOT a green).
+No fix-forward was required — the code was already B-6 APPROVED; the only blocker was the infra
+(Actions minutes), which the founder cleared. Once dispatch resumed, CI ran and went green on the
+exact tip. head-ci-cd verdict: **PASS**.
 
 ```yaml
-ci_stage_verdict: FAIL
+ci_stage_verdict: PASS
 verdict_source: gh
 verdict_evidence:
-  - "gh api repos/arina477/dealflow-ai/commits/a1bc858/check-suites -> total_count: 0"
-  - "gh api .../commits/a1bc858/check-runs -> 0"
-  - "gh run list newest run repo-wide still 28850000460 @c168d3a (07:42Z, wave-22 tip) — nothing fired since wave-23 push"
-  - "repo pushed_at 2026-07-07T09:27:52Z confirms push receipt; 0 suites created"
-  - "workflow CI id=306022757 state=active; ci.yml on tip; actor arina477 (same as last-firing run)"
-  - "gh api repos/.../actions/permissions -> HTTP 403 (PAT cannot confirm/clear billing)"
+  - "gh api repos/arina477/dealflow-ai/actions/runs/28858565829 -> conclusion: success, head_sha: 6c229197f4dfb12352e766e1754502a9f76b51e9, event: push"
+  - "head_sha 6c229197... == origin/main tip == local HEAD (git rev-parse) — SHA provenance verified, no Ghost-Green"
+  - "gh api runs/28858565829/jobs -> all 5 jobs conclusion=success: lint, typecheck, test, audit, build"
+  - "audit job step 'Run pnpm audit --audit-level=high' conclusion=success (exit 0) — high-severity supply-chain gate passed"
+  - "test-job log: test/seller-intent-isolation.e2e-spec.ts (3 tests) PASS incl. SIT-1 real-service cross-firm WS_A-includes/WS_B-absent"
+  - "test-job log: src/modules/seller-intent/seller-intent.scorer.spec.ts (26 tests) PASS 17ms — determinism/epsilon/empty-data/no-tieBreak/no-Date.now"
+  - "test-job log aggregates: 509 + 950 + 837 tests passed, 0 skipped, 0 failed"
 pr_number: null                   # direct-push-to-main model (PAT lacks PR:write)
 pr_url: null
 branch: wave-23-seller-intent
-pushed_head_sha: a1bc85819fa71815002296c7dc837179e01fc806
-required_checks: [lint, typecheck, test, audit, build]   # DEFINED in ci.yml; UNRUN (0 suites dispatched)
+pushed_head_sha: 6c229197f4dfb12352e766e1754502a9f76b51e9
+ci_run_id: 28858565829
+required_checks: [lint, typecheck, test, audit, build]   # all success
 optional_checks: []
 fix_up_cycles: 0
-final_commit_sha: null            # no CI-green commit — CI never ran
-merge_strategy: squash            # squash-merged wave-23 branch into main
-merge_commit_sha: a1bc85819fa71815002296c7dc837179e01fc806
+final_commit_sha: 6c229197f4dfb12352e766e1754502a9f76b51e9   # CI-green commit
+merge_strategy: squash            # code already squash-merged into main
+merge_commit_sha: 6c229197f4dfb12352e766e1754502a9f76b51e9
 rebase_cycles: 0
-migration_this_wave: false        # verified 0 migration files in main..wave-23 delta
-note: "GitHub Actions dispatched ZERO runs on the pushed tip a1bc858 (0 check-suites / 0 check-runs, webhook-independent API, ~90s+ waited). Signature of exhausted Actions minutes / spending-limit — recurrence of the wave-22 C-1 hard-stop. PAT gets 403 on actions/permissions so the brain cannot confirm/clear it: account-owner GitHub billing action required (money decision -> founder). NO fabricated/extrapolated green (Iron Law). BLOCKED terminal until founder clears the Actions block; on resume, C-1 re-fires a CI-triggering push (or the already-pushed a1bc858 will dispatch once minutes are restored) and watches the 5 jobs — esp. the test job's seller-intent-isolation e2e + scorer.spec — to green on the exact headSha, THEN proceeds to C-2."
+migration_this_wave: false        # read-only scoring wave; 0 migration files in delta
+note: "2nd GitHub-Actions minutes/spending-limit hard-stop was FOUNDER-CLEARED (limit raised). Dispatch restored; run 28858565829 fired on the exact tip 6c22919 and was watched to a queryable conclusion=success (5/5 jobs). KEY CHECKS RAN + GREEN in the test job: seller-intent-isolation.e2e (3 tests, SIT-1 real-service cross-firm WS_A/WS_B scoping) + seller-intent.scorer.spec (26 tests determinism). pnpm audit --audit-level=high step conclusion=success. No fabricated/extrapolated green — conclusion + head_sha both queried. Local main synced. -> C-2."
 ```
 
 ## head_signoff
 
 ```yaml
 head_signoff:
-  verdict: ESCALATE
+  verdict: APPROVED
   stage: C-1
   reviewers: {}
-  failed_checks:
-    - "[STABLE] CI run's tested commit SHA matches PR/main HEAD — UNVERIFIABLE: 0 runs dispatched on a1bc858."
-    - "pnpm audit --audit-level=high exit 0 — UNRUN (audit job never dispatched)."
-    - "seller-intent-isolation.e2e-spec RAN + GREEN — UNRUN (CI never executed)."
-    - "seller-intent.scorer.spec (26 tests) RAN + GREEN — UNRUN (CI never executed)."
+  failed_checks: []
   rationale: >
-    GitHub Actions accepted the push to main (tip a1bc858) but created ZERO check-suites /
-    check-runs (webhook-independent commits API, confirmed across ~90s + final poll; newest
-    run repo-wide is still the wave-22 07:42 tip). The workflow is active, ci.yml is present,
-    and the actor is unchanged, so this is not a config/[skip ci]/actor issue — it is the
-    recurrence of the wave-22 GitHub-Actions-minutes / spending-limit withholding. The wave's
-    KEY deliverable-verification (seller-intent isolation e2e + scorer.spec green in CI) is
-    UNOBTAINABLE; no green may be fabricated or extrapolated per the Iron Law. The PAT gets
-    HTTP 403 on actions/permissions, so the brain cannot confirm or clear the billing state —
-    it is an account-owner money decision that only the founder can take.
-  next_action: ESCALATE_TO_founder
+    Run 28858565829 fired on the exact origin/main tip 6c22919 (head_sha verified equal to
+    git rev-parse HEAD/origin/main — no Ghost-Green) with a QUERYABLE conclusion of success
+    (read via gh api, not extrapolated from the gh run watch exit code). All 5 required jobs
+    (lint, typecheck, test, audit, build) report conclusion=success; the pnpm audit
+    --audit-level=high step conclusion=success (exit 0, high-severity supply-chain gate held).
+    The wave's KEY deliverable-verification RAN (not skipped) and passed in the test job: the
+    seller-intent-isolation e2e (3 tests) proves cross-firm scoping via the REAL
+    SellerIntentService as dealflow_app (SIT-1: WS_A results present, WS_B fully absent), and
+    the seller-intent.scorer.spec (26 tests) proves determinism/epsilon/empty-data/no-tieBreak/
+    no-Date.now. Aggregate tallies 509+950+837 passed, zero skipped, zero failed. The 2nd
+    Actions-minutes hard-stop was founder-cleared (spending limit raised). C-1 exits PASS.
+  next_action: PROCEED_TO_C-2
 ```

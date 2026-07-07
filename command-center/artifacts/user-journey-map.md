@@ -209,3 +209,9 @@ Calibration reads already-live match_candidates (disposition/fit_score/score_bre
 |---|---|---|---|
 | /outreach/activity (Outreach Log) | log + track manual outreach touches (call/email/linkedin/other) as INTERNAL records — create form + my-open-touches list + status transitions (planned/completed/cancelled) + 0-or-1 deal-target link | POST/GET/PATCH /outreach-activity | workspace-scoped WRITE (FORCE RLS FOR-ALL as dealflow_app — own-firm only, write-path-isolated); RBAC advisor+admin (analyst/compliance 403, anon 401); every mutation audit-logged (M2 HMAC chain, last-in-txn); NO external send (channel is a label); mutable ledger (NOT WORM) |
 First mutable M9 write surface. New outreach_activity table (migration 0018, additive). All-4-FK deal-target tenancy validated; createdBy server-derived.
+
+## Seller-intent scoring (M9 wave-23, LIVE @6c22919) — role:advisor + admin
+| Route | Purpose | Endpoints | Scope |
+|---|---|---|---|
+| /insights (seller-intent section) | per-mandate deterministic intent score (0-100) + direction (heating/cooling/flat) + 3-signal breakdown (outreach engagement / pipeline velocity / match disposition) — which mandates are heating up vs cooling | GET /seller-intent (via /seller-intent proxy) | workspace-scoped (own-firm only, FORCE RLS as dealflow_app, fail-closed); RBAC advisor+admin (analyst/compliance 403, anon 401); read-only; PURE deterministic (NO-LLM, no Date.now-inside — reproducible/auditable); NO tieBreak surfaced (PRODUCT #1) |
+Seller-intent is a read-derived deterministic score over already-live outreach_activity/pipeline_events/match_candidates. Sorted hottest-first. Additive section on the /insights dashboard.
