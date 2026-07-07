@@ -143,9 +143,8 @@ function getPool(overridePool?: Pool): Pool {
   if (overridePool) return overridePool;
   if (!_pool) {
     // Lazy import avoids circular dep at module eval time.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    // biome-ignore lint/style/noCommaOperator: dynamic require for lazy init
-    _pool = require('../../db/index').pool as Pool;
+    const dbModule = require('../../db/index') as { pool: Pool };
+    _pool = dbModule.pool;
   }
   return _pool;
 }
@@ -279,13 +278,13 @@ function extractIdentifier(req: Request, scope: string): string {
   const body = (req as Request & { body?: unknown }).body as Record<string, unknown> | undefined;
   if (body && typeof body === 'object') {
     // Direct email field (our Nest-parsed bodies: signup, reset/request)
-    const emailField = body['email'];
+    const emailField = body.email;
     if (typeof emailField === 'string' && emailField.length > 0) {
       return emailField;
     }
     // SuperTokens uses formFields array: [{ id: 'email', value: '...' }]
     // This is the shape the SuperTokens SDK sends to its own auto-routes (/auth/signin).
-    const ff = body['formFields'];
+    const ff = body.formFields;
     if (Array.isArray(ff)) {
       for (const field of ff as Array<{ id?: string; value?: unknown }>) {
         if (field.id === 'email' && typeof field.value === 'string' && field.value.length > 0) {

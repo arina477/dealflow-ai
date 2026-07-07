@@ -19,7 +19,7 @@
  * Tests that use the mock pool run unconditionally.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // ── Module-level mocks ──────────────────────────────────────────────────────
 
@@ -277,10 +277,10 @@ describe('SEC-2: Dual-window — coarse bucket caps sustained attacks', () => {
     // We simulate this by having the mock pool return coarse limit+1 for the coarse bucket
     // while the short bucket stays below its limit.
     // Implementation: return short=1 always, coarse=coarse_limit+1 for coarse keys.
-    const shortLimit = SCOPE_LIMITS.signin.short;
+    const _shortLimit = SCOPE_LIMITS.signin.short;
     const coarseLimit = SCOPE_LIMITS.signin.coarse;
 
-    const query: QueryFn = async (sql, params) => {
+    const query: QueryFn = async (_sql, params) => {
       if (!params) return { rows: [] };
       const key = params[0] as string;
       // If the key contains the coarse window seconds, return coarse limit+1
@@ -309,7 +309,7 @@ describe('SEC-2: Dual-window — coarse bucket caps sustained attacks', () => {
     const shortLimit = SCOPE_LIMITS.signin.short;
     const coarseLimit = SCOPE_LIMITS.signin.coarse;
 
-    const query: QueryFn = async (sql, params) => {
+    const query: QueryFn = async (_sql, params) => {
       if (!params) return { rows: [] };
       const key = params[0] as string;
       if (key.includes(`:${SHORT_WINDOW_SECONDS}:`)) {
@@ -376,7 +376,7 @@ describe('SEC-3: Forged X-Forwarded-For does not get a fresh bucket', () => {
     // The short-window counter should be ≥ 2 (both requests counted in same bucket)
     const shortEntry = matchingKeys.find(([k]) => k.includes(`:${SHORT_WINDOW_SECONDS}:`));
     expect(shortEntry).toBeDefined();
-    expect(shortEntry![1]).toBeGreaterThanOrEqual(2);
+    expect(shortEntry?.[1]).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -407,7 +407,7 @@ describe('SEC-4: Email normalisation — A@X.com and a@x.com share one bucket', 
       ([k]) => k.startsWith('reset/request:a@x.com:') && k.includes(`:${SHORT_WINDOW_SECONDS}:`)
     );
     expect(shortEntries.length).toBe(1);
-    expect(shortEntries[0]![1]).toBe(3);
+    expect(shortEntries[0]?.[1]).toBe(3);
   });
 });
 
