@@ -1,0 +1,3 @@
+wave-22 C-1 CI-trigger marker
+Merge tip e832633 carried two [skip ci] parents and GitHub suppressed the run.
+This single clean-message commit re-fires CI on the identical apps/ tree (aca94482).
