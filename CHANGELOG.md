@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.21.0] — 2026-07-07 — Seller-intent scoring (M9)
+
+### Added
+- **See which of your deals are heating up and which are going cold** — the insights dashboard (/insights) now gives advisors and admins, for their own firm, a seller-intent score from 0 to 100 on each live mandate along with a plain direction — heating, cooling, or flat — sorted hottest-first, so the deals worth a call today rise to the top instead of getting lost in the list. Each score comes with a three-part breakdown (outreach engagement, pipeline velocity, and match disposition) so you can see why a mandate scored the way it did.
+- **The score is a rule, not a black-box guess** — it's computed by a fixed, published formula over signals you already have (outreach touches, pipeline progression, match dispositions); the same inputs always produce the exact same score, with no AI, no hidden model, and no dependence on what time it runs. That makes every score reproducible and auditable — the right call for a compliance-first product — and AI-based intent inference is deliberately held back for a separate founder decision.
+- **Honest numbers, no filler dimension** — a low-signal factor that would only have broken ties was deliberately left out rather than shown as if it meant something, so the three factors you see are the three that actually move the score.
+
+### Correctness / compliance
+- **You only ever see your own firm's scores** — every score is scoped to your firm and no other, built on the existing per-firm isolation so one firm's intent scores can never draw on or appear in another firm's data; this was proven by a test that deliberately breaks isolation and confirms the cross-firm case is impossible.
+- **Nothing was written or changed to produce these scores** — the feature only reads existing records; it writes nothing, sends no email, uses no AI, adds no database change and no deploy migration, and leaves the immutable audit trail untouched. Access is limited to advisors and admins.
+
+### Provenance (transparency)
+- **Read-only over data you already had.** No database change, no new setup step, and no new permission to grant. Additive-only: turning the section off removes nothing from your data.
+- **Scope is honest — this is the deterministic read, not AI intent.** It scores intent from your existing internal signals; AI-based intent inference and the founder-gated connection that would sync an outside CRM's signals in are still to come and depend on a founder decision. The specific numeric success target for this area is still to be set by the founder.
+
 ## [0.20.0] — 2026-07-07 — Outreach activity log (M9)
 
 ### Added
