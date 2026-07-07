@@ -60,6 +60,12 @@ jobs:
           # TEST_DATABASE_URL must differ from DATABASE_URL (architecture R-17).
           # Uses a separate DB within the same postgres:18 service container.
           TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/dealflow_test
+      # WORM migration coverage check — exits 1 if any audit/WORM-touching migration
+      # lacks a populated-DB test (standing AC, wave-24 M10).
+      # The vitest suite (check-worm-migration-tests.spec.ts) also covers this via the
+      # real-tree integration test; this step makes the exit-1 explicit in CI output.
+      - name: WORM migration coverage check
+        run: pnpm --filter @dealflow/api check:worm-migration-tests
 
   # Security gate — compliance-first posture (v6b resolution #17)
   audit:
