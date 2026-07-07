@@ -224,7 +224,88 @@ Exact GraphQL mutation names and field shapes must be verified against the Railw
 
 ### Postgres migrations in CI
 
-Drizzle migrations (`drizzle-kit migrate`) run as a one-shot Railway job (not a service) triggered after a successful deploy and before the health-check gate. The migration job uses the same `POSTGRES_URL` Railway injects into the `api` service. Migration failures block the deployment pipeline.
+Two distinct migration contexts exist; they must not be conflated:
+
+**Prod preDeploy migration (Railway):** Drizzle migrations (`drizzle-kit migrate`) run as a Railway `preDeployCommand` on the `api` service — they execute *before* Railway routes any traffic to the new image. A migration failure aborts the deploy and keeps the current deployment serving. The migration role is the **owner** credential supplied via `MIGRATE_DATABASE_URL` (not the runtime `DATABASE_URL`). The working preDeployCommand form is:
+```
+DATABASE_URL="$MIGRATE_DATABASE_URL" pnpm --filter @dealflow/api exec drizzle-kit migrate
+```
+See [RLS connection-split & role-privilege deploy contract](#rls-connection-split--role-privilege-deploy-contract) below for the full role-split rationale, the PATH-safe form, and the coupled-rollback procedure.
+
+**CI test-DB migration (GitHub Actions):** Integration and e2e test suites that require a real Postgres database call `ensureMigrated()` (test helper at `apps/api/test/_helpers/ensure-migrated.ts`) against `TEST_DATABASE_URL` — the ephemeral CI test DB, connected as the superuser for the throwaway container. This flow is entirely separate from the prod preDeploy path; the test DB is ephemeral and superuser credentials never touch prod.
+
+### RLS connection-split & role-privilege deploy contract
+
+**Context:** Migration 0016 introduced a non-superuser Postgres role `dealflow_app` with `NOSUPERUSER NOBYPASSRLS`. The deploy contract splits the database connection into two distinct URLs — one for the running app, one for preDeploy migrations — to enforce least privilege and guarantee FORCE ROW LEVEL SECURITY is always active.
+
+#### The role split
+
+| Variable | Role | Privileges | When used |
+|---|---|---|---|
+| `DATABASE_URL` | `dealflow_app` | `NOSUPERUSER`, `NOBYPASSRLS`, limited GRANTs | App runtime (every request) |
+| `MIGRATE_DATABASE_URL` | owner (`postgres`) | superuser / full DDL rights | Railway `preDeployCommand` only — never the running app |
+
+The runtime `dealflow_app` role cannot issue DDL, GRANT, or CREATE/ALTER POLICY statements. The owner role carries full privileges and is used exclusively at migration time. They must always be set to distinct connection strings.
+
+#### PATH-safe preDeployCommand form
+
+The Railway api service carries this `preDeployCommand`:
+```
+DATABASE_URL="$MIGRATE_DATABASE_URL" pnpm --filter @dealflow/api exec drizzle-kit migrate
+```
+
+**The gotcha (wave-17, api deploy #1 FAILED):** An earlier form used a login-shell wrapper (`bash -lc "..."`) to expand environment variables. Railway's login-shell initialisation reset `PATH`, dropping the pnpm shim directory — `pnpm: command not found` — and the api deploy failed. The fix is the bare env-prefix form above: no shell wrapper, no PATH reset. The override `DATABASE_URL="$MIGRATE_DATABASE_URL"` is expanded by Railway's own shell in the preDeployCommand context, and pnpm remains on `PATH`.
+
+Do not wrap the preDeployCommand in `bash -lc`, `bash -c`, or any login-shell invocation.
+
+#### [RLS-GUARD] — mechanical anchor for the runtime-role AC
+
+`assertNonSuperuserConnection()` in `apps/api/src/db/index.ts` is the load-bearing runtime check. At every bootstrap it queries:
+
+```sql
+SELECT current_setting('is_superuser') AS is_superuser,
+       (SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user) AS has_bypassrls
+```
+
+If `is_superuser = 'on'` OR `rolbypassrls = true`, it throws and the process exits before serving any request. A successful boot — evidenced by `/health` returning `{"db":"ok"}` — is a positive proof that `DATABASE_URL` is the dealflow_app role and FORCE RLS is active. The check is wired in `main.ts` bootstrap before any tenant DB access and is skipped only in unit-test mode (no DB connection needed for unit tests).
+
+**MG1 (binding):** The predicate logic (`is_superuser === 'on'` OR `rolbypassrls`) and the fail-closed throw are load-bearing security. They must not be altered. Only the doc comment and error message text may be updated.
+
+#### 2-URLs-distinct preflight — `assertUrlsDistinct()`
+
+`assertUrlsDistinct()` in `apps/api/src/db/index.ts` is a synchronous startup check that runs *before* any DB connection is opened (wired in `main.ts` bootstrap, before `assertNonSuperuserConnection()`).
+
+- When `MIGRATE_DATABASE_URL` is **not set** (local dev, unit tests, any env with only `DATABASE_URL`) → **no-op**.
+- When both are set and **equal** → throws `[RLS-GUARD] DATABASE_URL and MIGRATE_DATABASE_URL are identical` — fast, explicit diagnosis before a DB connection is even attempted.
+- When both are set and **distinct** → no-op (correct configuration).
+
+Unit tests for the preflight live at `apps/api/src/db/url-distinct-preflight.spec.ts` (PREFLIGHT-1/2/3).
+
+#### Coupled-rollback procedure
+
+Rolling back a deployment that changed role privileges (GRANTs, RLS policies, role creation) MUST revert BOTH the deployment AND the runtime `DATABASE_URL` if the target (older) code lacks the `[RLS-GUARD]`/`dealflow_app` expectations.
+
+**Hazard:** A code-only rollback (reverting the deployment but leaving `DATABASE_URL=dealflow_app`) runs old code against the new non-superuser role. Old code that was written for the owner/superuser connection (before migration 0016) may fail to read data, issue forbidden DDL, or misbehave silently — breakage that is not a schema defect and cannot be fixed by a DB downgrade.
+
+**Procedure:**
+1. `deploymentRollback` (or `serviceInstanceDeployV2` with the known-good commit SHA) for the `api` service, and `web` if affected.
+2. Set the runtime `DATABASE_URL` back to the owner URL (whose value is preserved in `MIGRATE_DATABASE_URL`).
+3. Migrations are additive-only (expand-phase only; no destructive drops); no DB downgrade is required.
+
+#### Standing deploy-AC checklist
+
+Apply this checklist for any future migration that touches role privileges, GRANTs, or RLS policies:
+
+- [ ] Both `DATABASE_URL` and `MIGRATE_DATABASE_URL` are set **and distinct** in the Railway api service environment (`assertUrlsDistinct()` preflight verifies this at boot).
+- [ ] The runtime role (`DATABASE_URL`) is `NOSUPERUSER NOBYPASSRLS` — verified mechanically by `[RLS-GUARD]` (`assertNonSuperuserConnection()`); a successful `GET /health` with `db:ok` is the positive proof.
+- [ ] `preDeployCommand` uses the bare env-prefix form — no `bash -lc` or login-shell wrapper that would reset `PATH`.
+- [ ] Rollback plan is captured BEFORE mutation (known-good deployment ID + known-good commit SHA) and the plan accounts for reverting BOTH the deployment AND the runtime `DATABASE_URL` to the owner URL if the target commit predates the `[RLS-GUARD]`/`dealflow_app` expectations.
+
+#### GAP-3 — deferred: dedicated non-superuser CI DB role
+
+The GitHub Actions CI test suite (`test-unit` job) runs e2e/integration tests against `TEST_DATABASE_URL`, which currently connects as the superuser for the ephemeral CI container. A least-privilege CI role (non-superuser, non-BYPASSRLS) mirroring the `dealflow_app` prod role would close the test/prod role-privilege gap and allow integration tests to run as the runtime role.
+
+This work requires a `ci.yml` change (adding the role-creation step and wiring the new `TEST_DATABASE_URL` credential). It is deferred: the PAT available to the orchestrator lacks `Workflows:write` permission, making a `ci.yml` commit blocked. Track as a follow-up CI hardening task when a `Workflows:write`-scoped PAT is provisioned.
 
 ### SuperTokens on Railway private network
 
@@ -249,4 +330,5 @@ The C-2 deploy stage is the single collection point for Railway tokens and proje
 | R-3 | **Railway GraphQL API mutation names are illustrative.** The deploy job snippet uses mutation names that must be verified against Railway's current API schema before the first deploy wave. A Railway API schema snapshot should be fetched and stored at `command-center/dev/SDK-Docs/Railway/railway-api.md` per `external-sdk-integration-rules.md` before C-2. | Medium | Author Railway SDK doc at C-2 stage; fetch live schema at that time |
 | R-4 | **Turborepo remote cache token not yet provisioned.** `TURBO_TOKEN` + `TURBO_TEAM` must be created in Vercel/Turborepo and added to GitHub Actions secrets before remote cache is active. Without it, every CI run does a full rebuild. Non-blocking for correctness; blocking for CI performance at scale. | Low | Provision at project bootstrap (first CI wave) |
 | R-5 | **SuperTokens private-network hostname not known until Railway project is provisioned.** The exact private hostname (`.railway.internal` suffix) is assigned by Railway at service creation. `SUPERTOKENS_CONNECTION_URI` cannot be set in `.env.example` with a real value until the Railway project exists. Placeholder value in `.env.example` must clearly indicate this. | Low | Resolved at C-2 Action 0 when Railway project is provisioned |
-| R-6 | **Drizzle migration job timing.** Running `drizzle-kit migrate` as a Railway one-shot job after deploy but before health-check introduces a window where the new `api` binary is live but old schema is in place if the migration job is slow. Mitigation: api service startup defers accepting traffic until a readiness probe succeeds; Railway health-check start period set to 60s to accommodate migration. Exact timing tuned at first deploy wave. | Low | Tune at first deploy wave; document in Railway service config |
+| R-6 | **Drizzle migration job timing.** Migrations run as a Railway `preDeployCommand` (before traffic is routed) — a slow migration delays the deploy but does not expose a mixed-schema window. Railway health-check start period may need tuning if migration + boot time exceeds the default. | Low | Tune at first deploy wave; document in Railway service config |
+| R-7 | **CI test DB runs as superuser (GAP-3 — deferred).** The `test-unit` CI job's `TEST_DATABASE_URL` connects as the superuser for the ephemeral container. A dedicated non-superuser CI role mirroring `dealflow_app` would close the test/prod role-privilege gap. Blocked on a `Workflows:write`-scoped PAT for `ci.yml` changes. See [GAP-3 deferred note](#gap-3--deferred-dedicated-non-superuser-ci-db-role) in the RLS contract section. | Medium | Provision `Workflows:write` PAT and author the CI role-creation step |
