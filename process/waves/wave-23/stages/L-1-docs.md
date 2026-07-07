@@ -85,7 +85,7 @@ verdict_evidence:
   - "CHANGELOG.md:3-18"
   - "milestones row NO-UPDATE: 099cee10-562d-4e56-9a57-0dade2914760 (stays in_progress; open_total=1)"
   - "README.md: SKIPPED (additive /insights read; no new env/quick-start/CLI/breaking-change)"
-  - "commit SHA: <FILLED post-push>"
+  - "commit SHA: 22f96d4 (docs: L-1 wave-23 closeout — pushed 9df066b..22f96d4 origin/main)"
 changelog_entry_added: true
 roadmap_milestones_progressed:
   - {milestone: "M9 — Integrations & insight", before: in_progress, after: in_progress}
