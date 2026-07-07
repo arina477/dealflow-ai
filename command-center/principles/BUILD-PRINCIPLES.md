@@ -87,3 +87,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
    Why: Static review cannot detect non-hex UUIDs, wrong column names, or partial-index collisions.
 10. A migration that UPDATEs or DELETEs rows on a trigger-protected table must be tested on a pre-seeded populated DB.
    Why: An empty-DB migration test cannot exercise triggers that fire only when rows already exist.
+11. A mechanical guard or CI check must include fault-injection fixtures per bypass class, not only happy-path tests.
+   Why: Happy-path-only self-tests leave bypass inputs unprobed, so the guard fails to block them.
