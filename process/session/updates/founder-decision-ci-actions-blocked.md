@@ -1,24 +1,22 @@
-# Founder action needed — automated build/test service has stopped
+# Founder action needed — automated build/test service stopped AGAIN (same issue, recurred same-day)
 
-**Date:** 2026-07-07
+**Date:** 2026-07-07 (update — this is the 2nd time today)
 **Status:** BLOCKED (the autonomous build loop is paused, waiting on you)
 
 ## What happened (plain language)
-Our automated build-and-test service (GitHub Actions) stopped running new checks partway through today's long autonomous session. Every push since ~06:20 has been accepted, but the service creates **zero** test runs — while everything was healthy earlier the same morning. The most likely cause: **this session ran a very large number of builds (many features + retries across the day), and the account's monthly build minutes are used up (or a spending limit was hit).**
+Our automated build-and-test service (GitHub Actions) has **stopped dispatching test runs again** — the same issue you cleared earlier today. Every push is accepted but produces **zero** test runs, while everything ran fine mid-morning. Because it came back the *same day* it was cleared, the most likely cause is now clear: **the account's monthly GitHub Actions minutes are genuinely used up.** This has been an unusually long autonomous session that shipped a lot of features, and each one runs the full test suite (plus retries) — that volume exhausts the included free minutes.
 
 ## What this blocks
-The last change in flight is a small internal **test-reliability fix** (making an audit-log test immune to interference from other tests running at the same time). It's **safely saved to the main codebase** — but our rule is that nothing counts as verified until the automated test suite confirms it. With the build service down, we can't get that confirmation, and we never claim a "green" we didn't actually see. So the loop paused here rather than guessing.
+The newest feature — **seller-intent scoring** (a per-mandate "which of my deals are heating up vs cooling" score, deterministic, no AI, over your existing data) — is **fully built, reviewed, and safely on the main codebase**, but our rule is that nothing counts as verified until the automated test suite confirms it in CI. With the service down we can't get that green, and we never claim a pass we didn't actually see. So the loop paused here rather than guessing. Production is **unchanged and healthy** — the live app is still on the last-verified deploy; only this new feature is waiting.
 
-## Nothing already shipped is affected
-Everything delivered earlier today (the advisor analytics, the match-score calibration, the outreach activity log, and the data-isolation work) is live and healthy in production. This pause only holds the newest small test fix + the next feature.
-
-## What you need to do (a billing/account check — I can't do this myself; it needs the account owner)
+## What you need to do (account-owner billing — I can't do this; the PAT is blocked from billing)
 On **github.com/arina477/dealflow-ai → Settings → Billing and plans → Actions usage**:
-- If the included build minutes are exhausted → either wait for the monthly reset, or raise the Actions spending limit.
-- Also confirm **Settings → Actions → General** still allows workflows to run.
+- **Raise the Actions spending limit** (recommended over just waiting — it already re-exhausted once today, so the current limit is too low for this session's pace). A modest paid limit lets the loop keep verifying + shipping.
+- Or wait for the monthly minutes reset (blocks all shipping until then).
+- Also confirm **Settings → Actions → General** allows workflows to run.
 
-Once the build service can run again, reply here (or set the status back to running) and I'll re-trigger the check, confirm it's green, and continue automatically.
+Once the service can run again, reply here (or set the status back to running) and I'll re-trigger CI on the exact commit, watch it to green, deploy the seller-intent feature, and continue automatically. This is M9's last buildable feature — after it verifies + ships, M9's insight work is essentially complete (only the founder-gated CRM connection + the M9 success-metric you still need to define remain).
 
-## Also queued for you whenever convenient (not blocking)
-- The M9 milestone's success metric is still unset — a quick product call on how we'll measure "advisors get value from the insights/tracker" before that milestone closes.
-- Vendor/credential decisions still parked: the AI-matching spend, the email-sending domain, and the deal-source data vendor + its API key.
+## Also queued for you (not blocking)
+- **The M9 success metric is now due** — a quick product call on how we measure "advisors get value from the insights suite" before that milestone can close.
+- Parked vendor/credential decisions: AI-matching spend, email-sending domain, deal-source data vendor + API key.
