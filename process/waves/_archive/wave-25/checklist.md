@@ -10,3 +10,7 @@
 - [x] C-1 push→main + CI green (run 28876707093, 5/5 green @987ebb4; SEC-1-DB/SEC-4-DB ran+passed; migration 0019 applied in CI)
 - [x] C-2 real-deploy + verify (migration-bearing, security-sensitive) — deployed 987ebb4; 0019 applied to prod; /health 200 db:ok version==987ebb4; rate-limit 429 smoke; rollback armed @6c22919
 - [x] L-1 Docs — CHANGELOG 0.22.0 (Changed+Fixed, NOT ### Security per contract); M10 stays in_progress (open=1, backlog-stockout flag); wave-26 recordkeeping-decomposition TRIPWIRE + M9/M10 _TBD polls carried; README skipped
+- [x] L-2 Distill — principles reviewed; ≤1 promotion per file per Contract
+- [x] N-1 Survey & triggers — TRIPWIRE fired; BOARD 7/7 APPROVE disposition (c); M10 stays in_progress; recordkeeping scope+_TBD metric+compliance-raise surfaced to founder (non-blocking); head-next APPROVED
+- [x] N-2 Seed — wave-26 = 1a1c5855 (RLS connection-split doc + coupled rollback), explicitly-FINAL M10 hardening wave, single-task bundle, validated; head-next APPROVED
+- [x] N-3 Handoff — archive wave-25; close wave 25 (status=ok); open wave-26; enforced wave-27 pause committed
