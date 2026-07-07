@@ -554,6 +554,22 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     allowedRoles: ['advisor', 'compliance'],
   },
 
+  // --- Outreach Activity group (wave-20 M9 outreach-activity tracker) ---
+  // advisor: create + update + status-transition + cancel (all mutations).
+  // admin:   same as advisor (admin oversees advisor activity).
+  // analyst/compliance: NOT permitted (internal advisory activity ledger).
+  {
+    // GET /outreach-activity (list) — advisor, admin.
+    // POST /outreach-activity (create) — advisor, admin.
+    pattern: '/outreach-activity',
+    allowedRoles: ['advisor', 'admin'],
+  },
+  {
+    // PATCH /outreach-activity/:id (update / status-transition / cancel) — advisor, admin.
+    pattern: '/outreach-activity/:id',
+    allowedRoles: ['advisor', 'admin'],
+  },
+
   // --- Admin / Config group ---
   {
     pattern: '/admin/users',

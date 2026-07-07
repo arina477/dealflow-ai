@@ -1,3 +1,21 @@
+// --- Wave-20 outreach-activity contracts (task c3776cac) ---
+export type {
+  CreateOutreachActivityInput,
+  ListOutreachActivityResponse,
+  OutreachActivity,
+  OutreachActivityChannel,
+  OutreachActivityStatus,
+  UpdateOutreachActivityInput,
+} from './outreach-activity';
+export {
+  createOutreachActivitySchema,
+  listOutreachActivityResponseSchema,
+  outreachActivityChannelEnum,
+  outreachActivitySchema,
+  outreachActivityStatusEnum,
+  updateOutreachActivitySchema,
+} from './outreach-activity';
+
 // --- Wave-19 match-feedback calibration contracts (task 69387b56) ---
 export type {
   CalibrationBand,

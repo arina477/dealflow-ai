@@ -232,6 +232,29 @@ export const auditActionEnum = z.enum([
    * Mirrors the wave-15 'deactivate' action — same service, inverse operation.
    */
   'user-reactivate',
+  // --- Wave-20 outreach-activity actions (additive; serialization order preserved) ---
+  /**
+   * An outreach_activity row was created by an advisor/admin.
+   * Audited by OutreachActivityService.create LAST-IN-TXN.
+   * actor = ALS-resolved app users.id (never client-supplied).
+   */
+  'outreach-activity-create',
+  /**
+   * An outreach_activity row's fields were updated (subject, notes, due_at, etc.).
+   * Audited by OutreachActivityService.update LAST-IN-TXN.
+   */
+  'outreach-activity-update',
+  /**
+   * An outreach_activity row's status was transitioned (planned→completed).
+   * Audited by OutreachActivityService.updateStatus LAST-IN-TXN.
+   * completedAt is set server-side on transition to 'completed'.
+   */
+  'outreach-activity-status-transition',
+  /**
+   * An outreach_activity row was cancelled (status→cancelled).
+   * Audited by OutreachActivityService.cancel LAST-IN-TXN.
+   */
+  'outreach-activity-cancel',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;
