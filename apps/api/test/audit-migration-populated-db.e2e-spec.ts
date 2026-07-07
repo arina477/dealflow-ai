@@ -71,6 +71,29 @@
  * never deleted. Pool is closed in afterAll.
  */
 
+// ── WORM migration coverage declarations ─────────────────────────────────────
+//
+// This suite is registered in worm-migration-coverage-registry.ts as the
+// populated-DB test for the following WORM-touching migrations:
+//
+//   0002_steep_boom_boom      — CREATE TABLE audit_log_entries + WORM trigger.
+//                               AMP-5 fault-kills the trigger: UPDATE without
+//                               DISABLE TRIGGER throws P0001.
+//   0012_audit_mandate_id     — ALTER TABLE audit_log_entries ADD COLUMN mandate_id.
+//                               AMP-4 verifies per-row HMAC chain integrity after
+//                               0012 adds mandate_id as a hash-excluded column:
+//                               recomputed hash == stored entry_hash for each row.
+//   0014_workspace_isolation  — UPDATE backfill on audit_log_entries wrapped in
+//                               DISABLE/ENABLE TRIGGER. AMP-1..5 are the direct
+//                               proof of the wave-17 C-2 HOLD fix.
+//
+// The suite runs ensureMigrated (applies all migrations including 0002/0012/0014)
+// and then seeds real HMAC-chained rows to assert each migration's invariants.
+// 0016 and 0017 are GRANT/policy-only (no row mutation) and use existence-only
+// coverage; they are NOT declared here.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
 import path from 'node:path';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

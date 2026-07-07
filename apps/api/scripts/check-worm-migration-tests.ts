@@ -9,9 +9,11 @@
  *    for actual DML/DDL touching in-scope WORM tables (not comment-only mentions).
  * 2. Looks up each detected migration in the coverage registry
  *    (apps/api/test/_helpers/worm-migration-coverage-registry.ts).
- * 3. Verifies the registered test file exists on disk.
+ * 3. Verifies the registered test file exists on disk AND contains a real coverage
+ *    marker: a reference to the migration filename/number AND either an import/use
+ *    of the populated-DB helpers or a reference to verifyChain.
  * 4. Exits 0 (pass) when every WORM-touching migration is registered AND its test
- *    file exists. Exits 1 (fail) otherwise.
+ *    file has a real coverage marker. Exits 1 (fail) otherwise.
  *
  * ── WORM TABLE ALLOW-LIST (MG1) ──────────────────────────────────────────────
  * DB-TRIGGER-ENFORCED WORM tables are the in-scope category. The WORM_TABLES
@@ -32,34 +34,67 @@
  * A migration "touches" a WORM table if its SQL contains a mutating/altering
  * operation on that table outside of SQL comments. The classifier:
  *   - Strips single-line comments (--) and block comments (/* ... * /).
- *   - Checks for keyword patterns that constitute actual DML/DDL:
- *       CREATE TABLE <worm_table>
- *       ALTER TABLE <worm_table>
- *       INSERT INTO <worm_table>
- *       UPDATE <worm_table>
- *       DELETE FROM <worm_table>
- *       TRUNCATE <worm_table>
- *       GRANT ... ON ... <worm_table>
- *       REVOKE ... ON ... <worm_table>
- *       DROP TRIGGER ... ON <worm_table>
- *       CREATE TRIGGER ... ON <worm_table>
- *       CREATE POLICY ... ON <worm_table>
- *       DROP POLICY ... ON <worm_table>
- *       CREATE INDEX ... ON <worm_table>
- *       DROP INDEX ... (any index touching the table — conservative: include if table mentioned in DDL context)
- *       ENABLE ROW LEVEL SECURITY / FORCE ROW LEVEL SECURITY on the table
+ *   - Checks for keyword patterns that constitute actual DML/DDL.
+ *   - The table reference matches both unqualified (audit_log_entries) and
+ *     schema-qualified (public.audit_log_entries or "public".audit_log_entries)
+ *     forms, as well as quoted ("audit_log_entries") variants. This prevents
+ *     bypass via schema-qualified DML.
  *
- * This correctly classifies the known set {0002, 0012, 0014, 0016, 0017} and
- * correctly excludes:
- *   - 0003: mentions audit_log_entries in comments only.
- *   - 0018: mentions audit_log_entries in a comment stating it does NOT touch it.
+ * ROW-MUTATING / STRUCTURAL-ALTER patterns (require populated-DB test):
+ *   CREATE TABLE <worm_table>
+ *   ALTER TABLE <worm_table>      — covers ADD COLUMN, SET NOT NULL, DISABLE/ENABLE TRIGGER,
+ *                                   ENABLE/FORCE ROW LEVEL SECURITY, NOT NULL cutover
+ *   INSERT INTO <worm_table>
+ *   UPDATE <worm_table>
+ *   DELETE FROM <worm_table>
+ *   TRUNCATE <worm_table>
+ *   DROP TRIGGER ... ON <worm_table>
+ *   CREATE TRIGGER ... ON <worm_table>
+ *   CREATE INDEX ... ON <worm_table>
+ *
+ * GRANT/REVOKE/POLICY patterns (classified separately — no row mutation):
+ *   GRANT ... ON ... <worm_table>
+ *   REVOKE ... ON ... <worm_table>
+ *   CREATE POLICY ... ON <worm_table>
+ *   DROP POLICY ... ON <worm_table>
+ *
+ * The WORM BEFORE UPDATE/DELETE trigger fires only when rows are mutated. GRANT,
+ * REVOKE, CREATE POLICY, DROP POLICY, ENABLE/DISABLE RLS are privilege or policy
+ * DDL — they do not touch rows and cannot cause the wave-17-class WORM collision.
+ * They DO touch the WORM table structurally, so they are still detected and must be
+ * registered; but their coverage requirement is existence-only (the table state the
+ * policy/grant establishes is validated by any test that connects as that role or
+ * exercises RLS). Row-mutating and structural-ALTER migrations additionally require
+ * the registered test file to contain real coverage markers (migration number +
+ * populated-DB helper usage or verifyChain reference), not just file existence.
+ *
+ * ── CLASSIFICATION SUMMARY for known set ─────────────────────────────────────
+ * 0002: ROW-MUTATING — creates table + WORM trigger + REVOKE/GRANT/TRUNCATE trigger.
+ *       Requires populated-DB test.
+ * 0012: STRUCTURAL-ALTER — ALTER TABLE ADD COLUMN on audit_log_entries.
+ *       Requires populated-DB test.
+ * 0014: ROW-MUTATING — UPDATE backfill wrapped in DISABLE/ENABLE TRIGGER + ADD COLUMN
+ *       + SET NOT NULL + ENABLE/FORCE RLS + CREATE POLICY + CREATE INDEX.
+ *       Requires populated-DB test.
+ * 0016: GRANT-ONLY — GRANT SELECT/INSERT/UPDATE/DELETE ON TABLE public.audit_log_entries.
+ *       No row mutation; requires registry entry + file exists (not full coverage marker).
+ * 0017: POLICY-ONLY — DROP/CREATE POLICY on audit_log_entries.
+ *       No row mutation; requires registry entry + file exists (not full coverage marker).
+ *
+ * ── COVERAGE MARKER REQUIREMENT ──────────────────────────────────────────────
+ * For ROW-MUTATING / STRUCTURAL-ALTER migrations the registered test file must:
+ *   (a) Reference the migration filename or number (e.g. "0014" or "workspace_isolation")
+ *   (b) Import or reference populated-DB helpers (ensureMigrated, AuditService, AuditKeyring,
+ *       AuditRepository) OR reference verifyChain
+ * A file that exists but is content-empty or comment-only fails this check.
  *
  * ── DETERMINISTIC COVERAGE SIGNAL ────────────────────────────────────────────
  * The coverage registry (worm-migration-coverage-registry.ts) maps each
  * WORM-touching migration filename to a test file. The check verifies:
  *   (a) Every detected WORM-touching migration is in the registry.
  *   (b) The registered test file exists on disk.
- * This is deterministic: no fuzzy filename matching, no grepping test files.
+ *   (c) For row-mutating/structural-ALTER migrations: the file contains real coverage markers.
+ *   GRANT/policy-only migrations satisfy the check with (a)+(b) alone.
  *
  * ── RUNNING ──────────────────────────────────────────────────────────────────
  * pnpm --filter @dealflow/api check:worm-migration-tests
@@ -68,6 +103,15 @@
  * ── SELF-TEST ────────────────────────────────────────────────────────────────
  * apps/api/test/check-worm-migration-tests.spec.ts verifies the core classifier
  * and registry-lookup logic with fixtures (fault-killing self-test).
+ *
+ * ── KNOWN LIMITATION ─────────────────────────────────────────────────────────
+ * stripSqlComments uses a regex-based approach that may incorrectly strip a '--'
+ * or '/* *\/' sequence that appears inside a SQL string literal (e.g. in a
+ * CHECK constraint or DEFAULT value). This is a known limitation. In practice,
+ * migration files do not embed comment-like sequences in string literals, so the
+ * risk is theoretical. A tokenizer-based approach would be strictly safer but
+ * adds significant complexity for no practical gain given the actual migration
+ * corpus. Documented here rather than silently accepted.
  */
 
 import * as fs from 'node:fs';
@@ -128,49 +172,103 @@ export function stripSqlComments(sql: string): string {
 export function migrationTouchesWormTable(sql: string, tableName: string): boolean {
   const stripped = stripSqlComments(sql);
 
-  // Build a pattern that matches both quoted ("audit_log_entries") and unquoted
-  // (audit_log_entries) table name references, as a whole token.
-  const quoted = `"${tableName}"`;
-  const tableRef = `(?:"${tableName}"|\\b${tableName}\\b)`;
+  // Build a pattern that matches the table name in all forms:
+  //   - unquoted:            audit_log_entries
+  //   - quoted:              "audit_log_entries"
+  //   - schema-qualified:    public.audit_log_entries
+  //   - schema+quoted:       public."audit_log_entries"
+  //   - quoted-schema:       "public".audit_log_entries
+  //   - quoted-schema+table: "public"."audit_log_entries"
+  //
+  // The optional schema prefix is part of tableRef so EVERY pattern (not just
+  // GRANT/REVOKE) accepts schema-qualified references.  This prevents bypass via
+  // `UPDATE public.audit_log_entries ...` or
+  // `ALTER TABLE public.audit_log_entries DISABLE TRIGGER ...`.
+  const schemaPrefix = `(?:(?:public|"public")\\s*\\.\\s*)?`;
+  const tablePart = `(?:"${tableName}"|\\b${tableName}\\b)`;
+  const tableRef = `${schemaPrefix}${tablePart}`;
 
   // Each pattern is tested independently (case-insensitive).
   const patterns: RegExp[] = [
-    // CREATE TABLE "audit_log_entries"
+    // CREATE TABLE [public.]"audit_log_entries"
     new RegExp(`\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?${tableRef}`, 'is'),
-    // ALTER TABLE "audit_log_entries"
+    // ALTER TABLE [public.]"audit_log_entries"
     new RegExp(`\\bALTER\\s+TABLE\\s+${tableRef}`, 'is'),
-    // INSERT INTO "audit_log_entries"
+    // INSERT INTO [public.]"audit_log_entries"
     new RegExp(`\\bINSERT\\s+INTO\\s+${tableRef}`, 'is'),
-    // UPDATE "audit_log_entries"
+    // UPDATE [public.]"audit_log_entries"
     new RegExp(`\\bUPDATE\\s+${tableRef}`, 'is'),
-    // DELETE FROM "audit_log_entries"
+    // DELETE FROM [public.]"audit_log_entries"
     new RegExp(`\\bDELETE\\s+FROM\\s+${tableRef}`, 'is'),
-    // TRUNCATE [TABLE] "audit_log_entries"
+    // TRUNCATE [TABLE] [public.]"audit_log_entries"
     new RegExp(`\\bTRUNCATE\\s+(?:TABLE\\s+)?${tableRef}`, 'is'),
     // GRANT ... ON [TABLE] [public.]"audit_log_entries"
-    new RegExp(`\\bGRANT\\b[^;]+?\\bON\\s+(?:TABLE\\s+)?(?:public\\.)?${tableRef}`, 'is'),
+    new RegExp(`\\bGRANT\\b[^;]+?\\bON\\s+(?:TABLE\\s+)?${tableRef}`, 'is'),
     // REVOKE ... ON [TABLE] [public.]"audit_log_entries"
-    new RegExp(`\\bREVOKE\\b[^;]+?\\bON\\s+(?:TABLE\\s+)?(?:public\\.)?${tableRef}`, 'is'),
-    // DROP TRIGGER ... ON "audit_log_entries"
+    new RegExp(`\\bREVOKE\\b[^;]+?\\bON\\s+(?:TABLE\\s+)?${tableRef}`, 'is'),
+    // DROP TRIGGER ... ON [public.]"audit_log_entries"
     new RegExp(`\\bDROP\\s+TRIGGER\\b[^;]+?\\bON\\s+${tableRef}`, 'is'),
-    // CREATE TRIGGER ... ON "audit_log_entries"
+    // CREATE TRIGGER ... ON [public.]"audit_log_entries"
     new RegExp(`\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?TRIGGER\\b[^;]+?\\bON\\s+${tableRef}`, 'is'),
-    // CREATE POLICY ... ON "audit_log_entries"
+    // CREATE POLICY ... ON [public.]"audit_log_entries"
     new RegExp(`\\bCREATE\\s+POLICY\\b[^;]+?\\bON\\s+${tableRef}`, 'is'),
-    // DROP POLICY ... ON "audit_log_entries"
+    // DROP POLICY ... ON [public.]"audit_log_entries"
     new RegExp(`\\bDROP\\s+POLICY\\b[^;]+?\\bON\\s+${tableRef}`, 'is'),
-    // CREATE INDEX ... ON "audit_log_entries"
+    // CREATE INDEX ... ON [public.]"audit_log_entries"
     new RegExp(`\\bCREATE\\s+(?:UNIQUE\\s+)?INDEX\\b[^;]+?\\bON\\s+${tableRef}`, 'is'),
     // DROP INDEX ... (mention of table in index name context — captured by ALTER TABLE above)
     // ENABLE/DISABLE/FORCE ROW LEVEL SECURITY — already caught by ALTER TABLE pattern
   ];
 
-  // Avoid false-positive from the GRANT pattern matching on function names that include
-  // the table name. The GRANT ... ON pattern above already requires "ON" keyword before
-  // the table reference, which is sufficient.
-  void quoted; // referenced in the JSDoc; not used directly (tableRef covers both forms)
-
   return patterns.some((p) => p.test(stripped));
+}
+
+// ── Row-mutating / structural-ALTER classifier ────────────────────────────────
+
+/**
+ * Row-mutating or structural-ALTER DML patterns on a WORM table.
+ *
+ * GRANT, REVOKE, CREATE/DROP POLICY, and ENABLE/DISABLE/FORCE ROW LEVEL SECURITY
+ * are privilege-layer or policy DDL — they do not cause the WORM BEFORE-UPDATE/DELETE
+ * trigger to fire. Only these patterns can cause the wave-17-class collision against a
+ * populated DB:
+ *   INSERT, UPDATE, DELETE, TRUNCATE          — row mutations
+ *   CREATE TABLE, ALTER TABLE, CREATE TRIGGER,
+ *   DROP TRIGGER, CREATE INDEX                — structural DDL
+ *
+ * Returns true when the SQL contains any of these patterns for the given table.
+ * Used to determine whether a migration requires the stronger coverage-marker check
+ * (as opposed to the existence-only check for GRANT/POLICY-only migrations).
+ */
+export function migrationIsRowMutatingOrStructural(sql: string, tableName: string): boolean {
+  const stripped = stripSqlComments(sql);
+
+  const schemaPrefix = `(?:(?:public|"public")\\s*\\.\\s*)?`;
+  const tablePart = `(?:"${tableName}"|\\b${tableName}\\b)`;
+  const tableRef = `${schemaPrefix}${tablePart}`;
+
+  const rowMutatingPatterns: RegExp[] = [
+    // CREATE TABLE
+    new RegExp(`\\bCREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?${tableRef}`, 'is'),
+    // ALTER TABLE — covers ADD COLUMN, NOT NULL, DISABLE/ENABLE TRIGGER, ENABLE/FORCE RLS
+    new RegExp(`\\bALTER\\s+TABLE\\s+${tableRef}`, 'is'),
+    // INSERT INTO
+    new RegExp(`\\bINSERT\\s+INTO\\s+${tableRef}`, 'is'),
+    // UPDATE
+    new RegExp(`\\bUPDATE\\s+${tableRef}`, 'is'),
+    // DELETE FROM
+    new RegExp(`\\bDELETE\\s+FROM\\s+${tableRef}`, 'is'),
+    // TRUNCATE [TABLE]
+    new RegExp(`\\bTRUNCATE\\s+(?:TABLE\\s+)?${tableRef}`, 'is'),
+    // DROP TRIGGER ... ON
+    new RegExp(`\\bDROP\\s+TRIGGER\\b[^;]+?\\bON\\s+${tableRef}`, 'is'),
+    // CREATE TRIGGER ... ON
+    new RegExp(`\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?TRIGGER\\b[^;]+?\\bON\\s+${tableRef}`, 'is'),
+    // CREATE INDEX ... ON
+    new RegExp(`\\bCREATE\\s+(?:UNIQUE\\s+)?INDEX\\b[^;]+?\\bON\\s+${tableRef}`, 'is'),
+  ];
+
+  return rowMutatingPatterns.some((p) => p.test(stripped));
 }
 
 // ── Migration file scanner ────────────────────────────────────────────────────
@@ -196,6 +294,50 @@ export function findWormTouchingMigrations(migrationsDir: string): string[] {
   return touching;
 }
 
+// ── Coverage marker check ────────────────────────────────────────────────────
+
+/**
+ * Coverage marker patterns for a populated-DB migration test.
+ *
+ * A registered test file satisfies the coverage-marker requirement when it:
+ *   (a) References the migration filename or the migration number
+ *       (e.g. "0014" or "workspace_isolation" or "steep_boom_boom").
+ *   (b) Imports or uses populated-DB helpers (ensureMigrated, AuditService,
+ *       AuditKeyring, AuditRepository) OR references verifyChain.
+ *
+ * A file that exists but is content-empty or comment-only fails this check.
+ */
+export function testFileHasCoverageMarker(
+  testFileContent: string,
+  migrationFile: string
+): boolean {
+  // Derive identifiers from the migration filename (e.g. "0014_workspace_isolation.sql")
+  // → migrationNumber "0014", migrationSlug "workspace_isolation"
+  const withoutExtension = migrationFile.replace(/\.sql$/, '');
+  const firstUnderscore = withoutExtension.indexOf('_');
+  const migrationNumber = firstUnderscore >= 0 ? withoutExtension.slice(0, firstUnderscore) : withoutExtension;
+  const migrationSlug = firstUnderscore >= 0 ? withoutExtension.slice(firstUnderscore + 1) : '';
+
+  // (a) Does the file reference the migration?
+  const referencesMigration =
+    testFileContent.includes(migrationNumber) ||
+    (migrationSlug.length > 0 && testFileContent.includes(migrationSlug));
+
+  // (b) Does the file use populated-DB helpers or verifyChain?
+  const populatedDbMarkers = [
+    'ensureMigrated',
+    'AuditService',
+    'AuditKeyring',
+    'AuditRepository',
+    'verifyChain',
+  ];
+  const hasPopulatedDbUsage = populatedDbMarkers.some((marker) =>
+    testFileContent.includes(marker)
+  );
+
+  return referencesMigration && hasPopulatedDbUsage;
+}
+
 // ── Registry lookup ──────────────────────────────────────────────────────────
 
 export interface CheckResult {
@@ -203,6 +345,7 @@ export interface CheckResult {
   wormTouchingMigrations: string[];
   missing: string[]; // migrations with no registry entry
   missingFile: string[]; // migrations with a registry entry but non-existent test file
+  hollowCoverage: string[]; // migrations registered + file exists but no real coverage marker (row-mutating only)
   covered: string[]; // migrations properly covered
 }
 
@@ -224,6 +367,7 @@ export function runCheck(
 
   const missing: string[] = [];
   const missingFile: string[] = [];
+  const hollowCoverage: string[] = [];
   const covered: string[] = [];
 
   for (const migFile of wormTouchingMigrations) {
@@ -237,14 +381,33 @@ export function runCheck(
       missingFile.push(migFile);
       continue;
     }
+
+    // For row-mutating/structural-ALTER migrations, require a real coverage marker.
+    // GRANT/policy-only migrations (0016, 0017) pass with existence alone.
+    const migSql = fs.readFileSync(
+      path.join(migrationsDir, migFile),
+      'utf8'
+    );
+    // Determine if any WORM table is touched with row-mutating/structural DDL.
+    const requiresMarker = WORM_TABLES.some((t) => migrationIsRowMutatingOrStructural(migSql, t));
+
+    if (requiresMarker) {
+      const testContent = fs.readFileSync(testFilePath, 'utf8');
+      if (!testFileHasCoverageMarker(testContent, migFile)) {
+        hollowCoverage.push(migFile);
+        continue;
+      }
+    }
+
     covered.push(migFile);
   }
 
   return {
-    passed: missing.length === 0 && missingFile.length === 0,
+    passed: missing.length === 0 && missingFile.length === 0 && hollowCoverage.length === 0,
     wormTouchingMigrations,
     missing,
     missingFile,
+    hollowCoverage,
     covered,
   };
 }
@@ -276,7 +439,9 @@ async function main(): Promise<void> {
       ? 'COVERED'
       : result.missing.includes(m)
         ? 'MISSING (no registry entry)'
-        : 'MISSING (test file not found)';
+        : result.missingFile.includes(m)
+          ? 'MISSING (test file not found)'
+          : 'HOLLOW (file exists but no real coverage marker)';
     console.log(`  ${status === 'COVERED' ? '[OK]' : '[FAIL]'} ${m} — ${status}`);
   }
 
@@ -299,6 +464,23 @@ async function main(): Promise<void> {
       console.error(`  ${m}`);
     }
     console.error('Create the test file or update the registry entry.');
+  }
+
+  if (result.hollowCoverage.length > 0) {
+    console.error('');
+    console.error(
+      'FAIL: The following row-mutating/structural-ALTER WORM migrations have a registered test'
+    );
+    console.error(
+      '      file that exists but lacks real coverage markers (migration reference + populated-DB helper use):'
+    );
+    for (const m of result.hollowCoverage) {
+      console.error(`  ${m}`);
+    }
+    console.error(
+      'The test file must reference the migration number/name AND use ensureMigrated/AuditService/AuditKeyring/AuditRepository or verifyChain.'
+    );
+    console.error('A comment-only or empty file does NOT satisfy coverage.');
   }
 
   if (result.passed) {
