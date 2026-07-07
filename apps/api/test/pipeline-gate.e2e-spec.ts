@@ -125,8 +125,17 @@ describe.skipIf(shouldSkip)(
 
       // ── 1. Point the API at the test DB BEFORE importing any module ─────────
       process.env.DATABASE_URL = TEST_DB_URL;
-      process.env.AUDIT_LOG_HMAC_KEY = 'pipeline-gate-e2e-hmac-key-do-not-use';
-      process.env.AUDIT_LOG_HMAC_KEY_VERSION = '1';
+      // Use the vitest.config default key (shared across all e2e suites that share
+      // the same TEST_DATABASE_URL). A suite-private key causes verifyChain() to
+      // fail in concurrently-running suites (OAE-9..12, OAM-3, recordkeeping-gate G)
+      // that walk the full global chain: pipeline-gate test 3 commits real
+      // audit_log_entries rows — if those rows were hashed with a different key,
+      // any suite calling verifyChain() with the vitest default key gets a
+      // content-hash-mismatch → ok:false. The ?? pattern mirrors recordkeeping-gate's
+      // fix (same root cause, documented at recordkeeping-gate.e2e-spec.ts L134).
+      process.env.AUDIT_LOG_HMAC_KEY =
+        process.env.AUDIT_LOG_HMAC_KEY ?? 'test-audit-hmac-key-dummy-do-not-use-in-prod';
+      process.env.AUDIT_LOG_HMAC_KEY_VERSION = process.env.AUDIT_LOG_HMAC_KEY_VERSION ?? '1';
 
       const dbIndex = await import('../src/db/index');
       db = dbIndex.db;
