@@ -60,7 +60,7 @@ verdict_evidence:
   - "milestone M9 099cee10: in_progress → in_progress (unchanged); 4 tasks done this wave; 9 children total (7 done, 2 open)"
   - "open M9 children: 345dfbc6 (FOUNDER-GATED real DataSourceAdapter) + 1d95cac0 (process-hardening, buildable)"
   - "README: skipped (no user-facing/env/quick-start change)"
-  - "commit SHA: <recorded post-commit>"
+  - "commit SHA: ed0f062 (docs: L-1 wave-19 closeout (changelog); pushed to main, bc406a1..ed0f062)"
 head_signoff:
   verdict: APPROVED
   stage: L-1-docs

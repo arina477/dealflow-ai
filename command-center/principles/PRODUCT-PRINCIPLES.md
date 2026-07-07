@@ -68,3 +68,6 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
 ## Rules
 
 _(no rules yet — promoted from L-2 distill across waves)_
+
+1. A spec metric shown to users must have a real source column, not be noise by construction, and qualify low-n cases.
+   Why: A missing column, a noise lift, or an unqualified n=1 rate each misleads users differently.

@@ -394,3 +394,9 @@ Why: dev-seed accounts produce silent auth failures + false BLOCKED outcomes aga
 
 ### 23. Never `browser_close` mid-swarm.
 Why: closing the browser kills the MCP instance for subsequent batch agents. Only close at the very end of the swarm.
+
+### 24. Gate a cross-tenant isolation test on the executed-test count, not the pass count; a suite whose fixtures crash in setup reports every test as skipped while CI stays green.
+Why: a `beforeAll`/`seedWorkspace` throw silently converts the load-bearing isolation suite into zero executed assertions under an otherwise-green build.
+
+### 25. Prove tenant isolation with a fault-killing strict inequality between an in-context run and an out-of-context run of the real service, not a shape or truthiness check.
+Why: only `expect(outOfContext).not.toBe(inContext)` fails when a query bypasses the workspace handle and collapses both totals to the same all-tenant value.

@@ -197,3 +197,9 @@ Admin nav section links /admin/{users,settings,integrations,activity} (server-ga
 |---|---|---|---|
 | /insights | read-only advisor analytics dashboard (metric cards: mandate throughput, outreach compliance-gate outcomes, advisor productivity, match disposition) | GET /analytics (via /analytics proxy) | workspace-scoped (own-firm only, FORCE RLS as dealflow_app); RBAC advisor+admin (analyst/compliance 403, anon 401); read-only; no charts-lib/real-time/export |
 Nav: /insights entry (bar-chart-2, server-role-gated). Analytics is read-only over already-live mandates/outreach/pipeline/matches data; the CRM DataSourceAdapter remains founder-gated (#deferred).
+
+## Match-score calibration (M9 wave-19, LIVE @3cc58de) — role:advisor + admin
+| Route | Purpose | Endpoints | Scope |
+|---|---|---|---|
+| /insights (calibration section) | read-only calibration: does the AI match score predict advisor accept/reject — accept-rate by fit_score band + per-dimension acceptance-lift (sectorMatch, contactCompleteness) | GET /match-feedback (via /match-feedback proxy) | workspace-scoped (own-firm only, FORCE RLS as dealflow_app); RBAC advisor+admin (analyst/compliance 403, anon 401); read-only; honest metrics (tieBreak noise-dimension excluded; small-sample n=X caveat; null→n/a not 0%); no charts-lib |
+Calibration reads already-live match_candidates (disposition/fit_score/score_breakdown). Additive section on the wave-18 /insights page.
