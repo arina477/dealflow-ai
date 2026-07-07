@@ -60,7 +60,7 @@ Neither is resolvable by head-learn (strategic / product-taste per rule 17) — 
 ## Action 4 — Commit
 
 - FS docs (CHANGELOG.md `## [0.22.0]` block + this deliverable) committed to `main`, direct push: `docs: L-1 wave-25 closeout`.
-- Commit SHA: **f0ce549** (see footer `verdict_evidence`).
+- Commit SHA: **cf80ddb** (see footer `verdict_evidence`).
 
 ---
 
@@ -70,7 +70,7 @@ verdict_evidence:
   - "CHANGELOG.md:3-14 (## [0.22.0] — Auth hardening (M10))"
   - "milestones row NO-OP: 033f97e0 M10 stays in_progress (open_count=1)"
   - "task 6fe232e3 confirmed done (L-2 marked); 1a1c5855 remains todo"
-  - "commit f0ce549 (docs: L-1 wave-25 closeout)"
+  - "commit cf80ddb (docs: L-1 wave-25 closeout)"
 changelog_entry_added: true
 changelog_section: "Changed + Fixed (NOT Security — preventive same-wave hardening per L-1 contract)"
 roadmap_milestones_progressed: [{milestone: "M10", before: "in_progress", after: "in_progress"}]
