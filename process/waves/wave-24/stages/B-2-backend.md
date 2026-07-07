@@ -45,3 +45,7 @@ p2_stripSqlComments: documented as known limitation
 self_test_count: 61 (was 30)
 check_result: HONESTLY GREEN
 ```
+
+
+## ENFORCEMENT-PATH NOTE (B-5/push constraint)
+The explicit `.github/workflows/ci.yml` step for the check was REVERTED — the PAT lacks the `workflow` scope (cannot push workflow-file changes; same constraint as the direct-push-to-main model). The enforcement is EQUIVALENT + preserved via the vitest: check-worm-migration-tests.spec.ts imports `runCheck` and runs it against the ACTUAL migrations dir + registry (the real-tree integration test) + the future-WORM-table guard — all running in the EXISTING `pnpm test` CI job. So a future WORM/audit-touching migration lacking its populated-DB test → the real-tree vitest FAILS → the CI test job reds. Same load-bearing enforcement, no separate workflow step needed. The package.json `check:worm-migration-tests` script remains for local/manual invocation.
