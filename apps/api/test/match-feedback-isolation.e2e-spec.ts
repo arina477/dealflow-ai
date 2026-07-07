@@ -48,7 +48,7 @@
  * 6. RESET ROLE + RESET app.workspace_id + release in finally.
  *
  * ── UUID NAMESPACE (wave-19 match-feedback-isolation) ───────────────────────────
- * Wave-19 prefix '00000019-mfi1-*'. Disjoint from prior suites:
+ * Wave-19 prefix '00000019-0f11-*'. Disjoint from prior suites:
  *   workspace-isolation (wave-17): 00000017-aa17-*
  *   admin-activity (wave-16):      00000016-acti-*
  *   analytics-isolation (wave-18): 00000018-a4a1-*
@@ -94,8 +94,8 @@ async function isDbReachable(url: string): Promise<boolean> {
 }
 
 // ── UUID namespace (wave-19 match-feedback-isolation) ────────────────────────
-const WS_A_ID = '00000019-mfi1-4000-8000-000000000001';
-const WS_B_ID = '00000019-mfi1-4000-8000-000000000002';
+const WS_A_ID = '00000019-0f11-4000-8000-000000000001';
+const WS_B_ID = '00000019-0f11-4000-8000-000000000002';
 
 // ── Module-level state ────────────────────────────────────────────────────────
 let pool: Pool;
@@ -360,12 +360,12 @@ describe.skipIf(shouldSkip)(
       // Seed users.
       wsAUserId = await seedUser(
         WS_A_ID,
-        '00000019-mfi1-st-a-000000000001',
+        '00000019-0f11-4000-8000-00000000000a',
         'mfi-a@mfi-isolation.test'
       );
       wsBUserId = await seedUser(
         WS_B_ID,
-        '00000019-mfi1-st-b-000000000001',
+        '00000019-0f11-4000-8000-00000000000b',
         'mfi-b@mfi-isolation.test'
       );
 
