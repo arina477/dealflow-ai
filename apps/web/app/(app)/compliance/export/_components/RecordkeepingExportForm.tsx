@@ -576,9 +576,15 @@ function RecordkeepingExportFormInner() {
         return;
       }
 
-      // Parse the Manifest header (server attaches X-Export-Manifest or embeds in body).
-      // The API returns Content-Disposition for the filename and
-      // the X-Export-Manifest JSON header for SEC-4 truncation metadata.
+      // SEC-4: Parse the X-Export-Manifest header that the API sets on BOTH CSV
+      // and JSON response branches. This header carries truncation metadata so
+      // the browser can present a capped export as partial rather than complete.
+      //
+      // SAFETY: if the header is absent (proxy dropped it, controller bug, etc.)
+      // we MUST NOT fall back to truncated:false — that would silently present a
+      // potentially-capped export as complete, the exact compliance-integrity
+      // failure SEC-4 exists to prevent. Instead, treat a missing manifest as an
+      // unknown/error state and surface it to the user.
       const manifestHeader = res.headers.get('x-export-manifest');
       let manifest: ExportManifest | null = null;
       if (manifestHeader) {
@@ -588,6 +594,19 @@ function RecordkeepingExportFormInner() {
         } catch {
           manifest = null;
         }
+      }
+
+      // If the manifest header was absent or invalid, surface as an error rather
+      // than guessing truncation status. The controller always sets this header
+      // on every export response; absence indicates a genuine failure (proxy
+      // misconfiguration, server error in header path, etc.).
+      if (!manifest) {
+        setErrorMsg(
+          'Export completed but the server did not return truncation metadata. ' +
+            'Cannot confirm whether this export is complete. Please retry or contact support.'
+        );
+        setExportState('error');
+        return;
       }
 
       const contentDisposition = res.headers.get('content-disposition') ?? '';
@@ -601,27 +620,18 @@ function RecordkeepingExportFormInner() {
       prevBlobUrl.current = blobUrl;
 
       const exportResult: ExportResult = {
-        manifest: manifest ?? {
-          scope: { scope, format, from: from || undefined, to: to || undefined },
-          generatedAt: new Date().toISOString(),
-          generatingActor: null,
-          chainRoot: '0'.repeat(64),
-          tailHash: null,
-          entryCount: 0,
-          truncated: false,
-          rowsReturned: 0,
-          rowsAvailable: 0,
-        },
+        manifest,
         blobUrl,
         filename,
       };
 
       setResult(exportResult);
 
-      // Determine the export state from the manifest
-      if (manifest?.rowsReturned === 0 || manifest?.entryCount === 0) {
+      // Determine the export state from the manifest.
+      // manifest is guaranteed non-null here (absent → error branch above).
+      if (manifest.rowsReturned === 0 || manifest.entryCount === 0) {
         setExportState('empty');
-      } else if (manifest?.truncated) {
+      } else if (manifest.truncated) {
         setExportState('truncated');
       } else {
         setExportState('success');

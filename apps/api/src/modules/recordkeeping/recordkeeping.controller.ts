@@ -203,6 +203,21 @@ export class RecordkeepingController {
       session.getUserId()
     );
 
+    // SEC-4: Set the manifest on the HTTP response so the browser (via the
+    // Next.js same-origin proxy) can read truncation metadata without parsing
+    // the response body. Both CSV and JSON branches MUST set this header —
+    // omitting it causes the frontend fallback to synthesise manifest.truncated=false,
+    // silently presenting a capped export as complete (the exact compliance-
+    // integrity failure SEC-4 exists to prevent).
+    //
+    // Access-Control-Expose-Headers is set so direct cross-origin API consumers
+    // (e2e Supertest, external integrations) can also read the header. The
+    // Next.js same-origin proxy does not require CORS, but exposing the header
+    // here is a no-cost correctness invariant that keeps the HTTP contract clean.
+    const manifestJson = JSON.stringify(pkg.manifest);
+    res.setHeader('X-Export-Manifest', manifestJson);
+    res.setHeader('Access-Control-Expose-Headers', 'X-Export-Manifest');
+
     if (pkg.format === 'csv') {
       // SEC-5: CSV response — injection-safe, RFC-4180 serialized.
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');

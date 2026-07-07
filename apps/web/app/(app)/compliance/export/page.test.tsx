@@ -126,7 +126,15 @@ function makeManifest(opts: { rowsReturned: number; rowsAvailable: number; trunc
   };
 }
 
-/** Mock a successful export fetch returning a manifest header + blob. */
+/**
+ * Mock a successful export fetch returning a manifest header + blob.
+ *
+ * SEC-4 contract: simulates the FIXED controller that always sets
+ * X-Export-Manifest on the HTTP response (both CSV + JSON branches).
+ * Before the B-6 fix the controller never set this header, so tests using
+ * makeExportFetch were tautologies (they fabricated what the server omitted).
+ * After the fix the controller always sets it — these mocks now match reality.
+ */
 function makeExportFetch(opts: {
   rowsReturned: number;
   rowsAvailable: number;
@@ -139,6 +147,30 @@ function makeExportFetch(opts: {
     headers: {
       get: (name: string) => {
         if (name === 'x-export-manifest') return JSON.stringify(manifest);
+        if (name === 'content-disposition') return 'attachment; filename="dealflow-export.csv"';
+        return null;
+      },
+    },
+    blob: () => Promise.resolve(new Blob(['row1\nrow2'], { type: 'text/csv' })),
+  } as unknown as Response);
+}
+
+/**
+ * Mock a successful export fetch with NO X-Export-Manifest header.
+ *
+ * Simulates the PRE-FIX controller (or a proxy that dropped the header).
+ * SEC-4 tautology kill: verifies that the component does NOT silently present
+ * a manifest-less response as a complete export. After the B-6 frontend fix
+ * an absent manifest routes to the error state, not success.
+ */
+function makeExportFetchNoManifest() {
+  return vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    headers: {
+      get: (name: string) => {
+        // Deliberately absent: the pre-fix controller never set X-Export-Manifest.
+        if (name === 'x-export-manifest') return null;
         if (name === 'content-disposition') return 'attachment; filename="dealflow-export.csv"';
         return null;
       },
@@ -607,6 +639,76 @@ describe('RecordkeepingExportForm', () => {
         expect(warning.textContent?.toLowerCase()).not.toMatch(/complete set/);
         // But MUST show a partial-export acknowledgement
         expect(warning.textContent).toMatch(/50,000/);
+      });
+    });
+  });
+
+  // ── SEC-4 tautology-kill: absent X-Export-Manifest header ────────────────
+  //
+  // Before the B-6 controller fix the API never set X-Export-Manifest; the
+  // old frontend fallback synthesised manifest.truncated=false and rendered
+  // "success" for every export — including capped ones. These tests verify the
+  // safe replacement behaviour: absent manifest → error, never silent success.
+  //
+  // These tests FAIL before the B-6 frontend fix (old code: absent → success)
+  // and PASS after (new code: absent → error panel).
+
+  describe('SEC-4 tautology-kill — absent X-Export-Manifest header must NOT be silent success', () => {
+    it('absent X-Export-Manifest header routes to error state, NOT success (SEC-4 contract)', async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal('fetch', makeExportFetchNoManifest());
+      render(<RecordkeepingExportForm userRole="compliance" />);
+      await user.click(screen.getByTestId('export-cta'));
+      await waitFor(() => {
+        // Must show the error panel — absent manifest is not safe to present as complete.
+        expect(screen.getByTestId('error-panel')).toBeDefined();
+        expect(screen.getByTestId('error-panel').getAttribute('role')).toBe('alert');
+      });
+    });
+
+    it('absent X-Export-Manifest: does NOT render "Integrity verified" (no false-complete claim)', async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal('fetch', makeExportFetchNoManifest());
+      render(<RecordkeepingExportForm userRole="compliance" />);
+      await user.click(screen.getByTestId('export-cta'));
+      await waitFor(() => {
+        // Error state must be shown, not the success/integrity band.
+        expect(screen.getByTestId('error-panel')).toBeDefined();
+      });
+      // No "Integrity verified" visible (that would imply a complete export).
+      expect(screen.queryAllByText(/integrity verified/i)).toHaveLength(0);
+    });
+
+    it('absent X-Export-Manifest: does NOT render download link (download requires confirmed manifest)', async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal('fetch', makeExportFetchNoManifest());
+      render(<RecordkeepingExportForm userRole="compliance" />);
+      await user.click(screen.getByTestId('export-cta'));
+      await waitFor(() => {
+        expect(screen.getByTestId('error-panel')).toBeDefined();
+      });
+      expect(screen.queryByTestId('export-download-link')).toBeNull();
+    });
+
+    it('absent X-Export-Manifest: does NOT render truncation-warning (error, not truncated state)', async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal('fetch', makeExportFetchNoManifest());
+      render(<RecordkeepingExportForm userRole="compliance" />);
+      await user.click(screen.getByTestId('export-cta'));
+      await waitFor(() => {
+        expect(screen.getByTestId('error-panel')).toBeDefined();
+      });
+      expect(screen.queryByTestId('truncation-warning')).toBeNull();
+    });
+
+    it('absent X-Export-Manifest: error message mentions truncation metadata (informative error copy)', async () => {
+      const user = userEvent.setup();
+      vi.stubGlobal('fetch', makeExportFetchNoManifest());
+      render(<RecordkeepingExportForm userRole="compliance" />);
+      await user.click(screen.getByTestId('export-cta'));
+      await waitFor(() => {
+        const panel = screen.getByTestId('error-panel');
+        expect(panel.textContent?.toLowerCase()).toMatch(/truncation metadata|cannot confirm/i);
       });
     });
   });
