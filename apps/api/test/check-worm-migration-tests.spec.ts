@@ -279,12 +279,7 @@ describe('migrationTouchesWormTable', () => {
   });
 
   it('FAULT-KILLING (schema-qualified): detects TRUNCATE public.audit_log_entries', () => {
-    expect(
-      migrationTouchesWormTable(
-        `TRUNCATE public.audit_log_entries;`,
-        TABLE
-      )
-    ).toBe(true);
+    expect(migrationTouchesWormTable(`TRUNCATE public.audit_log_entries;`, TABLE)).toBe(true);
   });
 
   it('FAULT-KILLING (schema-qualified): detects CREATE INDEX ON public.audit_log_entries', () => {
@@ -624,7 +619,10 @@ describe('runCheck — fault-killing self-test', () => {
     );
     const testFilePath = path.join(testDir, 'any-test.e2e-spec.ts');
     // Comment-only file: for GRANT-only migration, existence is enough (no marker required).
-    fs.writeFileSync(testFilePath, `// placeholder — existence-only is sufficient for grant-only migration`);
+    fs.writeFileSync(
+      testFilePath,
+      `// placeholder — existence-only is sufficient for grant-only migration`
+    );
 
     const registry = [
       {
@@ -855,13 +853,16 @@ describe('real-tree integration — GREEN on current tree', () => {
       const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
       const stripped = sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
 
-      let match: RegExpExecArray | null;
       wormTriggerPattern.lastIndex = 0;
-      while ((match = wormTriggerPattern.exec(stripped)) !== null) {
+      let match: RegExpExecArray | null = wormTriggerPattern.exec(stripped);
+      while (match !== null) {
         const tableName = match[1] ?? match[2];
         if (tableName && !WORM_TABLES.includes(tableName)) {
-          unknownWormTables.push(`${file}: BEFORE UPDATE OR DELETE trigger on '${tableName}' (not in WORM_TABLES)`);
+          unknownWormTables.push(
+            `${file}: BEFORE UPDATE OR DELETE trigger on '${tableName}' (not in WORM_TABLES)`
+          );
         }
+        match = wormTriggerPattern.exec(stripped);
       }
     }
 
