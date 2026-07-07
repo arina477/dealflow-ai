@@ -1,0 +1,4 @@
+wave-26 C-1 CI re-fire (5th same-day) — founder raised GitHub Actions spending limit and replied Continue.
+Carries the wave-26 RLS connection-split code tree (assertUrlsDistinct startup preflight + [RLS-GUARD] frozen).
+Marker to force a fresh workflow dispatch on a non-[skip ci] tip parented on d29e9c8.
+timestamp: 2026-07-07T16:40Z
