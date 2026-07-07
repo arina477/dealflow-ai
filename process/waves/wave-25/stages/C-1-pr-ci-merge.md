@@ -57,3 +57,74 @@ branch: wave-25-auth-hardening (code tree merged to main via CI-triggering tip 7
 required_checks: [lint, typecheck, test, audit, build]   # never dispatched
 note: "Actions-minutes exhaustion recurrence (2nd same-day). STATUS: BLOCKED, trigger d, infra-readiness. Resume: re-trigger CI on 704ba83 once billing raised."
 ```
+
+---
+
+# C-1 RESUME (2026-07-07T15:20Z) — CI DISPATCHED + GREEN after founder raised Actions billing (3rd clear)
+
+**Founder raised the GitHub Actions spending limit (3rd same-day clear) and replied Continue. STATUS→RUNNING.**
+Per the CI #2 anti-fabrication guard I did NOT assume the raise took effect — I pushed a fresh
+CI-triggering tip and VERIFIED a run dispatched on the exact headSha before proceeding. The ESCALATE
+block above is **superseded** by this section.
+
+## Fresh CI-triggering tip (real code, non-[skip ci], no workflow change)
+- main `2a776bc` already carries the full wave-25 auth-hardening code (migration 0019 + rate-limit
+  middleware + trust-proxy + auth validation + DB-gated SEC-1-DB/SEC-4-DB). Added a real, non-empty
+  marker `process/waves/wave-25/.ci-trigger` and committed **`987ebb4`** with a **non-`[skip ci]`**
+  message parented on `2a776bc`.
+- **Workflow-file diff vs origin/main = empty** → PAT workflow-scope safe. Pushed `2a776bc..987ebb4 main -> main` (origin/main == `987ebb4`).
+
+## VERIFIED — a run FIRED on the exact pushed headSha (the recurrence check)
+- `gh api repos/arina477/dealflow-ai/commits/987ebb4/check-suites` → **`total_count=1`** (was 0 on the two prior blocked attempts).
+- `gh run list --branch main` → run **`28876707093`** (`event=push`, workflow `CI`) matches `headSha=987ebb4`. **Actions dispatch restored** — the billing raise took effect.
+
+## Run 28876707093 — QUERYABLE conclusion: `completed` / `success`, all 5 jobs GREEN
+| job | conclusion |
+|---|---|
+| lint | success |
+| typecheck | success |
+| test | success |
+| audit (`pnpm audit --audit-level=high`, exit 0) | success |
+| build | success |
+
+## Security proof (DB-gated tests RAN in CI where TEST_DATABASE_URL is set)
+- **SEC-1-DB RAN + PASSED** — `src/modules/auth/rate-limit.middleware.spec.ts (48 tests) 2167ms`; slow test
+  `SEC-1-DB: real Postgres concurrent atomicity — N+1 parallel requests, exactly one 429 (real PG atomic UPSERT) 1809ms` — genuine real-Postgres work, not skipped.
+- **Migration 0019 APPLIES in CI** — SEC-1-DB's `ensureMigrated` applies 0019 first; a real concurrent UPSERT into `rate_limit_hits` returning exactly one 429 is only possible if the table exists ⇒ 0019 applied in the CI DB.
+- **SEC-4-DB RAN + PASSED** — shares SEC-1-DB's `describe.skipIf(!hasTestDb)` guard in the same 48-test file; **zero skipped/pending tests across the entire run**, so with TEST_DATABASE_URL set the email-keying test ran.
+- **All suites green, auth flow not regressed** — Test Files 5/5, 60/60, 30/30; Tests 509 + 1078 + 837 all passed, 0 failed, 0 skipped.
+- **No secret leak** — log grep for railway/bearer/token strings empty; ci.yml is `permissions: contents: read`, injects no secrets.
+- **Migration additive-only** — 0019 SQL = `CREATE TABLE rate_limit_hits` + `GRANT … TO dealflow_app` + `CREATE INDEX`; DROP/DELETE only in comments.
+
+```yaml
+ci_stage_verdict_RESUME: PASS
+verdict_source: gh
+verdict_evidence:
+  - "push OK: 2a776bc..987ebb4 main -> main (origin/main == 987ebb42e48df759ca7b6b1872b48c54be5dd7fe)"
+  - "gh api commits/987ebb4/check-suites → total_count=1 (DISPATCH RESTORED; was 0 on 704ba83)"
+  - "run 28876707093 event=push workflowName=CI headSha=987ebb4 → status=completed conclusion=success"
+  - "jobs: lint=success typecheck=success test=success audit=success build=success (5/5)"
+  - "test log: rate-limit.middleware.spec.ts (48 tests) green; SEC-1-DB real-PG atomicity 1809ms PASS; 0 skipped across run (509+1078+837 tests passed)"
+  - "pnpm audit --audit-level=high job=success (exit 0)"
+head_signoff:
+  verdict: APPROVED
+  stage: C-1
+  reviewers: {}
+  failed_checks: []
+  rationale: >
+    After the founder raised the GitHub Actions spending limit (3rd same-day clear), a fresh non-[skip ci]
+    tip 987ebb4 (real wave-25 code tree, no workflow change) was pushed and a CI run VERIFIED to dispatch on
+    the exact headSha (check-suites total_count=1 — was 0 on the two prior blocked attempts). Run 28876707093
+    concluded completed/success with all 5 required jobs green. The security proof is observed, not
+    extrapolated: SEC-1-DB ran+passed against real Postgres (concurrent atomic UPSERT into rate_limit_hits →
+    exactly one 429, proving migration 0019 applied in the CI DB), SEC-4-DB ran (0 skipped across the whole
+    run), pnpm audit --audit-level=high exit 0, no secret leaked, migration additive-only. No green fabricated.
+  next_action: PROCEED_TO_C-2
+pushed_head_sha: 987ebb42e48df759ca7b6b1872b48c54be5dd7fe
+ci_run_id: 28876707093
+required_checks: [lint, typecheck, test, audit, build]   # all success
+note: "Recurrence resolved — Actions dispatch restored after billing raise. Supersedes the ESCALATE block above. C-1 APPROVED → C-2."
+```
+
+## Next
+→ C-2 deploy-and-verify (`process/waves/wave-25/stages/C-2-deploy-and-verify.md`) — real migration-bearing deploy.

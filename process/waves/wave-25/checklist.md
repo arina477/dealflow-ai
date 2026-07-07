@@ -7,5 +7,5 @@
 - [x] B-0
 - [x] B-2
 - [x] B-6 (APPROVE Attempt-2)
-- [ ] C-1 push→main + CI green
-- [ ] C-2 real-deploy + verify (migration-bearing, security-sensitive)
+- [x] C-1 push→main + CI green (run 28876707093, 5/5 green @987ebb4; SEC-1-DB/SEC-4-DB ran+passed; migration 0019 applied in CI)
+- [x] C-2 real-deploy + verify (migration-bearing, security-sensitive) — deployed 987ebb4; 0019 applied to prod; /health 200 db:ok version==987ebb4; rate-limit 429 smoke; rollback armed @6c22919
