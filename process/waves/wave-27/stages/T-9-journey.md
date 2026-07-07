@@ -1,0 +1,4 @@
+# Wave 27 — T-9 Journey (gate)
+**Gate:** APPROVED (head-tester T-8 Security + T-9). verdict → blocks/T/gate-verdict.md. next_action: PROCEED_TO_V.
+## Journey delta: APPLIED — +/compliance/export (firm-admin export page, RBAC compliance+admin) + the extended POST /compliance/audit-log/export endpoint (CSV/JSON, deal-scope, cap/truncation, workspace-scoped). user-journey-map.md updated.
+## Substance: SEC-8 isolation GENUINE (17/17 as dealflow_app, fault-killing — proven by RED#1 collision→17-skipped→suite-FAILED, so the harness can't silently pass on 0 execution); SEC-1 getDb-not-exempt; SEC-4 truncation-honesty (controller sets X-Export-Manifest both branches; frontend errors on absent, never silent-complete; tautology killed); SEC-2/5/6/7 tested; api 1103 + web 900 (0 fail/skip). The 2 C-1 RED cycles resolved without regression.
