@@ -39,7 +39,11 @@
  */
 
 import type { AnalyticsSummary, CalibrationSummary, MeResponse, Role } from '@dealflow/shared';
-import { analyticsSummarySchema, calibrationSummarySchema, meResponseSchema } from '@dealflow/shared';
+import {
+  analyticsSummarySchema,
+  calibrationSummarySchema,
+  meResponseSchema,
+} from '@dealflow/shared';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 // Note: explicit React import for the test-environment JSX transform (same
@@ -267,10 +271,7 @@ export default async function InsightsPage() {
   assertRole('/insights', me.role as Role);
 
   // 3. SSR-fetch analytics summary + calibration (parallel — independent fetches).
-  const [data, calibration] = await Promise.all([
-    fetchAnalytics(cookie),
-    fetchCalibration(cookie),
-  ]);
+  const [data, calibration] = await Promise.all([fetchAnalytics(cookie), fetchCalibration(cookie)]);
 
   // ── Error / unavailable state ──────────────────────────────────────────────
   if (!data) {
@@ -607,10 +608,7 @@ function CalibrationSection({ calibration }: CalibrationSectionProps) {
           Accept rate by fit score band
         </h3>
         <div style={{ overflowX: 'auto' }}>
-          <table
-            style={TABLE_STYLE}
-            aria-label="Accept rate by fit score band"
-          >
+          <table style={TABLE_STYLE} aria-label="Accept rate by fit score band">
             <thead>
               <tr>
                 <th style={TH_STYLE}>Score band</th>
@@ -690,10 +688,7 @@ function CalibrationSection({ calibration }: CalibrationSectionProps) {
           Accept rate by score dimension (high vs low cohort)
         </h3>
         <div style={{ overflowX: 'auto' }}>
-          <table
-            style={TABLE_STYLE}
-            aria-label="Accept rate by score dimension"
-          >
+          <table style={TABLE_STYLE} aria-label="Accept rate by score dimension">
             <thead>
               <tr>
                 <th style={TH_STYLE}>Dimension</th>

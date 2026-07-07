@@ -211,7 +211,13 @@ async function seedMatchCandidate(
   opts: {
     disposition: 'accepted' | 'rejected' | 'pending' | 'flagged';
     fitScore: number;
-    scoreBreakdown: { sectorMatch: number; contactCompleteness: number; tieBreak: number; total: number; notApplied: string[] } | null;
+    scoreBreakdown: {
+      sectorMatch: number;
+      contactCompleteness: number;
+      tieBreak: number;
+      total: number;
+      notApplied: string[];
+    } | null;
   }
 ): Promise<string> {
   const matchCandidateId = crypto.randomUUID();
@@ -286,7 +292,14 @@ async function seedMatchCandidate(
         `INSERT INTO match_candidates
            (id, match_run_id, buyer_universe_candidate_id, fit_score, disposition, workspace_id)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [matchCandidateId, actualMrId, buyerUniverseCandidateId, opts.fitScore, opts.disposition, workspaceId]
+        [
+          matchCandidateId,
+          actualMrId,
+          buyerUniverseCandidateId,
+          opts.fitScore,
+          opts.disposition,
+          workspaceId,
+        ]
       );
     }
     seededMatchCandidateIds.push(matchCandidateId);
@@ -345,8 +358,16 @@ describe.skipIf(shouldSkip)(
       await seedWorkspace(WS_B_ID, 'MFI Test Workspace B');
 
       // Seed users.
-      wsAUserId = await seedUser(WS_A_ID, '00000019-mfi1-st-a-000000000001', 'mfi-a@mfi-isolation.test');
-      wsBUserId = await seedUser(WS_B_ID, '00000019-mfi1-st-b-000000000001', 'mfi-b@mfi-isolation.test');
+      wsAUserId = await seedUser(
+        WS_A_ID,
+        '00000019-mfi1-st-a-000000000001',
+        'mfi-a@mfi-isolation.test'
+      );
+      wsBUserId = await seedUser(
+        WS_B_ID,
+        '00000019-mfi1-st-b-000000000001',
+        'mfi-b@mfi-isolation.test'
+      );
 
       // ── Seed workspace A — decided candidates ──────────────────────────────
       const mandateA = await seedMandate(WS_A_ID, wsAUserId);
@@ -356,7 +377,13 @@ describe.skipIf(shouldSkip)(
         await seedMatchCandidate(WS_A_ID, wsAUserId, mandateA, {
           disposition: 'accepted',
           fitScore: 60,
-          scoreBreakdown: { sectorMatch: 30, contactCompleteness: 15, tieBreak: 5, total: 60, notApplied: [] },
+          scoreBreakdown: {
+            sectorMatch: 30,
+            contactCompleteness: 15,
+            tieBreak: 5,
+            total: 60,
+            notApplied: [],
+          },
         });
       }
       wsADecidedCount += 3;
@@ -367,7 +394,13 @@ describe.skipIf(shouldSkip)(
         await seedMatchCandidate(WS_A_ID, wsAUserId, mandateA, {
           disposition: 'rejected',
           fitScore: 55,
-          scoreBreakdown: { sectorMatch: 20, contactCompleteness: 15, tieBreak: 5, total: 55, notApplied: [] },
+          scoreBreakdown: {
+            sectorMatch: 20,
+            contactCompleteness: 15,
+            tieBreak: 5,
+            total: 55,
+            notApplied: [],
+          },
         });
       }
       wsADecidedCount += 2;
@@ -376,7 +409,13 @@ describe.skipIf(shouldSkip)(
       await seedMatchCandidate(WS_A_ID, wsAUserId, mandateA, {
         disposition: 'accepted',
         fitScore: 80,
-        scoreBreakdown: { sectorMatch: 60, contactCompleteness: 30, tieBreak: 8, total: 80, notApplied: [] },
+        scoreBreakdown: {
+          sectorMatch: 60,
+          contactCompleteness: 30,
+          tieBreak: 8,
+          total: 80,
+          notApplied: [],
+        },
       });
       wsADecidedCount += 1;
 
@@ -384,7 +423,13 @@ describe.skipIf(shouldSkip)(
       await seedMatchCandidate(WS_A_ID, wsAUserId, mandateA, {
         disposition: 'pending',
         fitScore: 40,
-        scoreBreakdown: { sectorMatch: 20, contactCompleteness: 15, tieBreak: 5, total: 40, notApplied: [] },
+        scoreBreakdown: {
+          sectorMatch: 20,
+          contactCompleteness: 15,
+          tieBreak: 5,
+          total: 40,
+          notApplied: [],
+        },
       });
       // wsADecidedCount NOT incremented — pending excluded from denominator.
 
@@ -405,7 +450,13 @@ describe.skipIf(shouldSkip)(
         await seedMatchCandidate(WS_B_ID, wsBUserId, mandateB, {
           disposition: 'accepted',
           fitScore: 75,
-          scoreBreakdown: { sectorMatch: 30, contactCompleteness: 30, tieBreak: 5, total: 75, notApplied: [] },
+          scoreBreakdown: {
+            sectorMatch: 30,
+            contactCompleteness: 30,
+            tieBreak: 5,
+            total: 75,
+            notApplied: [],
+          },
         });
       }
       // 2 rejected in WS_B
@@ -413,7 +464,13 @@ describe.skipIf(shouldSkip)(
         await seedMatchCandidate(WS_B_ID, wsBUserId, mandateB, {
           disposition: 'rejected',
           fitScore: 30,
-          scoreBreakdown: { sectorMatch: 20, contactCompleteness: 0, tieBreak: 5, total: 30, notApplied: [] },
+          scoreBreakdown: {
+            sectorMatch: 20,
+            contactCompleteness: 0,
+            tieBreak: 5,
+            total: 30,
+            notApplied: [],
+          },
         });
       }
     });
@@ -642,8 +699,12 @@ describe.skipIf(shouldSkip)(
       // but we can assert the service returned successfully (no throw) and the lifts are valid.
       for (const lift of calibration.dimensionLifts) {
         // acceptRate is either null (no data) or a valid number in [0,1].
-        expect(lift.high.acceptRate === null || (lift.high.acceptRate >= 0 && lift.high.acceptRate <= 1)).toBe(true);
-        expect(lift.low.acceptRate === null || (lift.low.acceptRate >= 0 && lift.low.acceptRate <= 1)).toBe(true);
+        expect(
+          lift.high.acceptRate === null || (lift.high.acceptRate >= 0 && lift.high.acceptRate <= 1)
+        ).toBe(true);
+        expect(
+          lift.low.acceptRate === null || (lift.low.acceptRate >= 0 && lift.low.acceptRate <= 1)
+        ).toBe(true);
       }
 
       // Raw verification: WS_A's null-breakdown candidate must be tracked.

@@ -33,7 +33,12 @@
  * This is enforced via SQL JSONB field extraction with NULLIF / IS NOT NULL guards.
  */
 
-import type { CalibrationBand, DimensionLift, DimensionLiftHalf, FitScoreBand } from '@dealflow/shared';
+import type {
+  CalibrationBand,
+  DimensionLift,
+  DimensionLiftHalf,
+  FitScoreBand,
+} from '@dealflow/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { Database } from '../../db/db.provider';
@@ -59,9 +64,9 @@ type Dimension = (typeof DIMENSIONS)[number];
 
 /** Midpoint for each dimension (used to split high vs low cohort). */
 const DIMENSION_MAX: Record<Dimension, number> = {
-  sectorMatch: 60,       // 0, 20, 30, 60 — midpoint 30
+  sectorMatch: 60, // 0, 20, 30, 60 — midpoint 30
   contactCompleteness: 30, // 0, 15, 30 — midpoint 15
-  tieBreak: 10,          // 0..10 — midpoint 5
+  tieBreak: 10, // 0..10 — midpoint 5
 };
 
 const DIMENSION_MIDPOINT: Record<Dimension, number> = {
@@ -106,10 +111,7 @@ export class MatchFeedbackRepository {
       .where(inArray(matchCandidates.disposition, ['accepted', 'rejected']));
 
     // Accumulate per-band counts.
-    const bandCounts = new Map<
-      FitScoreBand,
-      { decidedCount: number; acceptedCount: number }
-    >(
+    const bandCounts = new Map<FitScoreBand, { decidedCount: number; acceptedCount: number }>(
       BANDS.map(({ band }) => [band, { decidedCount: 0, acceptedCount: 0 }])
     );
 
@@ -125,8 +127,7 @@ export class MatchFeedbackRepository {
     return BANDS.map(({ band }) => {
       const { decidedCount, acceptedCount } = bandCounts.get(band)!;
       // G2: null when no decided data; 0 when decided > 0 but none accepted.
-      const acceptRate: number | null =
-        decidedCount === 0 ? null : acceptedCount / decidedCount;
+      const acceptRate: number | null = decidedCount === 0 ? null : acceptedCount / decidedCount;
       return { band, decidedCount, acceptedCount, acceptRate };
     });
   }
@@ -169,7 +170,10 @@ export class MatchFeedbackRepository {
       .where(inArray(matchCandidates.disposition, ['accepted', 'rejected']));
 
     // Per-dimension accumulation.
-    type DimCohort = { high: { decided: number; accepted: number }; low: { decided: number; accepted: number } };
+    type DimCohort = {
+      high: { decided: number; accepted: number };
+      low: { decided: number; accepted: number };
+    };
     const dimCounts = new Map<Dimension, DimCohort>(
       DIMENSIONS.map((dim) => [
         dim,
@@ -221,7 +225,11 @@ function bandForScore(score: number): FitScoreBand | null {
 }
 
 /** Build a DimensionLiftHalf with G2 null-vs-zero acceptRate. */
-function liftHalf(cohort: 'high' | 'low', decidedCount: number, acceptedCount: number): DimensionLiftHalf {
+function liftHalf(
+  cohort: 'high' | 'low',
+  decidedCount: number,
+  acceptedCount: number
+): DimensionLiftHalf {
   const acceptRate: number | null = decidedCount === 0 ? null : acceptedCount / decidedCount;
   return { cohort, decidedCount, acceptedCount, acceptRate };
 }

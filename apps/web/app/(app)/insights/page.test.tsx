@@ -442,9 +442,7 @@ describe('InsightsPage (/insights)', () => {
       it('renders the "Accept rate by fit score band" table', async () => {
         vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
         await renderPage();
-        expect(
-          screen.getByRole('table', { name: /accept rate by fit score band/i })
-        ).toBeDefined();
+        expect(screen.getByRole('table', { name: /accept rate by fit score band/i })).toBeDefined();
       });
 
       it('renders the "Accept rate by score dimension" table', async () => {
@@ -547,12 +545,8 @@ describe('InsightsPage (/insights)', () => {
           makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS, true, EMPTY_CALIBRATION)
         );
         await renderPage();
-        expect(
-          screen.queryByRole('table', { name: /accept rate by fit score band/i })
-        ).toBeNull();
-        expect(
-          screen.queryByRole('table', { name: /accept rate by score dimension/i })
-        ).toBeNull();
+        expect(screen.queryByRole('table', { name: /accept rate by fit score band/i })).toBeNull();
+        expect(screen.queryByRole('table', { name: /accept rate by score dimension/i })).toBeNull();
       });
 
       it('still renders calibration empty state when analytics empty state also fires', async () => {

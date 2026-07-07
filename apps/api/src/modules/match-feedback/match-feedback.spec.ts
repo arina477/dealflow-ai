@@ -184,7 +184,9 @@ describe('MatchFeedbackService', () => {
       const result = await service.getCalibration();
       for (const lift of result.dimensionLifts) {
         // null acceptRate is valid — means no data (G2).
-        expect(lift.high.acceptRate === null || typeof lift.high.acceptRate === 'number').toBe(true);
+        expect(lift.high.acceptRate === null || typeof lift.high.acceptRate === 'number').toBe(
+          true
+        );
         expect(lift.low.acceptRate === null || typeof lift.low.acceptRate === 'number').toBe(true);
       }
     });
@@ -401,22 +403,22 @@ describe('GET /match-feedback — RBAC matrix (DB-authoritative)', () => {
 
   it('analyst → DENY (403) — DB role analyst (not in MATCH_FEEDBACK_ROLES)', async () => {
     const guard = guardWithDbRole('analyst');
-    await expect(
-      guard.canActivate(contextFor(matchFeedbackHandler, 'analyst'))
-    ).rejects.toThrow(ForbiddenException);
+    await expect(guard.canActivate(contextFor(matchFeedbackHandler, 'analyst'))).rejects.toThrow(
+      ForbiddenException
+    );
   });
 
   it('compliance → DENY (403) — DB role compliance (not in MATCH_FEEDBACK_ROLES)', async () => {
     const guard = guardWithDbRole('compliance');
-    await expect(
-      guard.canActivate(contextFor(matchFeedbackHandler, 'compliance'))
-    ).rejects.toThrow(ForbiddenException);
+    await expect(guard.canActivate(contextFor(matchFeedbackHandler, 'compliance'))).rejects.toThrow(
+      ForbiddenException
+    );
   });
 
   it('unauthenticated → 401 — no session', async () => {
     const guard = guardWithDbRole(null);
-    await expect(
-      guard.canActivate(contextFor(matchFeedbackHandler, undefined))
-    ).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(contextFor(matchFeedbackHandler, undefined))).rejects.toThrow(
+      UnauthorizedException
+    );
   });
 });
