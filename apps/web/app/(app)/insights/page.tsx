@@ -22,8 +22,10 @@
  *   F4 — Match disposition:    pending / accepted / rejected / flagged counts.
  *   C  — Match score calibration (wave-19):
  *        4 fit_score bands (0-25/26-50/51-75/76-100): decidedCount + acceptRate.
- *        3 per-dimension lifts (sectorMatch/contactCompleteness/tieBreak): high vs low cohort.
+ *        2 per-dimension lifts (sectorMatch/contactCompleteness): high vs low cohort.
+ *        tieBreak is excluded (row-ID hash — noise, not signal; B-6 metric honesty).
  *        G2: acceptRate null → "n/a" (0 decided); acceptRate 0 (number) → "0%".
+ *        Small-sample: decidedCount < LOW_SAMPLE_THRESHOLD → rate shown as "X% (low sample)".
  *        Empty state when totalDecided=0.
  *
  * Empty state: graceful "No analytics data yet" when the firm has no rows.
@@ -158,15 +160,41 @@ function fmtAcceptRate(rate: number | null): string {
   return `${(rate * 100).toFixed(1)}%`;
 }
 
-/** Dimension name → human label */
+/**
+ * Small-sample threshold (B-6, CODE-OF-CONDUCT §metric honesty).
+ * A band or cohort with fewer than this many decided candidates is not a strong
+ * signal. Rates for these cohorts carry a visible "(low sample)" annotation so
+ * M&A advisors can calibrate confidence themselves.
+ */
+const LOW_SAMPLE_THRESHOLD = 5;
+
+/**
+ * G2 + small-sample: format an accept-rate cell value.
+ *
+ *   null              → "n/a"              (0 decided — measurement gap)
+ *   0/number, low n   → "X.X% (low sample)" (decidedCount < LOW_SAMPLE_THRESHOLD — weak signal)
+ *   0/number, ok n    → "X.X%"              (sufficient sample — normal display)
+ *
+ * decidedCount=0 must produce null acceptRate (caller invariant, G2). When
+ * decidedCount>0 AND rate is non-null AND decidedCount < LOW_SAMPLE_THRESHOLD,
+ * append "(low sample)" so advisors see the caveat.
+ */
+function fmtAcceptRateWithCaveat(rate: number | null, decidedCount: number): string {
+  if (rate === null) return 'n/a';
+  const pct = `${(rate * 100).toFixed(1)}%`;
+  if (decidedCount < LOW_SAMPLE_THRESHOLD) {
+    return `${pct} (n=${String(decidedCount)})`;
+  }
+  return pct;
+}
+
+/** Dimension name → human label (sectorMatch / contactCompleteness only — tieBreak excluded). */
 function dimensionLabel(dimension: string): string {
   switch (dimension) {
     case 'sectorMatch':
       return 'Sector Match';
     case 'contactCompleteness':
       return 'Contact Completeness';
-    case 'tieBreak':
-      return 'Tie-Break';
     default:
       return dimension;
   }
@@ -540,6 +568,12 @@ export default async function InsightsPage() {
 //   null   → decidedCount = 0 → render "n/a" (measurement gap, not a 0% outcome).
 //   0      → decidedCount > 0 but 0 accepted → render "0%" (real outcome).
 // Never conflate null and 0 (CODE-OF-CONDUCT §metric).
+//
+// Small-sample honesty (B-6, CODE-OF-CONDUCT §metric):
+//   decidedCount > 0 but < LOW_SAMPLE_THRESHOLD → render "X.X% (n=N)" and mute
+//   the value (zinc-400 instead of emerald). A single-row cohort "100.0%" is not
+//   a strong signal — the n= annotation lets the advisor judge confidence themselves.
+//   Applies to BOTH bands (fit_score) AND dimension-lift cohorts.
 // ---------------------------------------------------------------------------
 
 interface CalibrationSectionProps {
@@ -654,17 +688,20 @@ function CalibrationSection({ calibration }: CalibrationSectionProps) {
                       ...TD_STYLE,
                       textAlign: 'right',
                       fontVariantNumeric: 'tabular-nums',
-                      // G2: null → muted "n/a"; real 0 or positive → emerald
+                      // G2: null → muted "n/a"; low-sample → zinc-400 (not confident);
+                      // real 0 → zinc-500; positive → emerald-500.
                       color:
                         band.acceptRate === null
                           ? '#9ca3af' // zinc-400 — measurement gap
-                          : band.acceptRate === 0
-                            ? '#6b7280' // zinc-500 — real 0%
-                            : '#10b981', // emerald-500 — positive rate
+                          : band.decidedCount < LOW_SAMPLE_THRESHOLD
+                            ? '#9ca3af' // zinc-400 — low sample, not confident
+                            : band.acceptRate === 0
+                              ? '#6b7280' // zinc-500 — real 0%
+                              : '#10b981', // emerald-500 — positive rate
                     }}
                   >
-                    {/* G2: explicit null check — null is "n/a", 0 is "0%" */}
-                    {fmtAcceptRate(band.acceptRate)}
+                    {/* G2 + small-sample: null → "n/a"; low n → "X.X% (n=N)"; else "X.X%" */}
+                    {fmtAcceptRateWithCaveat(band.acceptRate, band.decidedCount)}
                   </td>
                 </tr>
               ))}
@@ -673,7 +710,7 @@ function CalibrationSection({ calibration }: CalibrationSectionProps) {
         </div>
       </div>
 
-      {/* ── Per-dimension lift: sectorMatch / contactCompleteness / tieBreak */}
+      {/* ── Per-dimension lift: sectorMatch / contactCompleteness (tieBreak excluded — B-6) */}
       <div>
         <h3
           style={{
@@ -707,31 +744,37 @@ function CalibrationSection({ calibration }: CalibrationSectionProps) {
                       ...TD_STYLE,
                       textAlign: 'right',
                       fontVariantNumeric: 'tabular-nums',
-                      // G2: null → muted; 0 → zinc; positive → emerald
+                      // G2 + small-sample: null → muted; low n → zinc-400 (not confident);
+                      // real 0 → zinc-500; positive → emerald-500.
                       color:
                         lift.high.acceptRate === null
                           ? '#9ca3af'
-                          : lift.high.acceptRate === 0
-                            ? '#6b7280'
-                            : '#10b981',
+                          : lift.high.decidedCount < LOW_SAMPLE_THRESHOLD
+                            ? '#9ca3af'
+                            : lift.high.acceptRate === 0
+                              ? '#6b7280'
+                              : '#10b981',
                     }}
                   >
-                    {fmtAcceptRate(lift.high.acceptRate)}
+                    {fmtAcceptRateWithCaveat(lift.high.acceptRate, lift.high.decidedCount)}
                   </td>
                   <td
                     style={{
                       ...TD_STYLE,
                       textAlign: 'right',
                       fontVariantNumeric: 'tabular-nums',
+                      // G2 + small-sample: same logic for low cohort.
                       color:
                         lift.low.acceptRate === null
                           ? '#9ca3af'
-                          : lift.low.acceptRate === 0
-                            ? '#6b7280'
-                            : '#10b981',
+                          : lift.low.decidedCount < LOW_SAMPLE_THRESHOLD
+                            ? '#9ca3af'
+                            : lift.low.acceptRate === 0
+                              ? '#6b7280'
+                              : '#10b981',
                     }}
                   >
-                    {fmtAcceptRate(lift.low.acceptRate)}
+                    {fmtAcceptRateWithCaveat(lift.low.acceptRate, lift.low.decidedCount)}
                   </td>
                   <td
                     style={{

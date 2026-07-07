@@ -10,8 +10,10 @@
  *   - Unauthenticated → redirect('/login').
  *   - No charts library, no real-time, no export affordance.
  *   - Read-only: no edit/delete/send/write buttons.
- *   - Wave-19 C section: match-score calibration (4 bands + 3 dimension lifts).
+ *   - Wave-19 C section: match-score calibration (4 bands + 2 dimension lifts; tieBreak excluded).
  *   - G2 honest null-vs-zero rendering: null → "n/a", 0 (number) → "0%".
+ *   - B-6 metric honesty: small-sample caveat (decidedCount < 5 → "X% (n=N)", muted color).
+ *   - tieBreak dimension absent from rendered output (backend contract + metric honesty).
  *   - Calibration empty state when totalDecided=0.
  *   - Calibration error state when /match-feedback returns non-ok.
  *   - RBAC for /match-feedback data path: advisor+admin allowed, analyst+compliance denied.
@@ -105,19 +107,24 @@ const POPULATED_ANALYTICS: AnalyticsSummary = {
  * Calibration fixture with decided matches across bands.
  * Band 76-100 has acceptRate=null (0 decided) to test G2 null path.
  * Band 51-75 has acceptRate=0 (decided > 0 but 0 accepted) to test G2 real-0 path.
+ * Band 0-25 has decidedCount=1 (< LOW_SAMPLE_THRESHOLD=5) → small-sample caveat "25.0% (n=1)".
+ * Band 26-50 has decidedCount=3 (< LOW_SAMPLE_THRESHOLD=5) → small-sample caveat "66.7% (n=3)".
  *
  * tieBreak dimension is intentionally absent — it is a hash of row ID (noise,
  * not signal) and has been removed from the calibration surface (B-6 metric honesty).
  * 2 dimension lifts: sectorMatch + contactCompleteness.
  *   sectorMatch high cohort: acceptRate=null (0 decided) → G2 null path for dimension.
+ *   sectorMatch low cohort: decidedCount=2 (< LOW_SAMPLE_THRESHOLD) → low-sample caveat.
  *   contactCompleteness low cohort: acceptRate=0 (decided>0, 0 accepted) → G2 real-0.
  */
 const POPULATED_CALIBRATION: CalibrationSummary = {
   totalDecided: 12,
   bands: [
-    { band: '0-25', decidedCount: 4, acceptedCount: 1, acceptRate: 0.25 },
+    // low-sample: decidedCount=1 → "25.0% (n=1)"
+    { band: '0-25', decidedCount: 1, acceptedCount: 0, acceptRate: 0.0 },
+    // low-sample: decidedCount=3 → "66.7% (n=3)"
     { band: '26-50', decidedCount: 3, acceptedCount: 2, acceptRate: 0.667 },
-    // G2 real-0: decided > 0 but 0 accepted → "0%"
+    // G2 real-0: decided > 0 but 0 accepted → "0%" (decidedCount=5 — at threshold, not low)
     { band: '51-75', decidedCount: 5, acceptedCount: 0, acceptRate: 0 },
     // G2 null: 0 decided → "n/a"
     { band: '76-100', decidedCount: 0, acceptedCount: 0, acceptRate: null },
@@ -127,7 +134,8 @@ const POPULATED_CALIBRATION: CalibrationSummary = {
       dimension: 'sectorMatch',
       // G2 null for a cohort — 0 decided in high cohort → "n/a"
       high: { cohort: 'high', decidedCount: 0, acceptedCount: 0, acceptRate: null },
-      low: { cohort: 'low', decidedCount: 12, acceptedCount: 5, acceptRate: 0.417 },
+      // low-sample: decidedCount=2 → "50.0% (n=2)"
+      low: { cohort: 'low', decidedCount: 2, acceptedCount: 1, acceptRate: 0.5 },
     },
     {
       dimension: 'contactCompleteness',
@@ -458,12 +466,13 @@ describe('InsightsPage (/insights)', () => {
         expect(screen.getByText('76-100')).toBeDefined();
       });
 
-      it('renders all 3 score dimension labels', async () => {
+      it('renders exactly 2 score dimension labels (sectorMatch + contactCompleteness; tieBreak absent)', async () => {
         vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
         await renderPage();
         expect(screen.getByText(/sector match/i)).toBeDefined();
         expect(screen.getByText(/contact completeness/i)).toBeDefined();
-        expect(screen.getByText(/tie-break/i)).toBeDefined();
+        // tieBreak removed (B-6 metric honesty — hash of row ID, not signal)
+        expect(screen.queryByText(/tie-break/i)).toBeNull();
       });
     });
 
@@ -518,6 +527,63 @@ describe('InsightsPage (/insights)', () => {
         const zeroItems = screen.getAllByText('0.0%');
         // At least 2 "0.0%" items (band 51-75 + contactCompleteness low cohort)
         expect(zeroItems.length).toBeGreaterThanOrEqual(2);
+      });
+    });
+
+    // ── B-6 metric honesty: tieBreak row gone + small-sample caveat ─────
+
+    describe('B-6 metric honesty: tieBreak gone + small-sample caveat (decidedCount<5)', () => {
+      it('does NOT render a "Tie-Break" row in the dimension table', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // tieBreak removed from contract — hash of row ID is noise not signal
+        expect(screen.queryByText(/tie-break/i)).toBeNull();
+      });
+
+      it('renders exactly 2 dimension rows (data-driven, not hardcoded to 3)', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // Only sectorMatch and contactCompleteness row headers appear
+        expect(screen.getByText(/sector match/i)).toBeDefined();
+        expect(screen.getByText(/contact completeness/i)).toBeDefined();
+        expect(screen.queryByText(/tie-break/i)).toBeNull();
+      });
+
+      it('renders low-sample caveat "(n=X)" for a band with decidedCount < 5', async () => {
+        // POPULATED_CALIBRATION band 26-50 has decidedCount=3 → "66.7% (n=3)"
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // At least one "(n=3)" annotation must appear
+        const lowSampleItems = screen.getAllByText(/\(n=\d+\)/);
+        expect(lowSampleItems.length).toBeGreaterThan(0);
+      });
+
+      it('renders the "(n=N)" caveat for a low-sample dimension cohort (decidedCount < 5)', async () => {
+        // sectorMatch low cohort has decidedCount=2 → "50.0% (n=2)"
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // expect "(n=2)" from sectorMatch low cohort
+        const n2Items = screen.getAllByText(/50\.0%\s*\(n=2\)/);
+        expect(n2Items.length).toBeGreaterThan(0);
+      });
+
+      it('does NOT append "(n=X)" caveat when decidedCount >= 5 (sufficient sample)', async () => {
+        // contactCompleteness high cohort has decidedCount=6 → "50.0%" (no caveat)
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // No "(n=6)" annotation should appear for the 6-decided cohort
+        expect(screen.queryByText(/50\.0%\s*\(n=6\)/)).toBeNull();
+      });
+
+      it('does NOT show low-sample caveat for null acceptRate (G2 null path unchanged)', async () => {
+        // band 76-100 has decidedCount=0, acceptRate=null → renders "n/a" NOT "n/a (n=0)"
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // "n/a" should appear for null cells (not annotated with n=0)
+        const naItems = screen.getAllByText('n/a');
+        expect(naItems.length).toBeGreaterThan(0);
+        // No "(n=0)" annotation
+        expect(screen.queryByText(/\(n=0\)/)).toBeNull();
       });
     });
 
