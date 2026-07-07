@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.19.0] — 2026-07-07 — Match-score calibration (M9)
+
+### Added
+- **See whether the AI match score actually predicts your decisions** — the insights dashboard (/insights) now shows advisors and admins, for their own firm, how often they accept introductions at each match-score band (does a higher score really mean you accept more?), plus which underlying score factors — sector fit, contact completeness — track your acceptances. It turns the match score from a number you take on faith into one you can check against your own history.
+- **Honest numbers, not confident-looking noise** — a factor that is a random tie-breaker by design was deliberately left out of the "which factors predict acceptance" view, because it correlates with nothing and showing it would invite reading meaning into noise; small samples now display their size "(n=X)" and are visually muted instead of showing a confident "100%" off a single data point, and a band with no decided matches reads "n/a" rather than a misleading "0%".
+
+### Correctness / compliance
+- **You only ever see your own firm's calibration** — every calibration figure is scoped to your firm and no other, built on the existing per-firm isolation so one firm's data can never appear in another firm's numbers; this was proven by a test that confirms the cross-firm case is impossible.
+- **Nothing was written or changed to produce these numbers** — the calibration view only reads existing match records; it writes nothing, sends no email, uses no AI, retrains no scorer, and leaves the immutable audit trail untouched. Access is limited to advisors and admins.
+
+### Provenance (transparency)
+- **Read-only over data you already had.** No database change, no new setup step, and no new permission to grant. Additive-only: turning the section off removes nothing from your data.
+- **Scope is honest — this is the calibration read, not a smarter scorer.** It measures how well the current score predicts your decisions; actually retraining the scorer on that feedback, and the specific numeric success target for this area, are still to come and depend on a founder decision.
+
 ## [0.18.0] — 2026-07-07 — Advisor insights analytics (M9)
 
 ### Added

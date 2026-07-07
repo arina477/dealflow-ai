@@ -57,11 +57,11 @@ TEST:
 
 VERIFY:
 - [x] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-2 Triage
+- [x] V-3 Fast-fix loop (or close)
 
 LEARN:
-- [ ] L-1 Docs
+- [x] L-1 Docs
 - [ ] L-2 Distill
 
 NEXT:
