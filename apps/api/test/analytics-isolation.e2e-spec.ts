@@ -354,11 +354,18 @@ async function seedOutreachWithStatus(
     // separate lookback and no ON CONFLICT (the PK is always a fresh UUID so there is
     // nothing to conflict on). This guarantees the FK references the row we just inserted.
     const disclaimerId = crypto.randomUUID();
+    // Each disclaimer row gets a jurisdiction derived from its own UUID so no two
+    // active=true rows share a jurisdiction string — satisfying the global partial
+    // unique index disclaimer_templates_jurisdiction_active_unique (0003/0007) which
+    // is NOT workspace-scoped: at most ONE active row per jurisdiction across the
+    // entire table. The literal 'ANA-TEST-JURIS' is not read by any assertion or
+    // AnalyticsService query, so per-row uniqueness is safe.
+    const disclaimerJurisdiction = `ANA-TEST-JURIS-${disclaimerId.slice(0, 8)}`;
     const discRes = await client.query<{ id: string }>(
       `INSERT INTO disclaimer_templates (id, jurisdiction, body, version, active, workspace_id)
-       VALUES ($1, 'ANA-TEST-JURIS', 'ANA test disclaimer', 1, true, $2)
+       VALUES ($1, $2, 'ANA test disclaimer', 1, true, $3)
        RETURNING id`,
-      [disclaimerId, workspaceId]
+      [disclaimerId, disclaimerJurisdiction, workspaceId]
     );
     const actualDisclaimerId = discRes.rows[0]?.id;
     if (!actualDisclaimerId) throw new Error(`seedOutreachWithStatus: disclaimer INSERT returned no id for workspace=${workspaceId}`);
