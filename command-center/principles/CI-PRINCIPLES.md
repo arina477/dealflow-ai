@@ -134,3 +134,5 @@ pr_conventions:
    Why: The /health version reads a static env var that can lag the actual deployed commit.
 2. Before trusting green CI, confirm a workflow run executed on the exact pushed headSha, not that the push landed.
    Why: An empty commit or [skip ci] message yields no run; the push returns 200 but nothing runs.
+3. After a push, confirm a check-suite was created before treating CI silence as a transient delay.
+   Why: Exhausted Actions minutes withhold dispatch; the push is accepted but zero runs fire.
