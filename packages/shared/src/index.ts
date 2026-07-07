@@ -1,3 +1,17 @@
+// --- Wave-23 seller-intent scoring contracts (task 1188e7da) ---
+export type {
+  SellerIntentBreakdown,
+  SellerIntentDirection,
+  SellerIntentListResponse,
+  SellerIntentScore,
+} from './seller-intent';
+export {
+  sellerIntentBreakdownSchema,
+  sellerIntentDirectionEnum,
+  sellerIntentListResponseSchema,
+  sellerIntentScoreSchema,
+} from './seller-intent';
+
 // --- Wave-20 outreach-activity contracts (task c3776cac) ---
 
 // --- Wave-19 match-feedback calibration contracts (task 69387b56) ---
