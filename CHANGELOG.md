@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.22.0] — 2026-07-07 — Auth hardening (M10)
+
+Sign-in, sign-up, and password-reset are now protected against automated password-guessing, and a confusing error on a bad invite link now reads correctly. Invisible in normal day-to-day use; it matters most as the product opens up to outside users.
+
+### Changed
+- **Automated guessing attacks on the login, sign-up, and password-reset screens are now throttled** — repeated rapid attempts from the same source are turned away with a clear "try again shortly" response once a short limit is crossed, then automatically allowed again after a brief cool-off. This is the standard brute-force protection expected of a compliance-first product before external users come on board; it does not affect normal use.
+- **Signing out now re-checks that the request is genuine** — logout verifies the same anti-forgery protection the rest of the app already uses, so a signed-in session cannot be ended by a forged request.
+
+### Fixed
+- **A broken or already-used invite link now shows a clear "invalid invite" message** instead of a generic server error.
+
 ## [0.21.0] — 2026-07-07 — Seller-intent scoring (M9)
 
 ### Added

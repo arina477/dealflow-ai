@@ -9,3 +9,4 @@
 - [x] B-6 (APPROVE Attempt-2)
 - [x] C-1 push→main + CI green (run 28876707093, 5/5 green @987ebb4; SEC-1-DB/SEC-4-DB ran+passed; migration 0019 applied in CI)
 - [x] C-2 real-deploy + verify (migration-bearing, security-sensitive) — deployed 987ebb4; 0019 applied to prod; /health 200 db:ok version==987ebb4; rate-limit 429 smoke; rollback armed @6c22919
+- [x] L-1 Docs — CHANGELOG 0.22.0 (Changed+Fixed, NOT ### Security per contract); M10 stays in_progress (open=1, backlog-stockout flag); wave-26 recordkeeping-decomposition TRIPWIRE + M9/M10 _TBD polls carried; README skipped
