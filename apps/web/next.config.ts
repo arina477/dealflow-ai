@@ -534,6 +534,19 @@ const nextConfig: NextConfig = {
           source: '/outreach-activity',
           destination: `${apiProxyTarget}/outreach-activity`,
         },
+        // Wave-23 (task 6840c25d): seller-intent read proxy.
+        //
+        // /seller-intent has NO Next.js page file (it is a section on /insights).
+        // afterFiles always falls through to this rule and proxies it to
+        // GET /seller-intent on the API.
+        //
+        // Read-only. Workspace-scoped (FORCE RLS in the service).
+        // advisor + admin only (RBAC enforced by the B-2 controller guard and
+        // as part of the /insights page's assertRole gate).
+        {
+          source: '/seller-intent',
+          destination: `${apiProxyTarget}/seller-intent`,
+        },
       ],
       beforeFiles: [],
       fallback: [],

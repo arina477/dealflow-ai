@@ -1,5 +1,6 @@
 /**
- * /insights — InsightsPage tests (wave-18 task 4b014689 + wave-19 task 077974a2).
+ * /insights — InsightsPage tests (wave-18 task 4b014689 + wave-19 task 077974a2
+ *             + wave-23 task 6840c25d).
  *
  * Coverage:
  *   - Renders per design: page title, 4 metric family sections.
@@ -17,9 +18,17 @@
  *   - Calibration empty state when totalDecided=0.
  *   - Calibration error state when /match-feedback returns non-ok.
  *   - RBAC for /match-feedback data path: advisor+admin allowed, analyst+compliance denied.
+ *   - Wave-23 SI section: seller-intent per-mandate score + direction + 3-signal breakdown.
+ *   - SI1: tieBreak NEVER rendered (not in API response; not surfaced).
+ *   - Direction rendering: heating=↑ Heating, cooling=↓ Cooling, flat=— Flat.
+ *   - Score sort descending: highest score appears first in the table.
+ *   - SI empty state: "No seller-intent signals yet" when list is empty.
+ *   - SI error state: error banner when /seller-intent returns non-ok.
+ *   - notApplied: signal with no data renders "—" not "0" or NaN/undefined.
+ *   - RBAC for /seller-intent: same gate as /insights (advisor+admin; page-level redirect).
  */
 
-import type { AnalyticsSummary, CalibrationSummary, Role } from '@dealflow/shared';
+import type { AnalyticsSummary, CalibrationSummary, Role, SellerIntentListResponse } from '@dealflow/shared';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -169,13 +178,90 @@ const EMPTY_CALIBRATION: CalibrationSummary = {
   ],
 };
 
+// ---------------------------------------------------------------------------
+// Seller-intent fixtures (wave-23, task 6840c25d)
+//
+// POPULATED_SELLER_INTENT: 3 mandates with scores [85, 40, 60] (intentionally
+// unsorted) — when sorted descending the rendered order should be [85, 60, 40].
+// All three directions (heating/cooling/flat) present for direction-render tests.
+// notApplied is empty for the first two; the third mandate has notApplied signals.
+//
+// EMPTY_SELLER_INTENT: empty array — triggers the "No seller-intent signals yet"
+// empty state.
+//
+// SELLER_INTENT_WITH_NOT_APPLIED: mandate with outreachEngagement + pipelineVelocity
+// not applied (zero source data) — tests that "—" renders instead of "0".
+// ---------------------------------------------------------------------------
+
+const POPULATED_SELLER_INTENT: SellerIntentListResponse = [
+  {
+    mandateId: '00000000-0000-0000-0000-000000000001',
+    score: 85,
+    breakdown: {
+      outreachEngagement: 35,
+      pipelineVelocity: 30,
+      matchDisposition: 20,
+      total: 85,
+      notApplied: [],
+    },
+    direction: 'heating',
+  },
+  {
+    mandateId: '00000000-0000-0000-0000-000000000002',
+    score: 40,
+    breakdown: {
+      outreachEngagement: 15,
+      pipelineVelocity: 10,
+      matchDisposition: 15,
+      total: 40,
+      notApplied: [],
+    },
+    direction: 'cooling',
+  },
+  {
+    mandateId: '00000000-0000-0000-0000-000000000003',
+    score: 60,
+    breakdown: {
+      outreachEngagement: 20,
+      pipelineVelocity: 20,
+      matchDisposition: 20,
+      total: 60,
+      notApplied: [],
+    },
+    direction: 'flat',
+  },
+];
+
+const EMPTY_SELLER_INTENT: SellerIntentListResponse = [];
+
+/** Mandate where outreachEngagement + pipelineVelocity had no source data → notApplied. */
+const SELLER_INTENT_WITH_NOT_APPLIED: SellerIntentListResponse = [
+  {
+    mandateId: '00000000-0000-0000-0000-000000000005',
+    score: 20,
+    breakdown: {
+      outreachEngagement: 0,
+      pipelineVelocity: 0,
+      matchDisposition: 20,
+      total: 20,
+      notApplied: [
+        'outreachEngagement: not applied — no data',
+        'pipelineVelocity: not applied — no data',
+      ],
+    },
+    direction: 'flat',
+  },
+];
+
 function makeFetch(
   meBody: unknown,
   meOk: boolean,
   analyticsBody: unknown,
   analyticsOk = true,
   calibrationBody: unknown = POPULATED_CALIBRATION,
-  calibrationOk = true
+  calibrationOk = true,
+  sellerIntentBody: unknown = POPULATED_SELLER_INTENT,
+  sellerIntentOk = true
 ) {
   return vi.fn().mockImplementation((url: string) => {
     const s = String(url);
@@ -191,6 +277,13 @@ function makeFetch(
         ok: calibrationOk,
         status: calibrationOk ? 200 : 403,
         json: () => Promise.resolve(calibrationBody),
+      } as Response);
+    }
+    if (s.includes('/seller-intent')) {
+      return Promise.resolve({
+        ok: sellerIntentOk,
+        status: sellerIntentOk ? 200 : 403,
+        json: () => Promise.resolve(sellerIntentBody),
       } as Response);
     }
     if (s.includes('/analytics')) {
@@ -676,6 +769,337 @@ describe('InsightsPage (/insights)', () => {
       });
 
       it('compliance is redirected before reaching calibration (page-level RBAC gate)', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('compliance'), true, POPULATED_ANALYTICS));
+        const { redirected, path } = await renderPage();
+        expect(redirected).toBe(true);
+        expect(path).toBe('/');
+      });
+    });
+  });
+
+  // ── Wave-23: Seller intent section (task 6840c25d) ─────────────────────
+
+  describe('wave-23: seller intent section (task 6840c25d)', () => {
+    // ── Renders the section ────────────────────────────────────────────────
+
+    describe('renders seller intent section with populated data', () => {
+      it('renders "Seller Intent" section heading', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        expect(screen.getByRole('region', { name: /seller intent/i })).toBeDefined();
+      });
+
+      it('renders the seller intent per-mandate table', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        expect(
+          screen.getByRole('table', { name: /seller intent per mandate/i })
+        ).toBeDefined();
+      });
+
+      it('renders "Intent score" column header', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // Scoped to seller-intent only — "Intent score" is unambiguous (calibration uses "Score band")
+        expect(screen.getByRole('columnheader', { name: /intent score/i })).toBeDefined();
+      });
+
+      it('renders "Direction" column header', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        expect(screen.getByRole('columnheader', { name: /direction/i })).toBeDefined();
+      });
+    });
+
+    // ── Direction rendering (SI1 / design-system colors) ─────────────────
+
+    describe('direction rendering (heating/cooling/flat)', () => {
+      it('renders "↑ Heating" for direction=heating', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // POPULATED_SELLER_INTENT[0] has direction='heating'
+        expect(screen.getByText('↑ Heating')).toBeDefined();
+      });
+
+      it('renders "↓ Cooling" for direction=cooling', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // POPULATED_SELLER_INTENT[1] has direction='cooling'
+        expect(screen.getByText('↓ Cooling')).toBeDefined();
+      });
+
+      it('renders "— Flat" for direction=flat', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // POPULATED_SELLER_INTENT[2] has direction='flat'
+        expect(screen.getByText('— Flat')).toBeDefined();
+      });
+
+      it('renders all three directions when all are present in the data', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        expect(screen.getByText('↑ Heating')).toBeDefined();
+        expect(screen.getByText('↓ Cooling')).toBeDefined();
+        expect(screen.getByText('— Flat')).toBeDefined();
+      });
+    });
+
+    // ── Score sort descending (hottest first) ─────────────────────────────
+
+    describe('score sort: highest score appears first (descending)', () => {
+      it('renders 3 score cells from POPULATED_SELLER_INTENT (scores [85,40,60])', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // All three scores present
+        const scoreCells = screen.getAllByTestId('si-score');
+        expect(scoreCells.length).toBe(3);
+      });
+
+      it('score cells are sorted descending: [85, 60, 40]', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // Input order: [85, 40, 60] — expected render order after sort: [85, 60, 40]
+        const scoreCells = screen.getAllByTestId('si-score');
+        expect(scoreCells[0]?.textContent).toBe('85');
+        expect(scoreCells[1]?.textContent).toBe('60');
+        expect(scoreCells[2]?.textContent).toBe('40');
+      });
+
+      it('highest score (85) appears before lower score (40)', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        const scoreCells = screen.getAllByTestId('si-score');
+        const firstScore = Number(scoreCells[0]?.textContent ?? '0');
+        const lastScore = Number(scoreCells[scoreCells.length - 1]?.textContent ?? '0');
+        expect(firstScore).toBeGreaterThan(lastScore);
+      });
+    });
+
+    // ── Empty state ────────────────────────────────────────────────────────
+
+    describe('seller-intent empty state (no scored mandates)', () => {
+      it('renders graceful empty state when list is empty', async () => {
+        vi.stubGlobal(
+          'fetch',
+          makeFetch(
+            meFor('advisor'),
+            true,
+            POPULATED_ANALYTICS,
+            true,
+            POPULATED_CALIBRATION,
+            true,
+            EMPTY_SELLER_INTENT
+          )
+        );
+        await renderPage();
+        expect(screen.getByTestId('seller-intent-empty')).toBeDefined();
+        expect(screen.getByText(/no seller-intent signals yet/i)).toBeDefined();
+      });
+
+      it('does not render the per-mandate table in empty state', async () => {
+        vi.stubGlobal(
+          'fetch',
+          makeFetch(
+            meFor('advisor'),
+            true,
+            POPULATED_ANALYTICS,
+            true,
+            POPULATED_CALIBRATION,
+            true,
+            EMPTY_SELLER_INTENT
+          )
+        );
+        await renderPage();
+        expect(screen.queryByRole('table', { name: /seller intent per mandate/i })).toBeNull();
+      });
+
+      it('still renders the section heading in empty state', async () => {
+        vi.stubGlobal(
+          'fetch',
+          makeFetch(
+            meFor('advisor'),
+            true,
+            POPULATED_ANALYTICS,
+            true,
+            POPULATED_CALIBRATION,
+            true,
+            EMPTY_SELLER_INTENT
+          )
+        );
+        await renderPage();
+        // The section heading "Seller Intent" must still appear even when empty
+        expect(screen.getByRole('region', { name: /seller intent/i })).toBeDefined();
+      });
+    });
+
+    // ── Error state ────────────────────────────────────────────────────────
+
+    describe('seller-intent error state (/seller-intent returns non-ok)', () => {
+      it('renders seller-intent error banner when /seller-intent returns non-ok', async () => {
+        vi.stubGlobal(
+          'fetch',
+          makeFetch(
+            meFor('advisor'),
+            true,
+            POPULATED_ANALYTICS,
+            true,
+            POPULATED_CALIBRATION,
+            true,
+            {},
+            false
+          )
+        );
+        await renderPage();
+        expect(screen.getByText(/unable to load seller-intent data/i)).toBeDefined();
+      });
+
+      it('still renders the analytics sections even when seller-intent fails', async () => {
+        vi.stubGlobal(
+          'fetch',
+          makeFetch(
+            meFor('advisor'),
+            true,
+            POPULATED_ANALYTICS,
+            true,
+            POPULATED_CALIBRATION,
+            true,
+            {},
+            false
+          )
+        );
+        await renderPage();
+        expect(screen.getByRole('region', { name: /mandate throughput/i })).toBeDefined();
+        expect(screen.getByText(/unable to load seller-intent data/i)).toBeDefined();
+      });
+
+      it('renders seller-intent section heading even on error', async () => {
+        vi.stubGlobal(
+          'fetch',
+          makeFetch(
+            meFor('advisor'),
+            true,
+            POPULATED_ANALYTICS,
+            true,
+            POPULATED_CALIBRATION,
+            true,
+            {},
+            false
+          )
+        );
+        await renderPage();
+        // The section is always present; it renders the heading + an error alert inside
+        expect(screen.getByRole('region', { name: /seller intent/i })).toBeDefined();
+      });
+    });
+
+    // ── SI1: NO tieBreak rendered ─────────────────────────────────────────
+
+    describe('SI1: tieBreak NEVER rendered (not in API response — noise-as-signal)', () => {
+      it('does NOT render any "tieBreak" or "tie-break" text', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        expect(screen.queryByText(/tie.?break/i)).toBeNull();
+      });
+
+      it('does NOT render a "TieBreak" column header in the seller-intent table', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        await renderPage();
+        // Table has exactly the expected columns: Mandate, Score, Direction,
+        // Outreach Eng., Pipeline Vel., Match Disp. — NO TieBreak column.
+        expect(screen.queryByRole('columnheader', { name: /tie.?break/i })).toBeNull();
+      });
+    });
+
+    // ── notApplied: graceful "—" rendering ───────────────────────────────
+
+    describe('notApplied: signal with no data renders "—" not "0" or undefined', () => {
+      it('renders "—" for a signal that is in notApplied (absence of data)', async () => {
+        vi.stubGlobal(
+          'fetch',
+          makeFetch(
+            meFor('advisor'),
+            true,
+            POPULATED_ANALYTICS,
+            true,
+            POPULATED_CALIBRATION,
+            true,
+            SELLER_INTENT_WITH_NOT_APPLIED
+          )
+        );
+        await renderPage();
+        // outreachEngagement and pipelineVelocity are both in notApplied →
+        // their cells must render "—" not "0" (distinct: absence vs zero-activity)
+        const dashCells = screen.getAllByText('—');
+        // At least 2 "—" cells for the two notApplied signals
+        expect(dashCells.length).toBeGreaterThanOrEqual(2);
+      });
+
+      it('renders the numeric score for signals NOT in notApplied', async () => {
+        vi.stubGlobal(
+          'fetch',
+          makeFetch(
+            meFor('advisor'),
+            true,
+            POPULATED_ANALYTICS,
+            true,
+            POPULATED_CALIBRATION,
+            true,
+            SELLER_INTENT_WITH_NOT_APPLIED
+          )
+        );
+        await renderPage();
+        // matchDisposition is NOT in notApplied and has score=20 → renders "20"
+        expect(screen.getByTestId('si-score')).toBeDefined();
+        // score=20 must appear (the mandate's total score)
+        const scoreCells = screen.getAllByTestId('si-score');
+        expect(scoreCells[0]?.textContent).toBe('20');
+      });
+
+      it('does not render "NaN", "undefined", or "null" for notApplied signals', async () => {
+        vi.stubGlobal(
+          'fetch',
+          makeFetch(
+            meFor('advisor'),
+            true,
+            POPULATED_ANALYTICS,
+            true,
+            POPULATED_CALIBRATION,
+            true,
+            SELLER_INTENT_WITH_NOT_APPLIED
+          )
+        );
+        await renderPage();
+        expect(screen.queryByText(/NaN/)).toBeNull();
+        expect(screen.queryByText(/undefined/)).toBeNull();
+        expect(screen.queryByText(/^null$/)).toBeNull();
+      });
+    });
+
+    // ── RBAC for /seller-intent data path ─────────────────────────────────
+
+    describe('RBAC for /seller-intent data path (page-level gate — same as /insights)', () => {
+      it('advisor sees the seller-intent section (no RBAC block)', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
+        const { redirected } = await renderPage();
+        expect(redirected).toBe(false);
+        expect(screen.getByRole('region', { name: /seller intent/i })).toBeDefined();
+      });
+
+      it('admin sees the seller-intent section (no RBAC block)', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('admin'), true, POPULATED_ANALYTICS));
+        const { redirected } = await renderPage();
+        expect(redirected).toBe(false);
+        expect(screen.getByRole('region', { name: /seller intent/i })).toBeDefined();
+      });
+
+      it('analyst is redirected before reaching seller-intent (page-level RBAC gate)', async () => {
+        vi.stubGlobal('fetch', makeFetch(meFor('analyst'), true, POPULATED_ANALYTICS));
+        const { redirected, path } = await renderPage();
+        expect(redirected).toBe(true);
+        expect(path).toBe('/');
+      });
+
+      it('compliance is redirected before reaching seller-intent (page-level RBAC gate)', async () => {
         vi.stubGlobal('fetch', makeFetch(meFor('compliance'), true, POPULATED_ANALYTICS));
         const { redirected, path } = await renderPage();
         expect(redirected).toBe(true);
