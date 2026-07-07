@@ -6,11 +6,12 @@
 
 ---
 
-## Status: NOT ENTERED — blocked by C-1 (CI never ran)
+## Status: NOT ENTERED — blocked by C-1 (CI still won't dispatch after resume)
 
-C-2 requires C-1 to have exited with a verified-green CI run. C-1 is **HOLD / ESCALATE**: GitHub
-Actions withheld the workflow run on the pushed headSha `ca753e48` (0 check-suites, 4th same-day
-minutes-exhaustion). **C-2 is deliberately NOT executed.**
+C-2 requires C-1 to have exited with a verified-green CI run. C-1 is **HOLD / ESCALATE** even after
+the founder's 4th spending-limit raise + Continue: head-ci-cd re-fired CI on a fresh non-`[skip ci]`
+tip `4546753`, and GitHub Actions **withheld the run a 5th time** (0 check-suites @`4546753` across
+12 polls / ~180s; prior withheld SHA `ca753e48`). **C-2 is deliberately NOT executed.**
 
 ### Why C-2 must NOT proceed on unverified code
 
@@ -45,7 +46,7 @@ ci_stage_verdict: HOLD                 # NOT PASS — stage not entered; blocked
 armed_verification_failed: false       # no MONITOR-task armed; deploy never fired
 verdict_source: none
 verdict_evidence:
-  - "C-2 not entered — C-1 HOLD/ESCALATE (GitHub Actions withheld run on ca753e48; 0 check-suites)"
+  - "C-2 not entered — C-1 HOLD/ESCALATE (GitHub Actions withheld run on 4546753 AND prior ca753e48; 0 check-suites, 5th same-day event after 4th spending-limit raise)"
   - "app bootstrap CHANGED (new assertUrlsDistinct startup assertion) → REAL deploy requires verified-green CI first"
   - "Railway credential present (APP_RAILWAY_TOKEN, RAILWAY_PROJECT_ID) — NOT the blocker"
 deploy_targets: []                     # none deployed this turn
@@ -54,12 +55,13 @@ canary_status: not-entered
 canary_skip_reason: ""
 rollback_armed: false                  # pre-deploy id @987ebb4 NOT yet captured (deploy not entered)
 note: >
-  C-2 NOT entered. Blocked by C-1: GitHub Actions withheld the CI run (0 check-suites @ca753e48, 4th
-  same-day minutes exhaustion). Will not REAL-deploy the changed app bootstrap (new assertUrlsDistinct
-  startup assertion) without verified-green CI — Iron Law / no debug-by-deploy. Resume after founder
-  raises the Actions spending limit and C-1 goes green: arm rollback @987ebb4 → deploy api → verify
-  app boots past BOTH assertUrlsDistinct + [RLS-GUARD] → /health 200 @new-hash → rate-limit regression
-  smoke → canary disposition.
+  C-2 NOT entered. Blocked by C-1: GitHub Actions withheld the CI run AGAIN (0 check-suites @4546753,
+  5th same-day event) even after the founder's 4th spending-limit raise + Continue. Will not
+  REAL-deploy the changed app bootstrap (new assertUrlsDistinct startup assertion) without
+  verified-green CI — Iron Law / no debug-by-deploy. Resume after Actions actually dispatches (billing
+  change saved + no separate hard cap + no GitHub incident) and C-1 goes green: arm rollback @987ebb4
+  → deploy api → verify app boots past BOTH assertUrlsDistinct + [RLS-GUARD] → /health 200 @new-hash →
+  rate-limit regression smoke → canary disposition.
 
 head_signoff:
   verdict: ESCALATE
@@ -69,7 +71,7 @@ head_signoff:
     - "Prerequisite: C-1 exited with verified-green CI — NOT MET (C-1 HOLD/ESCALATE, run withheld)"
   rationale: >
     C-2's sole prerequisite — C-1 merged with all required checks green on the deployed commit — is not
-    met, because GitHub Actions never dispatched a run on ca753e48. A production deploy of a changed app
+    met, because GitHub Actions never dispatched a run on 4546753 (nor prior ca753e48). A production deploy of a changed app
     bootstrap (a new startup assertion that throws on misconfiguration) demands a health probe against the
     exact deployed hash AND an armed rollback AND verified-green CI — none of which exist yet. Per the
     head-ci-cd closing principle, no production deploy may be authorized without an armed, tested rollback
