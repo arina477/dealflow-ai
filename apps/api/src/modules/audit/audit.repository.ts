@@ -85,18 +85,40 @@ export class AuditRepository {
    * Read the current chain tail (max sequence_number's entry) inside the tx.
    * Returns null for an empty log (genesis case). Must be called AFTER
    * acquireChainLock so the tail is stable for the duration of the append.
+   *
+   * SECURITY INVARIANT: MUST use read_audit_chain_rls_exempt (SECURITY DEFINER)
+   * rather than a direct Drizzle ORM select. The audit chain is a SINGLE GLOBAL
+   * monotonic sequence across ALL workspaces. When this method runs within a tx
+   * opened by a dealflow_app session (NOBYPASSRLS + FORCE ROW LEVEL SECURITY),
+   * a direct Drizzle select on auditLogEntries is filtered by the workspace_isolation
+   * RLS policy to only the current app.workspace_id. If no prior audit entries
+   * exist for that workspace, the RLS-filtered select returns empty → the append
+   * treats the log as empty and computes genesis nextSeq=1. If any global entry
+   * already exists at sequence_number=1 (from any workspace), the subsequent
+   * INSERT ... OVERRIDING SYSTEM VALUE with sequence_number=1 collides with the
+   * existing PK → SQLSTATE 23505 duplicate-key error.
+   *
+   * The SECURITY DEFINER function bypasses RLS and returns the full global chain,
+   * so we read the actual global tail regardless of which workspace is active.
+   * dealflow_app has EXECUTE on read_audit_chain_rls_exempt (migration 0016).
+   * The advisory lock on `tx` still serializes concurrent appends — the function
+   * call runs within that same transaction.
    */
   async readTail(tx: Tx): Promise<ChainTail | null> {
-    const rows = await tx
-      .select({
-        sequenceNumber: auditLogEntries.sequenceNumber,
-        entryHash: auditLogEntries.entryHash,
-      })
-      .from(auditLogEntries)
-      .orderBy(sql`${auditLogEntries.sequenceNumber} DESC`)
-      .limit(1);
-
-    return rows[0] ?? null;
+    const result = await tx.execute<Record<string, unknown>>(sql`
+      SELECT
+        (sequence_number)::int AS "sequenceNumber",
+        entry_hash             AS "entryHash"
+      FROM read_audit_chain_rls_exempt(1, 9223372036854775807)
+      ORDER BY sequence_number DESC
+      LIMIT 1
+    `);
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      sequenceNumber: row.sequenceNumber as number,
+      entryHash: row.entryHash as string,
+    };
   }
 
   /**
