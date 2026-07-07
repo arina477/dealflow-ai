@@ -9,5 +9,5 @@
 - [x] B-4
 - [x] B-5
 - [x] B-6 (APPROVE)
-- [ ] C-1 — HOLD: real code pushed to main @ca753e48 (CI-triggering tip); GitHub Actions WITHHELD run (0 check-suites, 4th same-day minutes exhaustion). No green fabricated. ESCALATE (trigger d, infra-readiness).
-- [ ] C-2 — NOT ENTERED: blocked by C-1; will not REAL-deploy changed app bootstrap without verified-green CI.
+- [x] C-1 (APPROVED) — 5th Actions clear took effect; run 28889547491 dispatched on main tip 0825370, queryable conclusion=success, all 5 jobs green (lint/typecheck/build/audit/test). url-distinct-preflight.spec PREFLIGHT-1/2/3 ran+passed; [RLS-GUARD] RLS suite green (MG1 frozen); 2427 tests passed / 0 failed. Ghost-Green guard HELD (tested SHA == main tip, per-suite log-verified). No green fabricated.
+- [x] C-2 (APPROVED) — real-deployed dealflow-api to 0825370 via Railway GraphQL serviceInstanceDeployV2 (deploy 470f6f3d SUCCESS). App booted CLEANLY past BOTH startup guards (assertUrlsDistinct PREFLIGHT-3 no-op + [RLS-GUARD] assertNonSuperuserConnection) — proven by 'API listening on port 3001' in boot logs. /health 200 {status:ok,db:ok,version:0825370} on the real new hash (mirage defeated via GIT_SHA refresh). Wave-25 rate-limiter survived (202x5 -> 429x10). Web unchanged (307). Rollback to 987ebb4 armed. Canary skipped (0 DAU). C-block exits ready for T.
