@@ -1,5 +1,5 @@
 # Wave 23 — B-block review artifacts
-**Block:** B (Build) | **Wave topic:** M9 seller-intent vertical (pure scorer + service + contracts + RBAC API + /insights UI) | **Block exit gate:** B-6 | **Status:** in-progress
+**Block:** B (Build) | **Wave topic:** M9 seller-intent vertical (pure scorer + service + contracts + RBAC API + /insights UI) | **Block exit gate:** B-6 | **Status:** gate-passed
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
 | B-0 | stages/B-0-branch-and-schema.md | done | schema SKIP (read-only aggregation); branch wave-23-seller-intent |
@@ -14,3 +14,15 @@
 - SI3 confirm+document the referenceInstant derivation (workspace max-event-ts → dormant reads cooling); boundary-test (0/1 event → defined direction, no crash).
 - SI4 log the wave-23 decomposer decision in product-decisions.md before N-3.
 ## LOAD-BEARING: workspace-scoped-getDb (cross-firm-negative-read T-8 REAL as dealflow_app via workspaceAls.run, NOT re-impl SQL) | pure-deterministic (NO LLM/SDK/network/credential/randomness; NO Date.now() INSIDE scorer — referenceInstant passed in) | computable-over-real-columns (outreach_activity planned/completed/cancelled, pipeline_events, match_candidates.disposition) | NO-tieBreak-surfaced (PRODUCT #1) | read-only (no audit rows) | empty-data-safe | RBAC advisor+admin.
+
+## Block exit handoff
+```yaml
+build_block_status: complete
+branch: wave-23-seller-intent
+stages_run: [B-0, B-1, B-2, B-3, B-4, B-5, B-6]
+stages_skipped: [B-0 schema (read-only aggregation)]
+review_verdict: APPROVE
+obligations_verified: [SI1, SI2, SI3, SI4-pending-N3, pure-no-Date.now, cross-firm-negative-read, read-only]
+fix_up_commits: [525667f (b3 tieBreak-text), 5e69d7a (b5 aria/unused), 854bad5 (b6 timestamp/docstring+NaN-seed)]
+ready_for_ci: true
+```
