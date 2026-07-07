@@ -1,3 +1,19 @@
+// --- Wave-19 match-feedback calibration contracts (task 69387b56) ---
+export type {
+  CalibrationBand,
+  CalibrationSummary,
+  DimensionLift,
+  DimensionLiftHalf,
+  FitScoreBand,
+} from './match-feedback';
+export {
+  calibrationBandSchema,
+  calibrationSummarySchema,
+  dimensionLiftHalfSchema,
+  dimensionLiftSchema,
+  fitScoreBandEnum,
+} from './match-feedback';
+
 // --- Wave-18 analytics contracts (task a5ba8068) ---
 
 // --- Wave-16 admin-hardening contracts ---
