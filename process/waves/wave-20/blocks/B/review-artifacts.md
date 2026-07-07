@@ -1,5 +1,5 @@
 # Wave 20 — B-block review artifacts
-**Block:** B (Build) | **Wave topic:** M9 outreach-activity tracker (table+migration + service + contracts + API + /outreach panel) — FIRST mutable M9 write surface | **Block exit gate:** B-6 | **Status:** in-progress
+**Block:** B (Build) | **Wave topic:** M9 outreach-activity tracker (table+migration + service + contracts + API + /outreach panel) — FIRST mutable M9 write surface | **Block exit gate:** B-6 | **Status:** gate-passed
 ## Stage deliverables
 | Stage | Deliverable | Status | Notes |
 |---|---|---|---|
@@ -25,3 +25,15 @@
   - FOR-ALL USING-only policy matched to the 28 tenant tables (NO literal WITH CHECK, NO FOR SELECT). Distinct enum names.
 ## Gate verdict log
 <appended by head-builder at B-6>
+
+## Block exit handoff
+```yaml
+build_block_status: complete
+branch: wave-20-outreach-activity
+stages_run: [B-0, B-1, B-2, B-3, B-4, B-5, B-6]
+stages_skipped: []
+review_verdict: APPROVE
+obligations_verified: [R1, R2, R3, R4, SF1, SF3, SF4, SF5, SF6, SF7, FOR-ALL-USING-only]
+last_commit_sha: 1632da4
+ready_for_ci: true
+```
