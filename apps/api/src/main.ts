@@ -8,7 +8,7 @@ import { errorHandler, middleware } from 'supertokens-node/framework/express';
 import { z } from 'zod';
 
 import { AppModule } from './app.module';
-import { assertNonSuperuserConnection, pool } from './db';
+import { assertNonSuperuserConnection, assertUrlsDistinct, pool } from './db';
 import { createRateLimitMiddleware } from './modules/auth/rate-limit.middleware';
 import { initSupertokens } from './modules/auth/supertokens.config';
 import { loadSupertokensEnv } from './modules/auth/supertokens.env';
@@ -21,10 +21,21 @@ const bootEnvSchema = z.object({
 async function bootstrap(): Promise<void> {
   const env = parseEnv(bootEnvSchema);
 
+  // ── 2-URLs-distinct preflight (wave-26 RLS connection-split ACs) ────────────
+  // Runs BEFORE any DB connection is opened. Throws if DATABASE_URL and
+  // MIGRATE_DATABASE_URL are both set and equal — that would mean the app runs as
+  // the owner/migration role, bypassing FORCE ROW LEVEL SECURITY.
+  // No-ops gracefully when MIGRATE_DATABASE_URL is absent (local dev / tests).
+  // See apps/api/src/db/index.ts § assertUrlsDistinct.
+  if (process.env.NODE_ENV !== 'test') {
+    assertUrlsDistinct();
+  }
+
   // ── RLS-enforcement guard (Finding #2, B-6 rework2) ─────────────────────────
   // MUST run before any tenant DB access. Fails loudly if the app is connected as
   // a superuser or BYPASSRLS role — isolation would be silently unenforced.
   // See apps/api/src/db/index.ts § assertNonSuperuserConnection and migration 0016.
+  // See also command-center/dev/architecture/devops.md § "RLS connection-split & role-privilege deploy contract".
   //
   // In CI/test, TEST_DATABASE_URL connects as the superuser for migrations;
   // the app's DATABASE_URL (set in Railway) MUST be the dealflow_app role URL.
