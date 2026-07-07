@@ -221,7 +221,6 @@ export function OutreachActivityList({ activities, onTransitioned }: OutreachAct
         }}
       >
         <table
-          role="table"
           aria-label="Outreach activity list"
           style={{
             width: '100%',
