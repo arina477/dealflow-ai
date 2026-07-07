@@ -22,11 +22,11 @@
 - **P-block:** M9 Class product-feature → P-0 runs mvp-thinner. UI wave (new /outreach panel) → D-block runs if a new design surface is introduced (or reuse the shipped app-shell/table design — D-block may skip if no new design gap). Mutating writes over compliance-adjacent data → the security-scope-tightened gate likely applies at P-4 (RBAC/SoD + RLS + audit-chain acceptance criteria).
 
 ### Stage ledger (fill as wave 20 progresses)
-- [ ] P-0 Frame
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame
+- [x] P-1 Decompose
+- [x] P-2 Spec
+- [x] P-3 Plan
+- [x] P-4 Gate
 - [ ] D-block (if UI design gap)
 - [ ] B-0..B-6
 - [ ] C-1 / C-2
