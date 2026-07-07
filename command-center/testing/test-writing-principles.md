@@ -270,6 +270,12 @@ Why: one declarative sentence.
 
 ---
 
+## 13.5 Compliance & Isolation Testing — Authoritative Strategy
+
+For compliance, isolation, RBAC, audit, and separation-of-duties invariants, **the authoritative verification is the CI e2e suite run against real PostgreSQL as the non-superuser `dealflow_app` role** (migration 0016), not a live-authed production check. See `command-center/testing/ci-e2e-authoritative-policy.md` for the complete policy, the named-invariant → CI test mapping table, and the live-authed-check deferral rationale. This policy governs all V/T review gates on waves touching isolation, RBAC, or audit.
+
+---
+
 ## 14. Production E2E testing — principles
 
 Live testing against deployed environments using the project's E2E browser tool (Playwright / Cypress / etc.). Applies to any agent doing UI/UX or functional verification on production builds.
