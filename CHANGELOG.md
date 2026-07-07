@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.0] — 2026-07-07 — Outreach activity log (M9)
+
+### Added
+- **Log and track your manual outreach touches in one place** — a new Outreach Log (/outreach/activity) lets advisors and admins record the calls, follow-up emails, and LinkedIn messages they run against a deal target, each with a channel, a status (planned, completed, or cancelled), an optional due date, and an optional link to the deal it relates to. There's a create form and a "my open touches" list so nothing you meant to follow up on gets lost. It's the first place in the product to capture and schedule those manual touches instead of tracking them in your head or a spreadsheet.
+- **This logs your touches — it does not send anything** — the log records that you made (or plan to make) a call, email, or LinkedIn message; it does not place the call or send the message. Actually sending on your behalf stays a separate, deliberate decision, so nothing leaves the product without you.
+
+### Correctness / compliance
+- **You only ever see your own firm's outreach log** — every record is scoped to your firm and no other, built on the existing per-firm isolation so one firm's touches can never appear in another firm's log; the write side of that guarantee was proven by a test that deliberately breaks isolation and confirms the record cannot land in the wrong firm.
+- **Every create, edit, and status change is recorded in the tamper-evident trail** — logging a touch, updating it, or moving it between planned, completed, and cancelled all write to the immutable audit trail, and only advisors and admins can write to the log. This is the first outreach feature that creates new records, and it exercises that audit trail on the write path.
+
+### Provenance (transparency)
+- **Additive-only, no new setup.** The log is a new internal record type added alongside your existing data — no new setup step and no new permission to grant. Turning it off removes nothing from your data.
+- **Scope is honest — this is the touch-tracking half, not sending or scoring.** It captures what you did; actually sending outreach, a seller-intent signal read, and the specific numeric success target for this area are still to come and depend on a founder decision.
+
 ## [0.19.0] — 2026-07-07 — Match-score calibration (M9)
 
 ### Added

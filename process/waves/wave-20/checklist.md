@@ -30,7 +30,7 @@
 - [ ] D-block (if UI design gap)
 - [x] B-0..B-6
 - [x] C-1 (CI green @86ddc29; 5/5 jobs; outreach-activity-rls+migration e2e ran+passed; 5 fix-up cycles) / [x] C-2 (both services SUCCESS @86ddc29; migration 0018 applied+populated-safe; /health db:ok; anon /outreach-activity 401; audit intact; canary skipped 0 DAU; rollback armed)
-- [ ] T-1..T-9
-- [ ] V-1..V-3
-- [ ] L-1 / L-2
+- [x] T-1..T-9
+- [x] V-1..V-3
+- [x] L-1 (changelog 0.20.0 @CHANGELOG.md:3-18; M9 stays in_progress, 4 done/2 open; README skip; backlog-thin + stale-wave_id + _TBD-poll flags for N-1) / [ ] L-2
 - [ ] N-1 / N-2 / N-3
