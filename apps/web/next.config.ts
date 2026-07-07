@@ -508,6 +508,32 @@ const nextConfig: NextConfig = {
           source: '/match-feedback',
           destination: `${apiProxyTarget}/match-feedback`,
         },
+        // Wave-20 (task b2acf4ce): outreach-activity mutation + list proxy.
+        //
+        // /outreach-activity has NO Next.js page file (the page lives at
+        // /outreach/activity). afterFiles always falls through to these rules
+        // and proxies them to the API.
+        //
+        // Route-ordering: most-specific path (/outreach-activity/:id) BEFORE
+        // the bare root (/outreach-activity), following the wave-9/10/12 lesson.
+        //
+        // Client callers (OutreachActivityForm + OutreachActivityList):
+        //   POST  /outreach-activity        → POST  /outreach-activity (create)
+        //   GET   /outreach-activity        → GET   /outreach-activity (list)
+        //   PATCH /outreach-activity/:id    → PATCH /outreach-activity/:id (update)
+        //
+        // NOTE: /outreach/activity is a Next.js page route (served by Next.js
+        // page file). afterFiles never shadows it. Reads on the page go via
+        // apiBase() server-side. Client mutations and the initial list fetch
+        // use the /outreach-activity proxy path above (no collision).
+        {
+          source: '/outreach-activity/:id',
+          destination: `${apiProxyTarget}/outreach-activity/:id`,
+        },
+        {
+          source: '/outreach-activity',
+          destination: `${apiProxyTarget}/outreach-activity`,
+        },
       ],
       beforeFiles: [],
       fallback: [],

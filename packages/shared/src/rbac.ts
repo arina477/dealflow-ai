@@ -138,6 +138,19 @@ const NAV_INSIGHTS: NavItem = {
   allowedRoles: ['advisor', 'admin'],
 };
 
+// Wave-20 (task b2acf4ce): Outreach Activity nav item (/outreach/activity).
+// advisor + admin: internal advisory activity ledger (log outreach touches,
+// track status, link to deal targets). analyst/compliance NOT permitted.
+// nav⊆RBAC: NAV_OUTREACH_ACTIVITY.allowedRoles references the same array
+// literal as the /outreach/activity route entry below.
+const NAV_OUTREACH_ACTIVITY: NavItem = {
+  label: 'Outreach Log',
+  route: '/outreach/activity',
+  icon: 'phone-call',
+  group: 'workspace',
+  allowedRoles: ['advisor', 'admin'],
+};
+
 // Wave-13: advisor added — advisor sees own-outreach entries (role-scoped in service);
 // compliance sees org-wide. admin is NOT in the nav (admin uses the API directly, not
 // the page UI). nav⊆RBAC holds: NAV_AUDIT_LOG.allowedRoles ⊆ the /compliance/audit-log
@@ -569,6 +582,16 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     pattern: '/outreach-activity/:id',
     allowedRoles: ['advisor', 'admin'],
   },
+  // Wave-20 (task b2acf4ce): /outreach/activity page routes.
+  // The page at /outreach/activity renders the outreach-activity panel (create
+  // form + my-open-touches list + status transitions). RBAC mirrors the API:
+  // advisor + admin only. analyst/compliance denied → redirect('/').
+  // nav⊆RBAC: NAV_OUTREACH_ACTIVITY.allowedRoles references the same array.
+  {
+    pattern: '/outreach/activity',
+    allowedRoles: ['advisor', 'admin'],
+    navItem: NAV_OUTREACH_ACTIVITY,
+  },
 
   // --- Admin / Config group ---
   {
@@ -823,4 +846,6 @@ export const ALL_NAV_ITEMS: ReadonlyArray<NavItem> = [
   NAV_ADMIN_ACTIVITY,
   // Wave-18: Insights nav item.
   NAV_INSIGHTS,
+  // Wave-20: Outreach Activity nav item.
+  NAV_OUTREACH_ACTIVITY,
 ];

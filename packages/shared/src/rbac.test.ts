@@ -673,6 +673,109 @@ describe('wave-4 — /compliance/settings (prior state, superseded by wave-5)', 
 });
 
 // ---------------------------------------------------------------------------
+// Wave-20 additions — /outreach-activity routes + /outreach/activity page RBAC
+// ---------------------------------------------------------------------------
+
+describe('wave-20 — /outreach-activity API route RBAC (advisor + admin only)', () => {
+  it('/outreach-activity → advisor + admin (exactly 2 roles)', () => {
+    const roles = [...rolesForRoute('/outreach-activity')].sort();
+    expect(roles).toEqual(['admin', 'advisor']);
+  });
+
+  it('/outreach-activity/:id → advisor + admin (exactly 2 roles)', () => {
+    const roles = [...rolesForRoute('/outreach-activity/some-uuid')].sort();
+    expect(roles).toEqual(['admin', 'advisor']);
+  });
+
+  it('advisor can access /outreach-activity', () => {
+    expect(canAccess('advisor', '/outreach-activity')).toBe(true);
+  });
+
+  it('admin can access /outreach-activity', () => {
+    expect(canAccess('admin', '/outreach-activity')).toBe(true);
+  });
+
+  it('analyst is DENIED /outreach-activity (not an advisory activity consumer)', () => {
+    expect(canAccess('analyst', '/outreach-activity')).toBe(false);
+  });
+
+  it('compliance is DENIED /outreach-activity (not an activity ledger consumer)', () => {
+    expect(canAccess('compliance', '/outreach-activity')).toBe(false);
+  });
+
+  it('advisor can access /outreach-activity/:id (status transition)', () => {
+    expect(canAccess('advisor', '/outreach-activity/some-uuid')).toBe(true);
+  });
+
+  it('analyst is DENIED /outreach-activity/:id', () => {
+    expect(canAccess('analyst', '/outreach-activity/some-uuid')).toBe(false);
+  });
+
+  it('compliance is DENIED /outreach-activity/:id', () => {
+    expect(canAccess('compliance', '/outreach-activity/some-uuid')).toBe(false);
+  });
+});
+
+describe('wave-20 — /outreach/activity page route RBAC', () => {
+  it('/outreach/activity page → advisor + admin (exactly 2 roles)', () => {
+    const roles = [...rolesForRoute('/outreach/activity')].sort();
+    expect(roles).toEqual(['admin', 'advisor']);
+  });
+
+  it('advisor can access /outreach/activity page', () => {
+    expect(canAccess('advisor', '/outreach/activity')).toBe(true);
+  });
+
+  it('admin can access /outreach/activity page', () => {
+    expect(canAccess('admin', '/outreach/activity')).toBe(true);
+  });
+
+  it('analyst is DENIED /outreach/activity page', () => {
+    expect(canAccess('analyst', '/outreach/activity')).toBe(false);
+  });
+
+  it('compliance is DENIED /outreach/activity page', () => {
+    expect(canAccess('compliance', '/outreach/activity')).toBe(false);
+  });
+});
+
+describe('wave-20 — /outreach/activity nav item (NAV_OUTREACH_ACTIVITY)', () => {
+  it('advisor sees the /outreach/activity nav item (Outreach Log)', () => {
+    const items = navItemsForRole('advisor');
+    const activityItem = items.find((i) => i.route === '/outreach/activity');
+    expect(activityItem).toBeDefined();
+    expect(activityItem?.label).toBe('Outreach Log');
+  });
+
+  it('admin sees the /outreach/activity nav item', () => {
+    const items = navItemsForRole('admin');
+    const activityItem = items.find((i) => i.route === '/outreach/activity');
+    expect(activityItem).toBeDefined();
+  });
+
+  it('analyst does NOT see the /outreach/activity nav item', () => {
+    const items = navItemsForRole('analyst');
+    expect(items.some((i) => i.route === '/outreach/activity')).toBe(false);
+  });
+
+  it('compliance does NOT see the /outreach/activity nav item', () => {
+    const items = navItemsForRole('compliance');
+    expect(items.some((i) => i.route === '/outreach/activity')).toBe(false);
+  });
+
+  it('the Outreach Log nav item has icon phone-call and is in workspace group', () => {
+    const items = navItemsForRole('advisor');
+    const activityItem = items.find((i) => i.route === '/outreach/activity');
+    expect(activityItem?.icon).toBe('phone-call');
+    expect(activityItem?.group).toBe('workspace');
+  });
+
+  it('NAV_OUTREACH_ACTIVITY is in ALL_NAV_ITEMS', () => {
+    expect(ALL_NAV_ITEMS.some((i) => i.route === '/outreach/activity')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Wave-5 additions — compliance CRUD routes + /compliance/settings navItem
 // ---------------------------------------------------------------------------
 
