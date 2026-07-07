@@ -29,7 +29,7 @@
 - [x] P-4 Gate
 - [ ] D-block (if UI design gap)
 - [x] B-0..B-6
-- [ ] C-1 / C-2
+- [x] C-1 (CI green @86ddc29; 5/5 jobs; outreach-activity-rls+migration e2e ran+passed; 5 fix-up cycles) / [x] C-2 (both services SUCCESS @86ddc29; migration 0018 applied+populated-safe; /health db:ok; anon /outreach-activity 401; audit intact; canary skipped 0 DAU; rollback armed)
 - [ ] T-1..T-9
 - [ ] V-1..V-3
 - [ ] L-1 / L-2
