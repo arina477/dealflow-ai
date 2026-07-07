@@ -210,8 +210,22 @@ async function seedMandate(workspaceId: string, userId: string): Promise<string>
 
 /**
  * Seed an audit log entry via the superuser pool (bypasses FORCE RLS for seeding).
- * Uses INSERT ... OVERRIDING SYSTEM VALUE to supply sequence_number + required fields.
- * This is the standard seeding pattern used across e2e suites.
+ * Uses INSERT ... OVERRIDING SYSTEM VALUE to supply an explicit sequence_number that
+ * is collision-safe against a shared DB where other suites may have inserted rows via
+ * OVERRIDING SYSTEM VALUE (which does NOT advance the identity sequence counter).
+ *
+ * Pattern: read MAX(sequence_number) inside the same superuser transaction, then
+ * insert at MAX+1 with OVERRIDING SYSTEM VALUE, then call setval() to advance the
+ * identity sequence so subsequent DEFAULT-based inserts (from the real AuditService)
+ * do not collide either. All three steps are in one serialisable transaction on a
+ * single client so concurrent test suite runs cannot interleave between the read and
+ * the write.
+ *
+ * This is the collision-safe raw-seed pattern for a GENERATED ALWAYS AS IDENTITY
+ * primary key shared across all workspaces — matching what the real
+ * AuditRepository.insertEntry does (advisory lock + read_audit_chain_rls_exempt +
+ * OVERRIDING SYSTEM VALUE), adapted for superuser test seeding that doesn't go
+ * through the advisory-lock path.
  *
  * WORM: audit_log_entries rows are NOT tracked for cleanup (immutable).
  */
@@ -223,20 +237,53 @@ async function seedAuditEntry(
   const fakeHash = 'b'.repeat(64);
   const genesisHash = '0'.repeat(64);
 
-  // Use raw INSERT via superuser to bypass RLS during seeding.
-  // We use DEFAULT for sequence_number (GENERATED ALWAYS AS IDENTITY) so the DB
-  // assigns the global sequence. This matches what AuditRepository.insertEntry does.
-  await withSuperuserGuc(workspaceId, async (client) => {
+  // Open a single client, run the MAX-read + INSERT + setval in one transaction
+  // so no concurrent writer can slip in between the SELECT MAX and the INSERT.
+  const client = await pool.connect();
+  try {
+    await client.query('SELECT set_config($1, $2, false)', ['app.workspace_id', workspaceId]);
+    await client.query('BEGIN');
+
+    // Read the current global max; use COALESCE so an empty table yields 0.
+    const maxRes = await client.query<{ maxseq: string }>(
+      `SELECT COALESCE(MAX(sequence_number), 0) AS maxseq FROM audit_log_entries`
+    );
+    const nextSeq = Number(maxRes.rows[0]?.maxseq ?? 0) + 1;
+
+    // Insert with OVERRIDING SYSTEM VALUE at the collision-safe next value.
+    // sequence_number is GENERATED ALWAYS AS IDENTITY — DEFAULT cannot be used
+    // without risk of collision against rows inserted via OVERRIDING SYSTEM VALUE
+    // by other suites (the identity counter is not auto-advanced by those inserts).
     await client.query(
       `INSERT INTO audit_log_entries
-         (actor_user_id, actor_role, action, resource_type, resource_id,
+         (sequence_number,
+          actor_user_id, actor_role, action, resource_type, resource_id,
           content_hash, payload_hash, prev_hash, entry_hash, chain_version,
           workspace_id)
-       VALUES ($1, 'compliance', $2, 'audit-log-export', NULL,
-               $3, $3, $4, $3, 1, $5)`,
-      [actorUserId, action, fakeHash, genesisHash, workspaceId]
+       OVERRIDING SYSTEM VALUE
+       VALUES ($1, $2, 'compliance', $3, 'audit-log-export', NULL,
+               $4, $4, $5, $4, 1, $6)`,
+      [nextSeq, actorUserId, action, fakeHash, genesisHash, workspaceId]
     );
-  });
+
+    // Advance the identity sequence past nextSeq so the real AuditService's
+    // DEFAULT-based inserts (via appendStandalone / insertEntry) also do not collide.
+    await client.query(
+      `SELECT setval(
+         pg_get_serial_sequence('audit_log_entries', 'sequence_number'),
+         $1
+       )`,
+      [nextSeq]
+    );
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    await client.query('RESET app.workspace_id').catch(() => {});
+    client.release();
+  }
 }
 
 /**
