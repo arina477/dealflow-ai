@@ -64,9 +64,7 @@ import { AuthService } from './auth.service';
 async function createTestController(): Promise<AuthController> {
   const module = await Test.createTestingModule({
     controllers: [AuthController],
-    providers: [
-      { provide: AuthService, useValue: mockAuthService },
-    ],
+    providers: [{ provide: AuthService, useValue: mockAuthService }],
   }).compile();
 
   return module.get<AuthController>(AuthController);
@@ -76,7 +74,10 @@ async function createTestController(): Promise<AuthController> {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const fakeReq = { ip: '1.2.3.4', session: { getUserId: () => 'st-user-1', revokeSession: vi.fn() } } as never;
+const fakeReq = {
+  ip: '1.2.3.4',
+  session: { getUserId: () => 'st-user-1', revokeSession: vi.fn() },
+} as never;
 const fakeRes = {} as never;
 
 describe('AuthController — SEC-9/SEC-10 validation wiring', () => {
@@ -129,9 +130,9 @@ describe('AuthController — SEC-9/SEC-10 validation wiring', () => {
     });
 
     it('null body → 400', async () => {
-      await expect(
-        controller.signup(null as never, fakeReq, fakeRes)
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(controller.signup(null as never, fakeReq, fakeRes)).rejects.toBeInstanceOf(
+        BadRequestException
+      );
 
       expect(mockAuthService.signup).not.toHaveBeenCalled();
     });
@@ -172,9 +173,9 @@ describe('AuthController — SEC-9/SEC-10 validation wiring', () => {
 
   describe('POST /auth/invite (SEC-9)', () => {
     it('missing email → 400', async () => {
-      await expect(
-        controller.invite({ role: 'advisor' } as never)
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(controller.invite({ role: 'advisor' } as never)).rejects.toBeInstanceOf(
+        BadRequestException
+      );
 
       expect(mockAuthService.createInvite).not.toHaveBeenCalled();
     });
@@ -188,7 +189,10 @@ describe('AuthController — SEC-9/SEC-10 validation wiring', () => {
     });
 
     it('valid body → service called', async () => {
-      mockAuthService.createInvite.mockResolvedValue({ token: 'tok', expiry: new Date().toISOString() });
+      mockAuthService.createInvite.mockResolvedValue({
+        token: 'tok',
+        expiry: new Date().toISOString(),
+      });
 
       await controller.invite({ email: 'test@x.com', role: 'advisor' });
 
@@ -200,12 +204,16 @@ describe('AuthController — SEC-9/SEC-10 validation wiring', () => {
 
   describe('POST /auth/reset/request (SEC-9)', () => {
     it('missing email → 400', async () => {
-      await expect(controller.requestReset({} as never)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(controller.requestReset({} as never)).rejects.toBeInstanceOf(
+        BadRequestException
+      );
       expect(mockAuthService.requestReset).not.toHaveBeenCalled();
     });
 
     it('invalid email format → 400', async () => {
-      await expect(controller.requestReset({ email: 'not-an-email' })).rejects.toBeInstanceOf(BadRequestException);
+      await expect(controller.requestReset({ email: 'not-an-email' })).rejects.toBeInstanceOf(
+        BadRequestException
+      );
       expect(mockAuthService.requestReset).not.toHaveBeenCalled();
     });
 
@@ -249,7 +257,10 @@ describe('AuthController — SEC-9/SEC-10 validation wiring', () => {
     it('valid body → service called', async () => {
       mockAuthService.confirmReset.mockResolvedValue(undefined);
 
-      const result = await controller.confirmReset({ token: 'validtoken', password: 'validpass123' });
+      const result = await controller.confirmReset({
+        token: 'validtoken',
+        password: 'validpass123',
+      });
 
       expect(mockAuthService.confirmReset).toHaveBeenCalledOnce();
       expect(result).toEqual({ status: 'ok' });
@@ -301,7 +312,7 @@ describe('SEC-11: Logout — SessionGuard enforces anti-CSRF', () => {
     const controllerContent = readFileSync(controllerPath, 'utf8');
 
     // Verify logout uses SessionGuard
-    const logoutBlock = controllerContent.split('@Post(\'logout\')')[1];
+    const logoutBlock = controllerContent.split("@Post('logout')")[1];
     expect(logoutBlock).toBeDefined();
     expect(logoutBlock).toContain('@UseGuards(SessionGuard)');
 

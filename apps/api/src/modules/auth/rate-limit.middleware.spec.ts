@@ -39,13 +39,13 @@ vi.mock('@nestjs/common', async () => {
 
 import type { NextFunction, Request, Response } from 'express';
 import {
+  __resetSoftBucketsForTest,
   COARSE_WINDOW_SECONDS,
+  createRateLimitMiddleware,
   FAIL_CLOSED_SOFT_SCOPES,
   FAIL_OPEN_SCOPES,
   SHORT_WINDOW_SECONDS,
   SOFT_FALLBACK_LIMIT,
-  __resetSoftBucketsForTest,
-  createRateLimitMiddleware,
 } from './rate-limit.middleware';
 
 // ---------------------------------------------------------------------------
@@ -107,7 +107,11 @@ interface ResCapture {
 }
 
 function makeRes(): ResCapture {
-  const capture = { statusCode: null as number | null, jsonBody: undefined as unknown, headers: {} as Record<string, string> };
+  const capture = {
+    statusCode: null as number | null,
+    jsonBody: undefined as unknown,
+    headers: {} as Record<string, string>,
+  };
   const res = {
     setHeader: (k: string, v: string) => {
       capture.headers[k] = v;
@@ -124,7 +128,12 @@ function makeRes(): ResCapture {
 }
 
 function makeNext(): NextFunction & { called: boolean } {
-  const fn: NextFunction & { called: boolean } = Object.assign(vi.fn().mockImplementation(() => { fn.called = true; }), { called: false });
+  const fn: NextFunction & { called: boolean } = Object.assign(
+    vi.fn().mockImplementation(() => {
+      fn.called = true;
+    }),
+    { called: false }
+  );
   return fn;
 }
 
@@ -137,7 +146,12 @@ async function sendRequest(
   method: string,
   path: string,
   opts: { ip?: string; body?: Record<string, unknown> } = {}
-): Promise<{ nextCalled: boolean; statusCode: number | null; jsonBody: unknown; retryAfter: string | undefined }> {
+): Promise<{
+  nextCalled: boolean;
+  statusCode: number | null;
+  jsonBody: unknown;
+  retryAfter: string | undefined;
+}> {
   const req = makeReq(method, path, opts);
   const { res, capture } = makeRes();
   const next = makeNext();
@@ -483,7 +497,10 @@ describe('SEC-6: No enumeration — real vs fake email 429 identically', () => {
     const middleware = createRateLimitMiddleware({ pool });
 
     // Flood real email
-    let realLast: { nextCalled: boolean; statusCode: number | null } = { nextCalled: true, statusCode: null };
+    let realLast: { nextCalled: boolean; statusCode: number | null } = {
+      nextCalled: true,
+      statusCode: null,
+    };
     for (let i = 0; i <= shortLimit; i++) {
       realLast = await sendRequest(middleware, 'POST', '/auth/reset/request', {
         body: { email: 'real@example.com' },
@@ -491,7 +508,10 @@ describe('SEC-6: No enumeration — real vs fake email 429 identically', () => {
     }
 
     // Flood fake email
-    let fakeLast: { nextCalled: boolean; statusCode: number | null } = { nextCalled: true, statusCode: null };
+    let fakeLast: { nextCalled: boolean; statusCode: number | null } = {
+      nextCalled: true,
+      statusCode: null,
+    };
     for (let i = 0; i <= shortLimit; i++) {
       fakeLast = await sendRequest(middleware, 'POST', '/auth/reset/request', {
         body: { email: 'fake-does-not-exist@example.com' },
@@ -516,8 +536,13 @@ describe('SEC-6: No enumeration — real vs fake email 429 identically', () => {
     const makeCapturingRes = (capture: typeof realCapture): Response => {
       const r = {
         setHeader: vi.fn(),
-        status: (code: number) => { capture.statusCode = code; return r; },
-        json: (body: unknown) => { capture.jsonBody = body; },
+        status: (code: number) => {
+          capture.statusCode = code;
+          return r;
+        },
+        json: (body: unknown) => {
+          capture.jsonBody = body;
+        },
       } as unknown as Response;
       return r;
     };
@@ -553,7 +578,10 @@ describe('SEC-7: reset/confirm is rate-limited', () => {
     const { pool } = makeCountingPool();
     const middleware = createRateLimitMiddleware({ pool });
 
-    let last: { nextCalled: boolean; statusCode: number | null } = { nextCalled: true, statusCode: null };
+    let last: { nextCalled: boolean; statusCode: number | null } = {
+      nextCalled: true,
+      statusCode: null,
+    };
     for (let i = 0; i <= limit; i++) {
       last = await sendRequest(middleware, 'POST', '/auth/reset/confirm', { ip: '10.0.0.20' });
     }
@@ -701,10 +729,10 @@ describe('SEC-11: Logout anti-CSRF verification', () => {
     // Verify @UseGuards(SessionGuard) appears before logout
     expect(controllerContent).toContain('@UseGuards(SessionGuard)');
     // Verify logout handler exists
-    expect(controllerContent).toContain("async logout(@Req() req: RequestWithSession)");
+    expect(controllerContent).toContain('async logout(@Req() req: RequestWithSession)');
     // Verify no hand-rolled CSRF (no manual X-CSRF or csrf-token header check)
-    expect(controllerContent).not.toContain("x-csrf-token");
-    expect(controllerContent).not.toContain("csrf-token");
+    expect(controllerContent).not.toContain('x-csrf-token');
+    expect(controllerContent).not.toContain('csrf-token');
   });
 
   it('SuperTokens VIA_CUSTOM_HEADER means rid custom header is required — failing that rejects with 401', () => {

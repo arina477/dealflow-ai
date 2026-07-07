@@ -307,15 +307,13 @@ export function findWormTouchingMigrations(migrationsDir: string): string[] {
  *
  * A file that exists but is content-empty or comment-only fails this check.
  */
-export function testFileHasCoverageMarker(
-  testFileContent: string,
-  migrationFile: string
-): boolean {
+export function testFileHasCoverageMarker(testFileContent: string, migrationFile: string): boolean {
   // Derive identifiers from the migration filename (e.g. "0014_workspace_isolation.sql")
   // → migrationNumber "0014", migrationSlug "workspace_isolation"
   const withoutExtension = migrationFile.replace(/\.sql$/, '');
   const firstUnderscore = withoutExtension.indexOf('_');
-  const migrationNumber = firstUnderscore >= 0 ? withoutExtension.slice(0, firstUnderscore) : withoutExtension;
+  const migrationNumber =
+    firstUnderscore >= 0 ? withoutExtension.slice(0, firstUnderscore) : withoutExtension;
   const migrationSlug = firstUnderscore >= 0 ? withoutExtension.slice(firstUnderscore + 1) : '';
 
   // (a) Does the file reference the migration?
@@ -331,9 +329,7 @@ export function testFileHasCoverageMarker(
     'AuditRepository',
     'verifyChain',
   ];
-  const hasPopulatedDbUsage = populatedDbMarkers.some((marker) =>
-    testFileContent.includes(marker)
-  );
+  const hasPopulatedDbUsage = populatedDbMarkers.some((marker) => testFileContent.includes(marker));
 
   return referencesMigration && hasPopulatedDbUsage;
 }
@@ -384,10 +380,7 @@ export function runCheck(
 
     // For row-mutating/structural-ALTER migrations, require a real coverage marker.
     // GRANT/policy-only migrations (0016, 0017) pass with existence alone.
-    const migSql = fs.readFileSync(
-      path.join(migrationsDir, migFile),
-      'utf8'
-    );
+    const migSql = fs.readFileSync(path.join(migrationsDir, migFile), 'utf8');
     // Determine if any WORM table is touched with row-mutating/structural DDL.
     const requiresMarker = WORM_TABLES.some((t) => migrationIsRowMutatingOrStructural(migSql, t));
 

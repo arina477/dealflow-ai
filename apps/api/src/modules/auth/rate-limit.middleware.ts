@@ -45,7 +45,7 @@
 
 import { Logger } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -199,7 +199,12 @@ async function atomicIncrement(
  *        app.set('trust proxy', 1) is set). A forged XFF beyond the first hop
  *        is ignored — the first-hop Railway proxy strips/rewrites it.
  */
-function makeKey(scope: string, identifier: string, windowSeconds: number, windowIndex: bigint): string {
+function makeKey(
+  scope: string,
+  identifier: string,
+  windowSeconds: number,
+  windowIndex: bigint
+): string {
   const normalized = identifier.trim().toLowerCase();
   return `${scope}:${normalized}:${windowSeconds}:${windowIndex}`;
 }
@@ -352,18 +357,11 @@ export function createRateLimitMiddleware(opts: RateLimitMiddlewareOptions = {})
     const shortKey = makeKey(scope, identifier, SHORT_WINDOW_SECONDS, shortIdx);
     const coarseKey = makeKey(scope, identifier, COARSE_WINDOW_SECONDS, coarseIdx);
 
-    const shortExpires = new Date(
-      (Number(shortIdx) + 1) * SHORT_WINDOW_SECONDS * 1000
-    );
-    const coarseExpires = new Date(
-      (Number(coarseIdx) + 1) * COARSE_WINDOW_SECONDS * 1000
-    );
+    const shortExpires = new Date((Number(shortIdx) + 1) * SHORT_WINDOW_SECONDS * 1000);
+    const coarseExpires = new Date((Number(coarseIdx) + 1) * COARSE_WINDOW_SECONDS * 1000);
 
     // Determine seconds until the short window resets (for Retry-After header).
-    const retryAfterSeconds = Math.max(
-      1,
-      (Number(shortIdx) + 1) * SHORT_WINDOW_SECONDS - now
-    );
+    const retryAfterSeconds = Math.max(1, (Number(shortIdx) + 1) * SHORT_WINDOW_SECONDS - now);
 
     try {
       // SEC-1: atomic UPSERT for both windows.
@@ -415,9 +413,7 @@ export function createRateLimitMiddleware(opts: RateLimitMiddlewareOptions = {})
         const allowed = softBucketAllow(softKey, SOFT_FALLBACK_LIMIT, SHORT_WINDOW_SECONDS);
 
         if (!allowed) {
-          logger.warn(
-            `[rate-limit] 429 (soft-fallback) scope=${scope} identifier=<redacted>`
-          );
+          logger.warn(`[rate-limit] 429 (soft-fallback) scope=${scope} identifier=<redacted>`);
           res.setHeader('Retry-After', String(retryAfterSeconds));
           res.status(429).json({
             statusCode: 429,
@@ -464,4 +460,10 @@ export function __resetPoolForTest(): void {
 // ---------------------------------------------------------------------------
 // Re-export window constants for tests
 // ---------------------------------------------------------------------------
-export { SHORT_WINDOW_SECONDS, COARSE_WINDOW_SECONDS, SOFT_FALLBACK_LIMIT, FAIL_OPEN_SCOPES, FAIL_CLOSED_SOFT_SCOPES };
+export {
+  COARSE_WINDOW_SECONDS,
+  FAIL_CLOSED_SOFT_SCOPES,
+  FAIL_OPEN_SCOPES,
+  SHORT_WINDOW_SECONDS,
+  SOFT_FALLBACK_LIMIT,
+};
