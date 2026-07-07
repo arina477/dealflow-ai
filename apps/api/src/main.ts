@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import { AppModule } from './app.module';
 import { assertNonSuperuserConnection, pool } from './db';
+import { createRateLimitMiddleware } from './modules/auth/rate-limit.middleware';
 import { initSupertokens } from './modules/auth/supertokens.config';
 import { loadSupertokensEnv } from './modules/auth/supertokens.env';
 
@@ -84,6 +85,22 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  // SEC-3 (wave-25 M10 auth-hardening): trust exactly 1 proxy hop.
+  //
+  // Railway terminates TLS at its edge proxy and forwards requests with a
+  // single X-Forwarded-For hop. Setting trust proxy = 1 tells Express to
+  // trust the first entry in XFF as the client IP — req.ip is then the
+  // Railway-resolved client IP, NOT the raw socket address (which would be
+  // the Railway proxy's internal IP). A forged XFF header added by a client
+  // beyond that first hop is ignored.
+  //
+  // hop count = 1 is documented in command-center/dev/trust-proxy-hop-count.md.
+  // Do NOT use `true` (trusts all hops) — that allows XFF spoofing.
+  // Do NOT use `false` (default, no trust) — req.ip would be the Railway
+  // proxy IP rather than the actual client IP, collapsing all requests into
+  // the same rate-limit bucket.
+  app.set('trust proxy', 1);
+
   // CORS for the Next.js origin: must allow credentials + the SuperTokens
   // headers, or cookie sessions silently fail from the browser (gotcha #3).
   // getAllCORSHeaders() is safe here because initSupertokens() has already run.
@@ -92,6 +109,22 @@ async function bootstrap(): Promise<void> {
     allowedHeaders: ['content-type', ...supertokens.getAllCORSHeaders()],
     credentials: true,
   });
+
+  // SEC-8 (wave-25 M10 auth-hardening): rate-limit middleware registered
+  // BEFORE middleware() (SuperTokens). This is load-bearing: the SuperTokens
+  // middleware() fully handles /auth/signin internally — a Nest guard or
+  // interceptor registered after middleware() would never see that route.
+  // Express processes app.use() handlers in registration order; by placing
+  // rateLimitMiddleware here, it intercepts ALL /auth/* POSTs before the SDK
+  // or the Nest router ever see the request.
+  //
+  // The rate-limit store is Postgres (shared across Railway replicas — not
+  // in-memory per-instance). Fail modes are differentiated by scope (SEC-5):
+  //   signup + reset/request → fail-OPEN  (allow + log on DB error)
+  //   signin + reset/confirm → fail-CLOSED-SOFT  (in-process fallback ~5/min)
+  //
+  // See apps/api/src/modules/auth/rate-limit.middleware.ts for full SEC-N detail.
+  app.use(createRateLimitMiddleware());
 
   // SuperTokens Express middleware registered BEFORE app.listen() (which
   // triggers app.init() and mounts the Nest router). Because all app.use()

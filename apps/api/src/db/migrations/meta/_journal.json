@@ -134,6 +134,13 @@
       "when": 1784332800000,
       "tag": "0018_outreach_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783428538937,
+      "tag": "0019_rate_limit_hits",
+      "breakpoints": true
     }
   ]
 }
