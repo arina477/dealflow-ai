@@ -4,3 +4,8 @@
 - [x] P-2
 - [x] P-3
 - [x] P-4
+- [x] B-0
+- [x] B-2
+- [x] B-6 (APPROVE Attempt-2)
+- [ ] C-1 push→main + CI green
+- [ ] C-2 real-deploy + verify (migration-bearing, security-sensitive)
