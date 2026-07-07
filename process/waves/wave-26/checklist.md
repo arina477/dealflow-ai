@@ -4,3 +4,10 @@
 - [x] P-2
 - [x] P-3
 - [x] P-4
+- [x] B-0
+- [x] B-2
+- [x] B-4
+- [x] B-5
+- [x] B-6 (APPROVE)
+- [ ] C-1 — HOLD: real code pushed to main @ca753e48 (CI-triggering tip); GitHub Actions WITHHELD run (0 check-suites, 4th same-day minutes exhaustion). No green fabricated. ESCALATE (trigger d, infra-readiness).
+- [ ] C-2 — NOT ENTERED: blocked by C-1; will not REAL-deploy changed app bootstrap without verified-green CI.
