@@ -52,7 +52,7 @@ export class MatchFeedbackController {
    *
    * Returns a workspace-scoped CalibrationSummary covering:
    *   - Overall accept-rate by fit_score band (4 bands: 0-25, 26-50, 51-75, 76-100).
-   *   - Per-dimension accept-rate lift (sectorMatch, contactCompleteness, tieBreak).
+   *   - Per-dimension accept-rate lift (sectorMatch, contactCompleteness).
    *
    * Response: CalibrationSummary (200) | 401 (anon) | 403 (wrong role).
    * Empty workspace / 0 decided → valid 200 with totalDecided=0, all acceptRate=null.
