@@ -83,3 +83,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
    Why: A module-level read runs off-snapshot, so guards and audit fields see pre-transaction state.
 8. Use an advisory lock when a concurrent uniqueness or cardinality invariant has non-immutable or multi-row predicates.
    Why: A partial index rejects non-immutable predicates; row FOR UPDATE misses disjoint members.
+9. Run any new real-DB e2e fixture against a migrated DB with the runtime role locally before B-6 approval.
+   Why: Static review cannot detect non-hex UUIDs, wrong column names, or partial-index collisions.

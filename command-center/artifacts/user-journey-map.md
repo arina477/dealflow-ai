@@ -203,3 +203,9 @@ Nav: /insights entry (bar-chart-2, server-role-gated). Analytics is read-only ov
 |---|---|---|---|
 | /insights (calibration section) | read-only calibration: does the AI match score predict advisor accept/reject — accept-rate by fit_score band + per-dimension acceptance-lift (sectorMatch, contactCompleteness) | GET /match-feedback (via /match-feedback proxy) | workspace-scoped (own-firm only, FORCE RLS as dealflow_app); RBAC advisor+admin (analyst/compliance 403, anon 401); read-only; honest metrics (tieBreak noise-dimension excluded; small-sample n=X caveat; null→n/a not 0%); no charts-lib |
 Calibration reads already-live match_candidates (disposition/fit_score/score_breakdown). Additive section on the wave-18 /insights page.
+
+## Outreach-activity tracker (M9 wave-20, LIVE @86ddc29) — role:advisor + admin
+| Route | Purpose | Endpoints | Scope |
+|---|---|---|---|
+| /outreach/activity (Outreach Log) | log + track manual outreach touches (call/email/linkedin/other) as INTERNAL records — create form + my-open-touches list + status transitions (planned/completed/cancelled) + 0-or-1 deal-target link | POST/GET/PATCH /outreach-activity | workspace-scoped WRITE (FORCE RLS FOR-ALL as dealflow_app — own-firm only, write-path-isolated); RBAC advisor+admin (analyst/compliance 403, anon 401); every mutation audit-logged (M2 HMAC chain, last-in-txn); NO external send (channel is a label); mutable ledger (NOT WORM) |
+First mutable M9 write surface. New outreach_activity table (migration 0018, additive). All-4-FK deal-target tenancy validated; createdBy server-derived.
