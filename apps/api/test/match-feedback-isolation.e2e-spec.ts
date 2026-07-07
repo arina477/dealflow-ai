@@ -631,16 +631,18 @@ describe.skipIf(shouldSkip)(
       }
     });
 
-    it('MFC-3: dimensionLifts has 3 entries (one per scored dimension)', async () => {
+    it('MFC-3: dimensionLifts has 2 entries (sectorMatch + contactCompleteness; tieBreak excluded — noise dimension)', async () => {
       if (!dbReachable) return;
 
       const calibration = await runServiceInAls(WS_A_ID);
-      expect(calibration.dimensionLifts).toHaveLength(3);
+      // 2 dimensions — tieBreak excluded (pure hash of row ID, uncorrelated with
+      // acceptance by construction; surfacing it would be misleading to M&A advisors).
+      expect(calibration.dimensionLifts).toHaveLength(2);
 
       const dims = calibration.dimensionLifts.map((l) => l.dimension);
       expect(dims).toContain('sectorMatch');
       expect(dims).toContain('contactCompleteness');
-      expect(dims).toContain('tieBreak');
+      expect(dims).not.toContain('tieBreak');
     });
 
     // ── MFC-4: FAULT-KILLING ─────────────────────────────────────────────────

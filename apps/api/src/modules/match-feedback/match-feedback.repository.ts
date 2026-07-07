@@ -58,21 +58,41 @@ const BANDS: Array<{ band: FitScoreBand; lo: number; hi: number }> = [
   { band: '76-100', lo: 76, hi: 100 },
 ];
 
-/** The three scored dimensions from score_breakdown. */
-const DIMENSIONS = ['sectorMatch', 'contactCompleteness', 'tieBreak'] as const;
+/**
+ * The two genuinely-predictive scored dimensions from score_breakdown.
+ *
+ * tieBreak is intentionally excluded: deterministicTieBreak(candidate.id) is a
+ * pure hash of the row ID — uncorrelated with acceptance by construction. Any
+ * apparent lift on tieBreak is a sampling artifact (noise). Surfacing it as a
+ * calibration signal to M&A advisors would be misleading (CODE-OF-CONDUCT §metric).
+ */
+const DIMENSIONS = ['sectorMatch', 'contactCompleteness'] as const;
 type Dimension = (typeof DIMENSIONS)[number];
 
-/** Midpoint for each dimension (used to split high vs low cohort). */
+/**
+ * Cohort-split semantics — fixed "domain midpoint", NOT a median of observed data.
+ *
+ * Each dimension's midpoint is half its domain maximum:
+ *   sectorMatch (domain 0..60):          midpoint = 30
+ *     → high cohort: score > 30  (exact-sector match tier)
+ *     → low  cohort: score ≤ 30  (partial / no sector match)
+ *
+ *   contactCompleteness (domain 0..30):  midpoint = 15
+ *     → high cohort: score > 15  (full contact data present)
+ *     → low  cohort: score ≤ 15  (partial / no contact data)
+ *
+ * These are "perfect vs everything-else" thresholds. Either cohort may be empty
+ * on small datasets — in that case decidedCount=0 and acceptRate=null (G2 null-vs-zero
+ * convention). The null path is non-degenerate: no division by zero, no crash.
+ */
 const DIMENSION_MAX: Record<Dimension, number> = {
-  sectorMatch: 60, // 0, 20, 30, 60 — midpoint 30
-  contactCompleteness: 30, // 0, 15, 30 — midpoint 15
-  tieBreak: 10, // 0..10 — midpoint 5
+  sectorMatch: 60,
+  contactCompleteness: 30,
 };
 
 const DIMENSION_MIDPOINT: Record<Dimension, number> = {
-  sectorMatch: DIMENSION_MAX.sectorMatch / 2,
-  contactCompleteness: DIMENSION_MAX.contactCompleteness / 2,
-  tieBreak: DIMENSION_MAX.tieBreak / 2,
+  sectorMatch: DIMENSION_MAX.sectorMatch / 2, // 30 — see cohort-split semantics above
+  contactCompleteness: DIMENSION_MAX.contactCompleteness / 2, // 15 — see cohort-split semantics above
 };
 
 @Injectable()
@@ -156,7 +176,8 @@ export class MatchFeedbackRepository {
    *
    * G2 null-vs-zero: acceptRate=null when cohort decidedCount=0.
    *
-   * Returns exactly 3 DimensionLift rows (one per dimension).
+   * Returns exactly 2 DimensionLift rows (sectorMatch + contactCompleteness).
+   * tieBreak excluded — see DIMENSIONS declaration above.
    */
   async getDimensionLifts(): Promise<DimensionLift[]> {
     // Fetch disposition + score_breakdown for all decided candidates.

@@ -16,9 +16,16 @@ import { z } from 'zod';
  *      decisions yet).
  *
  *   2. Per-dimension lift — for each score_breakdown dimension
- *      (sectorMatch / contactCompleteness / tieBreak), the accept-rate for
- *      candidates in the "high" half vs "low" half of that dimension's range.
+ *      (sectorMatch / contactCompleteness), the accept-rate for candidates in
+ *      the "high" half vs "low" half of that dimension's range.
  *      Each half is computed over decided candidates only (same denominator rule).
+ *
+ *      NOTE: tieBreak is intentionally EXCLUDED from the lift surface.
+ *      tieBreak = deterministicTieBreak(candidate.id) — a pure hash of the row
+ *      ID, uncorrelated with acceptance by construction. Any apparent lift on
+ *      tieBreak is a sampling artifact (noise), not a signal. Surfacing it to
+ *      M&A advisors as a "dimension lift" would be misleading (CODE-OF-CONDUCT
+ *      §metric). Only genuinely-predictive dimensions are included here.
  *
  * ── G2: NULL-VS-ZERO CONVENTION (load-bearing) ───────────────────────────────
  * acceptRate is `number | null` — the distinction is deliberate and semantic:
@@ -126,9 +133,28 @@ export type DimensionLiftHalf = z.infer<typeof dimensionLiftHalfSchema>;
 /**
  * DimensionLift — accept-rate lift for one score_breakdown dimension.
  *
- * dimension — one of the three scored dimensions.
+ * dimension — one of the TWO genuinely-predictive scored dimensions:
+ *               sectorMatch           — sector alignment score (0..60)
+ *               contactCompleteness   — contact data quality score (0..30)
+ *
+ *             tieBreak is intentionally absent: it is a deterministic hash of
+ *             the candidate row ID and is uncorrelated with acceptance by
+ *             construction. Including it would present noise as signal to M&A
+ *             advisors (CODE-OF-CONDUCT §metric — metric honesty).
+ *
  * high      — cohort with dimension value above the midpoint.
  * low       — cohort with dimension value at or below the midpoint.
+ *
+ * Cohort-split semantics (not a median split):
+ *   sectorMatch:          midpoint = 30  → high = exact-sector match (score 31..60);
+ *                                          low  = partial/no sector match (score 0..30)
+ *   contactCompleteness:  midpoint = 15  → high = full contact data (score 16..30);
+ *                                          low  = partial/no contact data (score 0..15)
+ *
+ *   These are "perfect vs everything-else" thresholds, not median-of-observed-data
+ *   splits. The midpoint is fixed at half the domain max, not computed per-query.
+ *   Either cohort may be empty on small datasets (decidedCount=0 → acceptRate=null
+ *   per G2 — no crash, no misleading 0%).
  *
  * Per-row exclusion (karen watch-item): rows where score_breakdown is NULL or
  * where the named dimension is absent are excluded from BOTH cohorts. The
@@ -138,8 +164,8 @@ export type DimensionLiftHalf = z.infer<typeof dimensionLiftHalfSchema>;
  */
 export const dimensionLiftSchema = z
   .object({
-    /** Which score_breakdown field this lift row covers. */
-    dimension: z.enum(['sectorMatch', 'contactCompleteness', 'tieBreak']),
+    /** Which score_breakdown field this lift row covers (sectorMatch | contactCompleteness). */
+    dimension: z.enum(['sectorMatch', 'contactCompleteness']),
     high: dimensionLiftHalfSchema,
     low: dimensionLiftHalfSchema,
   })
@@ -163,8 +189,9 @@ export type DimensionLift = z.infer<typeof dimensionLiftSchema>;
  * bands — four CalibrationBand rows (0-25, 26-50, 51-75, 76-100).
  *   Always exactly 4 entries; bands with no decided candidates have acceptRate=null.
  *
- * dimensionLifts — three DimensionLift rows (sectorMatch, contactCompleteness, tieBreak).
- *   Always exactly 3 entries; cohorts with no decided candidates have acceptRate=null.
+ * dimensionLifts — two DimensionLift rows (sectorMatch, contactCompleteness).
+ *   Always exactly 2 entries; cohorts with no decided candidates have acceptRate=null.
+ *   tieBreak is intentionally excluded (pure hash of row ID — noise, not signal).
  *   Rows where score_breakdown is NULL or dimension is absent are excluded per-row
  *   (karen watch-item: no assume-non-null).
  *
@@ -179,7 +206,8 @@ export const calibrationSummarySchema = z
     /** Four band rows covering fit_score [0-25, 26-50, 51-75, 76-100]. */
     bands: z.array(calibrationBandSchema),
     /**
-     * Three dimension-lift rows (sectorMatch, contactCompleteness, tieBreak).
+     * Two dimension-lift rows (sectorMatch, contactCompleteness).
+     * tieBreak excluded — it is a hash of row ID (noise, not signal).
      * Rows with null/absent score_breakdown are excluded per-row (per-row exclusion
      * — karen watch-item). Each row applies per-row exclusion independently.
      */

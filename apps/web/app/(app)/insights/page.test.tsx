@@ -105,6 +105,12 @@ const POPULATED_ANALYTICS: AnalyticsSummary = {
  * Calibration fixture with decided matches across bands.
  * Band 76-100 has acceptRate=null (0 decided) to test G2 null path.
  * Band 51-75 has acceptRate=0 (decided > 0 but 0 accepted) to test G2 real-0 path.
+ *
+ * tieBreak dimension is intentionally absent — it is a hash of row ID (noise,
+ * not signal) and has been removed from the calibration surface (B-6 metric honesty).
+ * 2 dimension lifts: sectorMatch + contactCompleteness.
+ *   sectorMatch high cohort: acceptRate=null (0 decided) → G2 null path for dimension.
+ *   contactCompleteness low cohort: acceptRate=0 (decided>0, 0 accepted) → G2 real-0.
  */
 const POPULATED_CALIBRATION: CalibrationSummary = {
   totalDecided: 12,
@@ -119,25 +125,20 @@ const POPULATED_CALIBRATION: CalibrationSummary = {
   dimensionLifts: [
     {
       dimension: 'sectorMatch',
-      high: { cohort: 'high', decidedCount: 8, acceptedCount: 4, acceptRate: 0.5 },
-      low: { cohort: 'low', decidedCount: 4, acceptedCount: 1, acceptRate: 0.25 },
+      // G2 null for a cohort — 0 decided in high cohort → "n/a"
+      high: { cohort: 'high', decidedCount: 0, acceptedCount: 0, acceptRate: null },
+      low: { cohort: 'low', decidedCount: 12, acceptedCount: 5, acceptRate: 0.417 },
     },
     {
       dimension: 'contactCompleteness',
       high: { cohort: 'high', decidedCount: 6, acceptedCount: 3, acceptRate: 0.5 },
-      // G2 real-0 for a cohort
+      // G2 real-0 for a cohort — decided > 0 but 0 accepted → "0%"
       low: { cohort: 'low', decidedCount: 6, acceptedCount: 0, acceptRate: 0 },
-    },
-    {
-      dimension: 'tieBreak',
-      // G2 null for a cohort
-      high: { cohort: 'high', decidedCount: 0, acceptedCount: 0, acceptRate: null },
-      low: { cohort: 'low', decidedCount: 12, acceptedCount: 5, acceptRate: 0.417 },
     },
   ],
 };
 
-/** Calibration with totalDecided=0 — all acceptRates null */
+/** Calibration with totalDecided=0 — all acceptRates null. 2 dimension lifts (tieBreak excluded). */
 const EMPTY_CALIBRATION: CalibrationSummary = {
   totalDecided: 0,
   bands: [
@@ -154,11 +155,6 @@ const EMPTY_CALIBRATION: CalibrationSummary = {
     },
     {
       dimension: 'contactCompleteness',
-      high: { cohort: 'high', decidedCount: 0, acceptedCount: 0, acceptRate: null },
-      low: { cohort: 'low', decidedCount: 0, acceptedCount: 0, acceptRate: null },
-    },
-    {
-      dimension: 'tieBreak',
       high: { cohort: 'high', decidedCount: 0, acceptedCount: 0, acceptRate: null },
       low: { cohort: 'low', decidedCount: 0, acceptedCount: 0, acceptRate: null },
     },
@@ -507,11 +503,11 @@ describe('InsightsPage (/insights)', () => {
       });
 
       it('renders "n/a" for dimension cohort with acceptRate=null (G2)', async () => {
-        // tieBreak high cohort has acceptRate=null
+        // sectorMatch high cohort has acceptRate=null (0 decided → G2 null path).
         vi.stubGlobal('fetch', makeFetch(meFor('advisor'), true, POPULATED_ANALYTICS));
         await renderPage();
         const naItems = screen.getAllByText('n/a');
-        // There must be at least 2 "n/a" items (band 76-100 + tieBreak high cohort)
+        // There must be at least 2 "n/a" items (band 76-100 + sectorMatch high cohort).
         expect(naItems.length).toBeGreaterThanOrEqual(2);
       });
 

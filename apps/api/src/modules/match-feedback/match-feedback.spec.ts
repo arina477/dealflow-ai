@@ -52,7 +52,9 @@ import { MatchFeedbackService } from './match-feedback.service';
  * makeRepo — creates a mock MatchFeedbackRepository with default empty-state responses.
  *
  * Default: all 4 bands with decidedCount=0/acceptedCount=0/acceptRate=null.
- *         all 3 dimension lifts with both cohorts decided=0/accepted=0/rate=null.
+ *         all 2 dimension lifts (sectorMatch + contactCompleteness) with both
+ *         cohorts decided=0/accepted=0/rate=null.
+ *         tieBreak excluded — pure hash of row ID, not a calibration signal.
  */
 function makeRepo() {
   const emptyBands = [
@@ -62,6 +64,7 @@ function makeRepo() {
     { band: '76-100' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
   ];
 
+  // 2 dimensions — tieBreak excluded (hash of row ID, not a calibration signal).
   const emptyLifts = [
     {
       dimension: 'sectorMatch' as const,
@@ -70,11 +73,6 @@ function makeRepo() {
     },
     {
       dimension: 'contactCompleteness' as const,
-      high: { cohort: 'high' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
-      low: { cohort: 'low' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
-    },
-    {
-      dimension: 'tieBreak' as const,
       high: { cohort: 'high' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
       low: { cohort: 'low' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
     },
@@ -125,10 +123,15 @@ describe('MatchFeedbackService', () => {
       }
     });
 
-    it('A-4: returns exactly 4 bands and 3 dimensionLifts', async () => {
+    it('A-4: returns exactly 4 bands and 2 dimensionLifts (sectorMatch + contactCompleteness; tieBreak excluded)', async () => {
       const result = await service.getCalibration();
       expect(result.bands).toHaveLength(4);
-      expect(result.dimensionLifts).toHaveLength(3);
+      expect(result.dimensionLifts).toHaveLength(2);
+      // Verify tieBreak is absent — it is a hash of row ID (noise, not signal).
+      const dims = result.dimensionLifts.map((l) => l.dimension);
+      expect(dims).toContain('sectorMatch');
+      expect(dims).toContain('contactCompleteness');
+      expect(dims).not.toContain('tieBreak');
     });
   });
 
@@ -213,7 +216,8 @@ describe('MatchFeedbackService', () => {
       expect(band.acceptRate).toBeCloseTo(0.75, 5);
     });
 
-    it('D-2: dimension lift high acceptRate computed correctly', async () => {
+    it('D-2: dimension lift high acceptRate computed correctly (2 dimensions; tieBreak absent)', async () => {
+      // 2 dimensions — tieBreak excluded (hash of row ID, not a calibration signal).
       mockRepo.getDimensionLifts.mockResolvedValue([
         {
           dimension: 'sectorMatch' as const,
@@ -222,11 +226,6 @@ describe('MatchFeedbackService', () => {
         },
         {
           dimension: 'contactCompleteness' as const,
-          high: { cohort: 'high' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
-          low: { cohort: 'low' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
-        },
-        {
-          dimension: 'tieBreak' as const,
           high: { cohort: 'high' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
           low: { cohort: 'low' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
         },
@@ -282,6 +281,7 @@ describe('MatchFeedbackRepository — per-row exclusion (karen watch-item)', () 
     const mockRepo = makeRepo();
     // Simulate the output of a real repo that excluded rows with null score_breakdown:
     // sectorMatch has no valid rows → both cohorts decidedCount=0 → acceptRate=null.
+    // 2 dimensions — tieBreak excluded (hash of row ID, not a calibration signal).
     mockRepo.getDimensionLifts.mockResolvedValue([
       {
         dimension: 'sectorMatch' as const,
@@ -291,11 +291,6 @@ describe('MatchFeedbackRepository — per-row exclusion (karen watch-item)', () 
       {
         dimension: 'contactCompleteness' as const,
         high: { cohort: 'high' as const, decidedCount: 2, acceptedCount: 1, acceptRate: 0.5 },
-        low: { cohort: 'low' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
-      },
-      {
-        dimension: 'tieBreak' as const,
-        high: { cohort: 'high' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
         low: { cohort: 'low' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
       },
     ]);
@@ -313,6 +308,7 @@ describe('MatchFeedbackRepository — per-row exclusion (karen watch-item)', () 
 
   it('per-row-C2: decided-but-0-accepted row produces acceptRate=0, not null (G2 zero path)', async () => {
     const mockRepo = makeRepo();
+    // 2 dimensions — tieBreak excluded (hash of row ID, not a calibration signal).
     mockRepo.getDimensionLifts.mockResolvedValue([
       {
         dimension: 'sectorMatch' as const,
@@ -321,11 +317,6 @@ describe('MatchFeedbackRepository — per-row exclusion (karen watch-item)', () 
       },
       {
         dimension: 'contactCompleteness' as const,
-        high: { cohort: 'high' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
-        low: { cohort: 'low' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
-      },
-      {
-        dimension: 'tieBreak' as const,
         high: { cohort: 'high' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
         low: { cohort: 'low' as const, decidedCount: 0, acceptedCount: 0, acceptRate: null },
       },
