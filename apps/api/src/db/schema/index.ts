@@ -13,9 +13,10 @@
  *   7. matching          (wave-10 match spine — task 47ed7ddd)
  *   8. outreach          (wave-11 outreach spine — task 102a2f00)
  *   9. pipeline          (wave-12 pipeline spine — task 07989285)
- *  10. outreach-activity (wave-20 M9 outreach-activity tracker — task d45c73b5)
- *  11. sourcing          (wave-6 deal-sourcing data spine — tasks ff378a95 + db274731)
- *  12. users-roles       (wave-2 auth data model)
+ *  10. outreach-activity  (wave-20 M9 outreach-activity tracker — task d45c73b5)
+ *  11. retention-policy   (wave-28 M10 retention window config — task d3cc1337)
+ *  12. sourcing           (wave-6 deal-sourcing data spine — tasks ff378a95 + db274731)
+ *  13. users-roles        (wave-2 auth data model)
  *
  * workspaces is exported first so all other tenant-table files can import it
  * without circular dependency. All tenant tables import ./workspaces directly.
@@ -45,6 +46,7 @@ export * from './outreach';
 export * from './outreach-activity';
 export * from './pipeline';
 export * from './rate-limit-hits';
+export * from './retention-policy';
 export * from './sourcing';
 export * from './users-roles';
 export * from './workspaces';

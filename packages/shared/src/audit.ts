@@ -255,6 +255,17 @@ export const auditActionEnum = z.enum([
    * Audited by OutreachActivityService.cancel LAST-IN-TXN.
    */
   'outreach-activity-cancel',
+  // --- Wave-28 retention-policy actions (additive; serialization order preserved) ---
+  /**
+   * [SEC-C] A workspace_retention_policy row was created or updated by an admin
+   * or compliance user. Appended LAST-IN-TXN by RetentionPolicyService.setPolicy
+   * when the retention_period_days value CHANGES. Content hash covers
+   * { old_days, new_days }; payload hash covers the full update input.
+   * actor = ALS-resolved app users.id (never client-supplied).
+   * WORM-PRESERVING: a normal HMAC append; does NOT delete or mutate any
+   * prior audit_log_entries row. verifyChain stays ok:true after this event.
+   */
+  'retention.policy.updated',
 ]);
 
 export type AuditAction = z.infer<typeof auditActionEnum>;

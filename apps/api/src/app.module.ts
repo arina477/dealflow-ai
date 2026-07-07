@@ -16,6 +16,7 @@ import { OutreachModule } from './modules/outreach/outreach.module';
 import { OutreachActivityModule } from './modules/outreach-activity/outreach-activity.module';
 import { PipelineModule } from './modules/pipeline/pipeline.module';
 import { RecordkeepingModule } from './modules/recordkeeping/recordkeeping.module';
+import { RetentionPolicyModule } from './modules/retention-policy/retention-policy.module';
 import { SellerIntentModule } from './modules/seller-intent/seller-intent.module';
 import { SourcingModule } from './modules/sourcing/sourcing.module';
 
@@ -46,6 +47,8 @@ import { SourcingModule } from './modules/sourcing/sourcing.module';
     SellerIntentModule,
     PipelineModule,
     RecordkeepingModule,
+    // Wave-28 (task d3cc1337): retention policy config surface (M10).
+    RetentionPolicyModule,
     SourcingModule,
   ],
 })

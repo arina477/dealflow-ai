@@ -502,6 +502,15 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
   // the SoD APPROVER check (compliance-only) is enforced server-side in the
   // gate service's sod evaluator, not via route RBAC.
   {
+    // Wave-28 (task d3cc1337): GET + PUT /compliance/retention — retention policy config.
+    // compliance + admin: read + set the firm's retention window.
+    // advisor/analyst: 403 (read-only advisory surface, not a config surface).
+    // No navItem — API-only endpoint; displayed as a section on /compliance/settings or
+    // a dedicated /compliance/retention settings page (B-3 frontend wave).
+    pattern: '/compliance/retention',
+    allowedRoles: ['compliance', 'admin'],
+  },
+  {
     pattern: '/compliance/rules',
     allowedRoles: ['compliance', 'admin'],
   },

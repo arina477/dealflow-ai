@@ -342,6 +342,16 @@ export {
 } from './recordkeeping';
 export type { ResolveUserWorkspaceResult } from './resolver-contract';
 export { resolveUserWorkspaceResultSchema } from './resolver-contract';
+// --- Wave-28 retention-policy contracts (task d3cc1337, B-1) ---
+export type { RetentionPolicy, SetRetentionPolicyInput } from './retention';
+export {
+  RETENTION_PERIOD_DAYS_DEFAULT,
+  RETENTION_PERIOD_DAYS_MAX,
+  RETENTION_PERIOD_DAYS_MIN,
+  retentionPeriodDaysSchema,
+  retentionPolicySchema,
+  setRetentionPolicySchema,
+} from './retention';
 // auditVerifyResponseSchema is also re-exported from recordkeeping (do NOT
 // import it from there — import from ./audit directly to avoid double re-export
 // confusion; recordkeeping re-exports it for co-location convenience only).
