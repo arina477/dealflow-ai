@@ -136,3 +136,5 @@ pr_conventions:
    Why: An empty commit or [skip ci] message yields no run; the push returns 200 but nothing runs.
 3. After a push, confirm a check-suite was created before treating CI silence as a transient delay.
    Why: Exhausted Actions minutes withhold dispatch; the push is accepted but zero runs fire.
+4. Pin Railway redeploys to the merged commitSha; a bare serviceInstanceDeployV2 redeploys the stale pinned commit.
+   Why: Verifying a redeploy of the old pinned commit greenlights code the merge never shipped.
