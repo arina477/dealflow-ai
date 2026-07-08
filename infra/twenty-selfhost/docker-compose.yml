@@ -32,7 +32,7 @@ services:
     restart: unless-stopped
 
   twenty-server:
-    image: twentyhq/twenty-server:${TWENTY_VERSION:-0.32.0}
+    image: twentycrm/twenty:${TWENTY_VERSION:-latest}
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       APP_SECRET: ${APP_SECRET}
@@ -56,7 +56,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -65,8 +65,8 @@ services:
     restart: unless-stopped
 
   twenty-worker:
-    image: twentyhq/twenty-server:${TWENTY_VERSION:-0.32.0}
-    command: npm run start:worker
+    image: twentycrm/twenty:${TWENTY_VERSION:-latest}
+    command: yarn worker:prod
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       APP_SECRET: ${APP_SECRET}

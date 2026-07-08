@@ -29,12 +29,12 @@ All five services are containerized via Docker. Networking is private (backend-o
 ```yaml
 services:
   twenty-server:
-    image: twentyhq/twenty-server:0.32.0
+    image: twentycrm/twenty:0.32.0
     build_context: packages/twenty-server
     runtime: Node.js 18+ (NestJS)
 
   twenty-worker:
-    image: twentyhq/twenty-server:0.32.0
+    image: twentycrm/twenty:0.32.0
     # Same image as server; runs a different entrypoint (job worker, not HTTP server)
     runtime: Node.js 18+ (NestJS)
 
@@ -338,7 +338,7 @@ docker run \
   -e DATABASE_URL=<PG_DATABASE_URL> \
   -e REDIS_URL=<REDIS_URL> \
   -e APP_SECRET=<APP_SECRET> \
-  twentyhq/twenty-server:0.32.0 \
+  twentycrm/twenty:0.32.0 \
   npm run workspace:generate-api-key
 
 # Output:
@@ -403,7 +403,7 @@ services:
       - twenty
 
   twenty-server:
-    image: twentyhq/twenty-server:0.32.0
+    image: twentycrm/twenty:0.32.0
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       APP_SECRET: ${APP_SECRET}
@@ -430,8 +430,8 @@ services:
       - twenty
 
   twenty-worker:
-    image: twentyhq/twenty-server:0.32.0
-    command: npm run start:worker
+    image: twentycrm/twenty:0.32.0
+    command: yarn worker:prod
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       APP_SECRET: ${APP_SECRET}
@@ -569,6 +569,6 @@ Version 0.32.0 is pinned for this wave. Future upgrades require re-researching t
 - **API Reference (REST):** https://docs.twenty.com/api-reference/overview
 - **GraphQL Schema:** https://docs.twenty.com/graphql-api
 - **GitHub:** https://github.com/twentyhq/twenty
-- **Docker Hub:** https://hub.docker.com/r/twentyhq/twenty-server
+- **Docker Hub:** https://hub.docker.com/r/twentycrm/twenty
 - **pgvector Docs:** https://github.com/pgvector/pgvector
 - **Cloudflare R2 Docs:** https://developers.cloudflare.com/r2/
