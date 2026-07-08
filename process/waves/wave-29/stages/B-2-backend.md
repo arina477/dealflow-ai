@@ -1,0 +1,6 @@
+# Wave 29 — B-1/B-2 (deal-activity records browse)
+Commit 30a05fa. All invariants:
+- B-1 dealActivityBrowseFilterSchema .strict (mandateId/from/to/type + limit max 50 default 25 [NOT 50k EXPORT_ROW_CAP] + offset; NO workspace_id) + dealActivityRowSchema (mirrors findDealRowsBounded projection, no workspace_id/sequenceNumber) + response {rows,total,limit,offset}. Route /compliance/records/deal-activity = [compliance,admin] in rbac.ts.
+- B-2 repository findDealRowsPaginated (REUSES findDealRowsBounded pipeline LEFT JOIN mandates via getDb RLS [FORCE RLS on pipeline+mandates]; DESC created_at, LIMIT/OFFSET, parallel COUNT; NO EXPORT_ROW_CAP, no tx). service listDealActivityAsActor (READ-ONLY, NO AuditService.append, RBAC EXPORT_ALLOWED_ROLES compliance/admin, server-resolved workspace). controller GET boot-fail-closed (DEAL_ACTIVITY_ROLES rolesForRoute non-empty) + safeParse (400 on limit>50/unknown-keys).
+- Tests (recordkeeping-deal-activity-isolation.e2e): DA-ISO-1/2 (firm A browse as dealflow_app → 0 firm B rows), DA-RBAC-1..5 (compliance/admin ok, advisor/analyst 403, boot-fail-closed), DA-RO-1 (audit_log_entries count unchanged after browse), DA-PAGE-1..5 (disjoint pages, limit>50 rejected, empty-filter ok, workspace_id rejected, total=count), DA-ORDER (DESC). 14/14 pass, 1017 unit, 0 regressions.
+- typecheck 4/4, lint exit 0. Deviations: none.
