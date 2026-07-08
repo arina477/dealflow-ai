@@ -1,0 +1,3 @@
+# Wave 29 — T-9 Journey (gate)
+**Gate:** APPROVED (head-tester T-8 Security + T-9). verdict → blocks/T/gate-verdict.md. next_action: PROCEED_TO_V. Journey-map delta applied (+deal-activity scope/tab on /compliance/audit-log).
+## Substance: RLS-browse-isolation GENUINE (as dealflow_app NOT postgres, bidirectional 0-leak, ran-not-skipped — CI log CREATE DATABASE dealflow_test + 14 tests 1501ms real-DB, skip-warnings absent); READ-ONLY-no-audit-row (DA-RO count-unchanged, pure SELECT+COUNT, no AuditService.append); advisor-RBAC-at-API (service ForbiddenException + boot-fail-closed; DA-RBAC 403-by-type per C-1 fix); paginated-bounded (.max(50), not EXPORT_ROW_CAP); no-gap (CI 5/5 @8526999); C-1 RED was a genuine test-assertion-type fix.
