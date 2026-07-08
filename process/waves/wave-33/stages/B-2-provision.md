@@ -14,3 +14,11 @@
 3. Public domain created: twenty-server-production-aee3.up.railway.app; SERVER_URL+FRONT_BASE_URL reconciled.
 4. Rapid successive redeploys/variableUpserts cancel each other (FAILED-no-logs) — trigger ONE deploy then wait.
 ## Corrected the committed wave-32 package (docker-compose.yml + twenty-selfhost.md): twentycrm/twenty image, /healthz, yarn worker:prod — so the durable deliverable is accurate.
+
+## FINAL STATE — INFRA FULLY LIVE; API-key = one-time-manual (v2.19 boundary):
+ALL 5 services deployed SUCCESS + healthy on Railway (project app-arina-5ywq3s):
+- twenty-db (pgvector) ✓  twenty-redis ✓  twenty-minio ✓  twenty-worker ✓
+- twenty-server ✓ LIVE at https://twenty-server-production-aee3.up.railway.app (/healthz=200, migrations complete, frontend serving, IS_SIGN_UP_ENABLED=true)
+Issues fixed autonomously: PGDATA-subdir (initdb lost+found), image twentyhq→**twentycrm/twenty**, PG_DATABASE_URL password url-encoding (special-char port-parse bug), public https domain + SERVER_URL reconcile.
+### API-key bootstrap BLOCKED (one-time-manual, per P-4 fallback): Twenty v2.19 has GraphQL introspection DISABLED in prod + no programmatic-signup surface reachable (core auth mutations not exposed at /graphql; no REST signup — only /oauth + /rest/apiKeys GET). Creating the FIRST admin is an inherent human/account action. → founder does a ONE-TIME signup at the live URL + generates an API key (Settings→APIs), pastes it; then seed+wire+verify are fully automated (no more code).
+### Remaining automated steps (once key provided): seed sample companies (POST /rest/companies) → set TWENTY_BASE_URL(https://twenty-server-production-aee3.up.railway.app)+TWENTY_API_KEY on dealflow-api → redeploy → live-verify companies flow into /sourcing.

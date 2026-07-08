@@ -536,3 +536,7 @@ _(empty)_
 - **Cost posture:** the smallest instances that run Twenty (Twenty needs ~3 CPU/4.5GB total across services — a modest monthly cost on the existing Railway project; "you run it" = cost consent).
 - All secrets orchestrator-generated (openssl/crypto), set as Railway service env vars, NEVER committed.
 **Wave-33 = the LIVE stand-up** (executes the wave-32 package): create the Twenty stack services (twenty-db[pgvector] + twenty-redis + twenty-minio + twenty-server + twenty-worker) → configure env + volumes → deploy → bootstrap the API key (GraphQL createApiKey→generateApiKeyToken) → seed sample companies → wire DealFlow's TWENTY_BASE_URL(https)+TWENTY_API_KEY → LIVE-verify real companies flow into sourcing.
+
+---
+## 2026-07-08 — Self-hosted Twenty LIVE on Railway (infra done; API-key one-time-manual)
+Stood up the full self-hosted Twenty stack on Railway (5 services: pgvector DB, Redis, MinIO, server, worker) — server LIVE at https://twenty-server-production-aee3.up.railway.app. Fixed 4 real deploy issues autonomously (PGDATA, wrong image name twentycrm/twenty, DB-url encoding, https domain). API-key bootstrap hit the documented one-time-manual boundary: Twenty v2.19 disables introspection + exposes no headless first-user signup, so the founder must create the first admin once (a human account action) + generate an API key; everything after (seed, wire, live-verify) is automated. Not a code blocker — an account-creation gate.
