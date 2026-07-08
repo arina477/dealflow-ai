@@ -10,3 +10,8 @@
 - [x] V-1 (Karen APPROVE + jenny APPROVE — deployed-state)
 - [x] V-2 (triage — 0 blocking, empty fast-fix queue)
 - [x] V-3 (gate APPROVED — dormant deploy honestly matches spec; live-verify key-gated deferred)
+- [x] L-1 (docs — 4 obs, P2-a closed-loop retired)
+- [x] L-2 (distill — CI-PRINCIPLES #4 Railway-commitSha-pin promoted)
+- [x] N-1 (survey+triggers — M9 stays in_progress; no buildable seed; next-slot → BOARD)
+- [x] N-2 (seed — empty-queue path; queue exhausted; BOARD 7/7 APPROVE-PAUSE)
+- [x] N-3 (handoff — wave closed status=ok; loop PAUSED scope-exhausted-pending-founder)

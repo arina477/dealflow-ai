@@ -300,7 +300,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-        with: { version: 11.9.0 }
+        with: { version: 11.10.0 }
       - uses: actions/setup-node@v6
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
@@ -312,7 +312,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-        with: { version: 11.9.0 }
+        with: { version: 11.10.0 }
       - uses: actions/setup-node@v6
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
@@ -329,7 +329,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-        with: { version: 11.9.0 }
+        with: { version: 11.10.0 }
       - uses: actions/setup-node@v6
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
@@ -341,7 +341,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-        with: { version: 11.9.0 }
+        with: { version: 11.10.0 }
       - uses: actions/setup-node@v6
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
