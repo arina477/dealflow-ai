@@ -1,0 +1,3 @@
+# Wave 28 — T-9 Journey (gate)
+**Gate:** APPROVED (head-tester T-8 Security + T-9). verdict → blocks/T/gate-verdict.md. next_action: PROCEED_TO_V. Journey-map delta authored (+/compliance/retention).
+## Substance: RLS-config-isolation GENUINE (as dealflow_app, foreign-write-rejected via WITH-CHECK, 20 tests; CI log shows the policy rejecting a foreign write); WORM-preserved-no-purge (verifyChain-ok-after-change, audit monotonic, no UI purge control, 0002 backstop); RLS-on-new-table applied+enforcing in prod; SEC-A/B/C; RBAC fail-closed (401/403 boot); api 1123 + web 956 + shared 509 (0 skip/fail). Not theater (RET-ISO-2 rejects.toThrow + RET-WORM-1 real AuditVerifier).
