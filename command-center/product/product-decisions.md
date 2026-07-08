@@ -481,3 +481,9 @@ _(empty)_
 - BOARD-weighted founder recommendation: (a) unblock M9 leads (most seats — serves live H1 integrated-platform bet, competitively urgent vs Datasite/Grata + DealCloud native integrations, most immediate advisor value); (d) roadmap-refresh is the alternative / parallel move to sharpen M11+M12 _TBD metrics and prevent a repeat stall.
 - Disposition: N-3 pauses the loop via process/session/.loop-paused.yaml + STATUS: BLOCKED (measured pause — this is scope-exhaustion after M10 completed, NOT anticipatory). Mode flag stays automatic (a pause is not a mode change).
 - Permanent-Actions-fix to surface: buildable credential-free scope is structurally exhausted; the founder should also decide the durable next-slot direction so the loop has runway beyond a single unblock.
+
+---
+## 2026-07-08 — Next direction after M10 close: INTEGRATIONS (M9), vendor = Affinity (founder decision)
+**Decision (founder):** After M10 (Advanced compliance & recordkeeping) completed + the scope-exhaustion BOARD pause (7/7), the founder chose **A — Integrations** and vendor **Affinity** (relationship-intelligence CRM, M&A-native). Unblocks M9 (Integrations & insight); the CRM/deal-source adapter (task 345dfbc6) now targets Affinity.
+**What it unblocks:** M9 blocked→in_progress. The Affinity DataSourceAdapter (fetch deals/contacts/orgs from Affinity → normalize → upsert into DealFlow's model) is now buildable against Affinity's public REST API. The account-issued Affinity API key is REQUESTED (see updates/) for the LIVE hookup (deploy secret) — the adapter + mocked tests build autonomously first.
+**Founder-reserved still-open:** the Affinity API key (account-issued — founder provides via Affinity → Settings → API); M9's _TBD success metric (for eventual M9 close); the permanent GitHub-Actions CI limit raise.
