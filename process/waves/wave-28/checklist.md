@@ -7,3 +7,6 @@
 - [x] B (B-6 APPROVED @bc49595)
 - [x] C-1  (APPROVED — CI run 28927123301 GREEN on 775cd67; all 5 jobs green; migration 0020 applied + RLS enforcing in CI; RET-ISO/RET-WORM ran+passed [not skipped]; 0 regressions)
 - [x] C-2  (APPROVED — api+web deployed @775cd67; migration 0020 applied to prod; /health version==775cd67 no-mirage; /compliance/retention 404→307; rollback armed; canary skipped [0 users]; ready for T-block)
+- [x] T   (T-8 Security + T-9 APPROVED @6ea1539; RLS-config-isolation + WORM-preservation genuine; journey +/compliance/retention)
+- [x] V   (Karen + jenny APPROVE; retention shipped LIVE @775cd67)
+- [x] L-1 (COMPLETE — CHANGELOG 0.24.0 added; M10 stays in_progress [retention shipped, records-view = LAST vertical]; README /compliance/retention live; carry: M11 pile-up + M9 _TBD)

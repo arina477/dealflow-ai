@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.24.0] — 2026-07-08 — Firm records retention policy (M10)
+
+A firm admin or compliance officer can now set how long the firm keeps its records — its retention window, with a sensible ~7-year default — on a new settings page, and see at a glance which records are old enough to be eligible under that window. It's the second of the recordkeeping features and a compliance-trust point: setting a retention policy is a routine part of a firm's recordkeeping obligations, and here it is deliberately safe — it configures the policy only and never deletes or alters anything.
+
+### Added
+- **Set your firm's records retention window** — a new retention settings page (/compliance/retention) lets an admin or compliance officer choose how long the firm keeps its records (defaulting to about seven years), with a read-only display of the resulting cutoff ("records older than <date> are eligible") so the effect of the setting is always visible. Every change is recorded in the tamper-evident audit trail with who changed it and the before/after values, so there is a durable history of the firm's retention decisions.
+
+### Correctness / compliance
+- **Setting a policy never deletes or alters a record** — this release configures the retention window only; there is no purge control anywhere in the page or the API, nothing is removed from the immutable audit log, and the audit log's whole-chain integrity still verifies after a retention change (proven by a test that changes the policy and confirms the tamper-evidence is intact). Actually deleting records on retention expiry is deliberately deferred to a later, separately-gated decision.
+- **You only ever read or change your own firm's retention policy** — the policy is scoped to your firm and no other, enforced inside the database itself (per-firm isolation on the new table), and proven by a test that runs as the restricted app account and confirms one firm cannot read or write another firm's policy. Only admins and compliance officers can change it; advisors and analysts are refused, signed-out requests are rejected, and out-of-range windows are refused rather than stored.
+
+### Provenance (transparency)
+- **One additive database change, no purge, no email, no AI.** This adds one new configuration table (additive migration 0020, with its per-firm isolation switched on explicitly) and no new permission to grant; nothing in the audit trail is edited or deleted, no email is sent, and no AI is used.
+- **Scope is honest — this is the retention half of the recordkeeping milestone.** An in-app browser for the firm's retained records is still to come; actual deletion on retention expiry and formal regulator certification are deliberately held at a light posture until the founder raises the compliance classification.
+
 ## [0.23.0] — 2026-07-07 — Firm recordkeeping export (M10)
 
 A firm admin or compliance officer can now export the firm's complete records for its own workspace, and independently prove the export was not tampered with. It's the first of the recordkeeping features and a compliance-first selling point — the record you hand an auditor or regulator, on demand, in a format they can open anywhere.

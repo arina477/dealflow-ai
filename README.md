@@ -70,6 +70,13 @@ firm's complete tamper-evident audit trail plus deal and pipeline activity as CS
 export is scoped to the firm (enforced in the database), audit-logged, and clearly flags a
 truncated download rather than silently cutting records short.
 
+**Firm records retention policy is live.** An admin or compliance officer can set how long the
+firm keeps its records — its retention window, with a ~7-year default — at `/compliance/retention`,
+with a read-only display of the resulting cutoff. It configures the policy only: there is no purge
+control, nothing is deleted from the immutable audit log, and every change is audit-logged with
+before/after values. The policy is scoped to the firm (enforced in the database) and changeable only
+by admins and compliance officers.
+
 ---
 
 ## Quick start
