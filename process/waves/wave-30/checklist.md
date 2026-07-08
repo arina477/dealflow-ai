@@ -10,3 +10,4 @@
 - [x] B-6
 - [x] C-1  (push→main a6ad02c; CI 5/5 green on headSha; affinity-adapter-spec 13/13; app builds without key)
 - [x] C-2  (real Railway deploy a6ad02c; app boots adapter-DORMANT; prod healthy; no migration; live-hookup awaits key)
+- [x] L-1  (CHANGELOG SKIP [dormant → deferred to LIVE-hookup wave]; M9 structurally-complete NOT closed [_TBD metric + dormant live-verify founder-gated]; README skip; 345dfbc6 done-for-build recommended; N-1 flags carried)
