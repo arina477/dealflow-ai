@@ -73,7 +73,7 @@ verdict_evidence:
   - "CHANGELOG.md:3-19"            # 0.24.0 entry, minor bump from 0.23.0
   - "README.md: /compliance/retention 'is live' paragraph in Live deployment section"
   - "milestones 033f97e0 (M10): status UNCHANGED = in_progress (vertical 3 records-view unshipped; open_count=0 is a false-completion signal, NOT a close condition)"
-  - "L-1 closeout commit: <sha-pending-commit>"
+  - "L-1 closeout commit: b9c3304 (pushed to main)"
 changelog_entry_added: true
 changelog_version: "0.24.0"
 roadmap_milestones_progressed:
