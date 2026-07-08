@@ -1,0 +1,5 @@
+# Wave 30 — N-3 Handoff (recovered after worker-restart mid-N)
+## M9 disposition: STRUCTURALLY COMPLETE, NOT closed. M9 (Integrations & insight, in_progress): 18 tasks, 17 done + the Affinity adapter (345dfbc6) done → 0 open. NOT closed because (a) ## Success metric = _TBD (founder-reserved), (b) the metric's condition (advisors syncing their CRM) is NOT observably met while the adapter is DORMANT (no key). Stays in_progress.
+## Next-slot: BOARD 7/7 APPROVE-PAUSE (slug next-milestone-slot-after-wave30-M9-adapter-done). No autonomously-buildable next seed — M9 live-hookup awaits the founder's AFFINITY_API_KEY; M9/M11/M12 metrics _TBD (decomposition refuses); M5/M6/M7 blocked (founder-gated). Legitimate scope-exhaustion / strategic pause (per .loop-paused.yaml, prev_wave 30).
+## Pause: .loop-paused.yaml (scope-exhausted-pending-founder) + STATUS BLOCKED. MEASURED (trigger f + BOARD-escalation hard-stop). NOT anticipatory (wave-30 completed the buildable Affinity adapter FIRST, then the slot emptied).
+## Wave 30 CLOSED (status=ok), archived. Anchors reconciled.
