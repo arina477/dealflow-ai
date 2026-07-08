@@ -47,8 +47,19 @@
  * NO email send, NO Anthropic/LLM import, NO new external SDK.
  */
 
-import type { AuditVerifyResponse, ExportScope, Role } from '@dealflow/shared';
-import { exportScopeSchema, listFilterSchema, rolesForRoute } from '@dealflow/shared';
+import type {
+  AuditVerifyResponse,
+  DealActivityBrowseFilter,
+  DealActivityBrowseResponse,
+  ExportScope,
+  Role,
+} from '@dealflow/shared';
+import {
+  dealActivityBrowseFilterSchema,
+  exportScopeSchema,
+  listFilterSchema,
+  rolesForRoute,
+} from '@dealflow/shared';
 import {
   BadRequestException,
   Body,
@@ -109,6 +120,19 @@ const EXPORT_ROLES: Role[] = [...rolesForRoute('/compliance/audit-log/export')];
 if (EXPORT_ROLES.length === 0) {
   throw new Error(
     "RBAC config drift: rolesForRoute('/compliance/audit-log/export') resolved to [] — " +
+      'route pattern missing from shared roleRoutes matrix. Refusing to boot.'
+  );
+}
+
+/**
+ * DEAL_ACTIVITY_ROLES — compliance + admin ONLY (wave-29 deal-activity browse).
+ * Sourced from '/compliance/records/deal-activity' in the shared roleRoutes.
+ * Mirrors EXPORT_ALLOWED_ROLES: advisor/analyst → 403 (enforced in service + guard).
+ */
+const DEAL_ACTIVITY_ROLES: Role[] = [...rolesForRoute('/compliance/records/deal-activity')];
+if (DEAL_ACTIVITY_ROLES.length === 0) {
+  throw new Error(
+    "RBAC config drift: rolesForRoute('/compliance/records/deal-activity') resolved to [] — " +
       'route pattern missing from shared roleRoutes matrix. Refusing to boot.'
   );
 }
@@ -231,6 +255,65 @@ export class RecordkeepingController {
       res.setHeader('Content-Disposition', 'attachment; filename="audit-log-export.json"');
       res.status(HttpStatus.OK).json(jsonPkg);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /compliance/records/deal-activity  (wave-29 deal-activity browse)
+  //
+  // ROUTE-ORDERING: declared before the bare audit-log route (static-before-dynamic).
+  // ---------------------------------------------------------------------------
+
+  /**
+   * dealActivityList — filtered, paginated READ-ONLY browse over deal/pipeline activity.
+   *
+   * Query params (all optional):
+   *   mandateId  — scope to a specific mandate
+   *   type       — filter by deal_source_type (e.g. 'match_candidate', 'outreach')
+   *   from       — ISO datetime lower bound on pipeline.created_at
+   *   to         — ISO datetime upper bound on pipeline.created_at
+   *   limit      — page size (default 25, max 50; > 50 → 400)
+   *   offset     — page offset (default 0)
+   *
+   * RBAC: compliance + admin ONLY (advisor/analyst → 403).
+   *   Service enforces RBAC; guard fails-closed via DEAL_ACTIVITY_ROLES.
+   *
+   * READ-ONLY: NO audit row emitted on this path.
+   *
+   * Workspace-RLS-scoped: the repository uses getDb (FORCE RLS on pipeline +
+   *   mandates) — workspace is server-resolved, never a client param.
+   *
+   * SEC-2: .strict() on dealActivityBrowseFilterSchema rejects unknown keys
+   *   (workspace_id, firmId, tenant, etc.) → 400.
+   */
+  @Get('records/deal-activity')
+  @UseGuards(SessionGuard, RolesGuard)
+  @Roles(...DEAL_ACTIVITY_ROLES)
+  async dealActivityList(
+    @Query() query: Record<string, string>,
+    @Req() req: RequestWithSession
+  ): Promise<DealActivityBrowseResponse> {
+    const session = req.session;
+    if (!session) {
+      throw new Error('RecordkeepingController: session not present after SessionGuard');
+    }
+
+    const parsed = dealActivityBrowseFilterSchema.safeParse(query);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        (parsed.error as ZodError).issues.map((i) => i.message).join('; ')
+      );
+    }
+
+    const filter: DealActivityBrowseFilter = {
+      ...(parsed.data.mandateId !== undefined && { mandateId: parsed.data.mandateId }),
+      ...(parsed.data.type !== undefined && { type: parsed.data.type }),
+      ...(parsed.data.from !== undefined && { from: parsed.data.from }),
+      ...(parsed.data.to !== undefined && { to: parsed.data.to }),
+      ...(parsed.data.limit !== undefined && { limit: parsed.data.limit }),
+      ...(parsed.data.offset !== undefined && { offset: parsed.data.offset }),
+    };
+
+    return this.recordkeepingService.listDealActivityAsActor(filter, session.getUserId());
   }
 
   // ---------------------------------------------------------------------------

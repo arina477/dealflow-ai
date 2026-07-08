@@ -479,6 +479,16 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     allowedRoles: ['compliance', 'admin'],
   },
   {
+    // Wave-29 (task d573e7bf): /compliance/records/deal-activity — paginated READ-ONLY
+    // deal/pipeline activity browse (M10 records-VIEW, deal-activity half).
+    // compliance + admin ONLY (mirrors EXPORT_ALLOWED_ROLES; advisor/analyst denied).
+    // Workspace-RLS-scoped (getDb; FORCE RLS on pipeline + mandates).
+    // READ-ONLY: no audit row emitted on browse (matching listAsActor behaviour).
+    // No navItem — API-only endpoint; displayed as a scope/tab on /compliance/audit-log page.
+    pattern: '/compliance/records/deal-activity',
+    allowedRoles: ['compliance', 'admin'],
+  },
+  {
     // Wave-14 (task f5074df8): /compliance/oversight — compliance + admin ONLY.
     // READ-focused gate-outcome oversight surface over outreach records.
     // DISTINCT from /compliance-queue (template version-approval; wave-11) and
