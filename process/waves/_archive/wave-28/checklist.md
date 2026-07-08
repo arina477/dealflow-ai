@@ -10,3 +10,7 @@
 - [x] T   (T-8 Security + T-9 APPROVED @6ea1539; RLS-config-isolation + WORM-preservation genuine; journey +/compliance/retention)
 - [x] V   (Karen + jenny APPROVE; retention shipped LIVE @775cd67)
 - [x] L-1 (COMPLETE — CHANGELOG 0.24.0 added; M10 stays in_progress [retention shipped, records-view = LAST vertical]; README /compliance/retention live; carry: M11 pile-up + M9 _TBD)
+- [x] L-2 (COMPLETE — 4 tasks done; 0-promoted, honest restraint @ba997b9)
+- [x] N-1 (COMPLETE — M10 stays in_progress; decomposition fired for records-VIEW [decomposition-complete]; M11 anomaly reconciled = correctly-homed BOARD-ratified prereq, leave-as-is)
+- [x] N-2 (COMPLETE — seed d573e7bf + 2 siblings; validation PASS; read-only/WORM, RLS-scoped, RBAC compliance/admin, no new migration)
+- [x] N-3 (COMPLETE — wave-29 pre-created; wave-28 archived; waves.status=ok; next_wave 29; loop_state ready)

@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DealFlow AI | Records Retention</title>
+
+  <!-- Inter for UI (DESIGN-SYSTEM §2) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Lucide icons (DESIGN-SYSTEM §7: lucide ONLY, outline, 1.5px stroke) -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+  <style>
+    /* ── Design-system token reset ────────────────────────────────────────────
+       Source: design/DESIGN-SYSTEM.md §1–§6
+       Zero custom tokens invented — every value maps to a named DS token.    */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* Neutral — zinc/grey scale */
+      --zinc-25:  #FCFCFD;
+      --zinc-50:  #F9FAFB;
+      --zinc-100: #F3F4F6;
+      --zinc-200: #E5E7EB;
+      --zinc-300: #D1D5DB;
+      --zinc-400: #9CA3AF;
+      --zinc-500: #6B7280;
+      --zinc-600: #4B5563;
+      --zinc-700: #374151;
+      --zinc-800: #1F2937;
+      --zinc-900: #111827;
+      --zinc-950: #030712;
+
+      /* Accent — emerald */
+      --emerald-50:  #ECFDF5;
+      --emerald-100: #D1FAE5;
+      --emerald-600: #10B981;
+      --emerald-700: #047857;
+
+      /* Status tokens (DESIGN-SYSTEM §1) */
+      --status-danger:        #DC2626;
+      --status-danger-bg:     #FEF2F2;
+      --status-danger-border: #FECACA;
+
+      /* Semantic mappings (DESIGN-SYSTEM §1) */
+      --bg-app:     var(--zinc-25);
+      --bg-surface: #FFFFFF;
+      --bg-muted:   var(--zinc-50);
+      --bg-sidebar: var(--zinc-900);
+      --border:     var(--zinc-200);
+      --border-strong: var(--zinc-300);
+      --text-primary: var(--zinc-800);
+      --text-body:    var(--zinc-700);
+      --text-muted:   var(--zinc-500);
+      --text-on-dark: var(--zinc-50);
+      --primary:      var(--emerald-600);
+      --primary-hover: var(--emerald-700);
+      --focus-ring:   rgba(16, 185, 129, 0.40);
+
+      /* Shape (DESIGN-SYSTEM §4) */
+      --radius-sm:   6px;
+      --radius-md:   8px;
+      --radius-lg:   12px;
+      --radius-pill: 9999px;
+
+      /* Elevation (DESIGN-SYSTEM §5) */
+      --shadow-xs: 0 1px 2px rgb(16 24 40 / 0.05);
+      --shadow-sm: 0 1px 3px rgb(16 24 40 / 0.08);
+
+      /* Motion (DESIGN-SYSTEM §6) */
+      --anim-speed: 0.6s;
+      --anim-ease:  cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* ── Base ─────────────────────────────────────────────────────────────── */
+    html, body {
+      height: 100%;
+      background-color: var(--bg-app);
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 20px;
+      color: var(--text-body);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Scrollbar ────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--zinc-300); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--zinc-400); }
+
+    /* ── App shell ────────────────────────────────────────────────────────── */
+    .app-shell {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar — DESIGN-SYSTEM §10 (matches recordkeeping-export.html exactly) */
+    .sidebar {
+      width: 256px;
+      flex-shrink: 0;
+      background-color: var(--bg-sidebar);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 16px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .logo-mark {
+      width: 32px;
+      height: 32px;
+      background-color: var(--emerald-600);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: #fff;
+    }
+
+    .logo-text {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-on-dark);
+      letter-spacing: -0.01em;
+    }
+
+    .sidebar-section-label {
+      padding: 16px 16px 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--zinc-500);
+    }
+
+    .sidebar-nav {
+      padding: 0 8px;
+      flex: 1;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      color: var(--zinc-400);
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 150ms, color 150ms;
+      position: relative;
+      margin-bottom: 2px;
+      border: none;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-item:hover {
+      background-color: rgba(255,255,255,0.05);
+      color: var(--zinc-200);
+    }
+
+    .nav-item:focus-visible {
+      outline: 2px solid var(--emerald-600);
+      outline-offset: 2px;
+    }
+
+    /* Active state: emerald left-border + brighter text (DESIGN-SYSTEM §10) */
+    .nav-item.active {
+      background-color: rgba(255,255,255,0.06);
+      color: #6EE7B7;
+    }
+
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 6px;
+      bottom: 6px;
+      width: 3px;
+      background-color: var(--emerald-600);
+      border-radius: 0 2px 2px 0;
+    }
+
+    .nav-item.active .nav-icon { color: #6EE7B7; }
+
+    .nav-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      stroke: currentColor;
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      background-color: #D97706;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: var(--radius-pill);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .sidebar-footer {
+      padding: 12px 8px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .user-button {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background-color 150ms;
+      width: 100%;
+      border: none;
+      background: transparent;
+      text-align: left;
+    }
+
+    .user-button:hover { background-color: rgba(255,255,255,0.05); }
+    .user-button:focus-visible { outline: 2px solid var(--emerald-600); outline-offset: 2px; }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background-color: var(--zinc-700);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--zinc-200);
+      flex-shrink: 0;
+    }
+
+    .user-meta { min-width: 0; }
+    .user-name  { font-size: 13px; font-weight: 500; color: var(--zinc-200); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-role  { font-size: 11px; color: var(--zinc-500); }
+
+    /* ── Main content area ────────────────────────────────────────────────── */
+    .main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* ── Top bar — DESIGN-SYSTEM §10 ─────────────────────────────────────── */
+    .topbar {
+      height: 64px;
+      background-color: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .topbar-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+    }
+
+    .topbar-crumb        { color: var(--zinc-500); font-weight: 500; }
+    .topbar-crumb.current { color: var(--text-primary); font-weight: 600; }
+
+    .topbar-sep {
+      width: 16px;
+      height: 16px;
+      color: var(--zinc-400);
+      flex-shrink: 0;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .topbar-icon-btn {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-md);
+      border: none;
+      background: transparent;
+      color: var(--zinc-500);
+      cursor: pointer;
+      transition: background-color 150ms, color 150ms;
+      position: relative;
+    }
+
+    .topbar-icon-btn:hover { background-color: var(--zinc-100); color: var(--text-primary); }
+    .topbar-icon-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+    .notif-dot {
+      position: absolute;
+      top: 4px; right: 4px;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background-color: var(--status-danger);
+      border: 1.5px solid var(--bg-surface);
+    }
+
+    .topbar-divider {
+      width: 1px;
+      height: 20px;
+      background-color: var(--border);
+    }
+
+    .topbar-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background-color: var(--zinc-200);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--zinc-600);
+      cursor: pointer;
+    }
+
+    /* ── Page scroll area ─────────────────────────────────────────────────── */
+    .page-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px 32px 64px;
+    }
+
+    .page-content {
+      max-width: 640px;
+    }
+
+    /* ── Page heading (matches export page: 20px/28/600, zinc-800) ─────────── */
+    .page-heading {
+      margin-bottom: 28px;
+    }
+
+    .page-title {
+      margin: 0 0 4px;
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 28px;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .page-subtitle {
+      margin: 0;
+      font-size: 14px;
+      line-height: 20px;
+      color: var(--text-muted);
+    }
+
+    /* ── Card — DESIGN-SYSTEM §8 (surface bg + border + radius-md + shadow-xs) */
+    .card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-xs);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background-color: var(--bg-muted);
+    }
+
+    .card-header-icon {
+      color: var(--primary);
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .card-header-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 20px;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .card-body {
+      padding: 24px;
+    }
+
+    /* ── Form field ───────────────────────────────────────────────────────── */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+
+    .field:last-child { margin-bottom: 0; }
+
+    /* DESIGN-SYSTEM §2: Label = 12px/16/600, 0.04em, UPPERCASE */
+    .field-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--zinc-700);
+    }
+
+    .field-label-hint {
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Years stepper row */
+    .years-control {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Number input — DESIGN-SYSTEM §8 Input */
+    .years-input {
+      width: 80px;
+      padding: 8px 10px;
+      font-size: 20px;
+      font-weight: 600;
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-primary);
+      text-align: center;
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      transition: border-color 150ms, box-shadow 150ms;
+      outline: none;
+      appearance: textfield;
+      -moz-appearance: textfield;
+    }
+
+    .years-input::-webkit-inner-spin-button,
+    .years-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+    .years-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+
+    /* Error state (DESIGN-SYSTEM §8: status-danger border + helper) */
+    .years-input.invalid {
+      border-color: var(--status-danger);
+    }
+
+    .years-input.invalid:focus {
+      box-shadow: 0 0 0 3px rgba(220,38,38,0.20);
+    }
+
+    /* Stepper buttons */
+    .stepper-btn {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background-color: var(--bg-surface);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background-color 150ms, border-color 150ms, color 150ms;
+      flex-shrink: 0;
+    }
+
+    .stepper-btn:hover {
+      background-color: var(--zinc-50);
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }
+
+    .stepper-btn:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+
+    .stepper-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .years-unit {
+      font-size: 14px;
+      color: var(--text-muted);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    /* Inline validation message (DESIGN-SYSTEM §8: aria-describedby) */
+    .field-error {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--status-danger);
+      line-height: 16px;
+    }
+
+    /* Provenance line */
+    .provenance {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 16px;
+      margin-top: 4px;
+    }
+
+    /* ── Primary CTA — ONE emerald Save button (DESIGN-SYSTEM §8, §10) ─────── */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      line-height: 20px;
+      color: #ffffff;
+      background-color: var(--primary);
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background-color 150ms, box-shadow 150ms;
+      outline: none;
+    }
+
+    .btn-primary:hover { background-color: var(--primary-hover); }
+
+    .btn-primary:focus-visible {
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+
+    .btn-primary:disabled {
+      background-color: var(--emerald-100);
+      color: var(--emerald-700);
+      cursor: not-allowed;
+    }
+
+    .btn-primary.saving {
+      background-color: var(--emerald-100);
+      color: var(--emerald-700);
+      cursor: not-allowed;
+    }
+
+    .btn-primary.saved {
+      background-color: var(--emerald-50);
+      color: var(--emerald-700);
+      border: 1px solid var(--emerald-100);
+      cursor: default;
+    }
+
+    /* Save row: button + audit note */
+    .save-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .save-btn-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* "Recorded in audit log" trust note — compliance-first signal */
+    .audit-note {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 16px;
+    }
+
+    .audit-note-icon {
+      color: var(--primary);
+      flex-shrink: 0;
+      width: 14px;
+      height: 14px;
+    }
+
+    /* Saved confirmation pill */
+    .saved-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--emerald-700);
+      background-color: var(--emerald-50);
+      border: 1px solid var(--emerald-100);
+      border-radius: var(--radius-pill);
+      padding: 4px 10px;
+      opacity: 0;
+      transition: opacity 200ms;
+    }
+
+    .saved-pill.visible { opacity: 1; }
+
+    /* ── Cutoff-surfacing panel — READ-ONLY, informational ─────────────────
+       Clearly NOT a purge control. Zinc muted card, CalendarClock icon.      */
+    .cutoff-panel {
+      background-color: var(--bg-muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .cutoff-icon-wrap {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background-color: var(--zinc-100);
+      border: 1px solid var(--zinc-200);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--zinc-500);
+    }
+
+    .cutoff-body { flex: 1; min-width: 0; }
+
+    .cutoff-eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--zinc-400);
+      margin-bottom: 4px;
+    }
+
+    .cutoff-statement {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--zinc-700);
+      line-height: 20px;
+      margin-bottom: 6px;
+    }
+
+    .cutoff-date {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .cutoff-note {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 18px;
+    }
+
+    /* READ-ONLY badge on cutoff panel */
+    .readonly-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--zinc-500);
+      background-color: var(--zinc-100);
+      border: 1px solid var(--zinc-200);
+      border-radius: var(--radius-pill);
+      padding: 2px 8px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    /* ── Loading skeleton (DESIGN-SYSTEM §8 empty/loading/error states) ───── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--zinc-100) 25%, var(--zinc-50) 50%, var(--zinc-100) 75%);
+      background-size: 800px 100%;
+      animation: rs-shimmer 1.5s infinite linear;
+      border-radius: 4px;
+    }
+
+    @keyframes rs-shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton, [data-spin] { animation: none !important; }
+    }
+
+    /* Spinner */
+    .spinner {
+      animation: rs-spin 0.9s linear infinite;
+    }
+
+    @keyframes rs-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation: none !important; } }
+
+    /* ── State sections — toggled by JS ──────────────────────────────────── */
+    .state-section { display: none; }
+    .state-section.visible { display: block; }
+
+    /* ── Error alert (DESIGN-SYSTEM §8: inline danger alert) ─────────────── */
+    .inline-error {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 16px;
+      background-color: var(--status-danger-bg);
+      border: 1px solid var(--status-danger-border);
+      border-radius: var(--radius-md);
+      margin-top: 16px;
+    }
+
+    .inline-error-icon { color: var(--status-danger); flex-shrink: 0; width: 16px; height: 16px; margin-top: 1px; }
+    .inline-error-title { font-size: 13px; font-weight: 600; color: #991B1B; margin-bottom: 2px; }
+    .inline-error-body  { font-size: 12px; color: #B91C1C; line-height: 18px; }
+
+    /* Retry link-button */
+    .retry-btn {
+      margin-top: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--status-danger);
+      background-color: var(--bg-surface);
+      border: 1px solid var(--status-danger-border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background-color 150ms;
+    }
+
+    .retry-btn:hover { background-color: var(--status-danger-bg); }
+    .retry-btn:focus-visible { outline: 2px solid var(--status-danger); outline-offset: 2px; }
+
+    /* ── State machine demo tabs (for mockup only — not shipped) ─────────── */
+    .state-demo-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 12px 24px;
+      background-color: var(--zinc-900);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+
+    .state-demo-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--zinc-500);
+      margin-right: 8px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .demo-btn {
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(255,255,255,0.10);
+      background-color: rgba(255,255,255,0.06);
+      color: var(--zinc-400);
+      cursor: pointer;
+      transition: background-color 150ms, color 150ms;
+      white-space: nowrap;
+    }
+
+    .demo-btn:hover { background-color: rgba(255,255,255,0.12); color: var(--zinc-200); }
+    .demo-btn.active { background-color: var(--emerald-700); border-color: var(--emerald-600); color: #fff; }
+    .demo-btn:focus-visible { outline: 2px solid var(--emerald-600); outline-offset: 2px; }
+  </style>
+</head>
+
+<body>
+
+  <!-- State machine demo bar (mockup only) -->
+  <div class="state-demo-bar" role="toolbar" aria-label="State preview — mockup only">
+    <span class="state-demo-label">Preview state:</span>
+    <button class="demo-btn active" onclick="showState('idle')" aria-pressed="true">Idle</button>
+    <button class="demo-btn" onclick="showState('loading')" aria-pressed="false">Loading</button>
+    <button class="demo-btn" onclick="showState('saving')" aria-pressed="false">Saving</button>
+    <button class="demo-btn" onclick="showState('saved')" aria-pressed="false">Saved</button>
+    <button class="demo-btn" onclick="showState('error')" aria-pressed="false">Error</button>
+    <button class="demo-btn" onclick="showState('invalid')" aria-pressed="false">Invalid</button>
+  </div>
+
+  <div class="app-shell">
+
+    <!-- ── Sidebar — DESIGN-SYSTEM §10 ──────────────────────────────────── -->
+    <nav class="sidebar" aria-label="Main navigation">
+
+      <div class="sidebar-logo">
+        <div class="logo-mark" aria-hidden="true">
+          <!-- lucide: network -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/>
+            <rect x="9" y="2" width="6" height="6" rx="1"/>
+            <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/>
+            <path d="M12 12V8"/>
+          </svg>
+        </div>
+        <span class="logo-text">DealFlow AI</span>
+      </div>
+
+      <div class="sidebar-nav">
+        <div class="sidebar-section-label">Workspace</div>
+
+        <a href="#" class="nav-item" aria-label="Dashboard">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+          Dashboard
+        </a>
+
+        <a href="#" class="nav-item" aria-label="Mandates">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+          Mandates
+        </a>
+
+        <a href="#" class="nav-item" aria-label="Sourcing">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+          Sourcing
+        </a>
+
+        <!-- Compliance — active parent section -->
+        <a href="#" class="nav-item active" aria-current="page" aria-label="Compliance">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+          Compliance
+          <span class="nav-badge" aria-label="2 pending items">2</span>
+        </a>
+
+        <div class="sidebar-section-label">Config</div>
+
+        <a href="#" class="nav-item" aria-label="Team">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Team
+        </a>
+
+        <a href="#" class="nav-item" aria-label="Settings">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          Settings
+        </a>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="user-button" aria-label="User menu: Marcus Webb, Admin">
+          <div class="avatar" aria-hidden="true">MW</div>
+          <div class="user-meta">
+            <div class="user-name">Marcus Webb</div>
+            <div class="user-role">Admin</div>
+          </div>
+        </button>
+      </div>
+    </nav>
+
+    <!-- ── Main area ──────────────────────────────────────────────────────── -->
+    <div class="main-area">
+
+      <!-- Top bar -->
+      <header class="topbar" role="banner">
+        <div class="topbar-breadcrumb" aria-label="Breadcrumb">
+          <span class="topbar-crumb">Compliance</span>
+          <!-- lucide: chevron-right -->
+          <svg class="topbar-sep" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          <span class="topbar-crumb current" aria-current="page">Records retention</span>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="topbar-icon-btn" aria-label="Notifications (1 unread)">
+            <!-- lucide: bell -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span class="notif-dot" aria-hidden="true"></span>
+          </button>
+
+          <div class="topbar-divider" aria-hidden="true"></div>
+
+          <div class="topbar-avatar" aria-hidden="true">MW</div>
+        </div>
+      </header>
+
+      <!-- ── Page scroll area ──────────────────────────────────────────────── -->
+      <main id="main-content" class="page-scroll" tabindex="-1">
+
+        <div class="page-content">
+
+          <!-- ── Page heading ──────────────────────────────────────────────── -->
+          <div class="page-heading">
+            <h1 class="page-title">Records retention</h1>
+            <p class="page-subtitle">Set how long your firm's records are kept.</p>
+          </div>
+
+          <!-- ─────────────────────────────────────────────────────────────────
+               LOADING STATE
+               Shown while the current retention value is being fetched.
+               ──────────────────────────────────────────────────────────────── -->
+          <div id="state-loading" class="state-section" aria-live="polite" aria-label="Loading retention policy">
+            <div class="card">
+              <div class="card-header">
+                <!-- lucide: clock -->
+                <svg class="card-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <h2 class="card-header-title">Retention window</h2>
+              </div>
+              <div class="card-body">
+                <div class="skeleton" style="height:16px; width:140px; margin-bottom:16px;"></div>
+                <div class="skeleton" style="height:42px; width:200px; margin-bottom:12px;"></div>
+                <div class="skeleton" style="height:13px; width:240px; margin-bottom:24px;"></div>
+                <div class="skeleton" style="height:40px; width:120px;"></div>
+              </div>
+            </div>
+
+            <div class="cutoff-panel" aria-busy="true">
+              <div class="cutoff-icon-wrap" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.25V14"/><circle cx="16" cy="16" r="6"/></svg>
+              </div>
+              <div class="cutoff-body">
+                <div class="skeleton" style="height:12px; width:80px; margin-bottom:8px;"></div>
+                <div class="skeleton" style="height:16px; width:320px; margin-bottom:6px;"></div>
+                <div class="skeleton" style="height:12px; width:260px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────────────────────────────────────────────────────────────
+               IDLE STATE (and SAVED state)
+               The form at rest. Shown when loaded or after a successful save.
+               ──────────────────────────────────────────────────────────────── -->
+          <div id="state-idle" class="state-section visible">
+
+            <!-- Settings card -->
+            <div class="card">
+              <div class="card-header">
+                <!-- lucide: clock -->
+                <svg class="card-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <h2 class="card-header-title">Retention window</h2>
+              </div>
+
+              <div class="card-body">
+
+                <!-- Years field -->
+                <div class="field">
+                  <label class="field-label" for="retention-years">
+                    Retention period
+                    <span class="field-label-hint">(1–30 years)</span>
+                  </label>
+
+                  <div class="years-control">
+                    <!-- Decrement -->
+                    <button
+                      class="stepper-btn"
+                      type="button"
+                      id="btn-decrement"
+                      aria-label="Decrease retention by 1 year"
+                      onclick="adjustYears(-1)"
+                    >
+                      <!-- lucide: minus -->
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
+                    </button>
+
+                    <input
+                      id="retention-years"
+                      type="number"
+                      class="years-input"
+                      value="7"
+                      min="1"
+                      max="30"
+                      step="1"
+                      inputmode="numeric"
+                      aria-label="Retention period in years"
+                      aria-describedby="years-error years-hint"
+                      aria-invalid="false"
+                      onchange="onYearsChange(this)"
+                      oninput="onYearsChange(this)"
+                    />
+
+                    <!-- Increment -->
+                    <button
+                      class="stepper-btn"
+                      type="button"
+                      id="btn-increment"
+                      aria-label="Increase retention by 1 year"
+                      onclick="adjustYears(1)"
+                    >
+                      <!-- lucide: plus -->
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    </button>
+
+                    <span class="years-unit" aria-hidden="true">years</span>
+                  </div>
+
+                  <!-- Hint (for screen readers, also serves aria-describedby) -->
+                  <span id="years-hint" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;">
+                    Enter a value between 1 and 30 years. Default is 7 years to satisfy typical M&amp;A recordkeeping requirements.
+                  </span>
+
+                  <!-- Inline validation error (DESIGN-SYSTEM §8 — aria-describedby, aria-invalid) -->
+                  <div
+                    id="years-error"
+                    class="field-error"
+                    role="alert"
+                    aria-live="assertive"
+                    style="display:none;"
+                  >
+                    <!-- lucide: alert-circle -->
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+                    <span id="years-error-text">Enter a value between 1 and 30.</span>
+                  </div>
+                </div>
+
+                <!-- Provenance line -->
+                <p class="provenance" id="provenance-line">
+                  Last updated by <strong>Sarah Chen</strong> on <time datetime="2026-04-14">Apr 14, 2026</time>
+                </p>
+
+                <!-- Save row: CTA + audit note -->
+                <div class="save-row">
+                  <div class="save-btn-row">
+
+                    <!-- ── ONE primary CTA (emerald) — DESIGN-SYSTEM §8, §10 ── -->
+                    <button
+                      id="save-btn"
+                      type="button"
+                      class="btn-primary"
+                      onclick="handleSave()"
+                      aria-describedby="audit-note-text"
+                    >
+                      <!-- lucide: save -->
+                      <svg id="save-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>
+                      <svg id="saving-spinner" class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                      <span id="save-btn-label">Save</span>
+                    </button>
+
+                    <!-- Saved confirmation pill (aria-live polite) -->
+                    <div
+                      id="saved-pill"
+                      class="saved-pill"
+                      role="status"
+                      aria-live="polite"
+                      aria-atomic="true"
+                    >
+                      <!-- lucide: check -->
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                      Saved
+                    </div>
+                  </div>
+
+                  <!-- Compliance-first audit note — trust signal, always visible -->
+                  <div class="audit-note" id="audit-note-text" aria-label="Compliance note">
+                    <!-- lucide: shield-check -->
+                    <svg class="audit-note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                    <span>This change is recorded in your audit log.</span>
+                  </div>
+                </div>
+
+              </div><!-- /card-body -->
+            </div><!-- /card -->
+
+            <!-- ─────────────────────────────────────────────────────────────
+                 CUTOFF-SURFACING PANEL — READ-ONLY, INFORMATIONAL
+                 NO purge/delete button. Explicit no-purge note. Muted zinc.
+                 ──────────────────────────────────────────────────────────── -->
+            <div
+              class="cutoff-panel"
+              role="note"
+              aria-label="Retention cutoff — read-only informational panel"
+            >
+              <div class="cutoff-icon-wrap" aria-hidden="true">
+                <!-- lucide: calendar-clock -->
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.25V14"/><circle cx="16" cy="16" r="6"/></svg>
+              </div>
+
+              <div class="cutoff-body">
+                <div class="cutoff-eyebrow">
+                  Retention cutoff
+                  <span class="readonly-badge" aria-label="Read-only information">
+                    <!-- lucide: lock -->
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Read-only
+                  </span>
+                </div>
+
+                <p class="cutoff-statement" id="cutoff-statement">
+                  Under your <strong id="cutoff-years">7-year</strong> policy, records dated before
+                  <strong class="cutoff-date" id="cutoff-date">July 7, 2019</strong>
+                  are eligible for deletion.
+                </p>
+
+                <p class="cutoff-note">
+                  Records are preserved. Deletion is not performed automatically — this policy determines the eligibility window only.
+                </p>
+              </div>
+            </div>
+
+          </div><!-- /state-idle -->
+
+          <!-- ─────────────────────────────────────────────────────────────────
+               SAVING STATE (mirrored from idle, button disabled + spinner)
+               Shown as a distinct preview state for the demo bar.
+               ──────────────────────────────────────────────────────────────── -->
+          <div id="state-saving" class="state-section">
+            <div class="card">
+              <div class="card-header">
+                <svg class="card-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <h2 class="card-header-title">Retention window</h2>
+              </div>
+              <div class="card-body">
+                <div class="field">
+                  <label class="field-label" for="saving-years">Retention period</label>
+                  <div class="years-control">
+                    <button class="stepper-btn" disabled aria-label="Decrease (disabled during save)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/></svg>
+                    </button>
+                    <input id="saving-years" type="number" class="years-input" value="10" disabled aria-label="Retention period (saving)" />
+                    <button class="stepper-btn" disabled aria-label="Increase (disabled during save)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    </button>
+                    <span class="years-unit" aria-hidden="true">years</span>
+                  </div>
+                </div>
+                <p class="provenance">Last updated by <strong>Sarah Chen</strong> on <time datetime="2026-04-14">Apr 14, 2026</time></p>
+                <div class="save-row">
+                  <div class="save-btn-row">
+                    <button class="btn-primary saving" disabled aria-busy="true" aria-label="Saving, please wait">
+                      <svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                      Saving&hellip;
+                    </button>
+                  </div>
+                  <div class="audit-note">
+                    <svg class="audit-note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                    <span>This change is recorded in your audit log.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="cutoff-panel" role="note">
+              <div class="cutoff-icon-wrap" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.25V14"/><circle cx="16" cy="16" r="6"/></svg>
+              </div>
+              <div class="cutoff-body">
+                <div class="cutoff-eyebrow">Retention cutoff <span class="readonly-badge"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Read-only</span></div>
+                <p class="cutoff-statement">Under your <strong>10-year</strong> policy, records dated before <strong class="cutoff-date">July 7, 2016</strong> are eligible for deletion.</p>
+                <p class="cutoff-note">Records are preserved. Deletion is not performed automatically — this policy determines the eligibility window only.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────────────────────────────────────────────────────────────
+               SAVED STATE (distinct preview: Saved pill visible, green border flash)
+               ──────────────────────────────────────────────────────────────── -->
+          <div id="state-saved" class="state-section">
+            <div class="card">
+              <div class="card-header">
+                <svg class="card-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <h2 class="card-header-title">Retention window</h2>
+              </div>
+              <div class="card-body">
+                <div class="field">
+                  <label class="field-label" for="saved-years">Retention period</label>
+                  <div class="years-control">
+                    <button class="stepper-btn" onclick="adjustYears(-1)" aria-label="Decrease by 1 year">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/></svg>
+                    </button>
+                    <input id="saved-years" type="number" class="years-input" value="10" min="1" max="30" aria-label="Retention period" />
+                    <button class="stepper-btn" onclick="adjustYears(1)" aria-label="Increase by 1 year">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    </button>
+                    <span class="years-unit" aria-hidden="true">years</span>
+                  </div>
+                </div>
+                <p class="provenance">Last updated by <strong>Marcus Webb</strong> on <time datetime="2026-07-07">Jul 7, 2026</time></p>
+                <div class="save-row">
+                  <div class="save-btn-row">
+                    <button class="btn-primary" type="button" aria-describedby="audit-note-saved">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>
+                      Save
+                    </button>
+                    <!-- Saved pill visible -->
+                    <div class="saved-pill visible" role="status" aria-live="polite" aria-atomic="true">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                      Saved
+                    </div>
+                  </div>
+                  <div class="audit-note" id="audit-note-saved">
+                    <svg class="audit-note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                    <span>This change is recorded in your audit log.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="cutoff-panel" role="note">
+              <div class="cutoff-icon-wrap" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.25V14"/><circle cx="16" cy="16" r="6"/></svg>
+              </div>
+              <div class="cutoff-body">
+                <div class="cutoff-eyebrow">Retention cutoff <span class="readonly-badge"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Read-only</span></div>
+                <p class="cutoff-statement">Under your <strong>10-year</strong> policy, records dated before <strong class="cutoff-date">July 7, 2016</strong> are eligible for deletion.</p>
+                <p class="cutoff-note">Records are preserved. Deletion is not performed automatically — this policy determines the eligibility window only.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────────────────────────────────────────────────────────────
+               ERROR STATE — save failed, retry affordance
+               ──────────────────────────────────────────────────────────────── -->
+          <div id="state-error" class="state-section">
+            <div class="card">
+              <div class="card-header">
+                <svg class="card-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <h2 class="card-header-title">Retention window</h2>
+              </div>
+              <div class="card-body">
+                <div class="field">
+                  <label class="field-label" for="error-years">Retention period</label>
+                  <div class="years-control">
+                    <button class="stepper-btn" aria-label="Decrease by 1 year">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/></svg>
+                    </button>
+                    <input id="error-years" type="number" class="years-input" value="10" min="1" max="30" aria-label="Retention period" />
+                    <button class="stepper-btn" aria-label="Increase by 1 year">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    </button>
+                    <span class="years-unit" aria-hidden="true">years</span>
+                  </div>
+                </div>
+                <p class="provenance">Last updated by <strong>Sarah Chen</strong> on <time datetime="2026-04-14">Apr 14, 2026</time></p>
+
+                <!-- Inline error alert — DESIGN-SYSTEM §8 (persistent, not auto-dismiss) -->
+                <div class="inline-error" role="alert" aria-live="assertive" aria-atomic="true">
+                  <svg class="inline-error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                  <div>
+                    <div class="inline-error-title">Could not save retention policy</div>
+                    <div class="inline-error-body">The server returned an error. Your records were not modified. Try again or contact support if the issue persists.</div>
+                    <button class="retry-btn" type="button">
+                      <!-- lucide: refresh-cw -->
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+                      Retry
+                    </button>
+                  </div>
+                </div>
+
+                <div class="save-row" style="margin-top:16px;">
+                  <div class="save-btn-row">
+                    <button class="btn-primary" type="button">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>
+                      Save
+                    </button>
+                  </div>
+                  <div class="audit-note">
+                    <svg class="audit-note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                    <span>This change is recorded in your audit log.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="cutoff-panel" role="note">
+              <div class="cutoff-icon-wrap" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.25V14"/><circle cx="16" cy="16" r="6"/></svg>
+              </div>
+              <div class="cutoff-body">
+                <div class="cutoff-eyebrow">Retention cutoff <span class="readonly-badge"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Read-only</span></div>
+                <p class="cutoff-statement">Under your <strong>10-year</strong> policy, records dated before <strong class="cutoff-date">July 7, 2016</strong> are eligible for deletion.</p>
+                <p class="cutoff-note">Records are preserved. Deletion is not performed automatically — this policy determines the eligibility window only.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────────────────────────────────────────────────────────────
+               INVALID STATE (shown in idle form via JS — out-of-range value)
+               Preview-only: duplicates idle with the validation message active.
+               ──────────────────────────────────────────────────────────────── -->
+          <div id="state-invalid" class="state-section">
+            <div class="card">
+              <div class="card-header">
+                <svg class="card-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <h2 class="card-header-title">Retention window</h2>
+              </div>
+              <div class="card-body">
+                <div class="field">
+                  <label class="field-label" for="invalid-years">Retention period <span class="field-label-hint">(1–30 years)</span></label>
+                  <div class="years-control">
+                    <button class="stepper-btn" disabled aria-label="Decrease (disabled: value out of range)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/></svg>
+                    </button>
+                    <input
+                      id="invalid-years"
+                      type="number"
+                      class="years-input invalid"
+                      value="45"
+                      min="1" max="30"
+                      aria-label="Retention period"
+                      aria-invalid="true"
+                      aria-describedby="invalid-years-error"
+                    />
+                    <button class="stepper-btn" disabled aria-label="Increase (disabled: value out of range)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    </button>
+                    <span class="years-unit" aria-hidden="true">years</span>
+                  </div>
+                  <!-- Inline validation message -->
+                  <div id="invalid-years-error" class="field-error" role="alert" aria-live="assertive">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+                    <span>Enter a value between 1 and 30.</span>
+                  </div>
+                </div>
+                <p class="provenance">Last updated by <strong>Sarah Chen</strong> on <time datetime="2026-04-14">Apr 14, 2026</time></p>
+                <div class="save-row">
+                  <div class="save-btn-row">
+                    <button class="btn-primary" disabled aria-disabled="true" type="button">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>
+                      Save
+                    </button>
+                  </div>
+                  <div class="audit-note">
+                    <svg class="audit-note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                    <span>This change is recorded in your audit log.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="cutoff-panel" role="note">
+              <div class="cutoff-icon-wrap" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.25V14"/><circle cx="16" cy="16" r="6"/></svg>
+              </div>
+              <div class="cutoff-body">
+                <div class="cutoff-eyebrow">Retention cutoff <span class="readonly-badge"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Read-only</span></div>
+                <p class="cutoff-statement" style="color: var(--zinc-400); font-style: italic;">Enter a valid retention period above to preview the cutoff date.</p>
+                <p class="cutoff-note">Records are preserved. Deletion is not performed automatically — this policy determines the eligibility window only.</p>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /page-content -->
+      </main><!-- /main -->
+    </div><!-- /main-area -->
+  </div><!-- /app-shell -->
+
+  <!-- ── Init Lucide icons ──────────────────────────────────────────────── -->
+  <script>
+    // Lucide data-lucide attrs (none used in this file — all inline SVG).
+    // Called for completeness in case any were added.
+    if (window.lucide) { lucide.createIcons(); }
+
+    // ── State machine demo ─────────────────────────────────────────────────
+    const STATES = ['idle','loading','saving','saved','error','invalid'];
+
+    function showState(name) {
+      STATES.forEach(s => {
+        const el = document.getElementById('state-' + s);
+        if (el) el.classList.toggle('visible', s === name);
+      });
+
+      // Update demo button aria-pressed
+      document.querySelectorAll('.demo-btn').forEach(btn => {
+        const pressed = btn.textContent.trim().toLowerCase() === name;
+        btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+        btn.classList.toggle('active', pressed);
+      });
+    }
+
+    // ── Idle-state interactivity ───────────────────────────────────────────
+
+    /** Compute and display the cutoff date from years value. */
+    function updateCutoff(years) {
+      const cutoffDate = document.getElementById('cutoff-date');
+      const cutoffYears = document.getElementById('cutoff-years');
+      if (!cutoffDate || !cutoffYears) return;
+
+      const today = new Date();
+      const cutoff = new Date(today.getFullYear() - years, today.getMonth(), today.getDate());
+      const formatted = cutoff.toLocaleDateString('en-US', {
+        month: 'long', day: 'numeric', year: 'numeric'
+      });
+      cutoffDate.textContent = formatted;
+      cutoffYears.textContent = years + '-year';
+    }
+
+    /** Validate the years input and show/hide the error message. */
+    function validateYears(input) {
+      const val = parseInt(input.value, 10);
+      const errorEl = document.getElementById('years-error');
+      const isValid = !isNaN(val) && val >= 1 && val <= 30;
+
+      input.classList.toggle('invalid', !isValid);
+      input.setAttribute('aria-invalid', isValid ? 'false' : 'true');
+
+      if (errorEl) {
+        errorEl.style.display = isValid ? 'none' : 'flex';
+      }
+
+      const saveBtn = document.getElementById('save-btn');
+      if (saveBtn) saveBtn.disabled = !isValid;
+
+      const decBtn = document.getElementById('btn-decrement');
+      const incBtn = document.getElementById('btn-increment');
+      if (decBtn) decBtn.disabled = val <= 1;
+      if (incBtn) incBtn.disabled = val >= 30;
+
+      return isValid;
+    }
+
+    /** Called by stepper buttons. */
+    function adjustYears(delta) {
+      const input = document.getElementById('retention-years');
+      if (!input) return;
+      const current = parseInt(input.value, 10) || 7;
+      const next = Math.max(1, Math.min(30, current + delta));
+      input.value = next;
+      onYearsChange(input);
+    }
+
+    /** Called on input change. */
+    function onYearsChange(input) {
+      const val = parseInt(input.value, 10);
+      const isValid = validateYears(input);
+      if (isValid) updateCutoff(val);
+    }
+
+    /** Save button handler — simulate saving → saved transition. */
+    let saveTimer = null;
+
+    function handleSave() {
+      const input = document.getElementById('retention-years');
+      if (!input || !validateYears(input)) return;
+
+      const saveBtn     = document.getElementById('save-btn');
+      const saveIcon    = document.getElementById('save-icon');
+      const savingSpinner = document.getElementById('saving-spinner');
+      const saveBtnLabel  = document.getElementById('save-btn-label');
+      const savedPill     = document.getElementById('saved-pill');
+
+      // Saving state
+      saveBtn.disabled = true;
+      saveBtn.setAttribute('aria-busy', 'true');
+      saveBtn.setAttribute('aria-label', 'Saving, please wait');
+      saveIcon.style.display    = 'none';
+      savingSpinner.style.display = 'inline';
+      saveBtnLabel.textContent  = 'Saving…';
+
+      if (saveTimer) clearTimeout(saveTimer);
+
+      saveTimer = setTimeout(() => {
+        // Saved state
+        saveBtn.disabled = false;
+        saveBtn.setAttribute('aria-busy', 'false');
+        saveBtn.setAttribute('aria-label', '');
+        saveIcon.style.display    = 'inline';
+        savingSpinner.style.display = 'none';
+        saveBtnLabel.textContent  = 'Save';
+
+        // Show saved pill briefly
+        savedPill.classList.add('visible');
+        setTimeout(() => savedPill.classList.remove('visible'), 3000);
+      }, 1400);
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+      // Default to idle state
+      showState('idle');
+      // Init cutoff for default 7 years
+      updateCutoff(7);
+    });
+  </script>
+
+</body>
+</html>
