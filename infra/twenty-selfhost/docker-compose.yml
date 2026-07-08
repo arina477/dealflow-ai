@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-twenty_db}
+      POSTGRES_USER: ${POSTGRES_USER:-twenty_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-pgvector.sql:/docker-entrypoint-initdb.d/00-init-pgvector.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-twenty_user}", "-d", "${POSTGRES_DB:-twenty_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - twenty
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - twenty
+    restart: unless-stopped
+
+  twenty-server:
+    image: twentyhq/twenty-server:${TWENTY_VERSION:-0.32.0}
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      APP_SECRET: ${APP_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      PG_DATABASE_URL: postgres://${POSTGRES_USER:-twenty_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-twenty_db}?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      SERVER_URL: ${SERVER_URL}
+      FRONT_BASE_URL: ${FRONT_BASE_URL:-${SERVER_URL}}
+      IS_SIGN_UP_ENABLED: ${IS_SIGN_UP_ENABLED:-false}
+      STORAGE_TYPE: ${STORAGE_TYPE:-s3}
+      AWS_S3_REGION: ${AWS_S3_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - twenty
+    restart: unless-stopped
+
+  twenty-worker:
+    image: twentyhq/twenty-server:${TWENTY_VERSION:-0.32.0}
+    command: npm run start:worker
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      APP_SECRET: ${APP_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      PG_DATABASE_URL: postgres://${POSTGRES_USER:-twenty_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-twenty_db}?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      STORAGE_TYPE: ${STORAGE_TYPE:-s3}
+      AWS_S3_REGION: ${AWS_S3_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      twenty-server:
+        condition: service_healthy
+    networks:
+      - twenty
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  twenty:
+    driver: bridge

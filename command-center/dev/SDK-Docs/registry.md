@@ -13,6 +13,7 @@ Each row points at the SDK doc at `command-center/dev/SDK-Docs/<Name>/<name>.md`
 | supertokens-node | `command-center/dev/SDK-Docs/SuperTokens/supertokens.md` | https://supertokens.com/docs/references/backend-sdks/node/introduction | 24.0.2 | 2026-07-02 |
 | Affinity REST API | `command-center/dev/SDK-Docs/Affinity/affinity.md` | https://api-docs.affinity.co | v1 (REST, no npm SDK) | 2026-07-08 |
 | Twenty CRM REST API | `command-center/dev/SDK-Docs/Twenty/twenty.md` | https://twenty.com/developers | REST (open-source, no versioned URL; no npm SDK used) | 2026-07-08 |
+| Twenty Self-Hosting | `command-center/dev/SDK-Docs/Twenty/twenty-selfhost.md` | https://docs.twenty.com/self-hosting | 0.32.0 (pinned) | 2026-07-08 |
 
 ---
 
