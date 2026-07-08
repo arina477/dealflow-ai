@@ -218,3 +218,102 @@ export type ExportManifest = z.infer<typeof exportManifestSchema>;
 // ---------------------------------------------------------------------------
 
 export { auditVerifyResponseSchema } from './audit';
+
+// ---------------------------------------------------------------------------
+// Deal-activity browse contracts (wave-29, B-1)
+//
+// Separate from the export-scope contract:
+//   - Page size bounded at DEAL_ACTIVITY_BROWSE_MAX_LIMIT (50), NOT EXPORT_ROW_CAP.
+//   - .strict(): unknown keys (workspace_id, firmId, etc.) are rejected (SEC-2).
+//   - Pagination via limit/offset (cursor reserved for a future migration).
+//   - Row shape mirrors findDealRowsBounded's projection (pipeline LEFT JOIN mandates).
+// ---------------------------------------------------------------------------
+
+/** Maximum rows per deal-activity browse page (NOT the 50k export cap). */
+export const DEAL_ACTIVITY_BROWSE_MAX_LIMIT = 50;
+/** Default rows per deal-activity browse page. */
+export const DEAL_ACTIVITY_BROWSE_DEFAULT_LIMIT = 25;
+
+/**
+ * Input schema for GET /compliance/records/deal-activity.
+ *
+ * .strict(): extra keys are rejected with 400 (SEC-2 invariant — workspace is
+ * server-resolved; a client-supplied workspace_id MUST be rejected, not silently
+ * ignored).
+ *
+ * limit/offset — bounded pagination. limit defaults to DEAL_ACTIVITY_BROWSE_DEFAULT_LIMIT,
+ * capped at DEAL_ACTIVITY_BROWSE_MAX_LIMIT (50). A request for limit > 50 is
+ * rejected with 400 (prevents an accidental export-sized load via the browse API).
+ */
+export const dealActivityBrowseFilterSchema = z
+  .object({
+    /** Optional mandate UUID — scopes the browse to entries for this mandate. */
+    mandateId: z.string().uuid().optional(),
+    /** Optional ISO datetime lower bound (inclusive) on pipeline.created_at. */
+    from: z.string().optional(),
+    /** Optional ISO datetime upper bound (inclusive) on pipeline.created_at. */
+    to: z.string().optional(),
+    /**
+     * Optional deal source type filter (e.g. 'match_candidate', 'outreach').
+     * Matches pipeline.deal_source_type exactly.
+     */
+    type: z.string().min(1).optional(),
+    /** Page size — default 25, max 50. Requests > 50 are rejected with 400. */
+    limit: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(DEAL_ACTIVITY_BROWSE_MAX_LIMIT)
+      .default(DEAL_ACTIVITY_BROWSE_DEFAULT_LIMIT)
+      .optional(),
+    /** Page offset — default 0 (zero-indexed). */
+    offset: z.coerce.number().int().nonnegative().default(0).optional(),
+  })
+  .strict();
+
+export type DealActivityBrowseFilter = z.infer<typeof dealActivityBrowseFilterSchema>;
+
+/**
+ * A single deal-activity browse row.
+ *
+ * Projection mirrors findDealRowsBounded (pipeline LEFT JOIN mandates, both
+ * RLS-covered tenant tables). No global sequence_number or cross-workspace fields.
+ *
+ * .strict(): consumers receive only the documented fields — no accidental leakage
+ * of additional DB columns on future schema changes.
+ */
+export const dealActivityRowSchema = z
+  .object({
+    pipelineId: z.string().uuid(),
+    mandateId: z.string().uuid(),
+    dealSourceType: z.string().min(1),
+    outreachId: z.string().uuid().nullable(),
+    matchCandidateId: z.string().uuid().nullable(),
+    stage: z.string().min(1),
+    createdBy: z.string().uuid(),
+    createdAt: z.string(),
+    updatedAt: z.string().nullable(),
+    /** Seller name from the joined mandate (RLS-covered). */
+    mandateSellerName: z.string().nullable(),
+  })
+  .strict();
+
+export type DealActivityRow = z.infer<typeof dealActivityRowSchema>;
+
+/**
+ * Paginated response envelope for GET /compliance/records/deal-activity.
+ *
+ * total: the total count of rows matching the filter (for pagination UI).
+ * rows: the current page of deal-activity rows.
+ * limit/offset: echo the applied pagination parameters.
+ */
+export const dealActivityBrowseResponseSchema = z
+  .object({
+    rows: z.array(dealActivityRowSchema),
+    total: z.number().int().nonnegative(),
+    limit: z.number().int().positive(),
+    offset: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type DealActivityBrowseResponse = z.infer<typeof dealActivityBrowseResponseSchema>;

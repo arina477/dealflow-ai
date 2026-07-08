@@ -330,12 +330,20 @@ export {
 } from './rbac';
 export type {
   AuditLogEntryRead,
+  DealActivityBrowseFilter,
+  DealActivityBrowseResponse,
+  DealActivityRow,
   ExportManifest,
   ExportScope,
   ListFilter,
 } from './recordkeeping';
 export {
   auditLogEntryReadSchema,
+  DEAL_ACTIVITY_BROWSE_DEFAULT_LIMIT,
+  DEAL_ACTIVITY_BROWSE_MAX_LIMIT,
+  dealActivityBrowseFilterSchema,
+  dealActivityBrowseResponseSchema,
+  dealActivityRowSchema,
   exportManifestSchema,
   exportScopeSchema,
   listFilterSchema,

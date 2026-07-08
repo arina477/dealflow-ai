@@ -446,6 +446,101 @@ export class RecordkeepingRepository {
     return { rows, truncated, rowsAvailable };
   }
 
+  /**
+   * Wave-29 (task d573e7bf): paginated deal-activity browse.
+   *
+   * REUSE-not-rebuild: same RLS pipeline LEFT JOIN mandates join as
+   * findDealRowsBounded, via getDb (workspace-scoped — FORCE RLS on pipeline +
+   * mandates means each workspace sees ONLY its own rows). NOT a tx-scoped read —
+   * browse runs outside a transaction (no export atomicity required).
+   *
+   * BROWSE-shaped differences from findDealRowsBounded:
+   *   - getDb path (NOT tx) — browse is not inside an export transaction.
+   *   - DESC by pipeline.created_at (newest-first for the browse UI).
+   *   - LIMIT pageSize OFFSET pageOffset (NOT EXPORT_ROW_CAP).
+   *   - Supports a `type` (deal_source_type) filter in addition to date/mandate.
+   *   - Returns { rows, total } — total is a COUNT(*) over the filter (for pagination UI).
+   *
+   * SEC-10: joins ONLY RLS-covered tenant tables (pipeline, mandates).
+   * READ-ONLY: this method NEVER writes.
+   */
+  async findDealRowsPaginated(filter: {
+    mandateId?: string;
+    from?: string;
+    to?: string;
+    type?: string;
+    limit: number;
+    offset: number;
+  }): Promise<{ rows: DealExportRow[]; total: number }> {
+    const whereParts: ReturnType<typeof sql>[] = [];
+    if (filter.from) {
+      whereParts.push(sql`pipeline.created_at >= ${filter.from}`);
+    }
+    if (filter.to) {
+      whereParts.push(sql`pipeline.created_at <= ${filter.to}`);
+    }
+    if (filter.mandateId) {
+      whereParts.push(sql`pipeline.mandate_id = ${filter.mandateId}::uuid`);
+    }
+    if (filter.type) {
+      whereParts.push(sql`pipeline.deal_source_type = ${filter.type}`);
+    }
+
+    const whereClause =
+      whereParts.length > 0 ? sql`WHERE ${sql.join(whereParts, sql` AND `)}` : sql``;
+
+    // SEC-10: JOIN only RLS-covered tenant tables — pipeline + mandates.
+    // getDb (NOT admin/superuser) ensures FORCE RLS applies: the workspace_isolation
+    // policy on pipeline and mandates filters each workspace to its own rows.
+    const browseQuery = sql`
+      SELECT
+        pipeline.id              AS "pipelineId",
+        pipeline.mandate_id      AS "mandateId",
+        pipeline.deal_source_type AS "dealSourceType",
+        pipeline.outreach_id     AS "outreachId",
+        pipeline.match_candidate_id AS "matchCandidateId",
+        pipeline.stage           AS "stage",
+        pipeline.created_by      AS "createdBy",
+        pipeline.created_at      AS "createdAt",
+        pipeline.updated_at      AS "updatedAt",
+        mandates.seller_name     AS "mandateSellerName"
+      FROM pipeline
+      LEFT JOIN mandates ON mandates.id = pipeline.mandate_id
+      ${whereClause}
+      ORDER BY pipeline.created_at DESC
+      LIMIT ${filter.limit}
+      OFFSET ${filter.offset}
+    `;
+
+    const countQuery = sql`
+      SELECT COUNT(*) AS cnt
+      FROM pipeline
+      ${whereClause}
+    `;
+
+    const db = getDb(this.db);
+    const [rowsResult, countResult] = await Promise.all([
+      db.execute<Record<string, unknown>>(browseQuery),
+      db.execute<{ cnt: unknown }>(countQuery),
+    ]);
+
+    const rows: DealExportRow[] = rowsResult.rows.map((r) => ({
+      pipelineId: r.pipelineId as string,
+      mandateId: r.mandateId as string,
+      dealSourceType: r.dealSourceType as string,
+      outreachId: (r.outreachId as string | null) ?? null,
+      matchCandidateId: (r.matchCandidateId as string | null) ?? null,
+      stage: r.stage as string,
+      createdBy: r.createdBy as string,
+      createdAt: r.createdAt as string,
+      updatedAt: (r.updatedAt as string | null) ?? null,
+      mandateSellerName: (r.mandateSellerName as string | null) ?? null,
+    }));
+
+    const total = Number(countResult.rows[0]?.cnt ?? 0);
+    return { rows, total };
+  }
+
   /** Expose runInTransaction for service-level tx composition. */
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
     return getDb(this.db).transaction(work);

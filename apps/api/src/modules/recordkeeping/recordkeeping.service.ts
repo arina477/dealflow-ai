@@ -58,6 +58,8 @@ import { createHash } from 'node:crypto';
 import type {
   AuditEntryInput,
   AuditVerifyResponse,
+  DealActivityBrowseFilter,
+  DealActivityBrowseResponse,
   ExportManifest,
   ExportScope,
 } from '@dealflow/shared';
@@ -192,6 +194,55 @@ export class RecordkeepingService {
 
     // compliance/admin: org-wide
     return this.repository.findFiltered(filter);
+  }
+
+  // ---------------------------------------------------------------------------
+  // listDealActivityAsActor — READ-ONLY paginated deal-activity browse
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns a filtered, paginated page of deal/pipeline activity rows.
+   *
+   * RBAC: compliance/admin ONLY (mirrors EXPORT_ALLOWED_ROLES).
+   *   Any other role (advisor, analyst, etc.) → 403 ForbiddenException.
+   *
+   * Workspace-RLS-scoped: the repository calls getDb (NOT admin) → FORCE RLS
+   * on pipeline + mandates ensures each workspace sees only its own rows.
+   *
+   * READ-ONLY INVARIANT: this method MUST NOT call AuditService.append under
+   * any code path. A browse emits NO audit row (matching the audit-log browse
+   * listAsActor invariant).
+   *
+   * NOT paginated by EXPORT_ROW_CAP — limit is bounded by
+   * DEAL_ACTIVITY_BROWSE_MAX_LIMIT (50) at the schema layer.
+   */
+  async listDealActivityAsActor(
+    filter: DealActivityBrowseFilter,
+    stUserId: string
+  ): Promise<DealActivityBrowseResponse> {
+    const actor = await this.authRepository.getUserWithRole(stUserId);
+    if (!actor) {
+      throw new UnauthorizedException('User account not found');
+    }
+
+    // RBAC: compliance/admin only. Advisor/analyst → 403.
+    if (!EXPORT_ALLOWED_ROLES.has(actor.roleName)) {
+      throw new ForbiddenException('Deal-activity browse requires compliance or admin role');
+    }
+
+    const limit = filter.limit ?? 25;
+    const offset = filter.offset ?? 0;
+
+    const { rows, total } = await this.repository.findDealRowsPaginated({
+      ...(filter.mandateId !== undefined && { mandateId: filter.mandateId }),
+      ...(filter.from !== undefined && { from: filter.from }),
+      ...(filter.to !== undefined && { to: filter.to }),
+      ...(filter.type !== undefined && { type: filter.type }),
+      limit,
+      offset,
+    });
+
+    return { rows, total, limit, offset };
   }
 
   // ---------------------------------------------------------------------------
