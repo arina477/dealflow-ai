@@ -19,6 +19,7 @@
  */
 
 import type { DataSourceAdapter } from '@dealflow/shared';
+import { AffinityDataSourceAdapter } from './affinity.adapter';
 import { FIXTURE_PROVIDER_KEY, FixtureDataSourceAdapter } from './fixture.adapter';
 
 export const ADAPTER_REGISTRY = Symbol('ADAPTER_REGISTRY');
@@ -55,6 +56,7 @@ export class AdapterRegistry {
 export function createDefaultRegistry(): AdapterRegistry {
   const registry = new AdapterRegistry();
   registry.register(new FixtureDataSourceAdapter());
+  registry.register(new AffinityDataSourceAdapter());
   return registry;
 }
 
