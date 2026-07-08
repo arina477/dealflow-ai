@@ -57,6 +57,7 @@
  */
 
 import path from 'node:path';
+import { ForbiddenException } from '@nestjs/common';
 import { Pool, type PoolClient } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { apiMigrationsFolder, ensureMigrated } from './_helpers/ensure-migrated';
@@ -572,7 +573,7 @@ describe('Deal-activity browse — isolation + RBAC + read-only + pagination (wa
 
     await expect(
       runBrowseInAls(WS_A_ID, wsAUserId, 'advisor', { limit: 10, offset: 0 })
-    ).rejects.toThrow(/forbidden|403/i);
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('DA-RBAC-4: analyst role → ForbiddenException (403)', async () => {
@@ -580,7 +581,7 @@ describe('Deal-activity browse — isolation + RBAC + read-only + pagination (wa
 
     await expect(
       runBrowseInAls(WS_A_ID, wsAUserId, 'analyst', { limit: 10, offset: 0 })
-    ).rejects.toThrow(/forbidden|403/i);
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   // ── DA-RO-1: READ-ONLY — no audit row emitted by browse ───────────────────
