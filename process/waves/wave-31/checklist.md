@@ -4,3 +4,9 @@
 - [x] P-2
 - [x] P-3
 - [x] P-4
+- [x] B (B-6 APPROVE)
+- [x] C (C-2 APPROVED — deploy boot-clean-dormant on b1f81d79)
+- [x] T (T-9 APPROVED)
+- [x] V-1 (Karen APPROVE + jenny APPROVE — deployed-state)
+- [x] V-2 (triage — 0 blocking, empty fast-fix queue)
+- [x] V-3 (gate APPROVED — dormant deploy honestly matches spec; live-verify key-gated deferred)
