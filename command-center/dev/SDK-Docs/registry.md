@@ -11,6 +11,7 @@ Each row points at the SDK doc at `command-center/dev/SDK-Docs/<Name>/<name>.md`
 | SDK | SDK Doc | Official Docs | Version | Last verified |
 |-----|---------|---------------|---------|---------------|
 | supertokens-node | `command-center/dev/SDK-Docs/SuperTokens/supertokens.md` | https://supertokens.com/docs/references/backend-sdks/node/introduction | 24.0.2 | 2026-07-02 |
+| Affinity REST API | `command-center/dev/SDK-Docs/Affinity/affinity.md` | https://api-docs.affinity.co | v1 (REST, no npm SDK) | 2026-07-08 |
 
 ---
 
