@@ -2,7 +2,7 @@
 -- Ensures pgvector extension is available for AI embeddings
 
 -- Create pgvector extension
-CREATE EXTENSION IF NOT EXISTS pgvector;
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Grant all privileges to the application user
 -- (Schema + extension privileges are inherited from database-level grants)

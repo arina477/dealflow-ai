@@ -127,7 +127,7 @@ Twenty requires PostgreSQL **16+** with the **pgvector** extension for AI embedd
 1. **Create the database (or use Postgres service to auto-create):**
    ```sql
    CREATE DATABASE twenty_db;
-   CREATE EXTENSION pgvector;
+   CREATE EXTENSION IF NOT EXISTS vector;
    ```
 
 2. **Create a schema user (if not Postgres superuser):**
@@ -169,7 +169,7 @@ networks:
 
 **init-pgvector.sql:**
 ```sql
-CREATE EXTENSION IF NOT EXISTS pgvector;
+CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
 ---
