@@ -4,3 +4,9 @@
 - [x] P-2
 - [x] P-3
 - [x] P-4
+- [x] B-0
+- [x] B-1
+- [x] B-2
+- [x] B-6
+- [x] C-1  (push→main a6ad02c; CI 5/5 green on headSha; affinity-adapter-spec 13/13; app builds without key)
+- [x] C-2  (real Railway deploy a6ad02c; app boots adapter-DORMANT; prod healthy; no migration; live-hookup awaits key)

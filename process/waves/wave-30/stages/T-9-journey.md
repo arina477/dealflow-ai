@@ -1,0 +1,4 @@
+# Wave 30 — T-9 Journey (gate)
+**Gate:** APPROVED (head-tester T-8 Security + T-9). verdict → blocks/T/gate-verdict.md. next_action: PROCEED_TO_V.
+## Journey delta: NONE (backend adapter feeding the existing sourcing search; no new user route).
+## Substance: no-key-leak (env-only, diff-clean, fake test keys); graceful-no-key-BOOTS (adapter returns []+warn before network; di-boot spec + prod /health 200 @a6ad02c dormant); robustness GENUINE (TEST-1 orgFetchCount===3 all-pages, TEST-2 real 429→200, TEST-7 partial-failure, TEST-8 malformed→[]; 42 assertions/13 tests non-tautological); SDK-doc-first (345-line Affinity doc + registry); live-verify CORRECTLY key-gated (mock-unit now, live-e2e on key arrival — not a gap). P2s routed (output-safeParse PRE-LIVE-HOOKUP, backoff-timing, founder-key).
