@@ -77,6 +77,14 @@ control, nothing is deleted from the immutable audit log, and every change is au
 before/after values. The policy is scoped to the firm (enforced in the database) and changeable only
 by admins and compliance officers.
 
+**In-app records browser is live.** An admin or compliance officer can browse and filter their own
+firm's deal and pipeline activity records directly in the product via a "Deal activity" scope on the
+compliance records page. It's read-only and paginated — no create, edit, or delete control, and
+browsing writes nothing to the immutable audit log. The browse is scoped to the firm (enforced in
+the database) and refused for advisors, analysts, and signed-out requests. With export, retention,
+and this browser all live, the light recordkeeping suite (M10) is complete: the firm can hold,
+bound, hand over, and read back its own compliance records without leaving the product.
+
 ---
 
 ## Quick start

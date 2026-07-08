@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.25.0] — 2026-07-08 — In-app records browser (M10 — recordkeeping suite complete)
+
+A firm admin or compliance officer can now browse and filter its own firm's deal and pipeline activity records directly in the product, read-only, on the compliance records page. It's the third and final light-recordkeeping feature, and it completes the set: with export, a retention policy, and now an in-app browser all live, the firm can hold, bound, hand over, and now read back its own compliance records without leaving the product.
+
+### Added
+- **Browse and filter your firm's deal activity records in-app** — a new "Deal activity" scope on the compliance records page lets an admin or compliance officer read and filter their own firm's deal and pipeline activity, paginated, without exporting first. It's read-only: there is no create, edit, or delete control anywhere on the view, and it never writes to the immutable audit log (browsing a record is not itself a recorded event).
+
+### Correctness / compliance
+- **You only ever browse your own firm's records** — the browse is scoped to your firm and no other, enforced inside the database itself (per-firm isolation on the read path), and proven by a test that runs as the restricted app account and confirms one firm cannot read another firm's deal activity. Only admins and compliance officers can open the view; advisors and analysts are refused server-side, and signed-out requests are rejected.
+- **Reading is not writing** — the view is strictly read-only and paginated (not an export), so it carries no row cap to truncate and leaves the tamper-evident audit trail byte-for-byte unchanged.
+
+### Provenance (transparency)
+- **No database change, no email, no AI, no new permission to grant.** This adds a read-only view over records you already have; nothing in the audit trail is edited or deleted, no migration ships, no email is sent, and no AI is used.
+- **The light recordkeeping suite is now complete.** Export (0.23.0), a configurable retention policy (0.24.0), and this in-app browser together deliver the firm's on-demand, workspace-scoped, integrity-verifiable recordkeeping at a light posture. Actual deletion on retention expiry, formal regulator certification, and a named-regime (SOX/FINRA) review posture remain deliberately deferred until the founder raises the compliance classification.
+
 ## [0.24.0] — 2026-07-08 — Firm records retention policy (M10)
 
 A firm admin or compliance officer can now set how long the firm keeps its records — its retention window, with a sensible ~7-year default — on a new settings page, and see at a glance which records are old enough to be eligible under that window. It's the second of the recordkeeping features and a compliance-trust point: setting a retention policy is a routine part of a firm's recordkeeping obligations, and here it is deliberately safe — it configures the policy only and never deletes or alters anything.
