@@ -567,6 +567,25 @@ const nextConfig: NextConfig = {
           source: '/compliance/retention-data',
           destination: `${apiProxyTarget}/compliance/retention`,
         },
+        // Wave-29 (task d573e7bf): deal-activity browse proxy (page-route-collision-safe).
+        //
+        // /compliance/records/deal-activity has NO Next.js page file — it is a tab
+        // on the /compliance/audit-log page. We use the non-colliding proxy path
+        // /compliance/records-deal-activity-data (dashes, not slashes, to avoid any
+        // sub-path collision with future /compliance/records/* page routes).
+        //
+        // compliance + admin only (RBAC enforced by B-2 RecordkeepingController guard;
+        // advisor is never shown the tab and its fetch is skipped server-side).
+        // READ-ONLY: GET only. No mutations — no audit row emitted on browse.
+        // workspace_id is server-resolved (RLS FORCE; SEC-2).
+        //
+        // Client caller (DealActivityTable):
+        //   GET /compliance/records-deal-activity-data?...
+        //     → GET /compliance/records/deal-activity?... (paginated browse)
+        {
+          source: '/compliance/records-deal-activity-data',
+          destination: `${apiProxyTarget}/compliance/records/deal-activity`,
+        },
       ],
       beforeFiles: [],
       fallback: [],

@@ -1,6 +1,6 @@
 /**
  * /compliance/audit-log — Audit-log integrity + recordkeeping export view
- * (wave-4 B-3 step 3.1 + wave-13 B-3 extension).
+ * (wave-4 B-3 step 3.1 + wave-13 B-3 extension + wave-29 B-3 deal-activity scope).
  *
  * Server component inside the (app) route group; AppShell chrome is inherited
  * from app/(app)/layout.tsx.
@@ -21,6 +21,13 @@
  *   7. Deep-link support: ?mandate_id, ?from, ?to forwarded to table + export panel.
  *      (?campaign_id/?mode=export deferred — MVP.)
  *
+ * Wave-29 extension:
+ *   8. SSR-fetches GET /compliance/records/deal-activity (initial 25 rows) for
+ *      SSR-hydration of DealActivityTable — compliance/admin only (advisor: []).
+ *   9. Renders RecordsPanel with scope toggle (Audit log | Deal activity).
+ *      "Deal activity" tab/scope is gated to compliance/admin (canSeeDealActivity).
+ *      Advisor sees only the "Audit log" tab (no deal-activity tab, no fetch result).
+ *
  * Fetch pattern: same INTERNAL_API_BASE_URL / NEXT_PUBLIC_API_URL / localhost
  * fallback chain as the layout. Cookie forwarded from next/headers.
  *
@@ -35,23 +42,30 @@
  *   real shape to both IntegrityBadge and IntegrityPanel. No conflict.
  *
  * HARD BOUNDARY: no edit/delete affordance; no send/email/AI; read-only over
- * the immutable hash-chain.
+ * the immutable hash-chain and deal-activity browse.
  */
 
-import type { AuditLogEntryRead, AuditVerifyResponse, MeResponse, Role } from '@dealflow/shared';
+import type {
+  AuditLogEntryRead,
+  AuditVerifyResponse,
+  DealActivityRow,
+  MeResponse,
+  Role,
+} from '@dealflow/shared';
 import {
   auditLogEntryReadSchema,
   auditVerifyResponseSchema,
+  dealActivityBrowseResponseSchema,
   meResponseSchema,
 } from '@dealflow/shared';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { assertRole } from '../../_lib/assertRole';
-import { AuditLogTable } from './_components/AuditLogTable';
 import { ExportPanel } from './_components/ExportPanel';
 import { IntegrityBadge } from './_components/IntegrityBadge';
 import { IntegrityPanel } from './_components/IntegrityPanel';
+import { RecordsPanel } from './_components/RecordsPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -147,6 +161,39 @@ async function fetchInitialEntries(
 }
 
 // ---------------------------------------------------------------------------
+// Deal-activity browse fetch — GET /compliance/records/deal-activity
+//
+// compliance/admin only: returns { rows: [], total: 0 } for advisor (caller
+// skips the fetch entirely when role is 'advisor').
+// Returns { rows: [], total: 0 } on any failure.
+// ---------------------------------------------------------------------------
+
+async function fetchInitialDealActivity(
+  cookie: string,
+  params: { mandateId?: string | undefined; from?: string | undefined; to?: string | undefined }
+): Promise<{ rows: DealActivityRow[]; total: number }> {
+  try {
+    const qs = new URLSearchParams({ limit: '25', offset: '0' });
+    if (params.mandateId) qs.set('mandateId', params.mandateId);
+    if (params.from) qs.set('from', params.from);
+    if (params.to) qs.set('to', params.to);
+
+    const res = await fetch(`${apiBase()}/compliance/records/deal-activity?${qs.toString()}`, {
+      headers: { cookie },
+      cache: 'no-store',
+    });
+    if (!res.ok) return { rows: [], total: 0 };
+    const raw: unknown = await res.json();
+    const parsed = dealActivityBrowseResponseSchema.safeParse(raw);
+    return parsed.success
+      ? { rows: parsed.data.rows, total: parsed.data.total }
+      : { rows: [], total: 0 };
+  } catch {
+    return { rows: [], total: 0 };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 
@@ -173,11 +220,20 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
   const from = sp.from;
   const to = sp.to;
 
-  // 4. Parallel fetches: verify chain + initial entries.
-  //    Both are no-store (immutable data can change; compliance requires fresh).
-  const [verifyResult, initialEntries] = await Promise.all([
+  // 4. RBAC: deal-activity tab visible to compliance/admin only (advisor excluded).
+  //    This matches GET /compliance/records/deal-activity allowedRoles in rbac.ts.
+  const canSeeDealActivity = role === 'compliance' || role === 'admin';
+
+  // 5. Parallel fetches: verify chain + initial entries + deal-activity (if allowed).
+  //    All are no-store (compliance requires fresh data on every request).
+  //    Deal-activity fetch is skipped entirely for advisor (no 403 risk; avoids
+  //    a redundant network call the role cannot use).
+  const [verifyResult, initialEntries, initialDealActivity] = await Promise.all([
     fetchVerify(cookie),
     fetchInitialEntries(cookie, { mandateId, from, to }),
+    canSeeDealActivity
+      ? fetchInitialDealActivity(cookie, { mandateId, from, to })
+      : Promise.resolve({ rows: [], total: 0 }),
   ]);
 
   return (
@@ -227,9 +283,14 @@ export default async function AuditLogPage({ searchParams }: AuditLogPageProps) 
         <IntegrityBadge result={verifyResult} />
       </div>
 
-      {/* ── Filterable / paginated log table ─────────────────────────────── */}
-      <AuditLogTable
+      {/* ── Scope toggle + filterable/paginated records table ────────────── */}
+      {/* RecordsPanel owns the active scope state (Audit log | Deal activity). */}
+      {/* Deal-activity tab is gated to compliance/admin (canSeeDealActivity).   */}
+      <RecordsPanel
         initialEntries={initialEntries}
+        initialDealRows={initialDealActivity.rows}
+        initialDealTotal={initialDealActivity.total}
+        canSeeDealActivity={canSeeDealActivity}
         {...(from !== undefined && { initialFrom: from })}
         {...(to !== undefined && { initialTo: to })}
         {...(mandateId !== undefined && { initialMandateId: mandateId })}
