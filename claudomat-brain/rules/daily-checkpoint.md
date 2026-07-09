@@ -99,25 +99,19 @@ Exclude tasks the ledger already marked `surfaced_at >= last_checkpoint_at` (re-
 
 ### Step 2 — Format for founder
 
-Concise, scannable, one-line-per-item where possible. Phrase every line per always-on rule 16 (`CLAUDE.md`) — plain product language; translate internal labels (`Tier 3`, `milestone_id`, `P-0`) into what the item means for the founder, not the mechanics behind it. Template:
+Concise, scannable, one plain line per item (always-on rule 16, `CLAUDE.md`) — say what each item means for the product, not the mechanics behind it. Lead with the decision; keep reasoning and evidence out of the default view — if the founder wants the "why" behind an item, they ask. Template:
 
 ```
 ## Daily checkpoint — <YYYY-MM-DD>
 
 ### Decisions that need your call (N)
-- Task #<id> — <title>
-  Question: <one-line summary from task description prose>
-  Recommendation: <P-0's recommendation from ledger entry>
-  Why it needs you: <affects money | security | core user experience | removes a feature>
-  Evidence: <competitive evidence cited in task prose, or "none">
+- #<id> <title> — <the call + what I'd do>. Why you: <money | security | user experience | drops a feature>.
 
 ### Assigned this cycle (N) — FYI, reversible
-- Task #<id> — <title> → <milestone title> (<P-0 reasoning from ledger>)
+- #<id> <title> → <where it went>
 
 ### Stayed unassigned (N) — override or leave
-- Task #<id> — <title>
-  Source: <V-2 / D-3 / competitive / trend / founder ad-hoc — read from task description prose>
-  Why no match: <one-line orchestrator note from ledger>
+- #<id> <title> — <one plain phrase on why it's parked>
 ```
 
 ---

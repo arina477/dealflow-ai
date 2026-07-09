@@ -48,7 +48,7 @@ Missing or unrecognized directive → default to `decision`, log a directive-mis
 
 Per decision, send ONE email to `CEO_NOTIFY_EMAIL_TO` with:
 
-- Subject: `[ceo-agent] <YYYY-MM-DD> decision-N — <one-line summary>`
+- Subject: `[Claudomat] <YYYY-MM-DD> — <one-line summary>`
 - Body: audit-entry verbatim + reply-in-thread instructions (`APPROVE` / `REJECT` / `MODIFY <new direction>` / `CLARIFY <question>`).
 - Inbox: `CEO_INBOX_ID` for founder reply intake.
 

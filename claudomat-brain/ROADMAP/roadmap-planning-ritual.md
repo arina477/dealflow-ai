@@ -182,13 +182,13 @@ Output: `process/session/rituals/roadmap-planning-<YYYY-MM-DD>-ceo-review.md`. N
 
 **Under `founder-review` / `default` / `automatic`:**
 
-Orchestrator presents CEO-review recommendations to the founder via `AskUserQuestion`, batched into one session. Include:
+Orchestrator presents CEO-review recommendations to the founder via `AskUserQuestion`, batched into one session. Show each as one short, plain line (always-on rule 16) — the internal analysis (horizon, bet-source, risk, tier, drift math) stays in the CEO-review working note, not the founder's view. Include:
 
-1. Per-milestone disposition with one-line CEO reasoning.
-2. New milestone proposals with horizon, bet-source, scope sketch, primary risk, proposed tier.
-3. Semantic drift from Step 2 — `status='in_progress'` milestones with zero open child tasks and zero done child tasks (active milestone never received a bundle — stuck N-1 trigger to investigate).
-4. Vision / North Star changes — if founder approved any `founder_bets` INSERTs since the last ritual, confirm North Star matches.
-5. T6 platform-foundation milestones with no live consumers — defer or cancel.
+1. What to do with each current milestone, plus a one-line reason.
+2. New milestones being proposed — each as one plain line: what it is and why now.
+3. Milestones marked in progress that never actually got any work started — flag to look into.
+4. Vision / North Star changes — if the founder approved any new bets since the last ritual, confirm the North Star still matches.
+5. Foundation work with nothing yet built on top of it — keep, defer, or drop.
 
 Founder answers. Any override replaces the CEO recommendation.
 

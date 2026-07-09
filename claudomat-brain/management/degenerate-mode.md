@@ -315,7 +315,7 @@ Step ordering matters: MONITOR cleanup runs **before** the flag-file rewrite so 
    - **Switch to default** ("exit ceo mode" / "switch to default"): rewrite using `default-mode.md` § Entry conditions.
 3. Do NOT modify `process/session/status-check.yaml`.
 4. Exit `/loop` — do NOT call ScheduleWakeup.
-5. Send deactivation email (template in `communication/ceo-communication-rules.md`) with: decisions made, charter proposals, novel decisions, session duration.
+5. Send the deactivation email — contents and wording per the template in `communication/ceo-communication-rules.md` (that template is the single source of truth; don't re-list its fields here).
 6. Confirm: `Degenerate ended. STATUS=<value>. Deactivation email sent to <CEO_NOTIFY_EMAIL_TO>. Next escalation: <new routing>.`
 
 The autonomous-guard Stop hook (`claudomat-brain/hooks/autonomous-guard.sh`) will not allow the next Stop until step 2 lands — the file is the contract. Confirmation + email alone do not exit degenerate.

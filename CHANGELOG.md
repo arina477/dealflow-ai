@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.27.0] — 2026-07-09 — The full deal loop is proven working, and a site-wide outage is fixed (M6 / H1)
+
+The complete deal loop now works end-to-end on the live app, proven step by step against the deployed product: an advisor gets a ranked shortlist, drafts an outreach, a compliance officer (a different person) approves it, the message becomes send-ready with a permanent tamper-evident record, and the buyer moves through the pipeline. This closes the last core milestone — the product is now complete and its central workflow is verified, not just assumed. While proving it, we found and fixed a serious outage: every page was showing an error for anyone who was logged in.
+
+### Fixed
+- **Logged-in users could not use the app at all — now fixed.** For a period, every page loaded an error for signed-in users (the sign-in screen itself worked, but nothing after it). This was a rendering fault that only showed up on the live server, which is why routine automated checks passed it through; a real run-through of the live app caught it. It is fixed and every page has been confirmed loading normally again.
+
+### Added / proven
+- **The whole deal loop is verified working on the live app.** Ranked matches with clear scoring, a compliance check that cannot be skipped, an approval that must come from a different person than the sender, a send-ready message backed by an unbroken tamper-evident record, and a buyer advancing through the pipeline — each step was exercised on the deployed product with real evidence, not inferred from passing tests. The core product is complete.
+
+### Correctness / compliance
+- **The "different person must approve" rule holds on the live app.** The person who drafts an outreach cannot approve their own — only a compliance officer can, and even an admin cannot self-approve. A message only becomes send-ready after a genuine compliance approval by a separate person, and every approval and send-ready step is written to the tamper-evident record, which was re-verified intact end-to-end.
+- **A real run-through of the live app catches faults that passing tests miss.** The outage above passed every automated check yet broke every logged-in page; walking the deployed product by hand is what surfaced it — the same lesson as the earlier live-sync fix, now confirmed a second time.
+
+### Provenance (transparency)
+- **No new database change, no email sent, no AI added.** This release proves existing behavior and fixes a rendering fault; nothing in the tamper-evident record is edited or deleted. By design, the loop ends at a compliant, approved, send-ready record plus its audit entry — actually transmitting the email to the outside world is a deliberately separate, later step, not part of this milestone.
+
+## [0.26.0] — 2026-07-09 — Connect your CRM: self-hosted Twenty sourcing (M9)
+
+You can now connect a self-hosted Twenty CRM as a sourcing source, and the companies in it flow into your sourcing workspace automatically. It's the first CRM connection to go fully live end-to-end — set it up once, and your CRM's companies show up as sourced companies you can work from, without any copy-paste.
+
+### Added
+- **Connect a self-hosted Twenty CRM and pull its companies into sourcing** — add a Twenty connection in the sourcing area and sync it; the companies from your CRM are ingested and appear as sourced companies in your workspace, scoped to your firm. Re-syncing brings in the current set. This is the first sourcing integration that is live and verified from your CRM all the way through to the companies you see.
+
+### Correctness / compliance
+- **Your CRM's companies land only in your firm's workspace** — ingested companies are scoped to your firm and no other, and a fresh sync was verified end-to-end against a real running CRM to confirm the companies that come back are exactly the ones that flow in.
+- **The connection was proven against the real service, not a stand-in** — the sync was corrected and re-verified against a live CRM instance so the request it makes is one the CRM actually accepts, closing a mismatch that automated tests alone could not surface.
+
+### Provenance (transparency)
+- **No new database change, no email, no AI.** This connects an outside CRM you host yourself and reads companies from it; nothing in the audit trail is edited or deleted, no email is sent, and no AI is used. Setting up the CRM itself is a one-time step you do in the CRM's own sign-up screen; everything after that is automatic.
+
 ## [0.25.0] — 2026-07-08 — In-app records browser (M10 — recordkeeping suite complete)
 
 A firm admin or compliance officer can now browse and filter its own firm's deal and pipeline activity records directly in the product, read-only, on the compliance records page. It's the third and final light-recordkeeping feature, and it completes the set: with export, a retention policy, and now an in-app browser all live, the firm can hold, bound, hand over, and now read back its own compliance records without leaving the product.

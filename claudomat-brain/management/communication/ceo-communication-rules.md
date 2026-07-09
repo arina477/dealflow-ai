@@ -76,17 +76,17 @@ Use `--message-id` of the founder's reply to keep the thread coherent.
 ## Subject-line format
 
 ```
-[ceo-agent] <project> — <decision-slug>
+[Claudomat] <project> — <decision-slug>
 ```
 
 Prefix variants:
-- `[ceo-agent] <project> — ⚠ ONE-WAY — <decision-slug>` (irreversible)
-- `[ceo-agent] <project> — ⚠ CHARTER PROPOSAL — <decision-slug>` (restriction bump)
-- `[ceo-agent] <project> — ⚠ HARD-STOP OVERRIDDEN — <decision-slug>` (BOARD veto authorized)
-- `[ceo-agent] <project> — NOVEL — <decision-slug>` (no precedent)
-- `[ceo-agent] <project> — ⚠ LOOP HALTED — <cause>` (halt event)
-- `[ceo-agent] <project> — ⚠ BET PROPOSAL — <bet-slug>` (CEO drafts bet candidate for a `founder_bets` row with `status='live'`; replies handled at `claudomat-brain/ROADMAP/roadmap-planning-ritual.md` Step 1d, NOT per-tick)
-- `[ceo-agent] <project> — ⚠ STRATEGIC GAP — <gap-slug>` (signal-only, no draft; founder action: schedule attention)
+- `[Claudomat] <project> — ⚠ ONE-WAY — <decision-slug>` (irreversible)
+- `[Claudomat] <project> — ⚠ CHARTER PROPOSAL — <decision-slug>` (restriction bump)
+- `[Claudomat] <project> — ⚠ HARD-STOP OVERRIDDEN — <decision-slug>` (BOARD veto authorized)
+- `[Claudomat] <project> — NOVEL — <decision-slug>` (no precedent)
+- `[Claudomat] <project> — ⚠ LOOP HALTED — <cause>` (halt event)
+- `[Claudomat] <project> — ⚠ BET PROPOSAL — <bet-slug>` (CEO drafts bet candidate for a `founder_bets` row with `status='live'`; replies handled at `claudomat-brain/ROADMAP/roadmap-planning-ritual.md` Step 1d, NOT per-tick)
+- `[Claudomat] <project> — ⚠ STRATEGIC GAP — <gap-slug>` (signal-only, no draft; founder action: schedule attention)
 
 ## Body format — one-liner
 
@@ -127,10 +127,9 @@ Approve/ack path is absent — approval is implicit in not-replying.
 When ceo-agent hits a `command-center/management/ceo-blocklist.md` §§ 1-5 restriction, the email reports a proposal, not an action. Subject prefix `⚠ CHARTER PROPOSAL`. Body:
 
 ```
-Want to <action> but blocked by ceo-blocklist.md § X — "<short restriction quote>". Proposed amendment: <one-line text change>.
+Wanted to <action>, but it's blocked by one of your rules: "<short restriction quote>". Suggested change: <one-line text change>.
 
-To unblock: edit ceo-blocklist.md, or reply "override: <X>" for one-off, or reply "reject" to keep the restriction.
-Proposal: process/session/updates/ceo-charter-proposals.md (latest entry)
+Reply "override" to let me do it just this once, or "reject" to keep the rule as is. No reply keeps the rule.
 ```
 
 The ONE email class that gates on founder response. Decision does NOT execute until founder replies or amends the charter.
@@ -200,30 +199,30 @@ Labels set via `agentmail inboxes:messages update --label ...`. Read-side filter
 
 ## Activation email
 
-Subject: `[ceo-agent] <project> — degenerate ACTIVATED`
+Subject: `[Claudomat] <project> — now running on its own`
 
 ```
-ceo-agent active. Decisions arrive in new threads in this inbox. Reply "undo", "modify <X>", or "why?" to override; silence = ack. Charter has <N> active restrictions.
+Claudomat is now running your project on its own. I'll email you each decision as I make it — reply "undo", "do X instead", or "why?" to weigh in; no reply means it's fine. You've set <N> rules I'll stay inside.
 
-Halt: press ESC + send a chat message in the Claude Code session. Charter: command-center/management/ceo-blocklist.md.
+To stop me: press ESC and send a message in your Claude Code session.
 ```
 
 ## Deactivation email
 
-Subject: `[ceo-agent] <project> — degenerate DEACTIVATED`
+Subject: `[Claudomat] <project> — stopped running on its own`
 
 ```
-ceo-agent off. <N> decisions, <M> rejections, <K> modifications, <J> clarifications, <P> charter proposals this session. Reason: <founder-message | explicit-exit | charter-destroyed | inbox-unreachable-cascade>.
+Claudomat has stopped running your project on its own. While it ran: <N> decisions made, <M> you reversed, <K> you changed, and <P> times I asked you about a rule. Reason it stopped: <plain reason>.
 
-Digest: process/session/updates/ceo-digest-<YYYY-MM-DD>.md through <end date>.
+Full log: process/session/updates/ceo-digest-<YYYY-MM-DD>.md.
 ```
 
 ## Halt email
 
-Subject: `[ceo-agent] <project> — ⚠ LOOP HALTED — <cause>`
+Subject: `[Claudomat] <project> — ⚠ LOOP HALTED — <cause>`
 
 ```
-Loop halted: <cause>. STATUS=<value> at <ISO timestamp>. Resume: say "degenerate" in Claude Code after fixing the cause.
+I've paused and need you: <cause, in plain terms>. Once it's fixed, say "ship it mode" in your Claude Code session and I'll pick back up.
 ```
 
 ---
