@@ -540,3 +540,7 @@ _(empty)_
 ---
 ## 2026-07-08 — Self-hosted Twenty LIVE on Railway (infra done; API-key one-time-manual)
 Stood up the full self-hosted Twenty stack on Railway (5 services: pgvector DB, Redis, MinIO, server, worker) — server LIVE at https://twenty-server-production-aee3.up.railway.app. Fixed 4 real deploy issues autonomously (PGDATA, wrong image name twentycrm/twenty, DB-url encoding, https domain). API-key bootstrap hit the documented one-time-manual boundary: Twenty v2.19 disables introspection + exposes no headless first-user signup, so the founder must create the first admin once (a human account action) + generate an API key; everything after (seed, wire, live-verify) is automated. Not a code blocker — an account-creation gate.
+
+---
+## 2026-07-09 — Self-hosted Twenty FULLY LIVE + set up + DealFlow wired (storage crash fixed & verified)
+Fixed the founder-reported signup crash (S3/MinIO writeFile) by moving to STORAGE_TYPE=local + persistent volume + RAILWAY_RUN_UID=0 (root, to write the root-owned Railway volume). VERIFIED via a real headless-browser signup — workspace created, zero errors. Then completed the whole flow autonomously: signup, workspace, API key generation, seeded sample companies, and wired dealflow-api (TWENTY_BASE_URL + TWENTY_API_KEY) → healthy. The Twenty side is done and proven (REST returns 9 companies). Final link — DealFlow's own /sourcing connection+sync — needs a DealFlow login (no public signup; test_users empty), so it's the one founder-gated step. Admin credentials saved gitignored for the founder.

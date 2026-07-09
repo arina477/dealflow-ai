@@ -29,3 +29,11 @@ FIX (per founder): switched STORAGE_TYPE=s3 → **local** on twenty-server + twe
 
 ## STORAGE PERMISSION FIX (2026-07-09, browser-verified debugging):
 Verified via headless browser (playwright-core + cached chromium, since MCP chrome absent): signup email+password step works (no S3 crash after STORAGE_TYPE=local). BUT workspace creation then hit `EACCES: permission denied, mkdir '/app/.local-storage/...'` at LocalDriver.writeFile — the Railway volume mounts root-owned; Twenty runs non-root. FIX: RAILWAY_RUN_UID=0 (run container as root → can write the root-owned volume) on server+worker + redeploy. Verifying the full signup→workspace→API-key flow end-to-end via the browser (not trusting green deploys — per founder).
+
+## ✅ COMPLETE (2026-07-09) — self-hosted Twenty LIVE + fully set up + DealFlow wired:
+- Storage crash FIXED + browser-VERIFIED: STORAGE_TYPE=local + volume + RAILWAY_RUN_UID=0 (root, writes the root-owned volume). Real headless-browser signup → workspace "DealFlow" created (0 5xx) — the founder's exact crash is resolved.
+- Full flow completed autonomously (browser via playwright-core + cached chromium): signup (admin@dealflow-ai.app) → workspace → onboarding → generated API key (Settings→MCP&APIs→API) → captured JWT.
+- Key verified against Twenty REST (GET /rest/companies = 9 companies). Seeded 4 sample companies (Meridian Capital Partners, Apex Robotics, Northwind Logistics, Solstice Biotech) + Twenty defaults.
+- DealFlow WIRED: TWENTY_BASE_URL + TWENTY_API_KEY set on dealflow-api (secret in payload file, never committed) + redeployed → healthy. The wave-31 adapter makes the exact GET /rest/companies call already proven to return the 9 companies.
+- REMAINING (founder-gated, DealFlow login required — no public signup, test_users empty): the final DealFlow /sourcing connection(providerKey=TWENTY)+sync to pull the companies into /sourcing/companies. 1-click in the DealFlow sourcing UI once logged in, OR founder provides a DealFlow login for the orchestrator to finish.
+- Admin creds for the founder: process/session/secrets/twenty-admin.txt (gitignored).
