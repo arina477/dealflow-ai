@@ -18,7 +18,7 @@
  */
 
 import type { UserAdminRecord } from '@dealflow/shared';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AdminUsersClient } from './AdminUsersClient';
@@ -236,7 +236,7 @@ describe('AdminUsersClient — transfer admin', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /transfer admin to advisor@firm\.com/i }));
-    await user.click(screen.getByRole('button', { name: /transfer admin/i, hidden: true }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /transfer admin/i }));
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
@@ -271,8 +271,8 @@ describe('AdminUsersClient — transfer admin', () => {
 
     await user.click(screen.getByRole('button', { name: /transfer admin to advisor@firm\.com/i }));
 
-    // Confirm to trigger the 409.
-    const confirmBtn = screen.getByRole('button', { name: /transfer admin/i });
+    // Confirm to trigger the 409 — scope to dialog to avoid the row trigger button.
+    const confirmBtn = within(screen.getByRole('dialog')).getByRole('button', { name: /transfer admin/i });
     await user.click(confirmBtn);
 
     await waitFor(() => {
@@ -281,8 +281,8 @@ describe('AdminUsersClient — transfer admin', () => {
       expect(screen.getByRole('alert').textContent).toMatch(/cannot transfer/i);
     });
 
-    // Confirm button is gone (blocked state).
-    expect(screen.queryByRole('button', { name: /transfer admin/i })).toBeNull();
+    // Confirm button is gone (blocked state) — scope to dialog to avoid row trigger.
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: /transfer admin/i })).toBeNull();
   });
 });
 
@@ -372,7 +372,7 @@ describe('AdminUsersClient — self-demote', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /step down from admin role/i }));
-    await user.click(screen.getByRole('button', { name: /step down/i }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /step down/i }));
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
@@ -406,14 +406,14 @@ describe('AdminUsersClient — self-demote', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /step down from admin role/i }));
-    await user.click(screen.getByRole('button', { name: /step down/i }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /step down/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeDefined();
       expect(screen.getByRole('alert').textContent).toMatch(/cannot step down/i);
     });
 
-    // Confirm button gone in blocked state.
-    expect(screen.queryByRole('button', { name: /step down/i })).toBeNull();
+    // Confirm button gone in blocked state — scope to dialog to avoid toolbar trigger.
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: /step down/i })).toBeNull();
   });
 });
