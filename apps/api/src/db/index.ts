@@ -1,8 +1,5 @@
-import path from 'node:path';
-
 import { parseEnv } from '@dealflow/shared';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 import { z } from 'zod';
 
@@ -123,73 +120,3 @@ export function assertUrlsDistinct(): void {
   }
 }
 
-/**
- * runMigrationsOnBoot — execute pending migrations with the owner role BEFORE the app serves.
- *
- * Wave-38 fix: prod migrations were not applying on deploy despite the preDeploy
- * reporting success. Root cause: drizzle-kit migrate did not fail-loud when migrations
- * were skipped due to timestamp drift in _journal.json (migrations 0019, 0020, 0021
- * had out-of-order 'when' timestamps, so drizzle skipped applying them).
- *
- * This function:
- *   1. Opens a SEPARATE connection pool using MIGRATE_DATABASE_URL (owner role)
- *   2. Runs all pending migrations from ./src/db/migrations
- *   3. FAILS LOUD if a migration errors (throws, exits process)
- *   4. Closes the migration pool and returns (the runtime pool already exists via DATABASE_URL)
- *
- * Called from main.ts BEFORE NestFactory.create() and BEFORE any other DB operations.
- * If migrations fail, this throws and bootstrap() catches it → process.exit(1).
- *
- * DESIGN INVARIANTS:
- *   • Idempotent: drizzle's __drizzle_migrations journal ensures each migration
- *     runs at most once.
- *   • RLS-safe: migration connection (owner) is closed immediately after migrations
- *     complete; the app then opens the runtime pool (dealflow_app, NOSUPERUSER NOBYPASSRLS).
- *   • Fail-loud: on any migration error, this throws immediately. The app does NOT
- *     start with a partial schema.
- *
- * Called only when MIGRATE_DATABASE_URL is set (prod deploy, CI with owner DB).
- * Gracefully no-ops in local dev (MIGRATE_DATABASE_URL unset) — developers run
- * `pnpm db:migrate` manually or use the local database fixture.
- *
- * See wave-38 P-0 frame, P-3 plan, and wave-38 block gate verdicts.
- */
-export async function runMigrationsOnBoot(): Promise<void> {
-  const migrateUrl = process.env.MIGRATE_DATABASE_URL;
-  if (!migrateUrl) {
-    // MIGRATE_DATABASE_URL not set — local dev / test context.
-    // Migrations are run manually via `pnpm db:migrate` (which uses env DATABASE_URL)
-    // or via CI fixtures. This function only applies in prod/deploy contexts.
-    return;
-  }
-
-  // Create a temporary pool using the owner role (MIGRATE_DATABASE_URL).
-  // This connection is ONLY for migrations; it is closed after completion.
-  const migrationPool = new Pool({
-    connectionString: migrateUrl,
-    connectionTimeoutMillis: 3000,
-  });
-
-  try {
-    const migrationDb = drizzle(migrationPool);
-
-    // Resolve the migrations folder relative to the compiled output.
-    // In production, main.js is at dist/main.js, so migrations are at
-    // dist/db/migrations relative to the project root. We resolve relative
-    // to the current module's location in the dist tree.
-    const migrationsFolder = path.join(__dirname, 'migrations');
-
-    console.log(`[migrations] Running pending migrations from ${migrationsFolder}`);
-    await migrate(migrationDb, { migrationsFolder });
-    console.log('[migrations] All pending migrations applied successfully.');
-  } catch (error) {
-    console.error(
-      '[migrations] Migration failed — app will NOT start. Error:',
-      error instanceof Error ? error.message : String(error)
-    );
-    throw error;
-  } finally {
-    // Always close the migration pool, even if migrations succeeded or failed.
-    await migrationPool.end();
-  }
-}
