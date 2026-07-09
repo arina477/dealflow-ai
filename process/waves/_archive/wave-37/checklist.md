@@ -1,0 +1,18 @@
+# Wave 37 — self-serve firm setup + admin role-grant
+- [x] P-0
+- [x] P-1
+- [x] P-2
+- [x] P-3
+- [x] P-4
+- [x] D-1
+- [x] D-2
+- [x] D-3
+- [x] B (branch → build → B-6 review; merged 47a5bcd)
+- [x] C (PR → CI → merge → deploy; 0021 applied manually)
+- [x] T (unit api 1077 + web 1004; feature E2E-verified live)
+- [x] V (T/V closeout; feature E2E-verified on deployed app)
+- [x] L-1
+- [x] L-2 (APPROVED → PROCEED_TO_N; VERIFY rule 4 promoted)
+- [x] N-1
+- [x] N-2
+- [x] N-3
