@@ -1,8 +1,8 @@
 ---
 name: User Journey Map
 description: Canonical inventory of every user flow, screen, route, API endpoint. Regenerated at T-9 from production state.
-last_updated: 2026-06-29
-version: 0.2
+last_updated: 2026-07-09
+version: 0.3
 ---
 
 # User Journey Map — DealFlow AI
@@ -229,3 +229,16 @@ Cross-firm config isolation + foreign-workspace-write rejection proven by retent
 ## Wave 29 — M10 records-VIEW deal-activity browse (light, LAST M10 vertical)
 - **Route/surface:** /compliance/audit-log page gains a scope toggle "Audit log | Deal activity" (ScopeToggle role=tablist). The "Deal activity" scope (DealActivityTable) is RBAC-gated to compliance/admin (advisor sees the audit-log scope but NOT deal-activity — the tab is hidden + the SSR fetch skipped; the API is the real gate). READ-ONLY (no mutation/export affordance).
 - **Endpoint:** `GET /compliance/records/deal-activity` (RBAC compliance/admin, boot-fail-closed) — a PAGINATED (limit max 50, offset), workspace-RLS-scoped (getDb — reuses findDealRowsBounded's pipeline LEFT JOIN mandates RLS join, DESC), READ-ONLY (no audit row) browse of the firm's deal/pipeline activity with filters (date-range, type, mandate). Cross-tenant isolation proven by recordkeeping-deal-activity-isolation.e2e (DA-ISO, as dealflow_app). Completes M10's light metric ("retained records viewable in-app" = the shipped audit-log browse + this deal-activity browse).
+
+## Wave 39 — M7 admin role TRANSFER + SELF-DEMOTE + destructive-confirm gate (LIVE @e437b52) — role:admin only
+
+The `/admin/users` page (page #19, F14) gains privilege-mutation affordances behind a non-dismissible confirm gate; the `/admin/activity` view (wave-16) surfaces the new role-change events.
+
+| Route/surface | Purpose | Endpoints | Compliance / invariants |
+|---|---|---|---|
+| /admin/users (Transfer admin) | atomically promote a target member to admin AND demote the acting admin (single tx) — pick target from the members list → destructive-confirm modal → POST | `POST /admin/users/:id/transfer-admin` (proxy `/admin/users-data/:id/transfer-admin`; body `{ actorNewRole }`) | admin-only (RolesGuard) + service-layer actor-is-admin defense-in-depth (403); self-target → 400; deactivated target → 404 (no promote); `actorNewRole=admin`/unknown → 400 (Zod strict + refine); atomic promote+demote in ONE tx with 2 audit rows last-in-txn (HMAC chain); advisory-lock last-admin guard shared with deactivate/demote (never 0 admins) |
+| /admin/users (Self-demote) | acting admin changes their OWN role away from admin → destructive-confirm modal → PATCH | `PATCH /admin/users/:id/role` (existing path; self case) | sole-admin self-demote → 409 ConflictException (non-bypassable last-admin guard); audited; guard fires BEFORE any mutation |
+| Destructive-action confirm gate | reusable `ConfirmDialog` (= DESIGN-SYSTEM Modal) fronting transfer + self-demote; NO proxy call until Confirm | (client-side gate; the API is the real authority) | a11y: role=dialog + aria-modal + aria-labelledby, focus-trap (Tab/Shift+Tab wrap), Esc + overlay-click = cancel, return-focus; 409 surfaces as in-dialog blockedReason (dialog stays open, confirm hidden) |
+| /admin/activity (role-change surfacing) | the wave-16 read-only admin-activity view now labels role-change events | `GET /admin/activity-data` (unchanged) | `role-change` where actor==target → "Self-demote" label; actor≠target → "Role change"; reads immutable audit log; writes 0 rows |
+
+No schema change (reuses users/roles + M2 audit log). RBAC/SoD/atomicity/last-admin proven by 17 backend tests (transfer-admin.spec: T-1..T-13) + the wave-15 real-DB `admin-concurrency.e2e` (CONC-1 fault-killing advisory-lock write-skew proof, runs against the CI postgres:18 service). Confirm-gate + transfer/self-demote flow behaviorally component-tested (ConfirmDialog.test, AdminUsersClient.transfer.test — fetch gated on confirm, 409→blockedReason). Live: transfer-admin/role-PATCH/admin-list all 401 unauth (auth-gate-first). **Coverage limitation (F-T5, documented, non-blocking):** full logged-in-admin browser E2E of transfer/self-demote is not runnable on prod (no admin credential, no staging env, prod-role-mutation forbidden) — mitigated by the component + backend + live-guard coverage above; a staging env or test-admin account would close it.
