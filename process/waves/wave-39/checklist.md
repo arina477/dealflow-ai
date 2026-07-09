@@ -33,8 +33,8 @@ BUILD:
 - [x] B-6 Review — head-builder APPROVED + /review ship-as-is; F2/F4 defense-in-depth fixed (4e2da55); commit-discipline PASS
 
 CI/CD:
-- [ ] C-1 PR, CI & merge — HOLD (branch pushed at B-6 SHA 00f9bab; PR-create/merge BLOCKED: PAT Pull requests=read-only, infra-readiness hard stop; stages/C-1-pr-ci-merge.md)
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000) — NOT REACHED (no merge commit; blocked upstream at C-1; stages/C-2-deploy-and-verify.md)
+- [ ] C-1 CI on main (direct-push path) — **FAIL**: merge 225114e on main, but CI run 29051054374 conclusion=FAILURE (test job red: transfer-admin.spec.ts 4/17, `@dealflow/shared/dist/index.js` not built before pnpm test). Non-blocker tech-debt: PAT lacks Pull requests:write. stages/C-1-pr-ci-merge.md
+- [ ] C-2 Deploy & verify — **NOT DEPLOYED**: deploy refused on red CI (would fabricate a green). Deploy lane ready (Railway token + both service ids + pin 225114e). Root cause = ci.yml build-order defect → routed to specialist (Iron Law). stages/C-2-deploy-and-verify.md
 
 TEST:
 - [ ] T-1 Static

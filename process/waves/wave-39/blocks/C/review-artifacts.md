@@ -2,37 +2,56 @@
 
 **Head:** head-ci-cd (spawn-pattern C-block owner)
 **Mode:** automatic
-**Outcome:** C-block HELD at C-1 Action 4 — infra-readiness hard stop (GitHub token scope).
+**Outcome:** C-block **ESCALATE** at C-2 — CI concluded FAILURE on the merge commit; deploy refused.
 
 ## Timeline
-1. Read three-level dispatch (ci-cd.md, C-1, C-2). ✓
-2. Provenance check: restored 4 formatting-only working-tree deltas to the B-6-verified commit
-   `00f9bab` so the pushed branch is byte-identical to what head-builder APPROVED. ✓
-3. `git push -u origin wave-39-admin-role-transfer` → pushed at `00f9bab`. ✓
-4. `gh` authed (`arina477`), repo `arina477/dealflow-ai`, default branch `main`. ✓
-5. CI workflow read: 5 required jobs — `lint`, `typecheck`, `test`, `audit` (`pnpm audit
-   --audit-level=high`), `build`. ✓
-6. PR create → **403** (GraphQL and REST). Token probe: `pull_requests=read`. **BLOCKED.**
+1. Read three-level dispatch (ci-cd.md not re-read this turn — C-2 stage file + CI-PRINCIPLES + railway-deploy monitor read). ✓
+2. Verified merge commit `225114e4ddb1032485caeea93b88e96e04dc3bf8` is HEAD of local main == origin/main
+   (`git rev-parse`, `git merge-base --is-ancestor`). ✓
+3. Verified Railway credential usable (deploy-scoped `Project-Access-Token` probe → project `app-arina-5ywq3s`,
+   no errors) and both target service ids present (dealflow-api / dealflow-web). ✓
+4. **Independently verified CI run 29051054374** (did NOT trust the "CI PASSED" handoff claim):
+   `headSha=225114e`, `event=push`, `branch=main`, `status=completed`, **`conclusion=FAILURE`**. ✗
+5. Per-job breakdown: lint / typecheck / audit / build = success; **test = FAILURE**.
+6. Captured root cause from `gh run view --log-failed`: `transfer-admin.spec.ts` 4/17 fail (T-8a/b/c/d,
+   the Zod-schema block) — `Cannot find module '@dealflow/shared/dist/index.js'`. ci.yml test job runs
+   `pnpm test` without building `@dealflow/shared` first. CI build-order / test-env defect on the merge SHA.
+7. **Deploy REFUSED** — no `serviceInstanceDeployV2` mutation, no health/smoke/canary. Shipping a red merge
+   commit would fabricate a green C-2 verdict.
 
-## Stage-exit checklist status (C-1)
-- [x] Pushed SHA == B-6-verified HEAD (`00f9bab`) — commit-provenance intact, no Ghost Green.
-- [x] pnpm audit gate present in CI (`audit` job, `--audit-level=high`) — would run on PR open.
-- [x] No secret leaked (token passed via env `GH_TOKEN`, never echoed; PR body carries no secrets).
-- [ ] CI tested-SHA matches PR HEAD — **cannot verify: no PR, CI did not dispatch.** Not fabricated.
-- [ ] Merge blocks bypassed/skipped checks — **cannot verify: no PR/merge reached.**
-- [x] Drizzle migrations additive-only — no new migration this wave (confirmed by prompt; api
-      preDeploy migrate is a no-op).
+## The handoff premise was false — this is the fabricated-green trap
+The task briefing asserted "CI ran … and PASSED (run 29051054374 … a real verdict, not fabricated)."
+Independent verification shows `conclusion: failure`. head-ci-cd's entire reason to exist is to catch
+exactly this — a claimed green that is actually red — before it reaches production. No green was
+rubber-stamped; the deploy is hard-blocked on the verified red.
 
-**Verdict basis:** A green cannot be fabricated. Local verification is fully green on the exact
-pushed SHA, but local green ≠ CI verdict. The PR that would produce the CI verdict cannot be opened
-with the current token. Therefore the only honest verdict is **HOLD**, not PASS.
+## Stage-exit checklist status
+### C-1 (CI on merge commit — direct-push path)
+- [x] CI tested-SHA == merge commit on main (`225114e`) — commit-provenance intact, no Ghost Green.
+- [x] pnpm audit security gate present AND green (`audit` job, `--audit-level=high`, conclusion=success).
+- [x] No secret leaked (Railway token passed via `Project-Access-Token` header from env, never echoed).
+- [x] Drizzle migrations additive-only — no new migration this wave (api preDeploy migrate = no-op).
+- [ ] **CI conclusion is green — FAILED: `test` job conclusion=FAILURE on the merge SHA.** ← ship blocker.
 
-## Block-scoped state at hold
+### C-2 (deploy & verify)
+- [ ] Every target shows SUCCESS with the merge commit — **not run (deploy refused on red CI).**
+- [ ] Health 200 + commitHash==merge SHA for both services — **not run.**
+- [ ] transfer-admin route smoke (401/403) — **not run.**
+- [x] Rollback path known (previous good deployment queryable via Railway GraphQL) — not needed; no deploy.
+- [x] Canary correctly skipped (real users < 1000 < canary_threshold_dau 1000) — moot; no deploy.
+
+**Verdict basis:** A green cannot be fabricated. CI is red on the exact commit that would deploy. Deploying
+it would ship known-broken bits and manufacture a false green — the one verdict this role must never get
+wrong. The failure is a CI build-order defect (feature-logic is fine locally), routed to a specialist per
+the Iron Law rather than fixed here or debugged-by-deploy.
+
+## Block-scoped state at escalate
 ```yaml
-pr_url: null
-ci_run_id: null
-deploy_target: [dealflow-api, dealflow-web]   # planned, not deployed
-canary_status: skipped                        # sub-threshold DAU (planned)
+pr_url: none                                  # direct-push-to-main path
+merge_commit: 225114e4ddb1032485caeea93b88e96e04dc3bf8
+ci_run_id: 29051054374                        # conclusion FAILURE
+deploy_target: [dealflow-api, dealflow-web]   # ready but NOT deployed (red CI)
+canary_status: skipped                        # sub-threshold DAU (moot — no deploy)
 monitor_tasks: []
 ```
 
@@ -40,17 +59,31 @@ monitor_tasks: []
 ```yaml
 head_signoff:
   verdict: ESCALATE
-  stage: C-1
+  stage: C-2
   reviewers: {}
   failed_checks:
-    - "C-1 Action 4: PR creation returned 403 (PAT Pull requests: read-only)"
-    - "C-1 Actions 6-11: CI watch + merge not reached (no PR to dispatch CI)"
+    - "CI run 29051054374 on merge SHA 225114e: conclusion=FAILURE (test job) — deploy precondition unmet"
+    - "test failure: apps/api/src/modules/admin/transfer-admin.spec.ts 4/17 (T-8a/b/c/d, Zod-schema block)"
+    - "root cause: ci.yml test job runs pnpm test without building @dealflow/shared → 'Cannot find module @dealflow/shared/dist/index.js'"
   rationale: >
-    The branch is pushed at the exact B-6-verified SHA with no unverified bits. C-1 cannot open or
-    merge a PR because the fine-grained GitHub PAT has Pull requests: read-only — an account-issued
-    credential scope that the brain cannot self-generate (always-on rules 6 & 19). This is an
-    infra-readiness hard stop, not a code defect and not the known Actions spend-limit condition
-    (CI infra is healthy: recent main runs succeed in ~2 min). No green was fabricated; the CI
-    verdict genuinely does not exist because the PR that would produce it cannot be created.
-  next_action: ESCALATE_TO_founder
+    The merge commit 225114e is on main and the deploy lane is fully ready (Railway credential usable,
+    both service ids resolved, pin target in hand). But CI run 29051054374 concluded FAILURE on that exact
+    SHA — the test job is red because ci.yml runs pnpm test without first building the @dealflow/shared
+    package, so four schema-validation tests throw on the missing dist bundle. The handoff claim that CI
+    passed is false; independent gh-run verification proves red. Deploying this commit would fabricate a
+    green and ship broken bits to production, so the deploy is refused. This is a CI build-order defect
+    (a ci.yml change), not a feature-logic bug and not an infra-readiness/credential gap; per the Iron Law
+    it is routed to a specialist rather than fixed by head-ci-cd or worked around by debug-by-deploy.
+  next_action: ESCALATE_TO_founder    # automatic mode: BLOCKED for human triage of the CI build-order fix
+```
+```yaml
+# C-block exit handoff — NOT ready for T-block
+pr_number: none                # direct-push-to-main (no PR)
+merge_commit: 225114e4ddb1032485caeea93b88e96e04dc3bf8
+ci_run_id: 29051054374
+ci_conclusion: FAILURE
+deploy_targets: []             # nothing deployed — deploy refused on red CI
+canary_status: skipped         # sub-threshold DAU (moot)
+ready_for_test: false          # deploy did not happen; wave does not advance to T until CI green + deploy live
+blocker_class: ci-infrastructure
 ```
