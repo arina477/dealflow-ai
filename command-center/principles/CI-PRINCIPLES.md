@@ -138,3 +138,5 @@ pr_conventions:
    Why: Exhausted Actions minutes withhold dispatch; the push is accepted but zero runs fire.
 4. Pin Railway redeploys to the merged commitSha; a bare serviceInstanceDeployV2 redeploys the stale pinned commit.
    Why: Verifying a redeploy of the old pinned commit greenlights code the merge never shipped.
+5. Verify a migration applied by matching its file hash in the applied-migrations table, never by a green migrate exit.
+   Why: Ordered-journal tools skip out-of-order entries and still exit 0, hiding un-applied schema.
