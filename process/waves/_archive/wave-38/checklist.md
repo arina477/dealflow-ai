@@ -53,9 +53,9 @@ VERIFY:
 
 LEARN:
 - [x] L-1 Docs — CHANGELOG [0.28.1] Fixed (migrations apply reliably on deploy); M7 stays in_progress (14 done / 3 open, no transition); README skip; stages/L-1-docs.md
-- [ ] L-2 Distill
+- [x] L-2 Distill — task 7f4d150b done; 4 observations; promoted CI-PRINCIPLES rule 5 (migration hash-match verify), commit 3ab8e85
 
 NEXT:
-- [ ] N-1 Survey & triggers
-- [ ] N-2 Seed
-- [ ] N-3 Handoff
+- [x] N-1 Survey & triggers — M7 active, seed_candidates=0, Action 7 decomposition fired (automatic inline); head-next APPROVED; stages/N-1-survey-and-triggers.md
+- [x] N-2 Seed — M7 bundle: seed 69cd8ce4 (admin role transfer/self-demote) + 2 siblings (3ebd6610, 9e37eeef); head-next APPROVED; stages/N-2-seed.md
+- [x] N-3 Handoff — wave-38 archived; waves.status=ok; wave-39 pre-created; .last-wave-completed + status-check refreshed; stages/N-3-handoff.md
