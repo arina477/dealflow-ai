@@ -10,11 +10,11 @@
 | Stage | Deliverable file | Status | Notes |
 |---|---|---|---|
 | B-0 | process/waves/wave-39/stages/B-0-branch-and-schema.md | done | branch created; no schema/env/deps; tasks claimed |
-| B-1 | process/waves/wave-39/stages/B-1-contracts.md | pending | transferAdminRequestSchema (shared Zod) |
-| B-2 | process/waves/wave-39/stages/B-2-backend.md | pending | transferAdminAsActor + POST /transfer-admin |
-| B-3 | process/waves/wave-39/stages/B-3-frontend.md | pending | ConfirmDialog + AdminUsersClient + activity labels + proxy |
-| B-4 | process/waves/wave-39/stages/B-4-wiring.md | pending | |
-| B-5 | process/waves/wave-39/stages/B-5-verify.md | pending | |
+| B-1 | process/waves/wave-39/stages/B-1-contracts.md | done | transferAdminRequestSchema; commit 16c086a |
+| B-2 | process/waves/wave-39/stages/B-2-backend.md | done | transferAdminAsActor + endpoint; 15 tests; commit 4c2052c |
+| B-3 | process/waves/wave-39/stages/B-3-frontend.md | done | ConfirmDialog+transfer UI+activity; 3880cb0/eb279d4/811d680/daa9f69 |
+| B-4 | process/waves/wave-39/stages/B-4-wiring.md | done | repo typecheck 4/4 clean |
+| B-5 | process/waves/wave-39/stages/B-5-verify.md | done | api 1092 / web 1041 pass; lint 0 err |
 | B-6 | process/waves/wave-39/stages/B-6-review.md | pending | |
 
 ## Block-specific context

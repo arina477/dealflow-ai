@@ -25,11 +25,11 @@ DESIGN (skip block if non-UI wave):
 
 BUILD:
 - [x] B-0 Branch & schema — branch wave-39-admin-role-transfer; tasks claimed in_progress; schema skipped (no migration)
-- [ ] B-1 Contracts
-- [ ] B-2 Backend
-- [ ] B-3 Frontend
-- [ ] B-4 Wiring
-- [ ] B-5 Verify
+- [x] B-1 Contracts — transferAdminRequestSchema (shared Zod); commit 16c086a
+- [x] B-2 Backend — transferAdminAsActor + POST /transfer-admin; 15 tests; 4 acceptance conds met; commit 4c2052c
+- [x] B-3 Frontend — ConfirmDialog + transfer/self-demote UI + activity labels; commits 3880cb0/eb279d4/811d680/daa9f69
+- [x] B-4 Wiring — repo typecheck 4/4 clean; transfer route + proxy registered
+- [x] B-5 Verify — api 1092 pass, web 1041 pass, lint 0 errors (2 defects found+routed+fixed)
 - [ ] B-6 Review
 
 CI/CD:
