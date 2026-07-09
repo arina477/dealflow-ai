@@ -410,6 +410,14 @@ const nextConfig: NextConfig = {
           source: '/admin/users-data/:id/reactivate',
           destination: `${apiProxyTarget}/admin/users/:id/reactivate`,
         },
+        // Wave-39 (task 69cd8ce4): POST /admin/users/:id/transfer-admin — atomic
+        // admin transfer. Promotes :id to admin and demotes the calling actor to
+        // actorNewRole in ONE transaction. Declared before /admin/users-data (bare
+        // root) so the most-specific sub-path wins per wave-9/10/12 ordering rule.
+        {
+          source: '/admin/users-data/:id/transfer-admin',
+          destination: `${apiProxyTarget}/admin/users/:id/transfer-admin`,
+        },
         {
           source: '/admin/users-data',
           destination: `${apiProxyTarget}/admin/users`,

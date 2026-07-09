@@ -6,6 +6,8 @@
  *   - Invite user (POST /admin/users-data/invite)
  *   - Change role (PATCH /admin/users-data/:id/role)
  *   - Deactivate user (POST /admin/users-data/:id/deactivate)
+ *   - Transfer admin role (POST /admin/users-data/:id/transfer-admin)
+ *   - Self-demote (PATCH /admin/users-data/:id/role with id == currentUserId)
  *   - Graceful last-admin-409 error display
  *
  * HARD BOUNDARIES:
@@ -19,8 +21,9 @@
 
 import type { AdminReactivateResponse, Role, UserAdminRecord } from '@dealflow/shared';
 import { adminReactivateResponseSchema, roleEnum } from '@dealflow/shared';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { apiFetch } from '../../../_lib/apiFetch';
+import { ConfirmDialog } from './ConfirmDialog';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,7 +32,28 @@ import { apiFetch } from '../../../_lib/apiFetch';
 interface AdminUsersClientProps {
   initialUsers: UserAdminRecord[];
   currentUserId: string;
+  /** Role of the current user — controls which controls are visible. */
+  currentUserRole?: Role;
 }
+
+// ---------------------------------------------------------------------------
+// Dialog state (transfer + self-demote)
+// ---------------------------------------------------------------------------
+
+interface TransferDialogState {
+  kind: 'transfer';
+  targetUser: UserAdminRecord;
+  /** Role the actor (current admin) will take after transferring. */
+  actorNewRole: Role;
+}
+
+interface SelfDemoteDialogState {
+  kind: 'self-demote';
+  /** Role the current admin is stepping down to. */
+  newRole: Role;
+}
+
+type DialogState = TransferDialogState | SelfDemoteDialogState | null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -112,7 +136,11 @@ function StatusBadge({ active }: { active: boolean }) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export function AdminUsersClient({ initialUsers, currentUserId }: AdminUsersClientProps) {
+export function AdminUsersClient({
+  initialUsers,
+  currentUserId,
+  currentUserRole,
+}: AdminUsersClientProps) {
   const [users, setUsers] = useState<UserAdminRecord[]>(initialUsers);
   const [showInvitePanel, setShowInvitePanel] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
@@ -123,6 +151,14 @@ export function AdminUsersClient({ initialUsers, currentUserId }: AdminUsersClie
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
+
+  // ── Transfer admin / self-demote dialog state ─────────────────────────────
+  const [dialogState, setDialogState] = useState<DialogState>(null);
+  const [dialogLoading, setDialogLoading] = useState(false);
+  const [dialogBlockedReason, setDialogBlockedReason] = useState<string | undefined>(undefined);
+
+  // Ref to the trigger button — focus returns to it when dialog closes.
+  const dialogTriggerRef = useRef<HTMLButtonElement>(null);
 
   const visibleUsers = showInactive ? users : users.filter((u) => u.deactivatedAt === null);
 
@@ -258,10 +294,157 @@ export function AdminUsersClient({ initialUsers, currentUserId }: AdminUsersClie
     }
   }
 
+  // ── Dialog helpers ────────────────────────────────────────────────────────
+
+  function closeDialog() {
+    setDialogState(null);
+    setDialogBlockedReason(undefined);
+    setDialogLoading(false);
+    // Return focus to the button that triggered the dialog.
+    dialogTriggerRef.current?.focus();
+  }
+
+  // ── Transfer admin ────────────────────────────────────────────────────────
+
+  /**
+   * Open the transfer-admin confirmation dialog for a target member row.
+   *
+   * The actor (current admin) will step down to `actorNewRole`.
+   * The caller stores a reference to the trigger button in dialogTriggerRef
+   * so focus can return on close.
+   */
+  function openTransferDialog(targetUser: UserAdminRecord, triggerEl: HTMLButtonElement | null) {
+    // Pick a sensible default step-down role: advisor if current user is admin.
+    const actorNewRole: Role = 'advisor';
+    if (triggerEl) (dialogTriggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = triggerEl;
+    setDialogBlockedReason(undefined);
+    setDialogState({ kind: 'transfer', targetUser, actorNewRole });
+  }
+
+  async function handleTransferConfirm() {
+    if (!dialogState || dialogState.kind !== 'transfer') return;
+    const { targetUser, actorNewRole } = dialogState;
+
+    setDialogLoading(true);
+    setDialogBlockedReason(undefined);
+
+    try {
+      const res = await apiFetch(`/admin/users-data/${targetUser.id}/transfer-admin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actorNewRole }),
+      });
+
+      if (res.ok) {
+        // Refresh user list — both roles have changed.
+        const listRes = await apiFetch('/admin/users-data');
+        if (listRes.ok) {
+          const data = (await listRes.json()) as { users: UserAdminRecord[] };
+          setUsers(data.users ?? []);
+        }
+        setActionError(null);
+        closeDialog();
+      } else if (res.status === 409) {
+        // Last-admin guard — surface as blocked-reason in the dialog.
+        setDialogBlockedReason(
+          'Cannot transfer: this would leave the organization without an admin.'
+        );
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        setActionError(body.message ?? 'Failed to transfer admin. Please try again.');
+        closeDialog();
+      }
+    } catch {
+      setActionError('Network error. Please try again.');
+      closeDialog();
+    } finally {
+      setDialogLoading(false);
+    }
+  }
+
+  // ── Self-demote ───────────────────────────────────────────────────────────
+
+  function openSelfDemoteDialog(newRole: Role, triggerEl: HTMLButtonElement | null) {
+    if (triggerEl) (dialogTriggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = triggerEl;
+    setDialogBlockedReason(undefined);
+    setDialogState({ kind: 'self-demote', newRole });
+  }
+
+  async function handleSelfDemoteConfirm() {
+    if (!dialogState || dialogState.kind !== 'self-demote') return;
+    const { newRole } = dialogState;
+
+    setDialogLoading(true);
+    setDialogBlockedReason(undefined);
+
+    try {
+      const res = await apiFetch(`/admin/users-data/${currentUserId}/role`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole }),
+      });
+
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === currentUserId ? { ...u, role: newRole } : u))
+        );
+        setActionError(null);
+        closeDialog();
+      } else if (res.status === 409) {
+        setDialogBlockedReason(
+          'Cannot step down: you are the sole admin. Assign another admin first.'
+        );
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        setActionError(body.message ?? 'Failed to change role. Please try again.');
+        closeDialog();
+      }
+    } catch {
+      setActionError('Network error. Please try again.');
+      closeDialog();
+    } finally {
+      setDialogLoading(false);
+    }
+  }
+
+  // ── Derive dialog props when open ─────────────────────────────────────────
+
+  /** True only if the current user is an admin (controls which actions render). */
+  const isAdmin = currentUserRole === 'admin' ||
+    users.find((u) => u.id === currentUserId)?.role === 'admin';
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* ── ConfirmDialog (transfer / self-demote) ─────────────────────── */}
+      {dialogState !== null && (
+        <>
+          {dialogState.kind === 'transfer' && (
+            <ConfirmDialog
+              title={`Transfer admin to ${dialogState.targetUser.email}`}
+              body={`${dialogState.targetUser.email} will become the admin. You will step down to ${ROLE_LABELS[dialogState.actorNewRole]}. This cannot be undone from this session.`}
+              confirmLabel="Transfer admin"
+              onConfirm={() => void handleTransferConfirm()}
+              onCancel={closeDialog}
+              blockedReason={dialogBlockedReason}
+              loading={dialogLoading}
+            />
+          )}
+          {dialogState.kind === 'self-demote' && (
+            <ConfirmDialog
+              title="Step down from admin"
+              body={`Your role will change to ${ROLE_LABELS[dialogState.newRole]}. You will lose admin access immediately.`}
+              confirmLabel="Step down"
+              onConfirm={() => void handleSelfDemoteConfirm()}
+              onCancel={closeDialog}
+              blockedReason={dialogBlockedReason}
+              loading={dialogLoading}
+            />
+          )}
+        </>
+      )}
+
       {/* Action toolbar */}
       <div
         style={{
@@ -292,6 +475,33 @@ export function AdminUsersClient({ initialUsers, currentUserId }: AdminUsersClie
         >
           {showInactive ? 'Hide inactive' : 'Show inactive'}
         </button>
+
+        {/* Self-demote: allows current admin to step down to a non-admin role.
+            Only shown to admins. Routed through ConfirmDialog before firing. */}
+        {isAdmin && (
+          <button
+            ref={dialogState?.kind === 'self-demote' ? dialogTriggerRef : undefined}
+            type="button"
+            aria-label="Step down from admin role"
+            onClick={(e) => openSelfDemoteDialog('advisor', e.currentTarget)}
+            style={{
+              height: '36px',
+              padding: '0 16px',
+              borderRadius: '6px',
+              border: '1px solid #fca5a5',
+              backgroundColor: '#ffffff',
+              color: '#dc2626',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            Step down
+          </button>
+        )}
 
         <button
           type="button"
@@ -640,7 +850,7 @@ export function AdminUsersClient({ initialUsers, currentUserId }: AdminUsersClie
               <StatusBadge active={user.deactivatedAt === null} />
 
               {/* Actions */}
-              <div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {user.deactivatedAt ? (
                   /* Reactivate — shown only for deactivated users */
                   <button
@@ -664,30 +874,59 @@ export function AdminUsersClient({ initialUsers, currentUserId }: AdminUsersClie
                     Reactivate
                   </button>
                 ) : (
-                  /* Deactivate — shown only for active users */
-                  <button
-                    type="button"
-                    aria-label={`Deactivate ${user.email}`}
-                    disabled={actionUserId === user.id || user.id === currentUserId}
-                    onClick={() => void handleDeactivate(user.id)}
-                    style={{
-                      height: '28px',
-                      padding: '0 12px',
-                      borderRadius: '5px',
-                      border: '1px solid #fca5a5',
-                      backgroundColor: '#ffffff',
-                      color: '#dc2626',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      cursor:
-                        actionUserId === user.id || user.id === currentUserId
-                          ? 'not-allowed'
-                          : 'pointer',
-                      opacity: actionUserId === user.id || user.id === currentUserId ? 0.5 : 1,
-                    }}
-                  >
-                    Deactivate
-                  </button>
+                  <>
+                    {/* Deactivate — shown only for active, non-self users */}
+                    <button
+                      type="button"
+                      aria-label={`Deactivate ${user.email}`}
+                      disabled={actionUserId === user.id || user.id === currentUserId}
+                      onClick={() => void handleDeactivate(user.id)}
+                      style={{
+                        height: '28px',
+                        padding: '0 12px',
+                        borderRadius: '5px',
+                        border: '1px solid #fca5a5',
+                        backgroundColor: '#ffffff',
+                        color: '#dc2626',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        cursor:
+                          actionUserId === user.id || user.id === currentUserId
+                            ? 'not-allowed'
+                            : 'pointer',
+                        opacity:
+                          actionUserId === user.id || user.id === currentUserId ? 0.5 : 1,
+                      }}
+                    >
+                      Deactivate
+                    </button>
+
+                    {/* Transfer admin — available to the current admin for any
+                        active, non-self member. Opens ConfirmDialog before
+                        POSTing to the atomic transfer endpoint. */}
+                    {isAdmin && user.id !== currentUserId && (
+                      <button
+                        type="button"
+                        aria-label={`Transfer admin to ${user.email}`}
+                        disabled={actionUserId === user.id}
+                        onClick={(e) => openTransferDialog(user, e.currentTarget)}
+                        style={{
+                          height: '28px',
+                          padding: '0 12px',
+                          borderRadius: '5px',
+                          border: '1px solid #d1d5db',
+                          backgroundColor: '#ffffff',
+                          color: '#374151',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          cursor: actionUserId === user.id ? 'not-allowed' : 'pointer',
+                          opacity: actionUserId === user.id ? 0.5 : 1,
+                        }}
+                      >
+                        Transfer admin
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
