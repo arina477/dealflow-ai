@@ -33,8 +33,8 @@ BUILD:
 - [x] B-6 Review — head-builder APPROVED + /review ship-as-is; F2/F4 defense-in-depth fixed (4e2da55); commit-discipline PASS
 
 CI/CD:
-- [ ] C-1 CI on main (direct-push path) — **FAIL**: merge 225114e on main, but CI run 29051054374 conclusion=FAILURE (test job red: transfer-admin.spec.ts 4/17, `@dealflow/shared/dist/index.js` not built before pnpm test). Non-blocker tech-debt: PAT lacks Pull requests:write. stages/C-1-pr-ci-merge.md
-- [ ] C-2 Deploy & verify — **NOT DEPLOYED**: deploy refused on red CI (would fabricate a green). Deploy lane ready (Railway token + both service ids + pin 225114e). Root cause = ci.yml build-order defect → routed to specialist (Iron Law). stages/C-2-deploy-and-verify.md
+- [x] C-1 CI on main (direct-push path) — **PASS**: red on 225114e caught (run 29051054374 test FAILURE — `@dealflow/shared/dist` not built before pnpm test), fixed via turbo.json `test: dependsOn ^build` (devops-engineer, e437b52), CI re-verified GREEN (run 29051546609, all 5 jobs). Non-blocker tech-debt: PAT lacks Pull requests:write. stages/C-1-pr-ci-merge.md
+- [x] C-2 Deploy & verify — **PASS**: both services deployed pinned to green e437b52 (api 7a12c3c3, web 2d605a9f → SUCCESS); commitHash==e437b52 both; api /health 200 db:ok; web login 200; transfer-admin smoke 401 (route registered); migrate no-op; rollback armed; canary skipped (<1000 DAU). stages/C-2-deploy-and-verify.md
 
 TEST:
 - [ ] T-1 Static

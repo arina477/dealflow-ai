@@ -17,7 +17,15 @@ action was required to ship the code.
   `local main == origin/main == 225114e`, verified via `git rev-parse` + `git merge-base --is-ancestor`).
 - Remote feature branch deleted.
 
-## CI verdict on the merge commit — **FAILURE (verified, not fabricated)**
+## Outcome summary — red caught → fixed → green (final verdict PASS on e437b52)
+
+The handoff's "CI PASSED on 225114e" claim was **false** — verified `conclusion: failure` (test job).
+head-ci-cd refused to fabricate the green, routed the CI build-order defect to `devops-engineer`
+(Iron Law), the specialist authored a config-only `turbo.json` fix (commit **e437b52**), CI re-ran and
+concluded **success** (all 5 jobs green). Final C-1 CI verdict: **PASS on the green merge commit
+e437b52** (which supersedes the red 225114e as the deploy target). Detail of both runs below.
+
+## CI verdict on the ORIGINAL merge commit 225114e — **FAILURE (verified, not fabricated)**
 
 CI run **29051054374** was independently verified via `gh run view` (NOT trusted from the handoff claim):
 
@@ -79,32 +87,34 @@ ci.yml `push:main` trigger fully covers CI. Recorded as low-priority tech-debt o
 ---
 
 ```yaml
-ci_stage_verdict: FAIL                # CI ran on the exact merge SHA and concluded FAILURE (test job)
+ci_stage_verdict: PASS                # final: CI green on e437b52 after the caught red on 225114e was fixed
 verdict_source: gh
 verdict_evidence:
-  - "git: local main == origin/main == 225114e4ddb1032485caeea93b88e96e04dc3bf8 (merge commit on main)"
-  - "gh run view 29051054374: headSha=225114e, event=push, branch=main, status=completed, conclusion=FAILURE"
-  - "jobs: lint=success typecheck=success audit=success build=success TEST=FAILURE"
-  - "test failure: apps/api/src/modules/admin/transfer-admin.spec.ts 4/17 fail — T-8a/b/c/d (Zod schema block)"
-  - "root cause: Cannot find module '@dealflow/shared/dist/index.js' — ci.yml test job never builds shared before pnpm test"
-ship_path: direct-push-to-main        # NOT a PR — ci.yml push:main trigger ran the suite
+  - "ORIGINAL 225114e: gh run 29051054374 conclusion=FAILURE (test job) — handoff 'PASSED' claim disproven"
+  - "225114e test failure: transfer-admin.spec.ts 4/17 (T-8a/b/c/d) — Cannot find module @dealflow/shared/dist/index.js"
+  - "root cause: turbo.json test task lacked dependsOn:['^build'] — turbo run test never built @dealflow/shared first"
+  - "fix (devops-engineer, config-only): turbo.json test gains dependsOn:['^build'] — committed as e437b52"
+  - "GREEN e437b52: gh run 29051546609 conclusion=success, all 5 jobs green (lint/typecheck/audit/build/TEST)"
+  - "e437b52 == origin/main HEAD (verified git rev-parse)"
+ship_path: direct-push-to-main        # NOT a PR — ci.yml push:main trigger ran the suite on each push
 pr_number: none
 pr_url: none
 branch: deleted (squash-merged to main)
 required_checks: [lint, typecheck, test, audit, build]
-checks_result: {lint: success, typecheck: success, audit: success, build: success, test: FAILURE}
-merge_commit_sha: 225114e4ddb1032485caeea93b88e96e04dc3bf8
+checks_result_225114e: {lint: success, typecheck: success, audit: success, build: success, test: FAILURE}
+checks_result_e437b52: {lint: success, typecheck: success, audit: success, build: success, test: success}
+original_merge_sha: 225114e4ddb1032485caeea93b88e96e04dc3bf8   # RED — did NOT ship
+deploy_merge_sha: e437b52355e257a2ef7daad2f4001f48fa5ac191     # GREEN — deploy target
 merge_strategy: squash
-blocker_class: ci-infrastructure
-blocker_detail: >
-  CI test job fails on the merge SHA: ci.yml lines 37-57 run pnpm install then pnpm test WITHOUT building
-  @dealflow/shared first, so 4 tests in transfer-admin.spec.ts that import the built shared Zod contract
-  throw 'Cannot find module @dealflow/shared/dist/index.js'. Feature-logic is fine; the fix is a ci.yml
-  build-order change. Routed to ci-infrastructure/testing per Iron Law; head-ci-cd does NOT fix directly.
+ci_fix_class: ci-infrastructure
+ci_fix_detail: >
+  turbo.json test task had no dependsOn, so turbo run test never built @dealflow/shared/dist before the
+  api tests imported it → 4 schema tests threw on the missing dist bundle in a clean CI checkout (local
+  passed on stale dist). devops-engineer added dependsOn:['^build'] to the test task (config-only, zero
+  test/feature code). head-ci-cd routed + verified re-run green rather than debug-by-deploy.
 token_scope_techdebt: "PAT lacks Pull requests: write (nice-to-have for PR path; NOT a ship blocker — direct-push covers CI)"
 note: >
-  CI verdict on the merge commit is FAILURE, independently verified (NOT the fabricated PASS the handoff
-  asserted). The test job is red on the exact SHA that would deploy. head-ci-cd HARD-BLOCKS the C-2 deploy:
-  no red merge commit ships to production, and per the Iron Law the CI build-order fix is routed to a
-  specialist rather than debug-by-deploy. C-block ESCALATE — see blocks/C/review-artifacts.md.
+  The handoff asserted CI passed on 225114e; independent verification proved it FAILED (test job). No green
+  was fabricated. The build-order defect was routed to a specialist, fixed in turbo.json (e437b52), and CI
+  re-verified genuinely green on e437b52 before any deploy. C-2 deployed both services pinned to e437b52.
 ```
