@@ -5,7 +5,7 @@
  *   - Renders firm name, email, and password fields with correct labels.
  *   - Zod validation fires on submit with empty / invalid fields.
  *   - 201 → redirect to / (canonical authed dashboard, admin session set).
- *   - 409 → friendly conflict message (firm name or email already taken).
+ *   - 400 → friendly message (email may already be registered / invalid details).
  *   - 429 → friendly rate-limit message.
  *   - Other 4xx/5xx → generic error message.
  *   - Network failure → connection error message.
@@ -153,8 +153,10 @@ describe('CreateFirmPage', () => {
   });
 
   describe('error handling', () => {
-    it('shows friendly conflict message on 409', async () => {
-      vi.stubGlobal('fetch', makeFetch(409));
+    it('shows friendly message on 400 (email may be registered / invalid details)', async () => {
+      // Backend returns 400 for an already-registered email or invalid input.
+      // Firm names are NOT unique, so a 400 is not "firm name taken".
+      vi.stubGlobal('fetch', makeFetch(400));
       render(<CreateFirmPage />);
       await fillAndSubmit({
         firmName: 'Acme Capital Partners',
@@ -163,7 +165,7 @@ describe('CreateFirmPage', () => {
       });
       await waitFor(() => {
         const alert = screen.getByRole('alert');
-        expect(alert.textContent).toMatch(/already exists/i);
+        expect(alert.textContent).toMatch(/already be registered|invalid/i);
       });
     });
 
@@ -181,8 +183,8 @@ describe('CreateFirmPage', () => {
       });
     });
 
-    it('shows generic error on other 4xx', async () => {
-      vi.stubGlobal('fetch', makeFetch(400));
+    it('shows generic error on other 4xx (e.g. 403)', async () => {
+      vi.stubGlobal('fetch', makeFetch(403));
       render(<CreateFirmPage />);
       await fillAndSubmit({
         firmName: 'Acme Capital Partners',

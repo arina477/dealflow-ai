@@ -11,7 +11,7 @@
  * API so the session cookie lands first-party on the web origin.
  *
  * Error handling:
- *   - 409 Conflict  → firm name or email already taken (friendly message)
+ *   - 400 → email may already be registered / invalid details (friendly message)
  *   - 429           → rate limited (friendly message, no field detail)
  *   - 4xx           → generic validation error
  *   - network       → connection error message
