@@ -348,7 +348,7 @@ describe('AuthService', () => {
     });
   });
 
-  describe('createInvite — role validation', () => {
+  describe('createInvite — role validation + invitedBy attribution (wave-35 task 93179911)', () => {
     it('rejects a role not present in the roles table (422)', async () => {
       const repo = makeRepo({ findRoleIdByName: vi.fn().mockResolvedValue(null) });
       const service = new AuthService(repo);
@@ -356,7 +356,7 @@ describe('AuthService', () => {
       // roleEnum is validated at the DTO boundary; this asserts the service-layer
       // defence-in-depth against a role name missing from the seeded table.
       await expect(
-        service.createInvite({ email: 'x@example.com', role: 'admin' })
+        service.createInvite({ email: 'x@example.com', role: 'admin' }, 'actor-uuid-1')
       ).rejects.toThrowError();
     });
 
@@ -367,7 +367,10 @@ describe('AuthService', () => {
       });
       const service = new AuthService(repo);
 
-      const result = await service.createInvite({ email: 'x@example.com', role: 'admin' });
+      const result = await service.createInvite(
+        { email: 'x@example.com', role: 'admin' },
+        'actor-uuid-1'
+      );
 
       expect(typeof result.token).toBe('string');
       expect(result.token.length).toBeGreaterThan(20);
@@ -376,6 +379,20 @@ describe('AuthService', () => {
       // equal the returned token.
       const call = (repo.createInvite as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(call.tokenHash).not.toBe(result.token);
+    });
+
+    it('passes invitedBy (actor users.id) to the repository (attribution set, not null)', async () => {
+      const repo = makeRepo({
+        findRoleIdByName: vi.fn().mockResolvedValue('role-1'),
+        createInvite: vi.fn().mockResolvedValue({ id: 'invite-1' }),
+      });
+      const service = new AuthService(repo);
+
+      await service.createInvite({ email: 'x@example.com', role: 'analyst' }, 'admin-app-uuid-42');
+
+      const call = (repo.createInvite as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      // Attribution is now the admin's app-DB users.id — never null.
+      expect(call.invitedBy).toBe('admin-app-uuid-42');
     });
   });
 });

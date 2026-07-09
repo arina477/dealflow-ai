@@ -73,8 +73,15 @@ export class AuthService {
    * the caller ONCE; only its SHA-256 hash is persisted (token hashed at rest,
    * security.md). Role is validated against the roles table (defence-in-depth
    * on top of the Zod enum) → 422 if the name is not one of the 4 roles.
+   *
+   * wave-35 task 93179911: invitedByUserId is the admin's app-DB users.id (UUID),
+   * resolved in the controller from the verified session. Attribution is now set
+   * on every invite (was null/"later slice" before this fix).
    */
-  async createInvite(input: InviteCreateRequest): Promise<InviteCreateResponse> {
+  async createInvite(
+    input: InviteCreateRequest,
+    invitedByUserId: string
+  ): Promise<InviteCreateResponse> {
     const roleId = await this.repository.findRoleIdByName(input.role);
     if (roleId === null) {
       throw new UnprocessableEntityException('Unknown role');
@@ -88,7 +95,7 @@ export class AuthService {
       tokenHash,
       email: input.email,
       roleId,
-      invitedBy: null, // admin-only attribution is a later slice
+      invitedBy: invitedByUserId,
       expiry,
     });
 

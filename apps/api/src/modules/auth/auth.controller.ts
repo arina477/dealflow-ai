@@ -2,7 +2,7 @@
  * AuthController (wave-2, task e1c0e81e) — the six /auth endpoints.
  *
  * Route/auth-model map (spec block-2 Action 3):
- *   POST /auth/invite         201  anon (admin-only deferred)
+ *   POST /auth/invite         201  ADMIN-ONLY (SessionGuard + RolesGuard — wave-35 task 93179911)
  *   POST /auth/signup         201  anon; invite-bound; Set-Cookie session
  *   GET  /auth/me             200  SESSION-authed (SessionGuard → 401 anon)
  *   POST /auth/reset/request  202  anon; ALWAYS 202 (no user-enumeration)
@@ -13,9 +13,11 @@
  * (/auth/signin, /auth/signout, /auth/session/refresh, /auth/user/password/*).
  * None of the custom paths collide with a reserved SDK path (gotcha #1).
  *
- * RBAC guardrail: no @Roles()/@UseGuards(RolesGuard) appears on ANY handler —
- * per-route role enforcement is deferred (arch delta 3). Only SessionGuard
- * (authentication) is applied, and only to /me + /logout.
+ * RBAC guardrail: POST /auth/invite is ADMIN-ONLY (@UseGuards(SessionGuard, RolesGuard)
+ * + @Roles('admin')). This fixes the wave-35 500 (no workspace context in ALS) AND closes
+ * the unguarded-endpoint security gap. The SessionGuard ensures req.session is populated
+ * so WorkspaceInterceptor can resolve the admin's workspace_id into ALS before the
+ * repository's createInvite call resolves getWorkspaceId().
  */
 
 import type { InviteCreateResponse, MeResponse, SignupResponse } from '@dealflow/shared';
@@ -42,7 +44,11 @@ import type { Request, Response } from 'express';
 import type { SessionContainer } from 'supertokens-node/recipe/session';
 
 // biome-ignore lint/style/useImportType: value import required for Nest DI
+import { AuthRepository } from './auth.repository';
+// biome-ignore lint/style/useImportType: value import required for Nest DI
 import { AuthService } from './auth.service';
+// wave-35 task 93179911: RolesGuard + @Roles applied to POST /auth/invite.
+import { Roles, RolesGuard } from './guards/roles.guard';
 // wave-25 SEC-9: body parameters are now typed as `unknown` with explicit
 // safeParse. The DTO file (dto.ts) is retained for Swagger / API docs tooling
 // but the DTO classes are no longer used as @Body() parameter types.
@@ -84,18 +90,42 @@ function requireSession(req: RequestWithSession): SessionContainer {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly authRepository: AuthRepository
+  ) {}
 
+  // wave-35 task 93179911: ADMIN-ONLY guard.
+  // SessionGuard: verifies SuperTokens session → populates req.session → WorkspaceInterceptor
+  //   sees req.session.getUserId() and resolves the admin's workspace into ALS → createInvite's
+  //   getWorkspaceId() returns the admin's workspace_id → RLS-scoped INSERT succeeds.
+  // RolesGuard: DB-authoritative role re-verify (resolveRoleRlsExempt) → 403 for non-admin.
+  // @Roles('admin'): inviting teammates is an admin-only action (no cross-workspace invite possible
+  //   because the workspace is sourced from the admin's ALS context, not from the request body).
   // SEC-9: @Body() typed as unknown; safeParse with inviteCreateRequestSchema.
   // SEC-10: generic 400 message regardless of which field failed.
   @Post('invite')
   @HttpCode(HttpStatus.CREATED)
-  async invite(@Body() body: unknown): Promise<InviteCreateResponse> {
+  @UseGuards(SessionGuard, RolesGuard)
+  @Roles('admin')
+  async invite(
+    @Body() body: unknown,
+    @Req() req: RequestWithSession
+  ): Promise<InviteCreateResponse> {
     const result = inviteCreateRequestSchema.safeParse(body);
     if (!result.success) {
       throw validationError('Invalid request');
     }
-    return this.authService.createInvite(result.data);
+    // Resolve the admin's app-DB users.id (UUID FK for invitedBy attribution).
+    // requireSession is safe here — SessionGuard guarantees req.session is set.
+    const session = requireSession(req);
+    const actor = await this.authRepository.getUserWithRole(session.getUserId());
+    if (!actor) {
+      // Valid SuperTokens session but no app-DB users row — structural inconsistency;
+      // treat as unauthenticated rather than creating an invite with no actor.
+      throw new UnauthorizedException();
+    }
+    return this.authService.createInvite(result.data, actor.id);
   }
 
   // SEC-9: @Body() typed as unknown; safeParse with signupRequestSchema.
