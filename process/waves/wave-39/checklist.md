@@ -33,8 +33,8 @@ BUILD:
 - [x] B-6 Review — head-builder APPROVED + /review ship-as-is; F2/F4 defense-in-depth fixed (4e2da55); commit-discipline PASS
 
 CI/CD:
-- [ ] C-1 PR, CI & merge
-- [ ] C-2 Deploy & verify (canary armed when real users > 1000)
+- [ ] C-1 PR, CI & merge — HOLD (branch pushed at B-6 SHA 00f9bab; PR-create/merge BLOCKED: PAT Pull requests=read-only, infra-readiness hard stop; stages/C-1-pr-ci-merge.md)
+- [ ] C-2 Deploy & verify (canary armed when real users > 1000) — NOT REACHED (no merge commit; blocked upstream at C-1; stages/C-2-deploy-and-verify.md)
 
 TEST:
 - [ ] T-1 Static
