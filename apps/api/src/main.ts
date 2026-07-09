@@ -8,7 +8,7 @@ import { errorHandler, middleware } from 'supertokens-node/framework/express';
 import { z } from 'zod';
 
 import { AppModule } from './app.module';
-import { assertNonSuperuserConnection, assertUrlsDistinct, pool } from './db';
+import { assertNonSuperuserConnection, assertUrlsDistinct, pool, runMigrationsOnBoot } from './db';
 import { createRateLimitMiddleware } from './modules/auth/rate-limit.middleware';
 import { initSupertokens } from './modules/auth/supertokens.config';
 import { loadSupertokensEnv } from './modules/auth/supertokens.env';
@@ -29,6 +29,17 @@ async function bootstrap(): Promise<void> {
   // See apps/api/src/db/index.ts § assertUrlsDistinct.
   if (process.env.NODE_ENV !== 'test') {
     assertUrlsDistinct();
+  }
+
+  // ── Wave-38 fix: migrate-on-boot (run pending migrations with owner role) ──
+  // Runs BEFORE any tenant DB access. Executes all pending migrations from
+  // ./src/db/migrations using the MIGRATE_DATABASE_URL connection (owner role),
+  // then closes that connection. Fails loudly (throws) if any migration errors,
+  // preventing the app from starting with a partial schema.
+  // No-ops gracefully when MIGRATE_DATABASE_URL is absent (local dev / tests).
+  // See apps/api/src/db/index.ts § runMigrationsOnBoot and wave-38 P-0/P-3.
+  if (process.env.NODE_ENV !== 'test') {
+    await runMigrationsOnBoot();
   }
 
   // ── RLS-enforcement guard (Finding #2, B-6 rework2) ─────────────────────────
