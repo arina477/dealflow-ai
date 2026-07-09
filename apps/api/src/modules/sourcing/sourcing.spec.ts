@@ -431,7 +431,7 @@ describe('RBAC matrix — /sourcing/companies (analyst)', () => {
       ...new Reflector().get<Role[]>('dealflow:required-roles', listHandler),
     ].sort();
     expect(fromMeta).toEqual(fromMap);
-    expect(fromMeta).toEqual(['analyst']);
+    expect(fromMeta).toEqual(['admin', 'analyst']);
   });
 
   it('analyst → ALLOW', async () => {
@@ -440,10 +440,10 @@ describe('RBAC matrix — /sourcing/companies (analyst)', () => {
     );
   });
 
-  it('admin → DENY (403, not in allowedRoles for /sourcing/companies)', async () => {
-    await expect(
-      guardFor('admin').canActivate(contextFor(listHandler, 'admin'))
-    ).rejects.toBeInstanceOf(ForbiddenException);
+  it('admin → ALLOW (read-only oversight of /sourcing/companies)', async () => {
+    await expect(guardFor('admin').canActivate(contextFor(listHandler, 'admin'))).resolves.toBe(
+      true
+    );
   });
 
   it('advisor → DENY (403)', async () => {
