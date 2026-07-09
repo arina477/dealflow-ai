@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased selection:bg-emerald-100 selection:text-emerald-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Create Firm Workspace | DealFlow AI</title>
+    
+    <!-- Tailwind CSS (via CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons (Strict rule applied) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Design System Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        zinc: { 25: '#FCFCFD', 50: '#F9FAFB', 100: '#F3F4F6', 200: '#E5E7EB', 300: '#D1D5DB', 400: '#9CA3AF', 500: '#6B7280', 600: '#4B5563', 700: '#374151', 800: '#1F2937', 900: '#111827', 950: '#030712' },
+                        emerald: { 50: '#ECFDF5', 600: '#10B981', 700: '#047857' },
+                        status: { danger: '#DC2626', warn: '#D97706', info: '#2563EB', positive: '#10B981', neutral: '#9CA3AF' }
+                    },
+                    boxShadow: {
+                        'xs': '0 1px 2px rgb(16 24 40 / 0.05)',
+                        'sm': '0 1px 3px rgb(16 24 40 / 0.08)',
+                        'md': '0 8px 24px rgb(16 24 40 / 0.12)',
+                    },
+                    transitionTimingFunction: {
+                        'spring': 'cubic-bezier(0.16, 1, 0.3, 1)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Utilities & Advanced CSS */
+        :root {
+            --anim-speed: 0.6s;
+            --anim-ease: cubic-bezier(0.16, 1, 0.3, 1);
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+        }
+
+        body {
+            background-color: theme('colors.zinc.50');
+            /* Noise grain applied lightly to background only, not scrollable areas */
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+        }
+
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        
+        /* Typography Scale Overrides based on DS */
+        .text-h1 { font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.02em; }
+        .text-body-m { font-size: 14px; line-height: 20px; font-weight: 400; }
+        .text-label { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+
+        /* Form Primitives */
+        .df-input {
+            width: 100%;
+            background-color: #FFFFFF;
+            border: 1px solid theme('colors.zinc.200');
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            font-size: 14px;
+            color: theme('colors.zinc.900');
+            outline: none;
+            transition: all 150ms var(--anim-ease);
+            box-shadow: theme('boxShadow.xs');
+        }
+        .df-input::placeholder { color: theme('colors.zinc.400'); }
+        .df-input:hover:not(:disabled) { border-color: theme('colors.zinc.300'); }
+        .df-input:focus {
+            border-color: theme('colors.emerald.600');
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+        }
+        .df-input:disabled {
+            background-color: theme('colors.zinc.50');
+            color: theme('colors.zinc.500');
+            cursor: not-allowed;
+            border-color: theme('colors.zinc.200');
+            box-shadow: none;
+        }
+        .df-input.is-error {
+            border-color: theme('colors.status.danger');
+            color: theme('colors.status.danger');
+        }
+        .df-input.is-error:focus {
+            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
+        }
+        .df-input.is-error::placeholder {
+            color: theme('colors.status.danger');
+            opacity: 0.7;
+        }
+
+        /* Button Primitives */
+        .df-btn-primary {
+            background-color: theme('colors.emerald.600');
+            color: #FFFFFF;
+            font-weight: 500;
+            font-size: 14px;
+            border-radius: var(--radius-md);
+            padding: 10px 16px;
+            transition: all 150ms var(--anim-ease);
+            box-shadow: theme('boxShadow.xs');
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            border: 1px solid theme('colors.emerald.700');
+        }
+        .df-btn-primary:hover:not(:disabled):not(.is-loading) {
+            background-color: theme('colors.emerald.700');
+            transform: translateY(-1px);
+            box-shadow: theme('boxShadow.sm');
+        }
+        .df-btn-primary:active:not(:disabled):not(.is-loading) {
+            transform: translateY(0) scale(0.98);
+        }
+        .df-btn-primary:disabled {
+            background-color: theme('colors.zinc.300');
+            border-color: theme('colors.zinc.300');
+            color: theme('colors.zinc.50');
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Micro-Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-fade-in-up {
+            animation: fadeInUp var(--anim-speed) var(--anim-ease) forwards;
+            opacity: 0;
+        }
+
+        /* Staggered load delays */
+        .delay-1 { animation-delay: 0ms; }
+        .delay-2 { animation-delay: 80ms; }
+        .delay-3 { animation-delay: 160ms; }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .icon-spin {
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Shimmer for disabled input state (loading) */
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .is-loading-input {
+            background: linear-gradient(90deg, #f4f5f7 25%, #eef0f3 50%, #f4f5f7 75%);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite linear;
+            border-color: transparent !important;
+            color: transparent !important;
+        }
+    </style>
+</head>
+<body class="text-zinc-800 flex flex-col min-h-[100dvh] overflow-x-hidden">
+
+    <!-- Main Viewport Context -->
+    <main class="flex-1 flex flex-col justify-center items-center w-full px-4 sm:px-6 py-12 lg:py-24">
+        
+        <!-- Auth Container -->
+        <div class="w-full max-w-[420px] isolate">
+            
+            <!-- Brand / Logo Header -->
+            <div class="flex flex-col items-center mb-8 animate-fade-in-up delay-1">
+                <div class="h-12 w-12 bg-emerald-600 rounded-[10px] flex items-center justify-center text-white shadow-sm ring-1 ring-black/5 mb-6">
+                    <i data-lucide="network" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Main Interactive Card -->
+            <div class="bg-white rounded-xl border border-zinc-200 shadow-sm p-6 sm:p-8 animate-fade-in-up delay-2 relative overflow-hidden">
+                <!-- Inner refracted border aesthetic -->
+                <div class="absolute inset-0 rounded-xl border border-white/40 pointer-events-none"></div>
+                
+                <!-- Content Area -->
+                <div id="setup-view" class="relative z-10 transition-opacity duration-300">
+                    <div class="mb-8">
+                        <h1 class="text-h1 text-zinc-900 mb-2">Create workspace</h1>
+                        <p class="text-body-m text-zinc-500 pr-4">Set up a dedicated, compliance-ready environment for your firm's pipeline and mandate execution.</p>
+                    </div>
+
+                    <!-- Form Array -->
+                    <form id="create-firm-form" novalidate class="flex flex-col gap-6">
+                        
+                        <!-- Input Group -->
+                        <div class="flex flex-col gap-2 relative">
+                            <label for="firmName" class="text-label text-zinc-700 flex items-center justify-between">
+                                Firm Name
+                            </label>
+                            
+                            <div class="relative group">
+                                <i data-lucide="building" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 group-focus-within:text-emerald-600 transition-colors pointer-events-none z-10"></i>
+                                <input 
+                                    type="text" 
+                                    id="firmName" 
+                                    name="firmName"
+                                    placeholder="e.g. Acme Capital Partners" 
+                                    class="df-input pl-9"
+                                    autocomplete="organization"
+                                    aria-describedby="firmName-error firmName-desc"
+                                    required
+                                >
+                            </div>
+                            
+                            <!-- Dynamic Error Message -->
+                            <div id="firmName-error" class="hidden text-[13px] text-status-danger font-medium flex items-center gap-1.5 mt-0.5 mt-1" role="alert">
+                                <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                                <span>Firm name is required</span>
+                            </div>
+                        </div>
+
+                        <!-- System Note (Secondary Gap requirement: Admin notice) -->
+                        <div id="firmName-desc" class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 flex items-start gap-3">
+                            <i data-lucide="shield-check" class="w-4 h-4 text-status-info mt-0.5 flex-shrink-0"></i>
+                            <p class="text-[13px] leading-[18px] text-zinc-600">
+                                As the creator, you will be assigned as the <span class="font-semibold text-zinc-900">Workspace Administrator</span> by default. You can manage roles in team settings later.
+                            </p>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="mt-2 pt-4 border-t border-zinc-100 flex flex-col gap-4">
+                            <button type="submit" id="submit-btn" class="df-btn-primary">
+                                <span id="btn-text">Create workspace</span>
+                                <i id="btn-spinner" data-lucide="loader-2" class="w-4 h-4 ml-2 icon-spin hidden"></i>
+                            </button>
+                            
+                            <a href="#" class="text-[13px] font-medium text-zinc-500 hover:text-zinc-800 text-center transition-colors">
+                                Cancel and return to login
+                            </a>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Success State (Hidden by default, simulated via JS) -->
+                <div id="success-view" class="absolute inset-0 bg-white z-20 flex flex-col items-center justify-center p-8 opacity-0 pointer-events-none transition-opacity duration-300">
+                    <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-4 ring-4 ring-emerald-50/50">
+                        <i data-lucide="check" class="w-6 h-6 stroke-[3px]"></i>
+                    </div>
+                    <h2 class="text-h2 text-zinc-900 mb-2">Workspace Created</h2>
+                    <p class="text-body-m text-zinc-500 text-center mb-6">Initializing secure environment and applying compliance protocols...</p>
+                    <div class="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-emerald-600 h-full rounded-full animate-[shimmer_1.5s_ease-out_forwards]" style="width: 100%; transform-origin: left; transform: scaleX(0); animation: progressBar 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;"></div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer Meta Links -->
+            <div class="mt-8 text-center animate-fade-in-up delay-3">
+                <p class="text-[12px] text-zinc-400">
+                    By creating a workspace, you agree to the 
+                    <a href="#" class="text-zinc-600 hover:text-zinc-900 hover:underline transition-colors">Master Services Agreement</a>.
+                </p>
+            </div>
+            
+        </div>
+    </main>
+
+    <style>
+        @keyframes progressBar { 0% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
+    </style>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Architectural Flow Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('create-firm-form');
+            const input = document.getElementById('firmName');
+            const errorContainer = document.getElementById('firmName-error');
+            const submitBtn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('btn-text');
+            const btnSpinner = document.getElementById('btn-spinner');
+            
+            const setupView = document.getElementById('setup-view');
+            const successView = document.getElementById('success-view');
+
+            // Reset error state on input
+            input.addEventListener('input', () => {
+                if(input.classList.contains('is-error')) {
+                    input.classList.remove('is-error');
+                    errorContainer.classList.add('hidden');
+                    input.setAttribute('aria-invalid', 'false');
+                }
+            });
+
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const firmName = input.value.trim();
+
+                // Validation Vibe Check
+                if (!firmName) {
+                    input.classList.add('is-error');
+                    errorContainer.classList.remove('hidden');
+                    input.setAttribute('aria-invalid', 'true');
+                    input.focus();
+                    
+                    // Shake animation for physical feedback
+                    input.animate([
+                        { transform: 'translateX(0)' },
+                        { transform: 'translateX(-4px)' },
+                        { transform: 'translateX(4px)' },
+                        { transform: 'translateX(-4px)' },
+                        { transform: 'translateX(0)' }
+                    ], { duration: 300, easing: 'ease-in-out' });
+                    return;
+                }
+
+                // Initiate Loading Micro-architecture
+                submitBtn.disabled = true;
+                submitBtn.classList.add('is-loading');
+                btnText.textContent = 'Provisioning...';
+                btnSpinner.classList.remove('hidden');
+                
+                input.disabled = true;
+                input.classList.add('is-loading-input');
+
+                // Simulate Network / Infrastructure Provisioning Delay
+                setTimeout(() => {
+                    // Transition to Success Macro-state
+                    setupView.style.opacity = '0';
+                    setupView.style.pointerEvents = 'none';
+                    
+                    setTimeout(() => {
+                        successView.style.opacity = '1';
+                        // Re-initialize lucide icons if dynamic nodes were added, though here they exist.
+                        
+                        // Simulate redirect out of auth flow
+                        setTimeout(() => {
+                            // window.location.href = '/dashboard';
+                            console.log('Redirecting to dashboard...');
+                        }, 1600);
+
+                    }, 300); // Wait for fade out
+                    
+                }, 1200);
+            });
+        });
+    </script>
+</body>
+</html>
