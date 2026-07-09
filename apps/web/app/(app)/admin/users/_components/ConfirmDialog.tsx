@@ -60,9 +60,9 @@ export interface ConfirmDialogProps {
    * When set, shows a warning notice instead of the confirm button.
    * The action is blocked and cannot proceed.
    */
-  blockedReason?: string;
+  blockedReason?: string | undefined;
   /** Whether the confirm action is in-progress (loading state). */
-  loading?: boolean;
+  loading?: boolean | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,32 +133,38 @@ export function ConfirmDialog({
     [onCancel]
   );
 
-  // ── Overlay click handler (click-outside cancels) ─────────────────────────
-
-  function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {
-    // Only cancel if the click landed directly on the overlay, not the panel.
-    if (e.target === e.currentTarget) {
-      onCancel();
-    }
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    /* Overlay */
+    /* Overlay — presentational wrapper; click-outside is handled by the
+       accessible backdrop button below. */
     <div
-      aria-label="Dialog backdrop"
-      onClick={handleOverlayClick}
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(3, 7, 18, 0.5)', // zinc-950 @ 50%
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 50,
       }}
     >
+      {/* Backdrop button — keyboard-accessible close affordance for
+          click-outside-to-cancel. Sits behind the panel (z-index -1 relative
+          to the panel). Screen-readers announce it as a button; Enter/Space
+          also trigger onCancel. */}
+      <button
+        type="button"
+        aria-label="Close dialog"
+        onClick={onCancel}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(3, 7, 18, 0.5)', // zinc-950 @ 50%
+          border: 'none',
+          cursor: 'default',
+          zIndex: -1,
+        }}
+      />
       {/* Panel */}
       <div
         ref={panelRef}

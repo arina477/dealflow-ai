@@ -64,7 +64,7 @@ describe('ConfirmDialog', () => {
     const dialog = screen.getByRole('dialog');
     const labelledBy = dialog.getAttribute('aria-labelledby');
     expect(labelledBy).toBeTruthy();
-    const titleEl = document.getElementById(labelledBy!);
+    const titleEl = labelledBy ? document.getElementById(labelledBy) : null;
     expect(titleEl?.textContent).toMatch(/delete item/i);
   });
 
@@ -110,9 +110,9 @@ describe('ConfirmDialog', () => {
     const user = userEvent.setup();
     const { onCancel } = renderDialog();
 
-    // The overlay is labeled "Dialog backdrop".
-    const overlay = screen.getByLabelText(/dialog backdrop/i);
-    await user.click(overlay);
+    // The backdrop is an accessible button with aria-label "Close dialog".
+    const backdrop = screen.getByRole('button', { name: /close dialog/i });
+    await user.click(backdrop);
 
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
@@ -134,9 +134,7 @@ describe('ConfirmDialog', () => {
 
     const dialog = screen.getByRole('dialog');
     const focusable = Array.from(
-      dialog.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled])'
-      )
+      dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled])')
     );
 
     // There should be at least Cancel + Confirm.
@@ -154,9 +152,7 @@ describe('ConfirmDialog', () => {
 
     const dialog = screen.getByRole('dialog');
     const focusable = Array.from(
-      dialog.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled])'
-      )
+      dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled])')
     );
 
     // Shift+Tab from first should wrap to last.

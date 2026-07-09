@@ -316,13 +316,14 @@ export function AdminUsersClient({
   function openTransferDialog(targetUser: UserAdminRecord, triggerEl: HTMLButtonElement | null) {
     // Pick a sensible default step-down role: advisor if current user is admin.
     const actorNewRole: Role = 'advisor';
-    if (triggerEl) (dialogTriggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = triggerEl;
+    if (triggerEl)
+      (dialogTriggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = triggerEl;
     setDialogBlockedReason(undefined);
     setDialogState({ kind: 'transfer', targetUser, actorNewRole });
   }
 
   async function handleTransferConfirm() {
-    if (!dialogState || dialogState.kind !== 'transfer') return;
+    if (dialogState?.kind !== 'transfer') return;
     const { targetUser, actorNewRole } = dialogState;
 
     setDialogLoading(true);
@@ -365,13 +366,14 @@ export function AdminUsersClient({
   // ── Self-demote ───────────────────────────────────────────────────────────
 
   function openSelfDemoteDialog(newRole: Role, triggerEl: HTMLButtonElement | null) {
-    if (triggerEl) (dialogTriggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = triggerEl;
+    if (triggerEl)
+      (dialogTriggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = triggerEl;
     setDialogBlockedReason(undefined);
     setDialogState({ kind: 'self-demote', newRole });
   }
 
   async function handleSelfDemoteConfirm() {
-    if (!dialogState || dialogState.kind !== 'self-demote') return;
+    if (dialogState?.kind !== 'self-demote') return;
     const { newRole } = dialogState;
 
     setDialogLoading(true);
@@ -385,9 +387,7 @@ export function AdminUsersClient({
       });
 
       if (res.ok) {
-        setUsers((prev) =>
-          prev.map((u) => (u.id === currentUserId ? { ...u, role: newRole } : u))
-        );
+        setUsers((prev) => prev.map((u) => (u.id === currentUserId ? { ...u, role: newRole } : u)));
         setActionError(null);
         closeDialog();
       } else if (res.status === 409) {
@@ -410,8 +410,8 @@ export function AdminUsersClient({
   // ── Derive dialog props when open ─────────────────────────────────────────
 
   /** True only if the current user is an admin (controls which actions render). */
-  const isAdmin = currentUserRole === 'admin' ||
-    users.find((u) => u.id === currentUserId)?.role === 'admin';
+  const isAdmin =
+    currentUserRole === 'admin' || users.find((u) => u.id === currentUserId)?.role === 'admin';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -894,8 +894,7 @@ export function AdminUsersClient({
                           actionUserId === user.id || user.id === currentUserId
                             ? 'not-allowed'
                             : 'pointer',
-                        opacity:
-                          actionUserId === user.id || user.id === currentUserId ? 0.5 : 1,
+                        opacity: actionUserId === user.id || user.id === currentUserId ? 0.5 : 1,
                       }}
                     >
                       Deactivate
