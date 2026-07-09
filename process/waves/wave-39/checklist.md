@@ -30,7 +30,7 @@ BUILD:
 - [x] B-3 Frontend — ConfirmDialog + transfer/self-demote UI + activity labels; commits 3880cb0/eb279d4/811d680/daa9f69
 - [x] B-4 Wiring — repo typecheck 4/4 clean; transfer route + proxy registered
 - [x] B-5 Verify — api 1092 pass, web 1041 pass, lint 0 errors (2 defects found+routed+fixed)
-- [ ] B-6 Review
+- [x] B-6 Review — head-builder APPROVED + /review ship-as-is; F2/F4 defense-in-depth fixed (4e2da55); commit-discipline PASS
 
 CI/CD:
 - [ ] C-1 PR, CI & merge

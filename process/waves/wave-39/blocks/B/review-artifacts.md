@@ -3,7 +3,18 @@
 **Block:** B (Build)
 **Wave topic:** Admin role transfer + self-demote (race-safe last-admin guard) + destructive-change confirm modal + activity-view surfacing
 **Block exit gate:** B-6
-**Status:** in-progress
+**Status:** gate-passed
+
+```yaml
+build_block_status:    complete
+branch:                wave-39-admin-role-transfer
+stages_run:            [B-0, B-1, B-2, B-3, B-4, B-5, B-6]
+stages_skipped:        [D-block (design_gap_flag=false), B-0-schema (no migration)]
+review_verdict:        APPROVE
+deviations_logged:     [activity-labels-cant-distinguish-transfer-vs-promote (accepted, security read-projection)]
+last_commit_sha:       4e2da55
+ready_for_ci:          true
+```
 
 ## Stage deliverables
 
@@ -15,7 +26,7 @@
 | B-3 | process/waves/wave-39/stages/B-3-frontend.md | done | ConfirmDialog+transfer UI+activity; 3880cb0/eb279d4/811d680/daa9f69 |
 | B-4 | process/waves/wave-39/stages/B-4-wiring.md | done | repo typecheck 4/4 clean |
 | B-5 | process/waves/wave-39/stages/B-5-verify.md | done | api 1092 / web 1041 pass; lint 0 err |
-| B-6 | process/waves/wave-39/stages/B-6-review.md | pending | |
+| B-6 | process/waves/wave-39/stages/B-6-review.md | done | head-builder APPROVED + /review ship-as-is; F2/F4 fixed (4e2da55) |
 
 ## Block-specific context
 
