@@ -1,0 +1,4 @@
+# Wave 37 — C-block: deployed + VERIFIED e2e
+Merged 47a5bcd → deployed api+web. Migration 0021 did NOT auto-apply (MIGRATE_DATABASE_URL set but migrate-on-boot not applying — same drift as rate_limit_hits); applied 0021 manually to prod (CREATE OR REPLACE FUNCTION create_firm_workspace + GRANT, idempotent).
+VERIFIED on deployed app: (1) self-serve POST /auth/signup-firm → 201, admin; new user in a NEW isolated workspace (not Default). (2) create-firm UI E2E (browser): login has "Set up a new firm" link → /create-firm → firm name+email+password → Create workspace → landed in the app as admin, 0 5xx. (3) grant-admin: arina(admin) promotes advisor→admin → 200 (DB confirms); compliance(non-admin) → 403. All 3 founder asks delivered + verified.
+## FINDING → follow-up task: prod migrations do not auto-apply on deploy (0021 + rate_limit_hits). Root-cause + fix the migrate-on-boot. Pilot-hardening.
