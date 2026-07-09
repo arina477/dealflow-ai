@@ -184,6 +184,36 @@ export default function LoginPage() {
           <SubmitButton label="Sign in" loadingLabel="Signing in..." isLoading={isLoading} />
         </div>
       </form>
+
+      {/* Self-serve firm creation entry point (wave-37, task 6235baf7) */}
+      <div
+        style={{
+          marginTop: '24px',
+          paddingTop: '24px',
+          borderTop: '1px solid var(--border)',
+          textAlign: 'center',
+        }}
+      >
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+          No account yet?{' '}
+          <a
+            href="/create-firm"
+            style={{
+              color: 'var(--primary)',
+              fontWeight: 500,
+              textDecoration: 'none',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.color = 'var(--primary-hover)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.color = 'var(--primary)';
+            }}
+          >
+            Set up a new firm
+          </a>
+        </p>
+      </div>
     </AuthCard>
   );
 }
