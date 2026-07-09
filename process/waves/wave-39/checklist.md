@@ -37,23 +37,23 @@ CI/CD:
 - [x] C-2 Deploy & verify — **PASS**: both services deployed pinned to green e437b52 (api 7a12c3c3, web 2d605a9f → SUCCESS); commitHash==e437b52 both; api /health 200 db:ok; web login 200; transfer-admin smoke 401 (route registered); migrate no-op; rollback armed; canary skipped (<1000 DAU). stages/C-2-deploy-and-verify.md
 
 TEST:
-- [ ] T-1 Static
-- [ ] T-2 Unit
-- [ ] T-3 Contract
-- [ ] T-4 Integration
-- [ ] T-5 E2E
-- [ ] T-6 Layout
-- [ ] T-7 Perf
-- [ ] T-8 Security
-- [ ] T-9 Journey
+- [x] T-1 Static — CI green (e437b52 run 29051546609)
+- [x] T-2 Unit — CI green (17 transfer + api 1094 + web 1041)
+- [x] T-3 Contract — transfer endpoint in CI test job + live smoke 401
+- [x] T-4 Integration — atomic tx/guard/RLS/audit backend-tested; deployed
+- [x] T-5 E2E — flow component-tested in CI + live 401 smoke; logged-in-admin E2E not runnable (no creds/staging) — documented
+- [x] T-6 Layout — ConfirmDialog=DESIGN-SYSTEM Modal (a11y clean); pages 200 no crash
+- [~] T-7 Perf — SKIP (not heavy)
+- [x] T-8 Security — LIVE: privilege endpoints 401 unauth (auth-gate-first); RBAC/SoD/last-admin backend-tested + adversarial ship-as-is
+- [x] T-9 Journey — head-tester APPROVED; journey map regen v0.2→v0.3 (admin transfer/self-demote/confirm-gate/activity surfacing); F-T5 acceptable-documented, F-PRE1 out-of-scope; blocks/T/gate-verdict.md
 
 VERIFY:
-- [ ] V-1 Independent reviews (Karen + jenny, parallel)
-- [ ] V-2 Triage
-- [ ] V-3 Fast-fix loop (or close)
+- [x] V-1 Independent reviews (Karen + jenny, parallel, no shared context) — both APPROVE against deployed e437b52
+- [x] V-2 Triage — 0 blocking; GAP-1/GAP-2/HEALTH-SHA/F-T5 non-blocking (existing tasks/docs), F-PRE1 noise-suppressed; empty fast-fix queue
+- [x] V-3 Fast-fix loop — **APPROVED** (head-verifier fresh spawn; Phase 2 skipped, empty queue). Independently re-verified GREEN e437b52 deployed (not fabricated-green red 225114e); live 401 transfer route. blocks/V/gate-verdict.md
 
 LEARN:
-- [ ] L-1 Docs
+- [x] L-1 Docs — CHANGELOG 0.29.0 (admin role transfer/self-demote; lines 3–17); M7 stays in_progress (16 done/2 open, no transition); 2<3 → SOFT backlog signal for N-1; README skip; l_stage_verdict COMPLETE; stages/L-1-docs.md
 - [ ] L-2 Distill
 
 NEXT:

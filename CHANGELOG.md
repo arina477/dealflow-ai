@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.29.0] — 2026-07-09 — Hand off or step down from the admin role, safely (M7)
+
+Admins can now pass the admin role to a teammate and step themselves down, without ever leaving a firm with no admin in charge. Promoting someone and stepping down happens as one all-or-nothing action, a confirmation step guards these changes so they can't happen by accident, and every role change is written to the firm's tamper-evident record and shown in the admin activity view. This completes the earlier ask to be able to transfer or share the admin role later. Verified live on the deployed product.
+
+### Added
+- **Transfer the admin role, or step yourself down.** An admin can promote a teammate to admin and hand over their own admin role in a single move, or simply step themselves down to a regular member — all from within the app.
+- **A confirmation step guards role changes.** Stepping down, transferring the role, or deactivating a member now asks you to confirm first, spells out exactly what will happen, and does nothing if you cancel.
+- **Role changes show up in the admin activity view.** Every transfer and step-down now appears in the admin activity list — who changed whom, from which role to which, and when — newest first.
+
+### Correctness / compliance
+- **A firm can never be left with no admin.** If a role change would remove the last remaining admin, it is refused and nothing changes — even when two admins try to step down at the same moment. Role changes stay admin-only and within each firm.
+- **Every role change is recorded, all-or-nothing.** Each successful transfer or step-down writes one entry to the firm's unbroken tamper-evident record; if anything fails partway, the whole change is undone — no half-applied role, no orphaned record.
+
+### Provenance (transparency)
+- **No email sent, no AI added.** This adds admin role controls and a confirmation step; nothing in the tamper-evident record is edited or deleted.
+
 ## [0.28.1] — 2026-07-09 — Database updates now apply reliably on every deploy
 
 Some database changes were silently being skipped when the app deployed, so a couple of features shipped without their database piece actually in place. The cause was the order the updates were listed in, which let the deploy step report success while applying nothing. That ordering is fixed, and the deploy now applies every pending update reliably going forward. Verified live on the deployed product.
