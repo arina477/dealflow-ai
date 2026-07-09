@@ -1,13 +1,14 @@
 /**
- * AdminUsersController (wave-15 task 82ec8724; wave-16 task 042cf4e6)
+ * AdminUsersController (wave-15 task 82ec8724; wave-16 task 042cf4e6; wave-39 task 69cd8ce4)
  * — admin user management.
  *
  * Routes:
- *   GET  /admin/users                   — list users (name/email/role/active)
- *   POST /admin/users/invite            — create invite record (no email send)
- *   PATCH /admin/users/:id/role         — change user role
- *   POST /admin/users/:id/deactivate    — soft-deactivate a user
- *   POST /admin/users/:id/reactivate    — reverse deactivation (wave-16 042cf4e6)
+ *   GET  /admin/users                        — list users (name/email/role/active)
+ *   POST /admin/users/invite                 — create invite record (no email send)
+ *   PATCH /admin/users/:id/role              — change user role (self-demote allowed)
+ *   POST /admin/users/:id/deactivate         — soft-deactivate a user
+ *   POST /admin/users/:id/reactivate         — reverse deactivation (wave-16 042cf4e6)
+ *   POST /admin/users/:id/transfer-admin     — atomic admin transfer (wave-39 69cd8ce4)
  *
  * RBAC: admin-only (sourced from shared roleRoutes matrix).
  * Auth: SessionGuard + RolesGuard.
@@ -15,6 +16,11 @@
  *
  * FAIL-CLOSED at boot: if rolesForRoute('/admin/users') returns [], module
  * init throws (config drift → loud boot failure, not silent open).
+ *
+ * Self-demote note: PATCH /admin/users/:id/role with :id === actor is explicitly
+ * allowed. No self-target block exists — assignRoleAsActor treats self-demote
+ * identically to any other admin demotion, guarded by runLastAdminGuard (409 if
+ * the actor is the last admin).
  */
 
 import type { Role } from '@dealflow/shared';
@@ -25,6 +31,7 @@ import {
   adminReactivateParamsSchema,
   type adminReactivateResponseSchema,
   rolesForRoute,
+  transferAdminRequestSchema,
   type userAdminListResponseSchema,
 } from '@dealflow/shared';
 import {
@@ -174,5 +181,43 @@ export class AdminUsersController {
     }
     const { userId, role } = await this.resolveActor(req);
     return this.userManagementService.reactivateAsActor(id, userId, role);
+  }
+
+  /**
+   * POST /admin/users/:id/transfer-admin — atomically transfer admin role.
+   *
+   * `:id` is the TARGET user who will receive the admin role.
+   * The calling actor steps down to `actorNewRole` in the same transaction.
+   *
+   * Responses:
+   *   200  — { newAdmin: { id, email }, formerAdmin: { id, email } }
+   *   400  — invalid/admin actorNewRole (Zod) or self-target
+   *   401  — anonymous caller
+   *   403  — non-admin caller (RolesGuard)
+   *   404  — target not found, cross-workspace (RLS), or deactivated
+   *   409  — last-admin guard trip (defense-in-depth; should not fire in normal transfer)
+   *
+   * AC #1 (deactivated-target → 404): checked BEFORE any promotion.
+   * AC #2 (atomic): both role changes + both audit entries in ONE transaction.
+   * AC #3 (RBAC): @UseGuards(SessionGuard, RolesGuard) @Roles(...ADMIN_USERS_ROLES).
+   */
+  @Post('users/:id/transfer-admin')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SessionGuard, RolesGuard)
+  @Roles(...ADMIN_USERS_ROLES)
+  async transferAdmin(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() req: RequestWithSession
+  ): Promise<{ newAdmin: { id: string; email: string }; formerAdmin: { id: string; email: string } }> {
+    let input: ReturnType<typeof transferAdminRequestSchema.parse>;
+    try {
+      input = transferAdminRequestSchema.parse(body);
+    } catch (err) {
+      if (err instanceof ZodError) throw new BadRequestException('Invalid request body');
+      throw err;
+    }
+    const { userId, role } = await this.resolveActor(req);
+    return this.userManagementService.transferAdminAsActor(id, userId, input.actorNewRole, role);
   }
 }

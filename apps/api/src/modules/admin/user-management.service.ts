@@ -384,6 +384,155 @@ export class UserManagementService {
   }
 
   // ---------------------------------------------------------------------------
+  // Transfer admin (wave-39, task 69cd8ce4)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Atomically transfer the admin role from the calling actor to `newAdminUserId`.
+   *
+   * Single transaction:
+   *   1. Validate target: found in workspace (RLS → 404 if cross-ws or missing),
+   *      not deactivated (404 — deactivated target cannot receive admin), not self (400).
+   *   2. Promote target to 'admin'.
+   *   3. Demote actor to `actorNewRole` via the last-admin guard (defense-in-depth;
+   *      the just-promoted target keeps the workspace at ≥1 admin, so the guard
+   *      normally resolves — it only fires if somehow the promote failed to commit,
+   *      which is impossible within the same transaction).
+   *   4. Append TWO audit entries LAST-IN-TXN (target promote + actor demote).
+   *      Audit failure rolls back all changes.
+   *
+   * On any failure the entire transaction rolls back — no partial role state.
+   */
+  async transferAdminAsActor(
+    newAdminUserId: string,
+    actorUserId: string,
+    actorNewRole: Role,
+    actorRole: string
+  ): Promise<{ newAdmin: { id: string; email: string }; formerAdmin: { id: string; email: string } }> {
+    return getDb(this.db).transaction(async (tx) => {
+      // ── Step 1: self-target check (400) ──────────────────────────────────
+      if (newAdminUserId === actorUserId) {
+        throw new BadRequestException('Cannot transfer admin to yourself');
+      }
+
+      // ── Step 2: look up the target (RLS scopes to workspace; 404 if cross-ws/missing) ──
+      const [target] = await tx
+        .select({
+          id: users.id,
+          email: users.email,
+          roleId: users.roleId,
+          deactivatedAt: users.deactivatedAt,
+        })
+        .from(users)
+        .where(eq(users.id, newAdminUserId))
+        .limit(1);
+
+      if (!target) {
+        throw new NotFoundException(`User ${newAdminUserId} not found`);
+      }
+
+      // ── Step 3: reject deactivated target (AC #1) ────────────────────────
+      // Must check BEFORE any promotion. A deactivated user cannot receive admin
+      // (they cannot log in; runLastAdminGuard counts active admins only, so a
+      // deactivated admin is invisible to the guard and would silently orphan
+      // the workspace if the actor then left).
+      if (target.deactivatedAt !== null) {
+        throw new NotFoundException(
+          `User ${newAdminUserId} is deactivated and cannot receive the admin role`
+        );
+      }
+
+      // ── Step 4: look up the actor (needed for audit + demote) ────────────
+      const [actor] = await tx
+        .select({ id: users.id, email: users.email, roleId: users.roleId })
+        .from(users)
+        .where(eq(users.id, actorUserId))
+        .limit(1);
+
+      if (!actor) {
+        throw new NotFoundException(`Actor user ${actorUserId} not found`);
+      }
+
+      // ── Step 5: resolve role ids ─────────────────────────────────────────
+      const [adminRoleRow] = await tx
+        .select({ id: roles.id })
+        .from(roles)
+        .where(eq(roles.name, 'admin'))
+        .limit(1);
+
+      if (!adminRoleRow) {
+        throw new UnprocessableEntityException("Role 'admin' not found in roles table");
+      }
+
+      const [actorNewRoleRow] = await tx
+        .select({ id: roles.id })
+        .from(roles)
+        .where(eq(roles.name, actorNewRole))
+        .limit(1);
+
+      if (!actorNewRoleRow) {
+        throw new UnprocessableEntityException(`Role '${actorNewRole}' not found in roles table`);
+      }
+
+      // ── Step 6: promote target to admin ──────────────────────────────────
+      await tx.update(users).set({ roleId: adminRoleRow.id }).where(eq(users.id, newAdminUserId));
+
+      // ── Step 7: run last-admin guard on actor demotion ───────────────────
+      // The guard acquires pg_advisory_xact_lock(ADMIN_GUARD_LOCK_KEY) and counts
+      // active admins excluding the actor. Since the target was just promoted to
+      // admin in this same transaction, there is at least 1 remaining admin, so
+      // the guard passes in the normal case. Defense-in-depth: the guard catches
+      // any edge case (e.g., actor is not actually admin due to RLS drift).
+      await runLastAdminGuard(tx, actorUserId, 'demote');
+
+      // ── Step 8: demote actor ─────────────────────────────────────────────
+      await tx.update(users).set({ roleId: actorNewRoleRow.id }).where(eq(users.id, actorUserId));
+
+      // ── Step 9: audit LAST-IN-TXN (AC #2) ───────────────────────────────
+      // Two role-change rows — target promote and actor demote — both inside
+      // the same transaction. If either audit append fails, all writes roll back.
+      const promoteAudit: AuditEntryInput = {
+        actorUserId,
+        actorRole,
+        action: 'role-change',
+        resourceType: 'user',
+        resourceId: newAdminUserId,
+        contentHash: hashJson({ userId: newAdminUserId, newRole: 'admin' }),
+        payloadHash: hashJson({
+          op: 'role-change',
+          userId: newAdminUserId,
+          from: 'non-admin',
+          to: 'admin',
+          transfer: true,
+        }),
+      };
+      await this.auditService.append(promoteAudit, tx as unknown as Tx);
+
+      const demoteAudit: AuditEntryInput = {
+        actorUserId,
+        actorRole,
+        action: 'role-change',
+        resourceType: 'user',
+        resourceId: actorUserId,
+        contentHash: hashJson({ userId: actorUserId, newRole: actorNewRole }),
+        payloadHash: hashJson({
+          op: 'role-change',
+          userId: actorUserId,
+          from: 'admin',
+          to: actorNewRole,
+          transfer: true,
+        }),
+      };
+      await this.auditService.append(demoteAudit, tx as unknown as Tx);
+
+      return {
+        newAdmin: { id: target.id, email: target.email },
+        formerAdmin: { id: actor.id, email: actor.email },
+      };
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Reactivate (wave-16, task 042cf4e6)
   // ---------------------------------------------------------------------------
 
