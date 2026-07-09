@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.28.1] — 2026-07-09 — Database updates now apply reliably on every deploy
+
+Some database changes were silently being skipped when the app deployed, so a couple of features shipped without their database piece actually in place. The cause was the order the updates were listed in, which let the deploy step report success while applying nothing. That ordering is fixed, and the deploy now applies every pending update reliably going forward. Verified live on the deployed product.
+
+### Fixed
+- **Pending database updates are no longer skipped on deploy.** A stale ordering in the update list let three recent database changes be passed over while the deploy still reported success, so they never reached the live database. The ordering is corrected and all three are now applied.
+- **The rate-limit protection and the self-serve firm setup are now fully in place on the live database.** Both depended on a skipped update; their missing pieces (a rate-limit tracking table and the firm-setup routine) are now present and confirmed live.
+- **Deploys apply database updates through a single reliable path.** A second, broken mechanism that could abort a deploy outright was removed in favour of the one path that works, so future updates apply durably every time.
+
 ## [0.28.0] — 2026-07-09 — Set up your own firm and manage admins, all in the app (M7)
 
 A firm can now get started on its own: create its workspace, name the firm, and set up its first admin without anyone provisioning it by hand. Once inside, an admin can promote a teammate to admin from the app. Each new firm lands in its own private workspace, and only admins can change roles. Verified live on the deployed product.
