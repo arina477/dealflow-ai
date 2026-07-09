@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.28.0] — 2026-07-09 — Set up your own firm and manage admins, all in the app (M7)
+
+A firm can now get started on its own: create its workspace, name the firm, and set up its first admin without anyone provisioning it by hand. Once inside, an admin can promote a teammate to admin from the app. Each new firm lands in its own private workspace, and only admins can change roles. Verified live on the deployed product.
+
+### Added
+- **Set up a new firm yourself.** A new "Set up a new firm" link on the sign-in screen opens a short create-workspace flow — enter a firm name, an email, and a password, and you land in the app as that firm's first admin, in a fresh private workspace of your own.
+- **Promote a teammate to admin.** An admin can grant admin access to another member from the app; non-admins cannot, and the last remaining admin cannot be removed.
+
+### Correctness / compliance
+- **Each new firm gets its own isolated workspace.** A self-created firm lands in a fresh workspace that no other firm can see, confirmed live end-to-end. Only an admin can change a member's role; anyone else is refused.
+
+### Provenance (transparency)
+- **No email sent, no AI added.** This adds a self-serve setup flow and an admin control; nothing in the tamper-evident record is edited or deleted.
+
 ## [0.27.0] — 2026-07-09 — The full deal loop is proven working, and a site-wide outage is fixed (M6 / H1)
 
 The complete deal loop now works end-to-end on the live app, proven step by step against the deployed product: an advisor gets a ranked shortlist, drafts an outreach, a compliance officer (a different person) approves it, the message becomes send-ready with a permanent tamper-evident record, and the buyer moves through the pipeline. This closes the last core milestone — the product is now complete and its central workflow is verified, not just assumed. While proving it, we found and fixed a serious outage: every page was showing an error for anyone who was logged in.
