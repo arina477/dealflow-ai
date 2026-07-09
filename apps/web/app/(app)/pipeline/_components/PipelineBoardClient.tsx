@@ -559,7 +559,11 @@ export function PipelineBoardClient({
               fontWeight: 500,
             }}
           >
-            {userRole === 'advisor' ? 'Advisor — can move deals' : 'Compliance — read-only'}
+            {userRole === 'advisor'
+              ? 'Advisor — can move deals'
+              : userRole === 'admin'
+                ? 'Admin — read-only'
+                : 'Compliance — read-only'}
           </span>
         </div>
 

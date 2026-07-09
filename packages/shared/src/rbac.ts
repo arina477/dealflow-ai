@@ -80,12 +80,16 @@ const NAV_MANDATES: NavItem = {
   allowedRoles: ['advisor', 'admin', 'analyst'],
 };
 
+// Wave-36 (task 76edc7e2): admin added for read-only oversight of sourcing screens.
+// admin cannot create connections or trigger syncs via this nav surface.
+// nav⊆RBAC: NAV_SOURCING.allowedRoles references the same array as the
+// /sourcing route entry below.
 const NAV_SOURCING: NavItem = {
   label: 'Sourcing',
   route: '/sourcing',
   icon: 'database',
   group: 'workspace',
-  allowedRoles: ['analyst'],
+  allowedRoles: ['analyst', 'admin'],
 };
 
 const NAV_COMPLIANCE: NavItem = {
@@ -227,6 +231,9 @@ const NAV_OUTREACH: NavItem = {
 // Wave-12: Pipeline nav item (advisor primary — enroll + transition; compliance read-only).
 // advisor is the primary pipeline persona (enroll from outreach + move stages).
 // compliance may view the pipeline board and event timeline (read-only visibility).
+// Wave-36 (task 76edc7e2): admin added — READ-ONLY oversight of the board view.
+// admin cannot enroll (/pipeline/new — advisor only) or transition stages
+// (/pipeline/:id/stage — advisor only). M6 sender≠approver SoD is UNTOUCHED.
 // nav⊆RBAC: NAV_PIPELINE.allowedRoles references the same array as the
 // /pipeline route entry below.
 const NAV_PIPELINE: NavItem = {
@@ -234,7 +241,7 @@ const NAV_PIPELINE: NavItem = {
   route: '/pipeline',
   icon: 'kanban',
   group: 'workspace',
-  allowedRoles: ['advisor', 'compliance'],
+  allowedRoles: ['advisor', 'compliance', 'admin'],
 };
 
 // ---------- Route entries (the canonical role → route matrix) ----------
@@ -297,42 +304,51 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
   // --- Pipeline group (wave-12) ---
   // advisor: enroll + transition + note (all mutations).
   // compliance: read-only visibility (board + events).
+  // Wave-36 (task 76edc7e2): admin added to READ routes for oversight.
+  //   admin may VIEW the board (/pipeline), deal detail (/pipeline/:id),
+  //   event timeline (/pipeline/:id/events), and notes list (/pipeline/:id/notes).
+  //   admin may NOT enroll (/pipeline/new — advisor only) or transition stages
+  //   (/pipeline/:id/stage — advisor only). M6 sender≠approver SoD is UNTOUCHED.
   // nav⊆RBAC invariant holds: NAV_PIPELINE.allowedRoles references the same
   // set as the /pipeline route entry below.
   {
     pattern: '/pipeline',
-    allowedRoles: ['advisor', 'compliance'],
+    allowedRoles: ['advisor', 'compliance', 'admin'],
     navItem: NAV_PIPELINE,
   },
   {
-    // POST /pipeline (enroll) — advisor only.
+    // POST /pipeline (enroll) — advisor only. Admin is DENIED (write action).
     pattern: '/pipeline/new',
     allowedRoles: ['advisor'],
   },
   {
-    // PATCH /pipeline/:id/stage (transition) — advisor only.
-    // GET /pipeline/:id/events (timeline read) — advisor + compliance.
-    // POST /pipeline/:id/notes (addNote) — advisor + compliance.
-    // Note: /pipeline/:id sub-routes share this pattern entry for list/detail;
-    // write-only guards are enforced in the controller via @Roles derivation.
+    // GET /pipeline/:id (deal detail read) — advisor + compliance + admin (read).
+    // PATCH /pipeline/:id/stage (transition) — advisor only (controller-enforced).
+    // POST /pipeline/:id/notes (addNote) — advisor + compliance (write).
+    // Note: /pipeline/:id is the base pattern; write-only guards for stage/notes
+    // are enforced at the sub-route level (/pipeline/:id/stage, /pipeline/:id/notes).
+    // admin sees the deal detail but cannot transition or add notes via the API
+    // (those sub-routes remain advisor/compliance respectively).
     pattern: '/pipeline/:id',
-    allowedRoles: ['advisor', 'compliance'],
+    allowedRoles: ['advisor', 'compliance', 'admin'],
   },
   {
-    // PATCH /pipeline/:id/stage (stage transition) — advisor only.
+    // PATCH /pipeline/:id/stage (stage transition) — advisor only. Admin is DENIED.
     pattern: '/pipeline/:id/stage',
     allowedRoles: ['advisor'],
   },
   {
-    // POST /pipeline/:id/notes (add note) — advisor + compliance.
-    // GET /pipeline/:id/events (event timeline) — advisor + compliance.
+    // POST /pipeline/:id/notes (add note) — advisor + compliance. Admin is DENIED (write).
+    // GET /pipeline/:id/notes (notes read) — advisor + compliance (unchanged).
+    // admin excluded: note-writing is a write action; admin has read-only oversight.
     pattern: '/pipeline/:id/notes',
     allowedRoles: ['advisor', 'compliance'],
   },
   {
-    // GET /pipeline/:id/events — ordered event timeline.
+    // GET /pipeline/:id/events — ordered event timeline (read-only).
+    // Wave-36: admin added for read-only event timeline oversight.
     pattern: '/pipeline/:id/events',
-    allowedRoles: ['advisor', 'compliance'],
+    allowedRoles: ['advisor', 'compliance', 'admin'],
   },
 
   // --- Matches group (wave-10) ---
@@ -396,22 +412,28 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
   },
 
   // --- Sourcing group ---
+  // Wave-36 (task 76edc7e2): admin added to /sourcing (nav entry) for read-only oversight.
+  // nav⊆RBAC invariant holds: NAV_SOURCING.allowedRoles references the same set.
   {
     pattern: '/sourcing',
-    allowedRoles: ['analyst'],
+    allowedRoles: ['analyst', 'admin'],
     navItem: NAV_SOURCING,
   },
   // Wave-6: /companies repointed to /sourcing/companies (namespace consolidation per P-3 Delta 5).
   // The bare /companies placeholder (no page existed — verified no (app)/companies route dir) is
   // superseded by the canonical /sourcing/companies pattern so all sourcing routes share a namespace.
   // rbac.test.ts updated accordingly (karen LOW — named B-1/B-2 step).
+  // Wave-36 (task 76edc7e2): admin added — READ-ONLY oversight of the companies list and detail.
+  // Write routes (/sourcing/connections/:id/sync, /sourcing/dedupe-candidates/:id/resolve)
+  // remain analyst+admin as before (pre-existing admin access; these are ops/config surfaces
+  // NOT a read-only extension — they are unchanged). admin gains the screen READ routes only.
   {
     pattern: '/sourcing/companies',
-    allowedRoles: ['analyst'],
+    allowedRoles: ['analyst', 'admin'],
   },
   {
     pattern: '/sourcing/companies/:id',
-    allowedRoles: ['analyst'],
+    allowedRoles: ['analyst', 'admin'],
   },
   // Wave-6: API route entries for the sourcing data spine (analyst + admin per P-3 Action 3).
   // No navItem — these are API-only endpoints; the sidebar nav for sourcing is /sourcing (NAV_SOURCING).

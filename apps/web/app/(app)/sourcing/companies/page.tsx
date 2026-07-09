@@ -6,7 +6,7 @@
  *
  * Responsibilities:
  *   1. Fine-grained RBAC: assertRole('/sourcing/companies', me.role) —
- *      analyst-only; any other role is redirected to '/'.
+ *      analyst + admin (wave-36 read-only oversight); other roles redirect to '/'.
  *   2. SSR-fetches the companies list from GET /sourcing/companies,
  *      cookie-forwarded, no-store — consistent with the wave-5 settings page.
  *   3. Renders the companies list + filter bar per design/companies-contacts.html.
@@ -15,8 +15,9 @@
  * Design: DESIGN-SYSTEM §10 (zinc/emerald, AppShell chrome inherited, lucide).
  * Build to design/companies-contacts.html.
  *
- * RBAC: analyst sees the screen. Non-analyst authenticated roles are redirected
- * to '/'. Unauthenticated → /login via the (app) layout guard.
+ * RBAC: analyst + admin (wave-36: admin read-only oversight) see the screen.
+ * Other authenticated roles are redirected to '/'.
+ * Unauthenticated → /login via the (app) layout guard.
  *
  * NO manual-create: the +add buttons in design/companies-contacts.html are
  * out of scope (wave-6 plan P-4 addendum — view/filter/clean only). Stubbed.
@@ -147,7 +148,7 @@ export default async function CompaniesPage() {
   const me = await fetchMe(cookie);
   if (!me) redirect('/login');
 
-  // 2. Assert analyst-only access — redirects to '/' if denied.
+  // 2. Assert analyst + admin access (wave-36: admin read-only oversight) — redirects to '/' if denied.
   assertRole('/sourcing/companies', me.role);
 
   // 3. SSR data fetch.
