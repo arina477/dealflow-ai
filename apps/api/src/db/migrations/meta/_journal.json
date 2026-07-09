@@ -148,6 +148,13 @@
       "when": 1751932800000,
       "tag": "0020_retention_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1752019200000,
+      "tag": "0021_self_serve_firm_bootstrap",
+      "breakpoints": true
     }
   ]
 }

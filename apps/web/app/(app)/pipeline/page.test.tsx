@@ -302,11 +302,10 @@ describe('B. PipelinePage — RBAC + SSR-hydration', () => {
     expect(path).toBe('/');
   });
 
-  it('redirects to / for admin role', async () => {
+  it('renders for admin role (read-only oversight; wave-36)', async () => {
     vi.stubGlobal('fetch', makePageFetch('admin'));
-    const { redirected, path } = await renderPage('admin');
-    expect(redirected).toBe(true);
-    expect(path).toBe('/');
+    const { redirected } = await renderPage('admin');
+    expect(redirected).toBe(false);
   });
 
   it('redirects to /login when unauthenticated (fetchMe returns null)', async () => {

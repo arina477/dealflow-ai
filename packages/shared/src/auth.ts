@@ -127,3 +127,26 @@ export const resetConfirmSchema = z
   .strict();
 
 export type ResetConfirm = z.infer<typeof resetConfirmSchema>;
+
+// ---------------------------------------------------------------------------
+// POST /auth/signup-firm   (self-serve workspace-creating signup)
+// Request:  { firmName, email, password }
+// Response: { userId, email, role }   → 201 + Set-Cookie session (admin role claim)
+//
+// firmName is DATA (human label). workspace_id is SERVER-MINTED (gen_random_uuid)
+// — never client-supplied. The resulting user is the first admin of the new workspace.
+// ---------------------------------------------------------------------------
+
+export const signupFirmRequestSchema = z
+  .object({
+    firmName: z.string().min(1).max(255).trim(),
+    email: z.string().email(),
+    password: passwordSchema,
+  })
+  .strict();
+
+export type SignupFirmRequest = z.infer<typeof signupFirmRequestSchema>;
+
+// Response mirrors SignupResponse: { userId, email, role: 'admin' }
+export const signupFirmResponseSchema = signupResponseSchema;
+export type SignupFirmResponse = SignupResponse;

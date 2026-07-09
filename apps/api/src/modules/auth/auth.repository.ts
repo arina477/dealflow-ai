@@ -400,6 +400,52 @@ export class AuthRepository {
     }
   }
 
+  /**
+   * Create a brand-new firm workspace + first admin user atomically via the
+   * create_firm_workspace SECURITY DEFINER function (migration 0021).
+   *
+   * WHY SECURITY DEFINER:
+   *   A brand-new user has NO workspace context. app.workspace_id GUC is unset.
+   *   workspaces INSERT: workspaces has no RLS, so direct INSERT would work, but
+   *   users INSERT has FORCE RLS → NULL = uuid → false → INSERT blocked.
+   *   The SECURITY DEFINER function runs as the table owner (DEFINER) and bypasses
+   *   RLS for both INSERTs atomically, just like resolve_invite does for the
+   *   invite-based signup bootstrap.
+   *
+   * SECURITY INVARIANTS (enforced in the function body, not here):
+   *   • workspace_id is SERVER-MINTED (gen_random_uuid()) inside the DB function.
+   *     This method accepts NO workspace_id from the caller — it is structurally
+   *     impossible to steer the INSERT to an existing firm.
+   *   • firmName is DATA (maps to workspace.name only).
+   *   • role is always 'admin' (resolved from the roles table by name inside the function).
+   *
+   * Returns { workspaceId, userId, roleName } so the service can mint the session.
+   * Returns null if the admin role is missing from the roles table (invariant violation
+   * — the function raises; we surface it as null + the service compensates).
+   */
+  async createFirmWorkspace(input: {
+    supertokensUserId: string;
+    email: string;
+    firmName: string;
+  }): Promise<{ workspaceId: string; userId: string; roleName: string } | null> {
+    const result = await pool.query<{
+      workspace_id: string;
+      user_id: string;
+      role_name: string;
+    }>('SELECT workspace_id, user_id, role_name FROM create_firm_workspace($1, $2, $3)', [
+      input.supertokensUserId,
+      input.email.toLowerCase(),
+      input.firmName,
+    ]);
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      workspaceId: row.workspace_id,
+      userId: row.user_id,
+      roleName: row.role_name,
+    };
+  }
+
   /** Expose the underlying db handle so the service can open a transaction. */
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T> {
     return getDb(this.db).transaction(work);
