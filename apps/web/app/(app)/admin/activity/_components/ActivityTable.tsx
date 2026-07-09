@@ -83,6 +83,30 @@ function actionLabel(action: string): string {
   return found?.label ?? action;
 }
 
+/**
+ * Derive a human-readable context label for role-change events.
+ *
+ * The AdminActivityRow shape carries { actor, target, action, timestamp }.
+ * There is no from/to role field in this safe projection, so we infer context
+ * from actor/target identity:
+ *
+ *   actor.email === target.email  →  "Self-demote"
+ *                                    (admin stepped down their own role)
+ *   actor.email !== target.email  →  "Role change"
+ *                                    (admin changed another user's role;
+ *                                     may be a transfer, promote, or demote —
+ *                                     not distinguishable without from/to fields
+ *                                     in this read surface)
+ *
+ * Returns null for all non-role-change actions (no supplementary label needed).
+ */
+function roleChangeContextLabel(row: AdminActivityRow): string | null {
+  if (row.action !== 'role-change') return null;
+  if (!row.target) return null;
+  const isSelf = row.actor.email === row.target.email;
+  return isSelf ? 'Self-demote' : 'Role change';
+}
+
 // ---------------------------------------------------------------------------
 // Filter state
 // ---------------------------------------------------------------------------
@@ -556,25 +580,41 @@ export function ActivityTable({ initialRows, initialNextCursor }: ActivityTableP
                     )}
                   </td>
 
-                  {/* Action pill */}
+                  {/* Action pill + optional context label */}
                   <td style={{ padding: '12px 12px', verticalAlign: 'top' }}>
-                    <span
-                      data-testid={`action-pill-${row.sequenceNumber}`}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        padding: '2px 8px',
-                        borderRadius: '9999px',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        letterSpacing: '0.04em',
-                        border: '1px solid transparent',
-                        whiteSpace: 'nowrap',
-                        ...actionPillStyle(row.action),
-                      }}
-                    >
-                      {actionLabel(row.action)}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span
+                        data-testid={`action-pill-${row.sequenceNumber}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          letterSpacing: '0.04em',
+                          border: '1px solid transparent',
+                          whiteSpace: 'nowrap',
+                          ...actionPillStyle(row.action),
+                        }}
+                      >
+                        {actionLabel(row.action)}
+                      </span>
+                      {/* Context label for role-change events — distinguishes
+                          self-demote from admin-to-other role changes. */}
+                      {roleChangeContextLabel(row) !== null && (
+                        <span
+                          data-testid={`action-context-${row.sequenceNumber}`}
+                          style={{
+                            fontSize: '11px',
+                            color: '#6b7280',
+                            lineHeight: '16px',
+                          }}
+                        >
+                          {roleChangeContextLabel(row)}
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Timestamp */}
