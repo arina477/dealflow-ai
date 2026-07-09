@@ -323,7 +323,7 @@ export {
   pipelineStageEnum,
   transitionInputSchema,
 } from './pipeline';
-export type { NavGroup, NavItem, RouteEntry } from './rbac';
+export type { NavGroup, NavItem, RouteEntry, TransferAdminRequest } from './rbac';
 export {
   ALL_NAV_ITEMS,
   canAccess,
@@ -331,6 +331,7 @@ export {
   navItemsForRole,
   roleRoutes,
   rolesForRoute,
+  transferAdminRequestSchema,
 } from './rbac';
 export type {
   AuditLogEntryRead,

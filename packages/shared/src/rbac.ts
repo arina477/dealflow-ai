@@ -1,3 +1,5 @@
+import { z } from 'zod';
+import { roleEnum } from './auth';
 import type { Role } from './auth';
 
 // ---------------------------------------------------------------------------
@@ -671,6 +673,13 @@ export const roleRoutes: ReadonlyArray<RouteEntry> = [
     allowedRoles: ['admin'],
   },
   {
+    // Wave-39 (task 69cd8ce4): POST /admin/users/:id/transfer-admin — atomic admin transfer.
+    // Promotes target to admin, demotes calling actor to actorNewRole in one transaction.
+    // admin-only; matches the role matrix for all /admin/users mutations.
+    pattern: '/admin/users/:id/transfer-admin',
+    allowedRoles: ['admin'],
+  },
+  {
     // Wave-15: /admin/workspace-settings — firm profile + default compliance profile.
     // admin-only (full CRUD over firm settings). RBAC: admin.
     // nav⊆RBAC: NAV_SETTINGS references /admin/settings (shell placeholder);
@@ -909,3 +918,26 @@ export const ALL_NAV_ITEMS: ReadonlyArray<NavItem> = [
   // Wave-20: Outreach Activity nav item.
   NAV_OUTREACH_ACTIVITY,
 ];
+
+// ---------------------------------------------------------------------------
+// Wave-39 (task 69cd8ce4): Admin transfer request schema
+//
+// POST /admin/users/:id/transfer-admin body.
+// The actor (current admin) steps down to `actorNewRole` while the target
+// (`:id`) is promoted to admin — in ONE atomic transaction.
+//
+// Constraint: actorNewRole MUST NOT be 'admin'. An actor self-assigning admin
+// is a no-op at best and confusing at worst; the transfer must always result
+// in a new admin (target) and a demoted actor (non-admin). Validated here so
+// the Zod-level rejection (400) fires at the controller before any DB write.
+// ---------------------------------------------------------------------------
+
+export const transferAdminRequestSchema = z
+  .object({
+    actorNewRole: roleEnum.refine((r) => r !== 'admin', {
+      message: 'The stepping-down admin must take a non-admin role',
+    }),
+  })
+  .strict();
+
+export type TransferAdminRequest = z.infer<typeof transferAdminRequestSchema>;
