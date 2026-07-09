@@ -26,3 +26,4 @@ apps/web/playwright-report/
 
 # wave-17 C-2 transient owner-credential scratch (NEVER commit)
 process/session/.c2-scratch/
+process/session/secrets/
