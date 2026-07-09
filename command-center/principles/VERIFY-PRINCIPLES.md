@@ -73,3 +73,5 @@ Promoted at L-2 Distill from `process/waves/wave-<N>/blocks/L/observations.md` b
    Why: Head-builder gate reviews structure; adversarial review finds fail-open and hash CRITICALs.
 3. A compliance-invariant test must call the real service or guard, not re-implement or mock the mechanism it proves.
    Why: A mocked or re-implemented mechanism passes whether the real guard is correct or broken.
+4. Run one full end-to-end pass against the deployed build every wave, not only green unit and integration suites.
+   Why: A deploy-only fault passes every isolated test yet 500s live on the real deployed build.
