@@ -548,3 +548,17 @@ Fixed the founder-reported signup crash (S3/MinIO writeFile) by moving to STORAG
 ---
 ## 2026-07-09 — ✅ Self-hosted Twenty ↔ DealFlow integration LIVE + VERIFIED end-to-end
 Completed the founder's "option 2 — I do it": fixed the signup storage crash (local storage + volume + RAILWAY_RUN_UID=0), created the admin (arina@claudomat.dev — none existed), created a Twenty sourcing connection, synced, and confirmed the 9 self-hosted-Twenty companies landed in DealFlow's companies table. One code fix en route: Twenty adapter depth=2→depth=1 (v2.19 max depth is 1; commit 6f6b126, tested, deployed). Temp bootstrap exposures (a public domain on supertokens-core + an app-DB TCP proxy) were created and then removed. Admin logins (Twenty + DealFlow) saved gitignored for the founder.
+
+---
+
+## [2026-07-09] Next-milestone slot after wave-33 — BOARD 7/7 APPROVE-PAUSE (roadmap-refresh recommended)
+
+**Decision:** Pause the wave loop; do NOT force-close M9, set any `_TBD` metric, hand-author M11/M12 bundles, or manufacture a seed. Escalate to founder with a decisive #1 = a 15-min roadmap-refresh to sharpen the blank success metrics.
+
+**Why:** Wave-33 live-verified the self-hosted Twenty CRM integration — 9 real companies now sync into DealFlow's sourcing search (depth=2→1 adapter hotfix `6f6b126` on main, 1048 tests pass, deployed). But no autonomously-buildable next seed exists: M9 (`in_progress`) has open=0 / done=21 / seed_candidates=0 with `## Success metric = _TBD by founder` (force-close = Hallucinated-Milestone-Completion); M11/M12 (`todo`) both have `_TBD` metrics → decomposition refuses; M5/M6/M7 blocked; the only unassigned task is /health doc padding (not promoted).
+
+**Board:** slug `next-milestone-slot-wave-33`, Tier-3-strict (6+/7). **7/7 APPROVE-PAUSE**, no dissent, no HARD-STOP. Record: `process/waves/_archive/wave-33/escalations/board-next-milestone-slot-wave-33.md`.
+
+**Consensus refinements:** (1) make the roadmap-refresh the decisive primary, not a soft "continue?" menu — a bare "continue" re-arms the identical pause; (2) name the 4th-consecutive-pause pattern (waves 29/31/32/33) so the founder sees one 15-min metric session unblocks weeks of stalled work; (3) M11's metric must gate on Chinese-Wall tenant isolation when authored; (4) surface the standing GitHub Actions spending-limit fragility.
+
+**M9 disposition:** stays `in_progress`. Its integration goal is live-verified; if the founder confirms "≥1 live CRM integration syncing companies" as the metric, M9 closes immediately on today's evidence.
