@@ -631,9 +631,9 @@ describe('TwentyDataSourceAdapter', () => {
     expect(results[0]?.contacts[0]?.title).toBeUndefined();
   });
 
-  // ── Additional: depth=2 query param is sent ──────────────────────────────
+  // ── Additional: depth=1 query param is sent ──────────────────────────────
 
-  it('sends depth=2 query param in the request URL', async () => {
+  it('sends depth=1 query param in the request URL', async () => {
     const capturedUrls: string[] = [];
 
     const mockFetch = vi.fn().mockImplementation((url: string) => {
@@ -646,6 +646,6 @@ describe('TwentyDataSourceAdapter', () => {
     const adapter = new TwentyDataSourceAdapter();
     await adapter.fetchCompanies(dummyConnection);
 
-    expect(capturedUrls[0]).toContain('depth=2');
+    expect(capturedUrls[0]).toContain('depth=1');
   });
 });

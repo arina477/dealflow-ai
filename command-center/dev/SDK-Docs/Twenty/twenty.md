@@ -115,7 +115,7 @@ Fetches a paginated list of company records from the workspace.
 | `createdAt` | ISO8601 string | Record creation timestamp |
 | `updatedAt` | ISO8601 string | Last update timestamp |
 
-**Note on associated people:** Twenty's REST API supports depth-based relation loading. At `depth=1`, `pointOfContactId` and `people` edge IDs are included. At `depth=2`, full related person objects are included in the response. The adapter fetches companies at `depth=2` to avoid a second round-trip for contacts when available. If the relation is empty or absent, `contacts: []` is returned.
+**Note on associated people:** Twenty's REST API supports depth-based relation loading. At `depth=1`, `pointOfContactId` and `people` edge IDs are included. At `depth=1`, full related person objects are included in the response. The adapter fetches companies at `depth=1` to avoid a second round-trip for contacts when available. If the relation is empty or absent, `contacts: []` is returned.
 
 #### GET /rest/people
 
@@ -222,7 +222,7 @@ No SDK. Native fetch with:
 | `sourceRecordId` | Company | `company.id` (UUID string — used directly, already a string) |
 | `name` | Company | `company.name` |
 | `domain` | Company | Extracted from `company.domainName.primaryLinkUrl` — strip `https://`/`http://` and trailing path/slash; `undefined` if absent or empty |
-| `contacts[]` | Related people | One entry per person associated with the company (via `depth=2` relation loading, or people response filtered by `companyId`) |
+| `contacts[]` | Related people | One entry per person associated with the company (via `depth=1` relation loading, or people response filtered by `companyId`) |
 | `contacts[].name` | Person | `[person.name.firstName, person.name.lastName].filter(Boolean).join(" ")` or `undefined` if both empty |
 | `contacts[].email` | Person | `person.emails.primaryEmail` or first from `person.emails.additionalEmails`; `undefined` if absent |
 | `contacts[].title` | Person | `person.jobTitle`; `undefined` if absent or empty |
@@ -274,7 +274,7 @@ Values the Twenty API owns at runtime. Hardcoding any of these wrong = silent pr
 3. **`domainName` is a composite field** — it is not a plain string but an object `{ primaryLinkUrl, primaryLinkLabel }`. The adapter must extract the domain from `primaryLinkUrl` (strip scheme and path).
 4. **Base URL is per-instance** — there is no single canonical base URL. Twenty Cloud uses `https://api.twenty.com` but self-hosted instances use their own domain. The adapter reads `TWENTY_BASE_URL` and https-validates it.
 5. **HTTPS enforcement** — Twenty Cloud runs on HTTPS. The adapter performs an SSRF/misconfig guard: if `TWENTY_BASE_URL` is not `https://`, the adapter logs a warning and returns `[]` without making any HTTP calls.
-6. **Person data via depth=2** — fetching associated people inline (depth=2) avoids per-company person calls. If a company has no people, the companies endpoint returns an empty array for the relation. The adapter handles absent/empty gracefully.
+6. **Person data via depth=1** — fetching associated people inline (depth=1) avoids per-company person calls. If a company has no people, the companies endpoint returns an empty array for the relation. The adapter handles absent/empty gracefully.
 7. **No official rate-limit headers documented** — the adapter uses exponential backoff on 429. [to verify at live-hookup]
 8. **Cursor is opaque** — the `endCursor` from `pageInfo` is an opaque string (UUID in practice, but treat as opaque). Pass it verbatim as `starting_after`.
 
@@ -301,7 +301,7 @@ Values the Twenty API owns at runtime. Hardcoding any of these wrong = silent pr
 - Auth header: `Authorization: Bearer <apiKey>` (not Basic auth — differs from Affinity).
 - SSRF guard: adapter validates `TWENTY_BASE_URL` parses as a valid URL with `scheme === 'https'` before any HTTP call.
 - Pagination: forward-only cursor loop: `starting_after=<endCursor>` until `pageInfo.hasNextPage === false` or `endCursor === null`.
-- Contacts: fetched inline via `depth=2` relation loading on `/rest/companies` — avoids per-company person round-trips.
+- Contacts: fetched inline via `depth=1` relation loading on `/rest/companies` — avoids per-company person round-trips.
 - `domainName` extraction: `primaryLinkUrl` stripped of `https://`/`http://` prefix and trailing slashes/paths → adapter stores the hostname as `domain`.
 - P2-a output-validation: adapter safeParses each normalized record against `normalizedSourceRecordSchema` (skip + warn on failure) — closes the wave-30 Affinity gap.
 - Partial failure: a page fetch failure logs an error and returns all records collected so far.

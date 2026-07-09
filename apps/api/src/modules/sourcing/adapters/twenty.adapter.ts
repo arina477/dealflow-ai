@@ -31,7 +31,7 @@
  * fixture.adapter.ts:85 pattern. Closes the gap in the Affinity adapter (which
  * validates inbound but not outbound).
  *
- * Contacts: included inline via depth=2 relation loading on GET /rest/companies.
+ * Contacts: included inline via depth=1 relation loading on GET /rest/companies.
  * Twenty returns associated people as nested objects — no separate per-company
  * person call needed. People relation is absent/empty-array for companies with
  * no contacts.
@@ -41,7 +41,7 @@
  *   name          = company.name
  *   domain        = extracted from company.domainName.primaryLinkUrl
  *                   (strip https:// / http:// and trailing path)
- *   contacts[]    = company.people (depth=2) → { name, email, title }
+ *   contacts[]    = company.people (depth=1) → { name, email, title }
  *   raw           = full Twenty company JSON
  *
  * Secrets:
@@ -285,7 +285,7 @@ async function fetchWithRetry(url: string, authHeader: string, attempt = 0): Pro
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Helper: normalize a single Twenty company (+ inline persons from depth=2)
+// Helper: normalize a single Twenty company (+ inline persons from depth=1)
 // into a NormalizedSourceRecord.
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -347,7 +347,7 @@ export class TwentyDataSourceAdapter implements DataSourceAdapter {
    *   1. Read TWENTY_API_KEY + TWENTY_BASE_URL from env; bail with [] if
    *      either is absent.
    *   2. https-validate TWENTY_BASE_URL; bail with [] if invalid.
-   *   3. Cursor-paginate GET /rest/companies?depth=2&limit=PAGE_SIZE
+   *   3. Cursor-paginate GET /rest/companies?depth=1&limit=PAGE_SIZE
    *      (all pages via starting_after cursor loop).
    *      Boundary-Zod-validate each page response.
    *      Collect all companies; on page error → log + return partial results.
@@ -413,8 +413,8 @@ export class TwentyDataSourceAdapter implements DataSourceAdapter {
       pageNumber++;
       const url = new URL(`${normalizedBase}/rest/companies`);
       url.searchParams.set('limit', String(PAGE_SIZE));
-      // depth=2 loads associated people inline — avoids per-company person round-trips
-      url.searchParams.set('depth', '2');
+      // depth=1 loads associated people inline — avoids per-company person round-trips
+      url.searchParams.set('depth', '1');
       if (cursor) {
         url.searchParams.set('starting_after', cursor);
       }
