@@ -20,11 +20,17 @@
  * repository's createInvite call resolves getWorkspaceId().
  */
 
-import type { InviteCreateResponse, MeResponse, SignupResponse } from '@dealflow/shared';
+import type {
+  InviteCreateResponse,
+  MeResponse,
+  SignupFirmResponse,
+  SignupResponse,
+} from '@dealflow/shared';
 import {
   inviteCreateRequestSchema,
   resetConfirmSchema,
   resetRequestSchema,
+  signupFirmRequestSchema,
   signupRequestSchema,
 } from '@dealflow/shared';
 import {
@@ -149,6 +155,32 @@ export class AuthController {
       throw validationError('Invalid or expired invite');
     }
     return this.authService.signup(result.data, req, res);
+  }
+
+  // POST /auth/signup-firm — self-serve workspace-creating signup (wave-37, task 6235baf7).
+  //
+  // SECURITY:
+  //   • Anon endpoint — no SessionGuard (the user has no account yet).
+  //   • workspace_id is SERVER-MINTED inside the DB function — never client-supplied.
+  //   • firmName is validated (non-empty, max 255, trimmed) via Zod safeParse.
+  //   • SEC-10: generic 400 for all validation failures (no field-level detail).
+  //   • Rate-limited: the rate-limit middleware covers /auth/signup-firm
+  //     (scope 'signup-firm') — see rate-limit.middleware.ts LIMITS / resolveScope.
+  //   • All-or-nothing atomicity: Core user + workspace + admin users row.
+  //     Compensate-delete on any DB failure (no orphaned Core users).
+  //   • Does NOT alter the invite+signup JOIN flow.
+  @Post('signup-firm')
+  @HttpCode(HttpStatus.CREATED)
+  async signupFirm(
+    @Body() body: unknown,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response
+  ): Promise<SignupFirmResponse> {
+    const result = signupFirmRequestSchema.safeParse(body);
+    if (!result.success) {
+      throw validationError('Invalid request');
+    }
+    return this.authService.signupFirm(result.data, req, res);
   }
 
   @Get('me')

@@ -21,6 +21,8 @@ import type {
   MeResponse,
   ResetConfirm,
   ResetRequest,
+  SignupFirmRequest,
+  SignupFirmResponse,
   SignupRequest,
   SignupResponse,
 } from '@dealflow/shared';
@@ -190,6 +192,90 @@ export class AuthService {
       userId: supertokensUserId,
       email: created.email,
       role: created.roleName as SignupResponse['role'],
+    };
+  }
+
+  // ── POST /auth/signup-firm (self-serve workspace-creating signup) ──────
+  /**
+   * Self-serve workspace creation. A brand-new user creates their own firm
+   * workspace and becomes the FIRST ADMIN. This is DISTINCT from the invite-bound
+   * signup (which joins an EXISTING workspace). Do NOT alter the invite+signup flow.
+   *
+   * Atomicity + compensation (mirrors the invite-bound signup):
+   *   1. Validate input (Zod schema enforced at the controller boundary).
+   *   2. Create the SuperTokens Core user (EmailPassword.signUp).
+   *   3. Call create_firm_workspace SECURITY DEFINER function — atomically:
+   *        a. server-mints a new workspace_id (gen_random_uuid()) — NEVER client-supplied
+   *        b. INSERTs the workspaces row (name = firmName)
+   *        c. INSERTs the users row (supertokens_user_id, email, role='admin', workspace_id)
+   *      Cross-firm steering is structurally impossible: no parameter accepts a workspace_id.
+   *   4. If step 3 fails after step 2 → COMPENSATE (delete the Core user) so no orphan.
+   *   5. Mint the session — createNewSession override attaches the admin role claim.
+   *
+   * Security invariants:
+   *   - workspace_id is SERVER-MINTED (inside the DB function); firmName is DATA.
+   *   - The RLS-safe bootstrap uses the SECURITY DEFINER function (same pattern as
+   *     resolve_invite / resolve_user_workspace in migrations 0014/0015).
+   *   - Compensate-delete-Core-user on any DB failure — no orphaned Core users.
+   *   - M8 RLS holds: the new workspace is isolated; cross-firm read = 0 rows.
+   */
+  async signupFirm(
+    input: SignupFirmRequest,
+    req: Request,
+    res: Response
+  ): Promise<SignupFirmResponse> {
+    // (2) Create the SuperTokens Core user.
+    const signUpResult = await EmailPassword.signUp(
+      TENANT_ID,
+      input.email.toLowerCase(),
+      input.password
+    );
+
+    if (signUpResult.status !== 'OK') {
+      // EMAIL_ALREADY_EXISTS_ERROR etc. — generic 4xx, no account state leaked.
+      throw new BadRequestException('Unable to complete signup');
+    }
+
+    const supertokensUserId = signUpResult.recipeUserId.getAsString();
+
+    // (3) Atomically create the workspace + admin users row via SECURITY DEFINER.
+    // workspace_id is server-minted inside the function — never client-controlled.
+    let created: Awaited<ReturnType<AuthRepository['createFirmWorkspace']>> | null = null;
+    try {
+      created = await this.repository.createFirmWorkspace({
+        supertokensUserId,
+        email: input.email.toLowerCase(),
+        firmName: input.firmName,
+      });
+    } catch (err) {
+      // DB failure after Core user created → compensate (delete Core user) then
+      // surface the error appropriately. Mirrors the invite-bound signup atomicity.
+      await this.compensateCoreUser(supertokensUserId);
+
+      if (isExpectedSignupDbError(err)) {
+        throw new BadRequestException('Unable to complete signup');
+      }
+      throw err;
+    }
+
+    // (4) Null means the DB function returned no row (admin role missing — invariant violation).
+    if (created === null) {
+      await this.compensateCoreUser(supertokensUserId);
+      throw new BadRequestException('Unable to complete signup');
+    }
+
+    // (5) Mint the session; the createNewSession override attaches the admin role claim.
+    await Session.createNewSession(
+      req,
+      res,
+      TENANT_ID,
+      supertokens.convertToRecipeUserId(supertokensUserId)
+    );
+
+    return {
+      userId: supertokensUserId,
+      email: input.email.toLowerCase(),
+      role: created.roleName as SignupFirmResponse['role'],
     };
   }
 

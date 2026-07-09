@@ -105,18 +105,21 @@ const COARSE_WINDOW_SECONDS = 3600;
  * SHORT limits (per 60 s per account/IP):
  *   signin:        10 attempts / 60 s  (≈ a few typos + retry)
  *   signup:         5 attempts / 60 s  (invite flow; user should not retry often)
+ *   signup-firm:    3 attempts / 60 s  (workspace creation — stricter; unbounded-creation vector)
  *   reset/request: 5 attempts / 60 s
  *   reset/confirm: 5 attempts / 60 s   (token brute-force = account takeover)
  *
  * COARSE limits (per hour per account/IP):
  *   signin:        20 attempts / h
  *   signup:        10 attempts / h
+ *   signup-firm:    5 attempts / h     (workspace creation — stricter; unbounded-creation vector)
  *   reset/request: 10 attempts / h
  *   reset/confirm: 10 attempts / h
  */
 const LIMITS: Record<string, { short: number; coarse: number }> = {
   signin: { short: 10, coarse: 20 },
   signup: { short: 5, coarse: 10 },
+  'signup-firm': { short: 3, coarse: 5 },
   'reset/request': { short: 5, coarse: 10 },
   'reset/confirm': { short: 5, coarse: 10 },
 };
@@ -136,6 +139,8 @@ const SWEEPER_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
  * Scopes that are fail-OPEN on DB error (allow + log).
  * signup and reset/request: invite-only protects signup; reset/request
  * is no-enumeration and low-value without the token.
+ * signup-firm: falls back to IP-keyed in-process bucket — unbounded-workspace
+ * creation is a DoS vector so we degrade gracefully (fail-CLOSED-SOFT).
  */
 const FAIL_OPEN_SCOPES = new Set(['signup', 'reset/request']);
 
@@ -143,8 +148,9 @@ const FAIL_OPEN_SCOPES = new Set(['signup', 'reset/request']);
  * Scopes that are fail-CLOSED-SOFT on DB error (in-process fallback).
  * signin: invite-only doesn't protect it; password guessing = account compromise.
  * reset/confirm: token brute-force = account takeover.
+ * signup-firm: unbounded workspace creation is a DoS vector — soft-closed on DB error.
  */
-const FAIL_CLOSED_SOFT_SCOPES = new Set(['signin', 'reset/confirm']);
+const FAIL_CLOSED_SOFT_SCOPES = new Set(['signin', 'reset/confirm', 'signup-firm']);
 
 // ---------------------------------------------------------------------------
 // In-process fallback token bucket (fail-CLOSED-SOFT)
@@ -336,6 +342,7 @@ function resolveScope(method: string, path: string): string | null {
   const p = path.replace(/\/+$/, '').toLowerCase();
   if (p === '/auth/signin') return 'signin';
   if (p === '/auth/signup') return 'signup';
+  if (p === '/auth/signup-firm') return 'signup-firm';
   if (p === '/auth/reset/request') return 'reset/request';
   if (p === '/auth/reset/confirm') return 'reset/confirm';
   return null;
@@ -481,6 +488,9 @@ function extractIdentifier(body: Record<string, unknown>, req: Request, scope: s
   if (scope === 'reset/confirm') {
     return req.ip ?? 'unknown';
   }
+
+  // signup-firm body has { firmName, email, password } — email field is present.
+  // Falls through to the direct email field extraction below.
 
   // Direct email field (our Nest-parsed bodies: reset/request).
   // NOTE: signup body is { inviteToken, password } — no email field — so it

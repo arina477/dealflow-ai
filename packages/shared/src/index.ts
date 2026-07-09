@@ -101,6 +101,8 @@ export type {
   ResetConfirm,
   ResetRequest,
   Role,
+  SignupFirmRequest,
+  SignupFirmResponse,
   SignupRequest,
   SignupResponse,
 } from './auth';
@@ -113,6 +115,8 @@ export {
   resetConfirmSchema,
   resetRequestSchema,
   roleEnum,
+  signupFirmRequestSchema,
+  signupFirmResponseSchema,
   signupRequestSchema,
   signupResponseSchema,
 } from './auth';
