@@ -37,3 +37,8 @@ Verified via headless browser (playwright-core + cached chromium, since MCP chro
 - DealFlow WIRED: TWENTY_BASE_URL + TWENTY_API_KEY set on dealflow-api (secret in payload file, never committed) + redeployed → healthy. The wave-31 adapter makes the exact GET /rest/companies call already proven to return the 9 companies.
 - REMAINING (founder-gated, DealFlow login required — no public signup, test_users empty): the final DealFlow /sourcing connection(providerKey=TWENTY)+sync to pull the companies into /sourcing/companies. 1-click in the DealFlow sourcing UI once logged in, OR founder provides a DealFlow login for the orchestrator to finish.
 - Admin creds for the founder: process/session/secrets/twenty-admin.txt (gitignored).
+
+## LIVE END-TO-END (2026-07-09, founder chose "option 2 — I do it", login arina@claudomat.dev):
+- arina@claudomat.dev did NOT exist. App users table had 0 rows (SuperTokens-only orphan test accounts). Created arina properly: SuperTokens user (via core API over a temporary public domain) + app users row (admin role + Default Workspace) — inserted with app.workspace_id RLS context set (M8 RLS on users).
+- Logged into DealFlow as arina → created a TWENTY sourcing connection → synced. First sync ingested 0: adapter reached Twenty (env vars confirmed live) but Twenty v2.19 rejected depth=2 (HTTP 400 "Allowed values are 0, 1"). FIX: twenty.adapter.ts depth=2 -> depth=1 (+ test + doc), typecheck 4/4, 1048 tests pass, committed 6f6b126, redeployed dealflow-api pinned to that SHA.
+## TEMP EXPOSURES TO CLEAN UP (created for the admin bootstrap — REMOVE after verify): (1) supertokens-core public domain; (2) app-postgres TCP proxy (hayabusa.proxy.rlwy.net). advisor1@example.com password was reset during debugging (test account).
