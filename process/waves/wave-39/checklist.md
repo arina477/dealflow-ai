@@ -2,20 +2,21 @@
 
 Seed: 69cd8ce4-fb06-4b4a-ace9-1d3ffc828707 — Admin role transfer + self-demote with race-safe last-admin guard
 Bundled siblings:
-  - 3ebd6610-f149-4834-b8bb-0f91b2396da0 — Full member-management CRUD UI over the shipped role/deactivate services
   - 9e37eeef-33fd-4f2b-bf2d-047f3bc1b3d0 — Confirm-modal for destructive role changes + surface transfer/demote in admin activity view
-Claimed task ids: [69cd8ce4-fb06-4b4a-ace9-1d3ffc828707, 3ebd6610-f149-4834-b8bb-0f91b2396da0, 9e37eeef-33fd-4f2b-bf2d-047f3bc1b3d0]
+Claimed task ids: [69cd8ce4-fb06-4b4a-ace9-1d3ffc828707, 9e37eeef-33fd-4f2b-bf2d-047f3bc1b3d0]
 Active milestone: 08d3053a-48fb-4562-a25b-6d99d40b0f62 (M7 — Admin & settings, in_progress)
+Deferred (P-0 mvp-thin): 3ebd6610 full member-CRUD grid → future M7 seed. Cancelled dormant dups: 0ef436c3, 81e06ff3.
 
 > Note: UI wave (admin/settings surface). D-block runs if P-1 flags design_gap_flag. Privilege-escalation
 > + SoD surface — P-4 security-scope gate + T-8 Security apply. Seed mandates static test spec before code.
 
 PRODUCT:
-- [ ] P-0 Frame (discover + reframe)
-- [ ] P-1 Decompose
-- [ ] P-2 Spec
-- [ ] P-3 Plan
-- [ ] P-4 Gate
+- [x] P-0 Frame — PROCEED; bundle thinned to [69cd8ce4, 9e37eeef]; 3ebd6610 deferred; dormant dups cancelled; stages/P-0-frame.md
+
+- [x] P-1 Decompose — multi-spec; PROCEED (~2,700 LOC, floor met); design_gap_flag=false (D skips → B); stages/P-1-decompose.md
+- [x] P-2 Spec — multi-spec contract in task 69cd8ce4 description (2 blocks: transfer/self-demote + confirm-modal/activity); stages/P-2-spec.md
+- [x] P-3 Plan — atomic transferAdminAsActor (1 tx) + POST /transfer-admin; self-demote via existing PATCH; ConfirmDialog; activity labels; no schema change; stages/P-3-plan.md
+- [x] P-4 Gate — Phase1 head-product APPROVED + Phase2 Karen/jenny APPROVE (Gemini UNAVAILABLE, degraded); 4 B-block conditions carried; blocks/P/gate-verdict.md
 
 DESIGN (skip block if non-UI wave):
 - [ ] D-1 Brief
@@ -23,7 +24,7 @@ DESIGN (skip block if non-UI wave):
 - [ ] D-3 Review & adopt
 
 BUILD:
-- [ ] B-0 Branch & schema
+- [x] B-0 Branch & schema — branch wave-39-admin-role-transfer; tasks claimed in_progress; schema skipped (no migration)
 - [ ] B-1 Contracts
 - [ ] B-2 Backend
 - [ ] B-3 Frontend
