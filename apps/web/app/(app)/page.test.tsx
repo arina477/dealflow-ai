@@ -133,15 +133,15 @@ describe('DashboardPage (app/(app)/page.tsx)', () => {
       expect(labels).not.toContain('Settings');
     });
 
-    it('admin sees Dashboard + Mandates + Team + Settings (not Sourcing, not Compliance)', () => {
-      // Wave-8 B-1: admin added to NAV_MANDATES allowedRoles — admin can create/configure mandates.
+    it('admin sees Dashboard + Mandates + Sourcing + Team + Settings (read-oversight; not Compliance)', () => {
+      // Wave-8: admin on NAV_MANDATES. Wave-36: admin gains read-only oversight of Sourcing.
       const items = navItemsForRole('admin');
       const labels = items.map((i) => i.label);
       expect(labels).toContain('Dashboard');
       expect(labels).toContain('Mandates');
       expect(labels).toContain('Team');
       expect(labels).toContain('Settings');
-      expect(labels).not.toContain('Sourcing');
+      expect(labels).toContain('Sourcing');
       expect(labels).not.toContain('Compliance');
     });
 

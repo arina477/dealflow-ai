@@ -197,11 +197,10 @@ describe('SourcingWorkspacePage (/sourcing)', () => {
       expect(redirected).toBe(false);
     });
 
-    it('redirects to / for admin role (sourcing page is analyst-only per RBAC)', async () => {
+    it('renders for admin role (read-only oversight; wave-36)', async () => {
       vi.stubGlobal('fetch', makePageFetch('admin'));
-      const { redirected, path } = await renderPage();
-      expect(redirected).toBe(true);
-      expect(path).toBe('/');
+      const { redirected } = await renderPage();
+      expect(redirected).toBe(false);
     });
 
     it('redirects to / for advisor role', async () => {

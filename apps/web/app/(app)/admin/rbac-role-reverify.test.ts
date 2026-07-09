@@ -47,7 +47,7 @@ const ADMIN_ROUTES = [
 const NON_ADMIN_ROLE_ROUTES: Array<{ route: string; allowedRoles: Role[] }> = [
   { route: '/', allowedRoles: ['advisor', 'analyst', 'compliance', 'admin'] },
   { route: '/mandates', allowedRoles: ['advisor', 'admin', 'analyst'] },
-  { route: '/sourcing', allowedRoles: ['analyst'] },
+  { route: '/sourcing', allowedRoles: ['analyst', 'admin'] },
   { route: '/compliance/queue', allowedRoles: ['compliance', 'advisor'] },
   { route: '/compliance/audit-log', allowedRoles: ['compliance', 'admin', 'advisor'] },
   { route: '/compliance/settings', allowedRoles: ['compliance'] },
@@ -55,7 +55,7 @@ const NON_ADMIN_ROLE_ROUTES: Array<{ route: string; allowedRoles: Role[] }> = [
   { route: '/matches', allowedRoles: ['advisor', 'admin', 'analyst'] },
   { route: '/outreach-templates', allowedRoles: ['advisor', 'analyst', 'compliance'] },
   { route: '/outreach', allowedRoles: ['advisor', 'compliance'] },
-  { route: '/pipeline', allowedRoles: ['advisor', 'compliance'] },
+  { route: '/pipeline', allowedRoles: ['advisor', 'compliance', 'admin'] },
   // Wave-18: /insights (advisor + admin) and /analytics API proxy (advisor + admin)
   { route: '/insights', allowedRoles: ['advisor', 'admin'] },
   { route: '/analytics', allowedRoles: ['advisor', 'admin'] },

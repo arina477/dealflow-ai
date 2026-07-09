@@ -216,11 +216,10 @@ describe('CompaniesPage (/sourcing/companies)', () => {
       expect(path).toBe('/');
     });
 
-    it('redirects to / for admin role (companies page is analyst-only)', async () => {
+    it('renders for admin role (read-only oversight; wave-36)', async () => {
       vi.stubGlobal('fetch', makePageFetch('admin'));
-      const { redirected, path } = await renderPage();
-      expect(redirected).toBe(true);
-      expect(path).toBe('/');
+      const { redirected } = await renderPage();
+      expect(redirected).toBe(false);
     });
 
     it('redirects to /login when session is invalid (401)', async () => {
@@ -936,10 +935,10 @@ describe('nav — NAV_SOURCING renders for analyst role', () => {
     expect(sourcingItem).toBeUndefined();
   });
 
-  it('navItemsForRole("admin") does NOT include /sourcing', () => {
+  it('navItemsForRole("admin") includes /sourcing (read-oversight; wave-36)', () => {
     const items = navItemsForRole('admin');
     const sourcingItem = items.find((i) => i.route === '/sourcing');
-    expect(sourcingItem).toBeUndefined();
+    expect(sourcingItem).toBeDefined();
   });
 });
 
