@@ -85,9 +85,11 @@ export default function CreateFirmPage() {
         return;
       }
 
-      if (res.status === 409) {
+      if (res.status === 400) {
+        // Backend returns 400 for an already-registered email or invalid details.
+        // (Firm names are NOT required to be unique — each firm gets its own workspace.)
         setServerError(
-          'A workspace with this firm name, or an account with this email, already exists. Please use a different name or sign in.'
+          'That email may already be registered, or your details are invalid. Try a different email, or sign in instead.'
         );
         return;
       }
