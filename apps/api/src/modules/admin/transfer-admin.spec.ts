@@ -24,6 +24,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -87,9 +88,12 @@ function makeHappyTx(): any {
               },
             ]);
           case 3:
+            // Step 4b: actor's current role (defense-in-depth assertion) → 'admin'
+            return Promise.resolve([{ name: 'admin' }]);
+          case 4:
             // Step 5a: 'admin' role id
             return Promise.resolve([{ id: 'role-admin-id' }]);
-          case 4:
+          case 5:
             // Step 5b: actorNewRole (e.g. 'analyst') id
             return Promise.resolve([{ id: 'role-analyst-id' }]);
           default:
@@ -244,7 +248,12 @@ describe('sole-admin self-demote via assignRoleAsActor (T-4)', () => {
           if (selectCallCount === 1) {
             // target user lookup → active admin
             return Promise.resolve([
-              { id: 'sole-admin', email: 'admin@example.com', roleId: 'role-admin', deactivatedAt: null },
+              {
+                id: 'sole-admin',
+                email: 'admin@example.com',
+                roleId: 'role-admin',
+                deactivatedAt: null,
+              },
             ]);
           }
           // current role → 'admin'
@@ -519,6 +528,127 @@ describe('transferAdminAsActor — target not found (T-10)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// T-12: F4 defense-in-depth — non-admin actor → ForbiddenException (403)
+// ---------------------------------------------------------------------------
+
+describe('transferAdminAsActor — non-admin actor defense-in-depth (T-12)', () => {
+  it('T-12: actor whose DB role is not admin → ForbiddenException (403) before any promote', async () => {
+    // This test exercises the service-layer actor-is-admin assertion added as
+    // defense-in-depth (F4). The HTTP path is always guarded by RolesGuard, so
+    // the assertion never fires there. It guards against future non-guarded callers
+    // (internal paths, tests, mis-wired routes) where actorRole param might be
+    // spoofed but the DB truth says otherwise.
+    const auditService = makeAuditService();
+    let selectCallCount = 0;
+
+    // biome-ignore lint/suspicious/noExplicitAny: test mock
+    const txMock: any = {
+      select: vi.fn().mockImplementation(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockImplementation(() => {
+          selectCallCount++;
+          if (selectCallCount === 1) {
+            // target found, active
+            return Promise.resolve([
+              { id: 'target-id', email: 't@example.com', roleId: 'r-analyst', deactivatedAt: null },
+            ]);
+          }
+          if (selectCallCount === 2) {
+            // actor found — roleId points to a non-admin role
+            return Promise.resolve([{ id: 'non-admin-actor-id', email: 'na@example.com', roleId: 'r-analyst' }]);
+          }
+          if (selectCallCount === 3) {
+            // Step 4b: actor's CURRENT role resolved from DB → 'analyst' (NOT admin)
+            return Promise.resolve([{ name: 'analyst' }]);
+          }
+          return Promise.resolve([]);
+        }),
+      })),
+      update: vi.fn(),
+      execute: vi.fn(),
+    };
+
+    const db = makeDb(txMock);
+    const service = new UserManagementService(db as never, auditService as never);
+
+    // Pass 'admin' as actorRole param (as if spoofed) — but the DB says 'analyst'
+    await expect(
+      service.transferAdminAsActor('target-id', 'non-admin-actor-id', 'analyst', 'admin')
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    // Promotion MUST NOT have been attempted — update never called
+    expect(txMock.update).not.toHaveBeenCalled();
+    // No audit rows
+    expect(auditService.append).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T-13: Transfer-vs-deactivate race — advisory lock + deactivated-target guard
+// ---------------------------------------------------------------------------
+
+describe('transferAdminAsActor — concurrent deactivate of target (T-13)', () => {
+  it(
+    'T-13: transfer whose target is concurrently deactivated must reject (not produce 0-admin workspace)',
+    async () => {
+      /**
+       * Concurrency invariant (documented here as a unit-level regression test):
+       *
+       * If a deactivate of the transfer target races a transfer:
+       *   - The advisory lock (pg_advisory_xact_lock(ADMIN_GUARD_LOCK_KEY)) serializes
+       *     all admin-set mutations so only ONE of {transfer, deactivate} proceeds at a time.
+       *   - The transfer's Step 3 (deactivated-target check) runs INSIDE the tx, BEFORE
+       *     any promote. If the deactivate committed first the target.deactivatedAt is
+       *     non-null → transfer throws NotFoundException (deactivated target cannot receive
+       *     admin). The workspace is never left with 0 active admins.
+       *   - If the transfer committed first the target is now admin. The subsequent
+       *     deactivate then runs runLastAdminGuard which counts remaining admins
+       *     excluding the target — if the actor has already been demoted (and is the
+       *     sole other admin-equivalent), the guard fires with 409. Either way, no
+       *     0-admin outcome is possible.
+       *
+       * This test simulates the "deactivate committed first" fork: the target's
+       * deactivatedAt is non-null when the transfer's SELECT runs.
+       */
+      const auditService = makeAuditService();
+
+      // biome-ignore lint/suspicious/noExplicitAny: test mock
+      const txMock: any = {
+        select: vi.fn().mockImplementation(() => ({
+          from: vi.fn().mockReturnThis(),
+          where: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockResolvedValue([
+            {
+              id: 'target-id',
+              email: 'target@example.com',
+              roleId: 'r-analyst',
+              // Concurrent deactivate committed before this transfer's SELECT runs
+              deactivatedAt: '2026-07-09T10:00:00.000Z',
+            },
+          ]),
+        })),
+        update: vi.fn(),
+        execute: vi.fn(),
+      };
+
+      const db = makeDb(txMock);
+      const service = new UserManagementService(db as never, auditService as never);
+
+      // The transfer must reject — a deactivated user cannot become admin
+      await expect(
+        service.transferAdminAsActor('target-id', 'actor-id', 'analyst', 'admin')
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      // No admin promotion occurred — the workspace retains its existing admins
+      expect(txMock.update).not.toHaveBeenCalled();
+      // No audit rows — clean rollback
+      expect(auditService.append).not.toHaveBeenCalled();
+    }
+  );
+});
+
+// ---------------------------------------------------------------------------
 // T-11: UnprocessableEntity when role missing from roles table
 // ---------------------------------------------------------------------------
 
@@ -545,6 +675,10 @@ describe('transferAdminAsActor — role lookup failure (T-11)', () => {
             return Promise.resolve([{ id: 'actor-id', email: 'a@example.com', roleId: 'r2' }]);
           }
           if (selectCallCount === 3) {
+            // Step 4b: actor's current role (defense-in-depth assertion) → 'admin'
+            return Promise.resolve([{ name: 'admin' }]);
+          }
+          if (selectCallCount === 4) {
             // 'admin' role row found
             return Promise.resolve([{ id: 'role-admin-id' }]);
           }

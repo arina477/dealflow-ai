@@ -51,6 +51,7 @@ import type { AuditEntryInput, Role } from '@dealflow/shared';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -408,7 +409,10 @@ export class UserManagementService {
     actorUserId: string,
     actorNewRole: Role,
     actorRole: string
-  ): Promise<{ newAdmin: { id: string; email: string }; formerAdmin: { id: string; email: string } }> {
+  ): Promise<{
+    newAdmin: { id: string; email: string };
+    formerAdmin: { id: string; email: string };
+  }> {
     return getDb(this.db).transaction(async (tx) => {
       // ── Step 1: self-target check (400) ──────────────────────────────────
       if (newAdminUserId === actorUserId) {
@@ -451,6 +455,25 @@ export class UserManagementService {
 
       if (!actor) {
         throw new NotFoundException(`Actor user ${actorUserId} not found`);
+      }
+
+      // ── Step 4b: defense-in-depth — assert actor is currently 'admin' ───
+      // The HTTP path is always guarded by RolesGuard, so for that path the
+      // actor is always an admin and this check resolves without throwing.
+      // This guard closes the direct-call gap: if transferAdminAsActor is
+      // ever invoked without the controller guard (e.g. a future internal
+      // caller, a test, or a mis-wired route), a non-admin actor could
+      // silently demote themselves — promoting a target without a real
+      // admin being relinquished. Resolving from the DB (not from the
+      // session-supplied actorRole param) prevents a spoofed param bypass.
+      const [actorCurrentRoleRow] = await tx
+        .select({ name: roles.name })
+        .from(roles)
+        .where(eq(roles.id, actor.roleId))
+        .limit(1);
+
+      if (actorCurrentRoleRow?.name !== 'admin') {
+        throw new ForbiddenException('Actor is not an admin and cannot transfer the admin role');
       }
 
       // ── Step 5: resolve role ids ─────────────────────────────────────────
