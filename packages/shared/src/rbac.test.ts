@@ -113,10 +113,11 @@ describe('rolesForRoute — exact routes', () => {
     expect(rolesForRoute('/admin/integrations')).toContain('admin');
   });
 
-  it('/sourcing → analyst only', () => {
+  it('/sourcing → analyst + admin (wave-36: admin read-only oversight)', () => {
     const roles = rolesForRoute('/sourcing');
     expect(roles).toContain('analyst');
-    expect(roles).toHaveLength(1);
+    expect(roles).toContain('admin');
+    expect(roles).toHaveLength(2);
   });
 
   // Wave-6: /companies was repointed to /sourcing/companies (P-3 Delta 5 namespace consolidation).
@@ -125,10 +126,11 @@ describe('rolesForRoute — exact routes', () => {
     expect(rolesForRoute('/companies')).toHaveLength(0);
   });
 
-  it('/sourcing/companies → analyst only (wave-6 repoint)', () => {
+  it('/sourcing/companies → analyst + admin (wave-36: admin read-only oversight)', () => {
     const roles = rolesForRoute('/sourcing/companies');
     expect(roles).toContain('analyst');
-    expect(roles).toHaveLength(1);
+    expect(roles).toContain('admin');
+    expect(roles).toHaveLength(2);
   });
 
   it('/templates → analyst + compliance', () => {
@@ -148,10 +150,11 @@ describe('rolesForRoute — exact routes', () => {
     expect([...roles].sort()).toEqual(['admin', 'advisor']);
   });
 
-  it('/pipeline → advisor + compliance (wave-12: compliance read-only visibility added)', () => {
+  it('/pipeline → advisor + compliance + admin (wave-36: admin read-only oversight added)', () => {
     const roles = rolesForRoute('/pipeline');
     expect(roles).toContain('advisor');
     expect(roles).toContain('compliance');
+    expect(roles).toContain('admin');
   });
 
   it('unknown route returns empty array (default-deny)', () => {
@@ -349,7 +352,8 @@ describe('canAccess', () => {
   // Wave-8: admin now allowed on /mandates (mandate API read + write access)
   it('admin: allows /mandates (wave-8 mandate API)', () =>
     expect(canAccess('admin', '/mandates')).toBe(true));
-  it('admin: denies /sourcing', () => expect(canAccess('admin', '/sourcing')).toBe(false));
+  it('admin: allows /sourcing (wave-36: read-only oversight)', () =>
+    expect(canAccess('admin', '/sourcing')).toBe(true));
   it('admin: denies /compliance/queue', () =>
     expect(canAccess('admin', '/compliance/queue')).toBe(false));
   it('admin: allows /compliance/audit-log (wave-13: org-wide read access)', () =>
@@ -427,7 +431,7 @@ describe('navItemsForRole — per-role nav sets', () => {
     expect(routes).not.toContain('/admin/settings');
   });
 
-  it('admin sees Dashboard, Mandates, Team, Settings (wave-8: admin added to mandates nav)', () => {
+  it('admin sees Dashboard, Mandates, Sourcing, Pipeline, Team, Settings (wave-36: sourcing+pipeline oversight added)', () => {
     const items = navItemsForRole('admin');
     const routes = items.map((i) => i.route);
     expect(routes).toContain('/');
@@ -435,8 +439,10 @@ describe('navItemsForRole — per-role nav sets', () => {
     expect(routes).toContain('/admin/settings');
     // Wave-8: admin now sees Mandates nav item (mandate API + read access)
     expect(routes).toContain('/mandates');
-    // admin still does NOT see Sourcing or Compliance top-level nav
-    expect(routes).not.toContain('/sourcing');
+    // Wave-36: admin now sees Sourcing + Pipeline nav items (read-only oversight)
+    expect(routes).toContain('/sourcing');
+    expect(routes).toContain('/pipeline');
+    // admin still does NOT see Compliance queue nav
     expect(routes).not.toContain('/compliance/queue');
   });
 
@@ -539,17 +545,19 @@ describe('roleRoutes — completeness against pinned matrix', () => {
     ['/mandates/:id/buyers', ['advisor', 'admin', 'analyst']],
     ['/mandates/:id/outreach', ['advisor', 'admin', 'analyst']],
     ['/mandates/:id/matches', ['advisor', 'admin']],
-    ['/pipeline', ['advisor', 'compliance']],
+    // Wave-36: admin added to pipeline READ routes (oversight); write routes unchanged.
+    ['/pipeline', ['advisor', 'compliance', 'admin']],
     // Wave-12: pipeline sub-routes — write-vs-read RBAC split pinned (M-1 fix).
     ['/pipeline/new', ['advisor']],
-    ['/pipeline/:id', ['advisor', 'compliance']],
+    ['/pipeline/:id', ['advisor', 'compliance', 'admin']],
     ['/pipeline/:id/stage', ['advisor']],
     ['/pipeline/:id/notes', ['advisor', 'compliance']],
-    ['/pipeline/:id/events', ['advisor', 'compliance']],
-    ['/sourcing', ['analyst']],
+    ['/pipeline/:id/events', ['advisor', 'compliance', 'admin']],
+    // Wave-36: admin added to /sourcing and sourcing read routes (oversight).
+    ['/sourcing', ['analyst', 'admin']],
     // Wave-6: /companies repointed to /sourcing/companies; new sourcing API routes added.
-    ['/sourcing/companies', ['analyst']],
-    ['/sourcing/companies/:id', ['analyst']],
+    ['/sourcing/companies', ['analyst', 'admin']],
+    ['/sourcing/companies/:id', ['analyst', 'admin']],
     ['/sourcing/connections/:id/sync', ['analyst', 'admin']],
     ['/sourcing/dedupe-candidates/:id/resolve', ['analyst', 'admin']],
     // Wave-7: /sourcing/connections (AC-SEED create/list — analyst + admin).
@@ -956,19 +964,20 @@ describe('wave-4 — nav ⊆ RBAC invariant preserved after additions', () => {
 // ---------------------------------------------------------------------------
 
 describe('wave-6 — /sourcing/companies routes RBAC', () => {
-  it('/sourcing/companies → analyst only', () => {
+  it('/sourcing/companies → analyst + admin (admin read-only oversight)', () => {
     const roles = rolesForRoute('/sourcing/companies');
     expect(roles).toContain('analyst');
-    expect(roles).toHaveLength(1);
-    expect(roles).not.toContain('admin');
+    expect(roles).toContain('admin');
+    expect(roles).toHaveLength(2);
     expect(roles).not.toContain('compliance');
     expect(roles).not.toContain('advisor');
   });
 
-  it('/sourcing/companies/:id → analyst only (concrete UUID)', () => {
+  it('/sourcing/companies/:id → analyst + admin (concrete UUID)', () => {
     const roles = rolesForRoute('/sourcing/companies/1931b452-c7d5-43a0-9657-7e7cd1728203');
     expect(roles).toContain('analyst');
-    expect(roles).toHaveLength(1);
+    expect(roles).toContain('admin');
+    expect(roles).toHaveLength(2);
   });
 
   it('analyst can access /sourcing/companies', () => {
@@ -979,8 +988,8 @@ describe('wave-6 — /sourcing/companies routes RBAC', () => {
     expect(canAccess('analyst', '/sourcing/companies/abc-123')).toBe(true);
   });
 
-  it('admin cannot access /sourcing/companies (screen is analyst-only)', () => {
-    expect(canAccess('admin', '/sourcing/companies')).toBe(false);
+  it('admin CAN access /sourcing/companies (read-only oversight)', () => {
+    expect(canAccess('admin', '/sourcing/companies')).toBe(true);
   });
 
   it('advisor cannot access /sourcing/companies', () => {

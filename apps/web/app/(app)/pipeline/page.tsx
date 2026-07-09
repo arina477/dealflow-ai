@@ -8,9 +8,11 @@
  *   Client mutations (stage transition, add note) go through /pipeline-data
  *   proxy (non-page-colliding — wave-8/9 lesson).
  *
- * RBAC: advisor + compliance (/pipeline route).
+ * RBAC: advisor + compliance + admin (/pipeline route).
  *   assertRole('/pipeline', me.role) — advisor sees board + can mutate;
- *   compliance sees board + timeline + can add notes (read-heavy).
+ *   compliance sees board + timeline + can add notes (read-heavy);
+ *   admin sees board + timeline (read-only oversight, wave-36 task 76edc7e2).
+ *   admin cannot enroll (/pipeline/new) or transition stages (/pipeline/:id/stage).
  *
  * HARD BOUNDARY (P-4 karen flag):
  *   NO send/email affordance.
